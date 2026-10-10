@@ -1,0 +1,31 @@
+{
+  "name": "kassa",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "bun@1.4.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "keys:generate": "bun scripts/keys-generate.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@types/bun": "^1.4.2",
+    "eslint": "^9",
+    "globals": "^17.13.0",
+    "turbo": "^2.11.7",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.1"
+  },
+  "//patchedDependencies": "Moved from apps/mobile/package.json: bun applies patches from the workspace root only. Pinned exactly: a patch applies to one version.",
+  "patchedDependencies": {
+    "react-native-screens@4.26.2": "apps/mobile/patches/react-native-screens@4.26.2.patch"
+  }
+}

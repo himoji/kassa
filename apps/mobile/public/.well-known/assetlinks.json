@@ -1,0 +1,26 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.acme.app",
+      "sha256_cert_fingerprints": ["SHA256_FINGERPRINT"]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.acme.app.preview",
+      "sha256_cert_fingerprints": ["SHA256_FINGERPRINT"]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.acme.app.dev",
+      "sha256_cert_fingerprints": ["SHA256_FINGERPRINT"]
+    }
+  }
+]

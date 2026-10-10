@@ -1,0 +1,30 @@
+{
+  "name": "@kassa/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Kassa shared contracts: zod schemas, CanonicalOrder + JCS hashing, enums, reason codes, money utils, agent tool schemas, API DTOs.",
+  "//exports": "Consumed from source (no build step): Bun/Vitest run .ts directly and Metro transpiles workspace sources. Relative imports inside src use explicit .ts extensions.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.4.0",
+    "canonicalize": "^5.1.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.3",
+    "@types/node": "^22.20.4"
+  }
+}
