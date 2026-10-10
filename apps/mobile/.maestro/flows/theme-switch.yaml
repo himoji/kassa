@@ -1,0 +1,17 @@
+# Settings tab: pick "Dark", check the resolved-mode readout, then go back to "Light".
+# Skips onboarding if it is still showing, so the flow also runs standalone.
+appId: ${APP_ID}
+---
+- launchApp
+- runFlow:
+    when:
+      visible: "Skip"
+    commands:
+      - tapOn: "Skip"
+- tapOn: "Settings"
+- assertVisible: "Appearance"
+- tapOn: "Dark"
+- assertVisible: "Currently Dark"
+- tapOn: "Light"
+- assertVisible: "Currently Light"
+- tapOn: "System"

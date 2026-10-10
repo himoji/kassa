@@ -1,0 +1,14 @@
+node_modules
+.expo
+dist
+web-build
+ios
+android
+coverage
+bun.lock
+skills-lock.json
+# Buyer README/AGENTS templates: {{PLACEHOLDER}} lines must survive verbatim
+# (finalize prettier-formats the rendered output).
+scripts/lib/templates/
+.agents/
+assets/

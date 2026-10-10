@@ -1,0 +1,4 @@
+[install]
+# Hoisted node_modules: Expo supports isolated installs from SDK 54, but some React Native
+# libraries still break under them (docs.expo.dev/guides/monorepos). Hoisted is the safe default.
+linker = "hoisted"

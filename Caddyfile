@@ -1,0 +1,22 @@
+# Kassa reverse proxy (spec §3): one origin for WebAuthn.
+#   /api*  -> api:4000         (prefix kept; the API mounts its routes under /api)
+#   /mock* -> mock-world:4001  (prefix kept; mock world mounts its routes under /mock)
+#   /      -> static web export of apps/mobile (bun run build in apps/mobile -> apps/mobile/dist)
+# SITE_ADDRESS defaults to localhost (Caddy's internal CA gives local HTTPS); set it to the demo domain in prod.
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	handle /api* {
+		reverse_proxy api:4000
+	}
+
+	handle /mock* {
+		reverse_proxy mock-world:4001
+	}
+
+	handle {
+		root * /srv/web
+		try_files {path} {path}.html {path}/index.html /index.html
+		file_server
+	}
+}

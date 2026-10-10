@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "TEAM_ID.com.acme.app",
+          "TEAM_ID.com.acme.app.preview",
+          "TEAM_ID.com.acme.app.dev"
+        ],
+        "components": [{ "/": "/*" }]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAM_ID.com.acme.app", "TEAM_ID.com.acme.app.preview", "TEAM_ID.com.acme.app.dev"]
+  }
+}

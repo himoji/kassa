@@ -1,0 +1,73 @@
+# One command demo stack (spec §3): postgres, api, mock-world, caddy (HTTPS + static web build).
+# Build the web app first: (cd apps/mobile && bun run build)  -> apps/mobile/dist served at /.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: kassa
+      POSTGRES_PASSWORD: kassa
+      POSTGRES_DB: kassa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kassa -d kassa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://kassa:kassa@postgres:5432/kassa
+      MOCK_WORLD_URL: http://mock-world:4001
+      PORT: "4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "4000"
+    restart: unless-stopped
+
+  mock-world:
+    build:
+      context: .
+      dockerfile: apps/mock-world/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      API_URL: http://api:4000
+      PORT: "4001"
+    expose:
+      - "4001"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./apps/mobile/dist:/srv/web:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - mock-world
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+web-build/
+*.tsbuildinfo
+.turbo/
+
+# env and secrets (never commit real keys)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# tests
+coverage/
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# logs
+*.log
+npm-debug.*

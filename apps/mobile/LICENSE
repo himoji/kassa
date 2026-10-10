@@ -1,0 +1,82 @@
+ReadyNative Commercial License
+
+Copyright (c) 2026 Madiyar Baizhigitov, trading as ReadyNative (github.com/himoji).
+All rights reserved.
+
+This license governs the use of the ReadyNative source code, modules, scripts,
+documentation and assets (the "Software") that you receive after buying a
+license from the licensor, Madiyar Baizhigitov, trading as ReadyNative
+(github.com/himoji) (the "Licensor"). By accessing the private repository or using the
+Software you agree to these terms.
+
+1. LICENSE TIERS
+   a. Starter license: one named individual (the "Licensee") may use the
+      Software. Repository access is granted to one GitHub account.
+   b. Pro license: up to five (5) developers who are employees or contractors
+      of one company may use the Software on that company's behalf.
+      Repository access is granted to one GitHub account, and the company may
+      share the Software internally with those developers only.
+   Each additional developer, or each additional company, needs its own
+   license.
+
+2. WHAT YOU MAY DO
+   a. Use the Software to build an unlimited number of end products (mobile,
+      web or desktop applications) for yourself, your organisation or your
+      clients, and sell, distribute or otherwise monetise those end products.
+   b. Modify the Software freely and combine it with your own code.
+   c. Keep private forks of the repository for the projects covered by your
+      license.
+
+3. WHAT YOU MAY NOT DO
+   a. Redistribute, resell, rent, lease, sublicense or otherwise transfer the
+      Software or any substantial part of it, in source or compiled form,
+      other than as embedded in an end product.
+   b. Publish the source of the Software, or of a substantially similar starter
+      kit, template or boilerplate, publicly or privately, with or without
+      modifications, including on package registries or public repositories.
+   c. Share access to the private repository, or the Software itself, with
+      anyone outside the license scope in section 1.
+   d. Use the Software, in whole or in part, to build or assist a product that
+      competes with the Software (a starter kit, boilerplate, template,
+      generator or course whose main value is the Software's code).
+   e. Remove or alter copyright, license or attribution notices.
+
+4. OWNERSHIP
+   The Software is licensed, not sold. The Licensor retains all right, title
+   and interest in the Software. Your end products remain yours.
+
+5. TERM AND UPDATES
+   This license is perpetual. It includes lifetime updates: every update and
+   new version of the Software the Licensor publishes to the repository for
+   your tier is covered by this license at no extra cost, for as long as the
+   Licensor maintains the Software. "Lifetime" refers to the life of the
+   Software, not a promise to maintain it indefinitely. If the Licensor stops
+   publishing updates, this license and every version you received remain
+   yours.
+
+6. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+   FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+
+7. LIMITATION OF LIABILITY
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR'S TOTAL LIABILITY UNDER
+   THIS LICENSE IS LIMITED TO THE AMOUNT YOU PAID FOR IT. THE LICENSOR IS NOT
+   LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL OR CONSEQUENTIAL DAMAGES.
+
+8. TERMINATION
+   This license terminates automatically if you breach any of its terms. On
+   termination you must stop using the Software and delete every copy, except
+   as already embedded in end products shipped before termination. Sections 4,
+   6 and 7 survive termination.
+
+9. THIRD-PARTY SOFTWARE
+   Packages installed from npm and other third-party components keep their own
+   licenses and are not covered by this license. Parts of the Software derive
+   from the Expo template, which is MIT licensed, Copyright (c) 2015-present
+   650 Industries, Inc. (aka Expo); that notice is retained in
+   LICENSES/expo-template-MIT.txt. The Expo agent skills under .agents/skills
+   are MIT licensed, Copyright (c) 2025-present 650 Industries, Inc. (aka
+   Expo); that notice is retained in LICENSES/expo-skills-MIT.txt.
+
+Questions or additional seats: https://readynative.app/support/

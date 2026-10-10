@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "preset": null,
+  "selection": {
+    "ui": "nativewind4",
+    "data": "react-query",
+    "state": "zustand",
+    "storage": "kv-store",
+    "forms": "react-hook-form",
+    "i18n": "i18next",
+    "auth": "none",
+    "payments": "none",
+    "analytics": "none",
+    "crash": "none",
+    "push": "expo-notifications",
+    "backend": "none",
+    "onboarding": "off",
+    "location": "none",
+    "widgets": "none",
+    "consent": "none",
+    "testing": "jest"
+  },
+  "applied": true,
+  "modules": {
+    "app": {
+      "expo": {
+        "plugins": [
+          "expo-sqlite",
+          "expo-localization",
+          [
+            "expo-notifications",
+            {
+              "icon": "./assets/images/android-icon-monochrome.png",
+              "color": "#ffffff"
+            }
+          ]
+        ],
+        "ios": {
+          "privacyManifests": {
+            "NSPrivacyTracking": false,
+            "NSPrivacyTrackingDomains": [],
+            "NSPrivacyCollectedDataTypes": [
+              {
+                "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
+                "NSPrivacyCollectedDataTypeLinked": true,
+                "NSPrivacyCollectedDataTypeTracking": false,
+                "NSPrivacyCollectedDataTypePurposes": [
+                  "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+                ]
+              }
+            ],
+            "NSPrivacyAccessedAPITypes": [
+              {
+                "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+                "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]
+              },
+              {
+                "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp",
+                "NSPrivacyAccessedAPITypeReasons": ["C617.1"]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "postSetup": [
+      "Run `bun run start -- -c` once so Metro picks up the NativeWind transform.",
+      "Link an EAS project: `bunx eas-cli init` prints the project id but cannot write into the dynamic app.config.ts - paste it into readynative.config.ts `app.easProjectId` (CI: EAS_PROJECT_ID). app.config.ts derives `extra.eas.projectId` from it; getExpoPushTokenAsync needs it, and until then usePushToken() reports `unsupported`.",
+      "Run `eas credentials` and upload APNs (iOS) and FCM v1 service-account (Android) keys: https://docs.expo.dev/push-notifications/push-notifications-setup/#get-credentials-for-development-builds",
+      "Remote push needs a dev build on a physical device (`eas build --profile development` or `npx expo run:ios|android`); Expo Go only delivers local notifications.",
+      "On a device: `push.requestPermission()` then read `push.usePushToken().token` (or open /examples/push with `--with-examples`), and run `bun run push:test <token> \"Title\" \"Body\"` (or `npm run push:test`, `pnpm run push:test`, `yarn push:test` - it runs on plain node)."
+    ],
+    "doctor": [
+      {
+        "type": "devBuild",
+        "module": "expo-notifications",
+        "guide": "https://readynative.app/docs/features/push/expo-notifications#setup"
+      }
+    ],
+    "privacy": {
+      "dataSafety": [
+        {
+          "sdk": "Expo push (push/expo-notifications)",
+          "collects": ["Push token (device id)"],
+          "sharedWith": "Expo push service, APNs, FCM",
+          "disclosureUrl": "https://expo.dev/privacy"
+        }
+      ]
+    }
+  },
+  "keepModules": false,
+  "examples": false
+}

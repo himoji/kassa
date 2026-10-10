@@ -1,0 +1,983 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "module:data/react-query",
+      "kind": "module",
+      "label": "data: react-query",
+      "meta": {
+        "category": "data",
+        "option": "react-query"
+      }
+    },
+    {
+      "id": "module:forms/react-hook-form",
+      "kind": "module",
+      "label": "forms: react-hook-form",
+      "meta": {
+        "category": "forms",
+        "option": "react-hook-form"
+      }
+    },
+    {
+      "id": "module:i18n/i18next",
+      "kind": "module",
+      "label": "i18n: i18next",
+      "meta": {
+        "category": "i18n",
+        "option": "i18next"
+      }
+    },
+    {
+      "id": "module:push/expo-notifications",
+      "kind": "module",
+      "label": "push: expo-notifications",
+      "meta": {
+        "category": "push",
+        "option": "expo-notifications",
+        "guide": "https://readynative.app/docs/features/push/expo-notifications#setup"
+      }
+    },
+    {
+      "id": "module:state/zustand",
+      "kind": "module",
+      "label": "state: zustand",
+      "meta": {
+        "category": "state",
+        "option": "zustand"
+      }
+    },
+    {
+      "id": "module:storage/kv-store",
+      "kind": "module",
+      "label": "storage: kv-store",
+      "meta": {
+        "category": "storage",
+        "option": "kv-store"
+      }
+    },
+    {
+      "id": "module:testing/jest",
+      "kind": "module",
+      "label": "testing: jest",
+      "meta": {
+        "category": "testing",
+        "option": "jest"
+      }
+    },
+    {
+      "id": "module:ui/nativewind4",
+      "kind": "module",
+      "label": "ui: nativewind4",
+      "meta": {
+        "category": "ui",
+        "option": "nativewind4"
+      }
+    },
+    {
+      "id": "provider:I18nProvider",
+      "kind": "provider",
+      "label": "I18nProvider",
+      "file": "src/providers.tsx",
+      "meta": {
+        "from": "@/lib/i18n",
+        "order": 2
+      }
+    },
+    {
+      "id": "provider:PushProvider",
+      "kind": "provider",
+      "label": "PushProvider",
+      "file": "src/providers.tsx",
+      "meta": {
+        "from": "@/lib/push",
+        "order": 3
+      }
+    },
+    {
+      "id": "provider:QueryProvider",
+      "kind": "provider",
+      "label": "QueryProvider",
+      "file": "src/providers.tsx",
+      "meta": {
+        "from": "@/lib/query",
+        "order": 0
+      }
+    },
+    {
+      "id": "provider:ToastHost",
+      "kind": "provider",
+      "label": "ToastHost",
+      "file": "src/providers.tsx",
+      "meta": {
+        "from": "@/components/ui",
+        "order": 4
+      }
+    },
+    {
+      "id": "provider:UiThemeProvider",
+      "kind": "provider",
+      "label": "UiThemeProvider",
+      "file": "src/providers.tsx",
+      "meta": {
+        "from": "@/components/ui",
+        "order": 1
+      }
+    },
+    {
+      "id": "route:_layout",
+      "kind": "route",
+      "label": "/ (layout)",
+      "file": "src/app/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/_layout",
+      "kind": "route",
+      "label": "/ (layout)",
+      "file": "src/app/(tabs)/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:/",
+      "kind": "route",
+      "label": "/",
+      "file": "src/app/(tabs)/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/+not-found",
+      "kind": "route",
+      "label": "/+not-found",
+      "file": "src/app/+not-found.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/settings",
+      "kind": "route",
+      "label": "/settings",
+      "file": "src/app/(tabs)/settings.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "screen:home/home-screen",
+      "kind": "screen",
+      "label": "@/screens/home/home-screen",
+      "file": "src/screens/home/home-screen.tsx"
+    },
+    {
+      "id": "screen:settings/developer-tools",
+      "kind": "screen",
+      "label": "@/screens/settings/developer-tools",
+      "file": "src/screens/settings/developer-tools.tsx"
+    },
+    {
+      "id": "screen:settings/settings-screen",
+      "kind": "screen",
+      "label": "@/screens/settings/settings-screen",
+      "file": "src/screens/settings/settings-screen.tsx"
+    },
+    {
+      "id": "hook:use-auth-redirect",
+      "kind": "hook",
+      "label": "@/hooks/use-auth-redirect",
+      "file": "src/hooks/use-auth-redirect.ts"
+    },
+    {
+      "id": "hook:use-onboarding-redirect",
+      "kind": "hook",
+      "label": "@/hooks/use-onboarding-redirect",
+      "file": "src/hooks/use-onboarding-redirect.ts"
+    },
+    {
+      "id": "hook:use-push-token",
+      "kind": "hook",
+      "label": "@/hooks/use-push-token",
+      "file": "src/hooks/use-push-token.ts"
+    },
+    {
+      "id": "hook:use-sign-out-cleanup",
+      "kind": "hook",
+      "label": "@/hooks/use-sign-out-cleanup",
+      "file": "src/hooks/use-sign-out-cleanup.ts"
+    },
+    {
+      "id": "store:consent",
+      "kind": "store",
+      "label": "@/stores/consent",
+      "file": "src/stores/consent.ts"
+    },
+    {
+      "id": "store:create-store",
+      "kind": "store",
+      "label": "@/stores/create-store",
+      "file": "src/stores/create-store.ts"
+    },
+    {
+      "id": "store:onboarding",
+      "kind": "store",
+      "label": "@/stores/onboarding",
+      "file": "src/stores/onboarding.ts"
+    },
+    {
+      "id": "store:review-prompt",
+      "kind": "store",
+      "label": "@/stores/review-prompt",
+      "file": "src/stores/review-prompt.ts"
+    },
+    {
+      "id": "store:theme-mode",
+      "kind": "store",
+      "label": "@/stores/theme-mode",
+      "file": "src/stores/theme-mode.ts"
+    },
+    {
+      "id": "store:zustand-storage",
+      "kind": "store",
+      "label": "@/stores/zustand-storage",
+      "file": "src/stores/zustand-storage.ts"
+    },
+    {
+      "id": "lib:account-data",
+      "kind": "lib",
+      "label": "@/lib/account-data",
+      "file": "src/lib/account-data.ts"
+    },
+    {
+      "id": "lib:analytics",
+      "kind": "lib",
+      "label": "@/lib/analytics",
+      "file": "src/lib/analytics.ts"
+    },
+    {
+      "id": "lib:api/client",
+      "kind": "lib",
+      "label": "@/lib/api/client",
+      "file": "src/lib/api/client.ts"
+    },
+    {
+      "id": "lib:auth",
+      "kind": "lib",
+      "label": "@/lib/auth",
+      "file": "src/lib/auth.ts"
+    },
+    {
+      "id": "lib:browser",
+      "kind": "lib",
+      "label": "@/lib/browser",
+      "file": "src/lib/browser.ts"
+    },
+    {
+      "id": "lib:cache",
+      "kind": "lib",
+      "label": "@/lib/cache",
+      "file": "src/lib/cache.ts"
+    },
+    {
+      "id": "lib:clipboard",
+      "kind": "lib",
+      "label": "@/lib/clipboard",
+      "file": "src/lib/clipboard.ts"
+    },
+    {
+      "id": "lib:confirm",
+      "kind": "lib",
+      "label": "@/lib/confirm",
+      "file": "src/lib/confirm.ts"
+    },
+    {
+      "id": "lib:consent",
+      "kind": "lib",
+      "label": "@/lib/consent",
+      "file": "src/lib/consent.ts"
+    },
+    {
+      "id": "lib:crash",
+      "kind": "lib",
+      "label": "@/lib/crash",
+      "file": "src/lib/crash.ts"
+    },
+    {
+      "id": "lib:env",
+      "kind": "lib",
+      "label": "@/lib/env",
+      "file": "src/lib/env.ts"
+    },
+    {
+      "id": "lib:i18n",
+      "kind": "lib",
+      "label": "@/lib/i18n",
+      "file": "src/lib/i18n.ts"
+    },
+    {
+      "id": "lib:location",
+      "kind": "lib",
+      "label": "@/lib/location",
+      "file": "src/lib/location.ts"
+    },
+    {
+      "id": "lib:native-toast",
+      "kind": "lib",
+      "label": "@/lib/native-toast",
+      "file": "src/lib/native-toast.ts"
+    },
+    {
+      "id": "lib:payments",
+      "kind": "lib",
+      "label": "@/lib/payments",
+      "file": "src/lib/payments.ts"
+    },
+    {
+      "id": "lib:privacy",
+      "kind": "lib",
+      "label": "@/lib/privacy",
+      "file": "src/lib/privacy.ts"
+    },
+    {
+      "id": "lib:privacy-categories",
+      "kind": "lib",
+      "label": "@/lib/privacy-categories",
+      "file": "src/lib/privacy-categories.ts"
+    },
+    {
+      "id": "lib:push",
+      "kind": "lib",
+      "label": "@/lib/push",
+      "file": "src/lib/push.ts"
+    },
+    {
+      "id": "lib:query",
+      "kind": "lib",
+      "label": "@/lib/query",
+      "file": "src/lib/query.tsx"
+    },
+    {
+      "id": "lib:readynative",
+      "kind": "lib",
+      "label": "@/lib/readynative",
+      "file": "src/lib/readynative.ts"
+    },
+    {
+      "id": "lib:readynative-config",
+      "kind": "lib",
+      "label": "@/lib/readynative-config",
+      "file": "src/lib/readynative-config.ts"
+    },
+    {
+      "id": "lib:share",
+      "kind": "lib",
+      "label": "@/lib/share",
+      "file": "src/lib/share.ts"
+    },
+    {
+      "id": "lib:shims/account-data",
+      "kind": "lib",
+      "label": "@/lib/shims/account-data",
+      "file": "src/lib/shims/account-data.ts"
+    },
+    {
+      "id": "lib:shims/analytics",
+      "kind": "lib",
+      "label": "@/lib/shims/analytics",
+      "file": "src/lib/shims/analytics.ts"
+    },
+    {
+      "id": "lib:shims/auth",
+      "kind": "lib",
+      "label": "@/lib/shims/auth",
+      "file": "src/lib/shims/auth.ts"
+    },
+    {
+      "id": "lib:shims/consent",
+      "kind": "lib",
+      "label": "@/lib/shims/consent",
+      "file": "src/lib/shims/consent.ts"
+    },
+    {
+      "id": "lib:shims/crash",
+      "kind": "lib",
+      "label": "@/lib/shims/crash",
+      "file": "src/lib/shims/crash.ts"
+    },
+    {
+      "id": "lib:shims/i18n",
+      "kind": "lib",
+      "label": "@/lib/shims/i18n",
+      "file": "src/lib/shims/i18n.ts"
+    },
+    {
+      "id": "lib:shims/location",
+      "kind": "lib",
+      "label": "@/lib/shims/location",
+      "file": "src/lib/shims/location.ts"
+    },
+    {
+      "id": "lib:shims/payments",
+      "kind": "lib",
+      "label": "@/lib/shims/payments",
+      "file": "src/lib/shims/payments.ts"
+    },
+    {
+      "id": "lib:shims/push",
+      "kind": "lib",
+      "label": "@/lib/shims/push",
+      "file": "src/lib/shims/push.ts"
+    },
+    {
+      "id": "lib:shims/server-auth",
+      "kind": "lib",
+      "label": "@/lib/shims/server-auth",
+      "file": "src/lib/shims/server-auth.ts"
+    },
+    {
+      "id": "lib:shims/tracking",
+      "kind": "lib",
+      "label": "@/lib/shims/tracking",
+      "file": "src/lib/shims/tracking.ts"
+    },
+    {
+      "id": "lib:shims/widgets",
+      "kind": "lib",
+      "label": "@/lib/shims/widgets",
+      "file": "src/lib/shims/widgets.ts"
+    },
+    {
+      "id": "lib:storage",
+      "kind": "lib",
+      "label": "@/lib/storage",
+      "file": "src/lib/storage.ts"
+    },
+    {
+      "id": "lib:storage-adapter",
+      "kind": "lib",
+      "label": "@/lib/storage-adapter",
+      "file": "src/lib/storage-adapter.ts"
+    },
+    {
+      "id": "lib:store-review",
+      "kind": "lib",
+      "label": "@/lib/store-review",
+      "file": "src/lib/store-review.ts"
+    },
+    {
+      "id": "lib:tracking",
+      "kind": "lib",
+      "label": "@/lib/tracking",
+      "file": "src/lib/tracking.ts"
+    },
+    {
+      "id": "lib:utils",
+      "kind": "lib",
+      "label": "@/lib/utils",
+      "file": "src/lib/utils.ts"
+    },
+    {
+      "id": "lib:widgets",
+      "kind": "lib",
+      "label": "@/lib/widgets",
+      "file": "src/lib/widgets.ts"
+    },
+    {
+      "id": "env:EXPO_PUBLIC_API_URL",
+      "kind": "env",
+      "label": "EXPO_PUBLIC_API_URL"
+    },
+    {
+      "id": "env:EXPO_PUBLIC_APP_VARIANT",
+      "kind": "env",
+      "label": "EXPO_PUBLIC_APP_VARIANT"
+    },
+    {
+      "id": "script:doctor",
+      "kind": "script",
+      "label": "scripts/doctor.ts",
+      "file": "scripts/doctor.ts"
+    },
+    {
+      "id": "script:e2e",
+      "kind": "script",
+      "label": "scripts/e2e.ts",
+      "file": "scripts/e2e.ts"
+    },
+    {
+      "id": "script:gen",
+      "kind": "script",
+      "label": "scripts/gen.ts",
+      "file": "scripts/gen.ts"
+    },
+    {
+      "id": "script:gen-assets",
+      "kind": "script",
+      "label": "scripts/gen-assets.ts",
+      "file": "scripts/gen-assets.ts"
+    },
+    {
+      "id": "script:gen-graph",
+      "kind": "script",
+      "label": "scripts/gen-graph.ts",
+      "file": "scripts/gen-graph.ts"
+    },
+    {
+      "id": "script:gen-links",
+      "kind": "script",
+      "label": "scripts/gen-links.ts",
+      "file": "scripts/gen-links.ts"
+    },
+    {
+      "id": "script:gen-privacy",
+      "kind": "script",
+      "label": "scripts/gen-privacy.ts",
+      "file": "scripts/gen-privacy.ts"
+    },
+    {
+      "id": "script:gen-theme",
+      "kind": "script",
+      "label": "scripts/gen-theme.ts",
+      "file": "scripts/gen-theme.ts"
+    },
+    {
+      "id": "script:push-test",
+      "kind": "script",
+      "label": "scripts/push-test.ts",
+      "file": "scripts/push-test.ts"
+    },
+    {
+      "id": "<id>",
+      "kind": "custom",
+      "label": "…",
+      "file": "scripts/gen-graph.ts"
+    }
+  ],
+  "edges": [
+    {
+      "from": "hook:use-push-token",
+      "to": "lib:shims/push",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-push-token",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-sign-out-cleanup",
+      "to": "lib:auth",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-sign-out-cleanup",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-sign-out-cleanup",
+      "to": "lib:privacy",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:api/client",
+      "to": "lib:env",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:api/client",
+      "to": "env:EXPO_PUBLIC_API_URL",
+      "kind": "reads"
+    },
+    {
+      "from": "lib:browser",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:cache",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:cache",
+      "to": "lib:storage-adapter",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:clipboard",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:env",
+      "to": "env:EXPO_PUBLIC_API_URL",
+      "kind": "reads"
+    },
+    {
+      "from": "lib:env",
+      "to": "env:EXPO_PUBLIC_APP_VARIANT",
+      "kind": "reads"
+    },
+    {
+      "from": "lib:i18n",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy",
+      "to": "lib:analytics",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy",
+      "to": "lib:auth",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy",
+      "to": "lib:share",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy-categories",
+      "to": "lib:analytics",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy-categories",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:privacy-categories",
+      "to": "store:consent",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:push",
+      "to": "hook:use-push-token",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:push",
+      "to": "lib:shims/push",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:query",
+      "to": "lib:privacy",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:share",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:shims/consent",
+      "to": "store:consent",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:storage",
+      "to": "lib:storage-adapter",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:store-review",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:store-review",
+      "to": "lib:readynative",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:store-review",
+      "to": "store:review-prompt",
+      "kind": "imports"
+    },
+    {
+      "from": "module:data/react-query",
+      "to": "provider:QueryProvider",
+      "kind": "provides"
+    },
+    {
+      "from": "module:i18n/i18next",
+      "to": "provider:I18nProvider",
+      "kind": "provides"
+    },
+    {
+      "from": "module:push/expo-notifications",
+      "to": "provider:PushProvider",
+      "kind": "provides"
+    },
+    {
+      "from": "provider:I18nProvider",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "provider:I18nProvider",
+      "to": "provider:PushProvider",
+      "kind": "renders"
+    },
+    {
+      "from": "provider:PushProvider",
+      "to": "lib:push",
+      "kind": "imports"
+    },
+    {
+      "from": "provider:PushProvider",
+      "to": "provider:ToastHost",
+      "kind": "renders"
+    },
+    {
+      "from": "provider:QueryProvider",
+      "to": "lib:query",
+      "kind": "imports"
+    },
+    {
+      "from": "provider:QueryProvider",
+      "to": "provider:UiThemeProvider",
+      "kind": "renders"
+    },
+    {
+      "from": "provider:UiThemeProvider",
+      "to": "provider:I18nProvider",
+      "kind": "renders"
+    },
+    {
+      "from": "route:_layout",
+      "to": "hook:use-auth-redirect",
+      "kind": "imports"
+    },
+    {
+      "from": "route:_layout",
+      "to": "hook:use-onboarding-redirect",
+      "kind": "imports"
+    },
+    {
+      "from": "route:_layout",
+      "to": "hook:use-sign-out-cleanup",
+      "kind": "imports"
+    },
+    {
+      "from": "route:_layout",
+      "to": "lib:analytics",
+      "kind": "imports"
+    },
+    {
+      "from": "route:_layout",
+      "to": "store:theme-mode",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:/",
+      "to": "screen:home/home-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/+not-found",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:/settings",
+      "to": "screen:settings/settings-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "screen:home/home-screen",
+      "to": "lib:readynative",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "hook:use-onboarding-redirect",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:auth",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:consent",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:env",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:payments",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:privacy-categories",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "lib:push",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "store:onboarding",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/developer-tools",
+      "to": "env:EXPO_PUBLIC_APP_VARIANT",
+      "kind": "reads"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "hook:use-onboarding-redirect",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:account-data",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:analytics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:auth",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:browser",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:consent",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:payments",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:privacy",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:privacy-categories",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:readynative",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "lib:store-review",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "screen:settings/developer-tools",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "store:consent",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
+      "to": "store:onboarding",
+      "kind": "imports"
+    },
+    {
+      "from": "store:consent",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "store:create-store",
+      "to": "lib:storage-adapter",
+      "kind": "imports"
+    },
+    {
+      "from": "store:onboarding",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "store:review-prompt",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "store:theme-mode",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "store:zustand-storage",
+      "to": "lib:storage",
+      "kind": "imports"
+    }
+  ]
+}
