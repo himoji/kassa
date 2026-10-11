@@ -8,20 +8,44 @@ import {
   RegisterOptionsResponse,
   type ClientKind,
 } from "@kassa/shared";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 
 import { createPasskey, signWithPasskey } from "@/lib/passkeys";
 
 import { api } from "../client";
+import { keys } from "../keys";
 import { startSession } from "../session";
 
 const client: ClientKind = api.kind;
 
+/** GET /auth/demo: whether the server runs in demo mode (DEMO_ENABLED). Public, no session. */
+const DemoAvailability = z.object({ enabled: z.boolean() });
+
+export function useDemoAvailability() {
+  return useQuery({
+    queryKey: keys.demoAvailability,
+    queryFn: ({ signal }) =>
+      api.request("/auth/demo", { schema: DemoAvailability, auth: false, signal }),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+export interface RegisterInput {
+  displayName: string;
+  /**
+   * Demo mode only: bind this new passkey to the seeded demo account instead of creating a user
+   * (server `demoClaim`). Still a full passkey ceremony; the server refuses it once claimed.
+   */
+  demoClaim?: boolean;
+}
+
 export function useRegister() {
   return useMutation({
-    mutationFn: async (displayName: string) => {
+    mutationFn: async ({ displayName, demoClaim }: RegisterInput) => {
       const { challengeId, options } = await api.request("/auth/register/options", {
-        json: { displayName },
+        json: demoClaim ? { displayName, demoClaim: true } : { displayName },
         schema: RegisterOptionsResponse,
         auth: false,
       });

@@ -1,15 +1,77 @@
 import { router } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { KassaApiError } from "@/api/errors";
+import { useDemoAvailability, useRegister } from "@/api/hooks/auth";
+import { errorText } from "@/components/kassa/error-text";
 import { Box, Button, Icon, Text, useTheme } from "@/components/ui";
-import { useKassaT } from "@/lib/i18n";
+import { haptics } from "@/lib/haptics";
+import { useKassaT, type TFn } from "@/lib/i18n";
+import { PasskeyCancelledError } from "@/lib/passkey-errors";
 
 const POINTS = [
   { key: "auth:welcome.point1", sf: "wand.and.stars", md: "auto_awesome" },
   { key: "auth:welcome.point2", sf: "checkmark.shield.fill", md: "verified_user" },
   { key: "auth:welcome.point3", sf: "faceid", md: "fingerprint" },
 ] as const;
+
+/** Demo-claim refusals get their own text; everything else (incl. passkey domain) is generic. */
+function demoErrorText(t: TFn, err: unknown): string {
+  if (err instanceof KassaApiError && err.code === "DEMO_ALREADY_CLAIMED")
+    return t("auth:welcome.demoClaimed");
+  if (err instanceof KassaApiError && err.code === "DEMO_NOT_SEEDED")
+    return t("auth:welcome.demoNotSeeded");
+  return errorText(t, err);
+}
+
+/**
+ * "Try the demo": shown only when the API runs in demo mode (GET /auth/demo). It is the normal
+ * passkey registration with `demoClaim`, so the new passkey owns the seeded demo account and every
+ * payment still needs that passkey (same security model as a real sign-up).
+ */
+function DemoButton() {
+  const t = useKassaT();
+  const demo = useDemoAvailability();
+  const register = useRegister();
+  const [error, setError] = useState<string | null>(null);
+  if (!demo.data?.enabled) return null;
+
+  const start = async () => {
+    setError(null);
+    try {
+      const session = await register.mutateAsync({
+        displayName: t("auth:welcome.demoName"),
+        demoClaim: true,
+      });
+      haptics.success();
+      router.replace(session.onboarded ? "/home" : "/onboarding/chat");
+    } catch (err) {
+      if (err instanceof PasskeyCancelledError) return;
+      haptics.error();
+      setError(demoErrorText(t, err));
+    }
+  };
+
+  return (
+    <Box gap={2}>
+      <Button
+        size="lg"
+        variant="secondary"
+        onPress={() => void start()}
+        loading={register.isPending}
+      >
+        {t("auth:welcome.demo")}
+      </Button>
+      {error ? (
+        <Text color="destructive" align="center">
+          {error}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
 
 export function WelcomeScreen() {
   const t = useKassaT();
@@ -38,6 +100,7 @@ export function WelcomeScreen() {
           <Button size="lg" variant="outline" onPress={() => router.push("/login")}>
             {t("auth:welcome.signIn")}
           </Button>
+          <DemoButton />
           <Text variant="caption" align="center">
             {t("auth:welcome.demoNote")}
           </Text>

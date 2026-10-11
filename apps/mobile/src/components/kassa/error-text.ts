@@ -7,11 +7,18 @@ import { ReasonCode } from "@kassa/shared";
 import { ContractError, KassaApiError, NetworkError } from "@/api/errors";
 import { OrderIntegrityError } from "@/api/hooks/orders";
 import type { TFn } from "@/lib/i18n";
-import { PasskeyCancelledError, PasskeyUnsupportedError } from "@/lib/passkey-errors";
+import {
+  PasskeyBiometricsError,
+  PasskeyCancelledError,
+  PasskeyDomainError,
+  PasskeyUnsupportedError,
+} from "@/lib/passkey-errors";
 
 export function errorText(t: TFn, err: unknown): string {
   if (err instanceof PasskeyCancelledError) return t("common:errors.passkeyCancelled");
   if (err instanceof PasskeyUnsupportedError) return t("common:errors.passkeyUnsupported");
+  if (err instanceof PasskeyDomainError) return t("common:errors.passkeyDomain");
+  if (err instanceof PasskeyBiometricsError) return t("common:errors.passkeyBiometrics");
   if (err instanceof OrderIntegrityError) return t("order:integrityError");
   if (err instanceof NetworkError) return t("common:errors.network");
   if (err instanceof ContractError) return t("common:errors.contract");

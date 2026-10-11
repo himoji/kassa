@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
 import { webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
+import { resetEnvCache, setEnvForTests } from "../../src/env.ts";
 import { useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { SoftAuthenticator } from "../helpers/webauthn.ts";
@@ -86,6 +87,19 @@ describe("auth", () => {
     expect(r1.statusCode).toBe(200);
     const r2 = await app().inject({ method: "POST", url: "/api/auth/refresh", payload: { refreshToken: res.tokens.refreshToken } });
     expect(r2.statusCode).toBe(401);
+  });
+
+  it("GET /auth/demo reports the demo flag without a session, and nothing else", async () => {
+    try {
+      setEnvForTests({ DEMO_ENABLED: "true" });
+      const on = await app().inject({ method: "GET", url: "/api/auth/demo" });
+      expect(on.statusCode).toBe(200);
+      expect(on.json()).toEqual({ enabled: true });
+      setEnvForTests({ DEMO_ENABLED: "false" });
+      expect((await app().inject({ method: "GET", url: "/api/auth/demo" })).json()).toEqual({ enabled: false });
+    } finally {
+      resetEnvCache();
+    }
   });
 
   it("unauthenticated calls get RFC 9457 problem+json 401", async () => {

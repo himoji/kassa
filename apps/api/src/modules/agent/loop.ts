@@ -3,6 +3,7 @@ import { isStepCount, streamText, wrapLanguageModel, type LanguageModel, type La
 import type { AgentMode } from "@kassa/shared";
 
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
+import { SDK_MAX_RETRIES } from "../ai/retry.ts";
 import { redactionMiddleware } from "./middleware.ts";
 import type { AgentPorts } from "./ports.ts";
 import { SYSTEM_PROMPT } from "./prompt.ts";
@@ -135,6 +136,8 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     instructions: SYSTEM_PROMPT,
     messages: [...history, userMsg],
     tools,
+    // Live models retry 429 / 5xx themselves (ai/retry.ts: AI_MAX_RETRIES, backoff + jitter, Retry-After).
+    maxRetries: SDK_MAX_RETRIES,
     stopWhen: [isStepCount(MAX_TOOL_STEPS + 1), stopAfterExplanation],
     prepareStep: ({ stepNumber }) => {
       if (ctx.stop.requested && stopAtStep === null) stopAtStep = stepNumber;

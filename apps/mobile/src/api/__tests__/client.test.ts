@@ -69,15 +69,27 @@ const authOf = (init: RequestInit | undefined) => new Headers(init?.headers).get
 const isRefresh = (url: string) => url.endsWith("/auth/refresh");
 
 describe("sessionHeaders", () => {
-  it("native sends a bearer token and the client marker", () => {
-    expect(sessionHeaders("native", FRESH)).toEqual({
-      "x-kassa-client": "native",
-      authorization: "Bearer access-1",
-    });
+  it("native sends a bearer token", () => {
+    expect(sessionHeaders("native", FRESH)).toEqual({ authorization: "Bearer access-1" });
   });
 
   it("web never sends an authorization header", () => {
-    expect(sessionHeaders("web", FRESH)).toEqual({ "x-kassa-client": "web" });
+    expect(sessionHeaders("web", FRESH)).toEqual({});
+  });
+});
+
+describe("web requests and the API's CORS allow-list", () => {
+  // Must stay within the API's CORS allowedHeaders (apps/api/src/http/security.ts) plus the
+  // CORS-safelisted `accept` (Fetch standard §2.2.2), or every browser call fails its preflight.
+  const ALLOWED = new Set(["accept", "content-type", "authorization", "x-kassa-demo-token"]);
+
+  it.each([true, false])("sends only allow-listed headers (auth: %s)", async (auth) => {
+    const { client, fetchMock } = makeClient({ kind: "web", handler: () => json({ ok: true }) });
+    await client.request("/auth/register/options", { json: { displayName: "Dana" }, auth });
+    const init = fetchMock.mock.calls[0]?.[1];
+    const sent = [...new Headers(init?.headers).keys()];
+    expect(sent.filter((h) => !ALLOWED.has(h))).toEqual([]);
+    expect(init?.credentials).toBe("include");
   });
 });
 

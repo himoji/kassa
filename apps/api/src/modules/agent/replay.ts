@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { LanguageModelV4StreamPart } from "@ai-sdk/provider";
+import type { LanguageModelV4Content, LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { simulateReadableStream, type LanguageModel, type LanguageModelMiddleware } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
@@ -113,12 +113,26 @@ export function stepChunks(step: RecordedStep, stepIndex: number): LanguageModel
   return chunks;
 }
 
-/** A provider-independent model that plays back one recorded turn, step by step. */
+/** The same recorded step as a non-streaming result (generateText, e.g. onboarding's structured output). */
+export function stepContent(step: RecordedStep, stepIndex: number): LanguageModelV4Content[] {
+  return [
+    ...(step.text ? [{ type: "text" as const, text: step.text }] : []),
+    ...(step.toolCalls ?? []).map((c, i) => ({ type: "tool-call" as const, toolCallId: `replay-${stepIndex}-${i}`, toolName: c.toolName, input: JSON.stringify(c.input) })),
+  ];
+}
+
+/** A provider-independent model that plays back one recorded turn, step by step (streamed or not). */
 export function replayModel(turn: RecordedTurn, opts: { chunkDelayInMs?: number } = {}): LanguageModel {
   let i = 0;
   return new MockLanguageModelV4({
     provider: "kassa-replay",
     modelId: "replay",
+    doGenerate: async () => {
+      const step = turn.steps[i] ?? { text: "(End of the recorded replay.)" };
+      const content = stepContent(step, i);
+      i++;
+      return { content, finishReason: { unified: step.toolCalls?.length ? "tool-calls" : "stop", raw: undefined }, usage: USAGE, warnings: [] };
+    },
     doStream: async () => {
       const step = turn.steps[i] ?? { text: "(End of the recorded replay.)" };
       const chunks = stepChunks(step, i);

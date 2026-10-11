@@ -43,9 +43,18 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const mode = useResolvedMode();
   const navigationTheme = useMemo(() => getNavigationTheme(mode), [mode]);
 
+  // Web: NativeWind's `set("system")` only removes the `dark` class (class mode never reads
+  // `prefers-color-scheme`), so a dark OS got dark `colors` with light-mode classes (unreadable
+  // text). Web therefore gets the resolved mode; native keeps "system" so the OS can switch it.
+  // The class is also set directly: NativeWind only adds it once its stylesheet flag has loaded,
+  // and its own first-load check resets the scheme to "system" when the class is missing.
+  const scheme = process.env.EXPO_OS === "web" ? mode : preference;
   useEffect(() => {
-    applyNativewindScheme(preference);
-  }, [preference]);
+    if (process.env.EXPO_OS === "web" && typeof document !== "undefined") {
+      document.documentElement.classList.toggle("dark", scheme === "dark");
+    }
+    applyNativewindScheme(scheme);
+  }, [scheme]);
 
   return (
     <ModeContext value={mode}>

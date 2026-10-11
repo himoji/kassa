@@ -142,6 +142,38 @@ describe("headers, CORS, CSRF, body limits, error bodies", () => {
     expect(simple.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
+  it("CORS preflight allows exactly the headers the web client sends (apps/mobile/src/api/client.ts)", async () => {
+    const list = (v: unknown) => String(v).toLowerCase().split(",").map((s) => s.trim());
+    // The web client sends `accept` (CORS-safelisted, Fetch §2.2.2), `content-type: application/json` (not
+    // safelisted → preflight) and, on the demo panel, the demo admin token. Session = cookie, so no authorization.
+    const cases = [
+      { url: "/api/auth/register/options", method: "POST", headers: "content-type" },
+      { url: "/api/agent/message", method: "POST", headers: "content-type" },
+      { url: "/api/settings", method: "PATCH", headers: "content-type" },
+      { url: "/api/demo/reset", method: "POST", headers: "content-type,x-kassa-demo-token" },
+    ];
+    for (const c of cases) {
+      const res = await app.inject({
+        method: "OPTIONS",
+        url: c.url,
+        headers: { origin: env().PUBLIC_ORIGIN, "access-control-request-method": c.method, "access-control-request-headers": c.headers },
+      });
+      expect(res.statusCode, c.url).toBe(204);
+      expect(res.headers["access-control-allow-origin"], c.url).toBe(env().PUBLIC_ORIGIN);
+      expect(res.headers["access-control-allow-credentials"], c.url).toBe("true");
+      expect(list(res.headers["access-control-allow-methods"]), c.url).toContain(c.method.toLowerCase());
+      const allowed = list(res.headers["access-control-allow-headers"]);
+      for (const h of c.headers.split(",")) expect(allowed, `${c.url} ${h}`).toContain(h);
+    }
+    // No client-marker header: the API never reads one, so it stays off the allow-list (deny by default).
+    const marker = await app.inject({
+      method: "OPTIONS",
+      url: "/api/me",
+      headers: { origin: env().PUBLIC_ORIGIN, "access-control-request-method": "GET", "access-control-request-headers": "x-kassa-client" },
+    });
+    expect(list(marker.headers["access-control-allow-headers"])).not.toContain("x-kassa-client");
+  });
+
   it("cookie sessions refuse state-changing requests from a foreign Origin (CSRF)", async () => {
     const { userId } = await createUserWithPasskey();
     const cookie = `${SESSION_COOKIE}=${await mintSessionCookieForTests(userId)}`;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
 
+import { KassaApiError } from "@/api/errors";
+
 import { consentNeeded } from "../consent";
 
 const body = (o: unknown) => new Error(JSON.stringify(o));
@@ -32,5 +34,20 @@ describe("consentNeeded (Y3)", () => {
     expect(consentNeeded(body({ code: "RATE_LIMITED" }))).toBeNull();
     expect(consentNeeded(new Error("Network request failed"))).toBeNull();
     expect(consentNeeded("x")).toBeNull();
+  });
+
+  it("reads a parsed api.request() refusal (POST /onboarding/message)", () => {
+    const err = new KassaApiError(403, {
+      error: "Agree to AI processing first",
+      code: "AI_CONSENT_REQUIRED",
+      reasonCodes: ["AI_CONSENT_REQUIRED"],
+      details: { aiNotice: { text: "You are talking to an AI." } },
+    });
+    expect(consentNeeded(err)).toEqual({
+      code: "AI_CONSENT_REQUIRED",
+      noticeText: "You are talking to an AI.",
+      endpoint: "/privacy/ai-consent",
+    });
+    expect(consentNeeded(new KassaApiError(409, { error: "x", code: "CONFLICT" }))).toBeNull();
   });
 });

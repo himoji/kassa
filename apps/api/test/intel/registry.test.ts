@@ -67,5 +67,14 @@ describe("provider registry: provider:model strings", () => {
     expect(readerSupportsVision({ READER_MODEL: "anthropic:claude-haiku-5-5" })).toBe(true);
     expect(readerSupportsVision({ READER_MODEL: "openai:x", READER_VISION: "false" })).toBe(false);
   });
-});
 
+  it("openrouter alias: needs OPENROUTER_API_KEY, talks to openrouter.ai's OpenAI-compatible endpoint", () => {
+    expect(parseModelSpec("openrouter:inclusionai/ling-3.1-flash")).toEqual({ provider: "openrouter", modelId: "inclusionai/ling-3.1-flash", id: "openrouter:inclusionai/ling-3.1-flash" });
+    expect(codeOf(() => getPlannerModel({ PLANNER_MODEL: "openrouter:inclusionai/ling-3.1-flash" }))).toBe("AI_PROVIDER_KEY_MISSING");
+    const m = getPlannerModel({ PLANNER_MODEL: "openrouter:inclusionai/ling-3.1-flash", OPENROUTER_API_KEY: "k" });
+    expect(typeof m === "object" && [m.provider, m.modelId]).toEqual(["openrouter.chat", "inclusionai/ling-3.1-flash"]);
+    // LOCAL_API_KEY is accepted only when LOCAL_BASE_URL already points at OpenRouter.
+    expect(codeOf(() => getPlannerModel({ PLANNER_MODEL: "openrouter:x/y", LOCAL_BASE_URL: "https://openrouter.ai/api/v1", LOCAL_API_KEY: "k" }))).toBeNull();
+    expect(codeOf(() => getPlannerModel({ PLANNER_MODEL: "openrouter:x/y", LOCAL_BASE_URL: "http://localhost:11434/v1", LOCAL_API_KEY: "k" }))).toBe("AI_PROVIDER_KEY_MISSING");
+  });
+});

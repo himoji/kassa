@@ -1,4 +1,4 @@
-import { Output, streamText, wrapLanguageModel, type LanguageModel, type ModelMessage } from "ai";
+import { wrapLanguageModel, type LanguageModel, type ModelMessage } from "ai";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -7,7 +7,9 @@ import { OnboardingProfileDraft, type AgentMode, type OnboardingMessageResponse 
 import { getDb } from "../../db/client.ts";
 import { budgets, cards, profiles, users, type IncomeJson } from "../../db/schema.ts";
 import { onboardingDrafts } from "../../db/schema.intel.ts";
+import { aiProviderFailure } from "../ai/errors.ts";
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
+import { generateStructured } from "../ai/structured.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { appendHistory, loadHistory, loadPlaceholders, savePlaceholders } from "../agent/history.ts";
 import { redactionMiddleware } from "../agent/middleware.ts";
@@ -84,6 +86,8 @@ export async function onboardingTurn(o: {
     content: `Current draft (JSON): ${JSON.stringify(redactor.redactValue(current))}\n\nUser: ${redactor.redactText(o.text)}`,
   };
 
+  // Model: injected (tests) → REPLAY (the "onboarding" recording, for ANY user: exact text, keywords,
+  // else the turn index, so it never depends on who is onboarding) → live planner from the registry.
   let base: LanguageModel;
   let recordedWith = "injected";
   const recorder = o.record && o.mode === "LIVE" && !o.model ? new StepRecorder() : null;
@@ -95,11 +99,21 @@ export async function onboardingTurn(o: {
     base = getPlannerModel();
     recordedWith = plannerSpec().id;
   }
-  const model = typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware: [redactionMiddleware(redactor), ...(recorder ? [recorder.middleware()] : [])] });
+  const model = typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware: redactionMiddleware(redactor) });
 
-  const result = streamText({ model, instructions: ONBOARDING_INSTRUCTIONS, messages: [...history, userMsg], output: Output.object({ schema: TurnOutput }) });
-  const out = await result.output;
-  const responseMessages = await result.responseMessages;
+  // Structured output via ai/structured.ts (native → forced schema-carrier tool → JSON text), validated
+  // with TurnOutput. Provider failures become a typed AI_PROVIDER_UNAVAILABLE (route → 503), not a 500.
+  let out: z.infer<typeof TurnOutput>;
+  try {
+    out = (await generateStructured({ model, schema: TurnOutput, instructions: ONBOARDING_INSTRUCTIONS, messages: [...history, userMsg], description: "Submit this turn's reply, updated draft and completeness." })).output;
+  } catch (e) {
+    throw aiProviderFailure(e, "planner");
+  }
+  // History keeps the answer as plain assistant JSON whatever the mode (a tool-mode call would leave an
+  // orphan tool call in the next turn's prompt). This is also the recording format replay serves.
+  const answer = JSON.stringify(out);
+  const responseMessages: ModelMessage[] = [{ role: "assistant", content: answer }];
+  recorder?.steps.push({ text: answer });
   const entries = [...redactor.entries()];
   const draft = OnboardingProfileDraft.parse(restore(out.draft, entries));
   const complete = out.complete && isComplete(draft);
