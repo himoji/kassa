@@ -1,0 +1,30 @@
+{
+  "kind": "invoice",
+  "sourceKind": "pdf",
+  "extraction": {
+    "payeeName": {
+      "value": "Riverside University Budapest",
+      "evidence": "Beneficiary Riverside University Budapest"
+    },
+    "accountNumber": {
+      "value": "HU83118009905400221700000005",
+      "evidence": "IBAN HU83 1180 0990 5400 2217 0000 0005"
+    },
+    "reference": {
+      "value": "RF39RUB2026F04217",
+      "evidence": "Payment reference RF39RUB2026F04217"
+    },
+    "amount": {
+      "value": "2400.00",
+      "evidence": "Amount due EUR 2,400.00"
+    },
+    "currency": {
+      "value": "EUR",
+      "evidence": "Amount due EUR 2,400.00"
+    },
+    "dueDate": {
+      "value": "2026-10-31",
+      "evidence": "Due date 31 October 2026"
+    }
+  }
+}

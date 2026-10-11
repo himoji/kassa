@@ -68,6 +68,7 @@ export function Box({
   border,
   style,
   children,
+  testID,
 }: BoxProps) {
   const { colors } = useTheme();
   const base: ViewStyle = {};
@@ -98,5 +99,9 @@ export function Box({
     base.borderColor = colors.border;
   }
 
-  return <View style={[base, style]}>{children}</View>;
+  return (
+    <View testID={testID} style={[base, style]}>
+      {children}
+    </View>
+  );
 }

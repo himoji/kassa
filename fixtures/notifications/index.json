@@ -1,0 +1,121 @@
+{
+  "_note": "Realistic notification samples for the capture parsers (spec §13) and the demo notification simulator. Merchant names are generic and fictitious; no real bank, wallet or brand names appear in the message bodies. `app` says which notification format the sample imitates. `expected` is the ground-truth parse: amounts in integer minor units (ISO 4217), times in RFC 3339 with the device offset (Budapest = UTC+02:00 until 25 Oct 2026, UTC+01:00 after; Shanghai = UTC+08:00). Kind INCOMING samples are credits, not purchases.",
+  "version": 1,
+  "samples": [
+    {
+      "file": "kz-bank-ru-purchase.txt",
+      "format": "KZ_BANK",
+      "app": "Kazakh bank app (generic)",
+      "language": "ru",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "FRESH MARKET HALL BP",
+        "amountMinor": 476000,
+        "currency": "HUF",
+        "cardHint": "4821",
+        "time": "2026-10-26T23:50:00+05:00"
+      },
+      "notes": "Kazakh bank apps show Almaty local time (UTC+05:00 since 1 March 2024). Thin space or plain space as thousands separator, comma decimal. Same purchase as seed transaction #33 (pending foreign charge): sending it demonstrates dedupe."
+    },
+    {
+      "file": "kz-bank-kk-purchase.txt",
+      "format": "KZ_BANK",
+      "app": "Kazakh bank app (generic)",
+      "language": "kk",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "NOODLE BAR BUDAPEST",
+        "amountMinor": 349000,
+        "currency": "HUF",
+        "cardHint": "4821",
+        "time": "2026-10-25T18:00:00+05:00"
+      }
+    },
+    {
+      "file": "kz-bank-ru-incoming.txt",
+      "format": "KZ_BANK",
+      "app": "Kazakh bank app (generic)",
+      "language": "ru",
+      "kind": "INCOMING",
+      "expected": {
+        "merchant": null,
+        "amountMinor": 60000000,
+        "currency": "KZT",
+        "cardHint": "4821",
+        "time": "2026-10-25T10:12:00+05:00"
+      }
+    },
+    {
+      "file": "alipay-cn-purchase.txt",
+      "format": "ALIPAY",
+      "app": "Alipay-style wallet",
+      "language": "zh-CN",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "便利店(示例)",
+        "amountMinor": 3250,
+        "currency": "CNY",
+        "cardHint": null,
+        "time": "2026-10-26T12:30:41+08:00"
+      }
+    },
+    {
+      "file": "wechat-pay-cn-purchase.txt",
+      "format": "WECHAT_PAY",
+      "app": "WeChat Pay-style wallet",
+      "language": "zh-CN",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "面馆(示例)",
+        "amountMinor": 4500,
+        "currency": "CNY",
+        "cardHint": null,
+        "time": "2026-10-26T18:20:11+08:00"
+      }
+    },
+    {
+      "file": "revolut-en-purchase.txt",
+      "format": "REVOLUT",
+      "app": "Revolut-style app",
+      "language": "en",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "Noodle Bar",
+        "amountMinor": 1240,
+        "currency": "EUR",
+        "cardHint": "0596",
+        "time": "2026-10-27T12:40:00+01:00"
+      }
+    },
+    {
+      "file": "wise-en-purchase.txt",
+      "format": "WISE",
+      "app": "Wise-style app",
+      "language": "en",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "Bean There Cafe",
+        "amountMinor": 129000,
+        "currency": "HUF",
+        "cardHint": null,
+        "time": "2026-10-27T09:15:00+01:00"
+      },
+      "notes": "Same purchase as seed transaction #35: sending it demonstrates dedupe (spec §13)."
+    },
+    {
+      "file": "ios-shortcut-transaction.json",
+      "format": "IOS_SHORTCUT",
+      "app": "iOS Shortcuts Transaction automation",
+      "language": "hu-HU",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "Corner Grocery",
+        "amountMinor": 387000,
+        "currency": "HUF",
+        "cardHint": "Local HUF/EUR card",
+        "time": "2026-10-13T20:00:00+02:00"
+      },
+      "notes": "Shortcut posts {merchant, amount, card} with a bearer device token (spec §13). `amount` is the locale-formatted string Wallet provides; `date` is added by the Shortcut's Current Date action."
+    }
+  ]
+}

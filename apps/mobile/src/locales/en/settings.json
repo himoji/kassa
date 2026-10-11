@@ -1,0 +1,143 @@
+{
+  "advancedFooter": "Overrides replace a preset setting for you. Loosening one needs your passkey and takes effect after 24 hours.",
+  "advancedTitle": "Advanced",
+  "agentAutonomy": {
+    "ON_REQUEST": "Only when I ask",
+    "PLAN_AHEAD": "Plan ahead",
+    "PLAN_AND_ACT": "Plan and act"
+  },
+  "agentAutonomyLabel": "Agent autonomy",
+  "appearanceTitle": "Appearance",
+  "appliedToast": "Setting applied",
+  "caps": {
+    "perPaymentMinor": "Per payment",
+    "perDayMinor": "Per day",
+    "perMonthMinor": "Per month",
+    "smallAutoMinor": "Auto-pay limit",
+    "reserveMinor": "Protected reserve"
+  },
+  "capsFooter": "Lowering a limit applies immediately. Raising a limit needs your passkey and takes effect after 24 hours.",
+  "capsTitle": "Limits",
+  "currencyOption": "{{code}} · {{name}}",
+  "customise": "Customise",
+  "customiseHint": "Override individual settings instead of following the preset.",
+  "direction": {
+    "LOOSEN": "Loosening",
+    "TIGHTEN": "Tightening"
+  },
+  "editCaps": "Edit limits",
+  "effectiveAt": "Effective {{time}}",
+  "effectiveIn": "Takes effect in {{remaining}}",
+  "effectiveNow": "Now: {{agent}}, {{payments}}, {{mode}}",
+  "followPreset": "Follow preset ({{value}})",
+  "homeCurrencyLabel": "Home currency",
+  "mandates": {
+    "category": "Category",
+    "created": "Mandate created",
+    "empty": "No mandates yet.",
+    "footer": "Mandates let bills inside their limits pay themselves.",
+    "hash": "Fingerprint {{hash}}",
+    "invalidAmount": "Enter amounts above zero. Per payment cannot be more than per period.",
+    "new": "New mandate",
+    "newBody": "Pick a verified payee and set limits. Creating a mandate needs your passkey and takes effect after 24 hours.",
+    "newTitle": "New mandate",
+    "noVerifiedPayees": "Add and verify a payee first.",
+    "payee": "Payee",
+    "perPayment": "Max per payment ({{currency}})",
+    "perPeriod": "Max per period ({{currency}})",
+    "period": {
+      "WEEK": "week",
+      "MONTH": "month"
+    },
+    "periodLabel": "Period",
+    "revoke": "Revoke",
+    "revokeBody": "Revoking stops automatic payments under this mandate straight away.",
+    "revokeTitle": "Revoke mandate?",
+    "revoked": "Mandate revoked",
+    "scope": "Up to {{perPayment}} per payment and {{perPeriod}} per {{period}} for {{categories}}",
+    "signCreate": "Sign with passkey",
+    "status": {
+      "ACTIVE": "Active",
+      "PENDING_EFFECTIVE": "Pending",
+      "REVOKED": "Revoked"
+    },
+    "title": "Mandates",
+    "unknownPayee": "Unknown payee",
+    "used": "Used this period: {{amount}}"
+  },
+  "moneyMode": {
+    "PAY_IN_PLACE": "Pay in place",
+    "CAPPED_WALLET": "Capped wallet",
+    "HANDOFF": "Handoff (you pay)"
+  },
+  "moneyModeLabel": "Money mode",
+  "moreTitle": "More",
+  "notificationMode": {
+    "EACH": "Each payment",
+    "THRESHOLDS": "Above thresholds",
+    "DIGEST": "Daily digest"
+  },
+  "notificationModeLabel": "Notifications",
+  "paymentPolicy": {
+    "ALWAYS_ASK": "Always ask",
+    "RISK_BASED": "Ask when risky",
+    "NEVER_ASK": "Never ask within limits"
+  },
+  "paymentPolicyLabel": "Payment approval",
+  "paymentsFooter": "Money mode and payment approval decide how payments are made.",
+  "paymentsTitle": "Payments",
+  "pendingFooter": "Changes waiting out their 24-hour delay.",
+  "pendingTitle": "Pending changes",
+  "pendingToastBody": "This loosens a rule. It takes effect after 24 hours.",
+  "pendingToastTitle": "Change requested",
+  "preset": {
+    "ASK_ME": {
+      "title": "Ask me",
+      "body": "Every payment needs your passkey."
+    },
+    "SMART": {
+      "title": "Smart",
+      "body": "Small safe payments to verified payees run automatically. Risky ones ask."
+    },
+    "AUTOPILOT": {
+      "title": "Autopilot",
+      "body": "Bills inside your signed mandates pay themselves."
+    }
+  },
+  "presetDefaults": "Agent: {{agent}}. Payments: {{payments}}. Money: {{mode}}.",
+  "presetTitle": "Preset",
+  "region": {
+    "EU": "Europe",
+    "CN": "China (handoff only)"
+  },
+  "regionLabel": "Region",
+  "ruleKind": {
+    "PRESET": "Preset",
+    "MONEY_MODE": "Money mode",
+    "REGION": "Region",
+    "HOME_CURRENCY": "Home currency",
+    "NOTIFICATION_MODE": "Notifications",
+    "CAPS": "Limits",
+    "CAP_PER_PAYMENT": "Per-payment limit",
+    "CAP_PER_DAY": "Daily limit",
+    "CAP_PER_MONTH": "Monthly limit",
+    "SMALL_AUTO": "Auto-pay limit",
+    "RESERVE": "Protected reserve",
+    "OVERRIDES": "Overrides",
+    "MANDATE": "Mandate",
+    "PAYEE": "Payee",
+    "OTHER": "Other change"
+  },
+  "saveCaps": "Save limits",
+  "selected": "Selected",
+  "signOut": "Sign out",
+  "signOutTitle": "Sign out of Kassa?",
+  "tab": "Settings",
+  "theme": {
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "themeLabel": "Theme",
+  "title": "Settings"
+}

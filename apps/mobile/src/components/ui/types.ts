@@ -69,6 +69,7 @@ export interface BoxProps {
   border?: boolean;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
+  testID?: string;
 }
 
 export type SafeArea = "top" | "bottom" | "both" | "none";
@@ -105,6 +106,10 @@ export interface TextProps {
   numberOfLines?: number;
   style?: StyleProp<TextStyle>;
   children?: ReactNode;
+  /** Long-press to copy (data, IDs, error messages). */
+  selectable?: boolean;
+  accessibilityLabel?: string;
+  testID?: string;
 }
 
 // ---------------------------------------------------------------------------

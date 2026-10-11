@@ -1,0 +1,57 @@
+{
+  "emptyInbox": "No notifications yet",
+  "emptySpending": "No spending yet",
+  "emptyTimeline": "Nothing has happened yet",
+  "entryMeta": "{{time}} · event {{seq}} · {{hash}}",
+  "hiddenFee": "Includes a {{amount}} fee",
+  "new": "New",
+  "segment": {
+    "inbox": "Inbox",
+    "spending": "Spending",
+    "timeline": "Timeline"
+  },
+  "source": {
+    "SHORTCUT": "iOS Shortcut",
+    "NOTIF_SIM": "Simulated notification",
+    "TEXT": "Text message",
+    "VOICE": "Voice",
+    "SCREENSHOT": "Screenshot",
+    "SETTLEMENT": "Bank settlement",
+    "KASSA_PAYMENT": "Kassa payment"
+  },
+  "tab": "Activity",
+  "timelineHint": "Every decision and change, in order. Entries cannot be edited.",
+  "title": "Activity",
+  "txMeta": "{{time}} · {{category}} · from {{source}}",
+  "txStatus": {
+    "PENDING": "Pending",
+    "SETTLED": "Settled"
+  },
+  "type": {
+    "PROPOSAL_CREATED": "Payment proposed",
+    "DECISION": "Decision made",
+    "APPROVAL_SIGNED": "Order signed",
+    "ORDER_REJECTED": "Order rejected",
+    "PAYMENT_CREATED": "Payment created",
+    "PAYMENT_STATUS": "Payment update",
+    "PAYMENT_REFUSED": "Payment refused",
+    "MANDATE_CREATED": "Mandate created",
+    "MANDATE_REVOKED": "Mandate revoked",
+    "RULE_CHANGE_REQUESTED": "Rule change requested",
+    "RULE_CHANGE_APPLIED": "Rule change applied",
+    "PAYEE_CREATED": "Payee added",
+    "PAYEE_VERIFIED": "Payee verified",
+    "FREEZE": "Payments frozen",
+    "TRANSACTION_CAPTURED": "Transaction captured",
+    "CARD_ISSUED": "Card issued",
+    "CARD_AUTH_APPROVED": "Card payment approved",
+    "CARD_AUTH_DECLINED": "Card payment declined",
+    "HANDOFF_CREATED": "Handoff created",
+    "HANDOFF_MISMATCH": "Handoff name mismatch",
+    "HANDOFF_PAID": "Handoff paid",
+    "CHECKPOINT": "Checkpoint",
+    "OTHER": "Ledger event"
+  },
+  "uncategorised": "Uncategorised",
+  "unreadA11y": "Unread: {{title}}"
+}

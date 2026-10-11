@@ -1,0 +1,34 @@
+{
+  "scenario": "tuition",
+  "description": "Hand-written recording (spec §9 replay) for the tuition scenario: the planner looks up the bill, compares funding routes and the budget, then proposes the transfer. Only model outputs are recorded; every tool (obligations, route optimizer, rules.proposeOrder) runs for real during replay. Placeholders are deterministic: obligations are listed by due date, so the university (tuition, due 2026-10-31) is payee_1.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "Pay my tuition",
+      "match": ["tuition"],
+      "steps": [
+        {
+          "text": "Let me check your upcoming bills.",
+          "toolCalls": [{ "toolName": "get_obligations", "input": { "withinDays": 30 } }]
+        },
+        {
+          "toolCalls": [
+            { "toolName": "get_routes", "input": { "fromCurrency": "KZT", "toCurrency": "EUR", "amountMinor": 240000, "dueDate": "2026-10-31" } },
+            { "toolName": "get_budget", "input": { "category": "tuition" } }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "toolName": "propose_order",
+              "input": { "payeeRef": "payee_1", "amountMinor": 240000, "currency": "EUR", "purpose": "Tuition autumn term 2026", "rail": "BANK_TRANSFER" }
+            }
+          ]
+        },
+        {
+          "text": "I've drafted your tuition payment to payee_1: €2,400.00 (shown with its tenge equivalent on the card), due 31 October. The cheapest route is the one at the top of the comparison card, and the card below shows the budget impact. The rules engine has decided how it must be approved: if it asks, review the order and sign it with your passkey."
+        }
+      ]
+    }
+  ]
+}

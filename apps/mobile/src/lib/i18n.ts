@@ -1,10 +1,14 @@
 /**
  * i18n on i18next + react-i18next (i18n/i18next module).
  *
- * Same surface as the core shim (`src/lib/shims/i18n.ts`): `i18n.t` for
- * plain functions, `useT()` for components (re-renders on language change).
- * Keys are the English source strings; `src/locales/<lang>.json` translate
- * them. Kassa ships English only; add a locale by dropping `src/locales/<lang>.json` and registering it in
+ * Two key styles live side by side:
+ * - Kassa screens use namespaced keys, always fully qualified: `t("home:balance.title")` via
+ *   `useKassaT()` / `i18next.t`. One JSON file per namespace in `src/locales/<lang>/<ns>.json`
+ *   (ISO 639-1 language folders, BCP 47 tags at runtime).
+ * - The boilerplate kit keeps its sentence keys ("Privacy policy") in the default `translation`
+ *   namespace (`src/locales/<lang>/kit.json`), reached through `i18n.t` / `useT()`, which turn
+ *   the separators off per call.
+ * Kassa ships English only; add a locale by adding `src/locales/<lang>/` and registering it in
  * `LANGUAGES`, `LANGUAGE_LABELS` + `resources` below (and `RTL_LANGUAGES` for a
  * right-to-left script). Missing keys fall back to English, then to the key itself.
  *
@@ -23,7 +27,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 import { I18nManager, Platform } from "react-native";
 
 import { storage } from "@/lib/storage";
-import en from "@/locales/en.json";
+import { en } from "@/locales/en";
 
 export type I18nVars = Record<string, string | number>;
 
@@ -47,8 +51,14 @@ export const RTL_LANGUAGES: readonly Language[] = [];
 const STORAGE_KEY = "readynative:language";
 
 const resources = {
-  en: { translation: en },
-} satisfies Record<Language, { translation: Record<string, string> }>;
+  en,
+} satisfies Record<Language, Record<string, unknown>>;
+
+/** Kassa namespaces (one JSON file each); `translation` is the kit's sentence-key namespace. */
+export const NAMESPACES = Object.keys(en) as (keyof typeof en)[];
+
+/** Per-call options that make the kit's sentence keys ("Version {{version}}") literal lookups. */
+const KIT_OPTIONS = { ns: "translation", keySeparator: false, nsSeparator: false } as const;
 
 export function isLanguage(value: unknown): value is Language {
   return typeof value === "string" && (LANGUAGES as readonly string[]).includes(value);
@@ -100,22 +110,48 @@ i18next.use(initReactI18next).init({
   resources,
   lng: initialLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,
-  // Keys are sentences ("Privacy policy", "Version {{version}}"): no namespaces or nesting.
-  keySeparator: false,
-  nsSeparator: false,
+  ns: NAMESPACES,
+  defaultNS: "translation",
+  keySeparator: ".",
+  nsSeparator: ":",
   interpolation: { escapeValue: false },
   // Resources are bundled: initialise synchronously so `t` works from the first render.
   initAsync: false,
 });
 
 export const i18n: I18n = {
-  t: (key, vars) => i18next.t(key, vars),
+  t: (key, vars) => i18next.t(key, { ...vars, ...KIT_OPTIONS }),
 };
 
-/** `t` bound to the current language; components re-render when it changes. */
+/** Kit sentence-key `t` bound to the current language; components re-render when it changes. */
 export function useT(): TFn {
   const { t } = useTranslation();
-  return useCallback<TFn>((key, vars) => t(key, vars), [t]);
+  return useCallback<TFn>((key, vars) => t(key, { ...vars, ...KIT_OPTIONS }), [t]);
+}
+
+/**
+ * Kassa `t` for fully qualified namespaced keys (`"order:approve"`), re-rendering on language
+ * change. Options pass through to i18next (`count` for plurals, interpolation vars).
+ */
+export function useKassaT(): TFn {
+  const { t } = useTranslation(NAMESPACES);
+  return useCallback<TFn>((key, vars) => t(key, vars) as string, [t]);
+}
+
+/** The active BCP 47 locale tag for Intl formatting (money, dates). */
+export function useLocaleTag(): string {
+  const { i18n: instance } = useTranslation();
+  return localeTag(instance.language);
+}
+
+/**
+ * BCP 47 tag for Intl: the device's full tag (e.g. `en-GB`) when its language matches the UI
+ * language, so number and date conventions follow the region; otherwise the bare language.
+ */
+export function localeTag(language: string = i18next.language): string {
+  const device = getLocales()[0];
+  if (device?.languageTag && device.languageCode === language) return device.languageTag;
+  return language || DEFAULT_LANGUAGE;
 }
 
 /** Current language, reactive. */

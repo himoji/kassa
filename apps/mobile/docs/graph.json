@@ -75,6 +75,12 @@
       }
     },
     {
+      "id": "service:kassa-api",
+      "kind": "service",
+      "label": "Kassa API (/api)",
+      "file": "src/api/client.ts"
+    },
+    {
       "id": "provider:I18nProvider",
       "kind": "provider",
       "label": "I18nProvider",
@@ -134,6 +140,15 @@
       }
     },
     {
+      "id": "route:(auth)/_layout",
+      "kind": "route",
+      "label": "/ (layout)",
+      "file": "src/app/(auth)/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
       "id": "route:(tabs)/_layout",
       "kind": "route",
       "label": "/ (layout)",
@@ -143,10 +158,55 @@
       }
     },
     {
+      "id": "route:(tabs)/activity/_layout",
+      "kind": "route",
+      "label": "/activity (layout)",
+      "file": "src/app/(tabs)/activity/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/cards/_layout",
+      "kind": "route",
+      "label": "/cards (layout)",
+      "file": "src/app/(tabs)/cards/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/chat/_layout",
+      "kind": "route",
+      "label": "/chat (layout)",
+      "file": "src/app/(tabs)/chat/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/home/_layout",
+      "kind": "route",
+      "label": "/home (layout)",
+      "file": "src/app/(tabs)/home/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/settings/_layout",
+      "kind": "route",
+      "label": "/settings (layout)",
+      "file": "src/app/(tabs)/settings/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
       "id": "route:/",
       "kind": "route",
       "label": "/",
-      "file": "src/app/(tabs)/index.tsx",
+      "file": "src/app/index.tsx",
       "meta": {
         "type": "page"
       }
@@ -161,13 +221,247 @@
       }
     },
     {
-      "id": "route:/settings",
+      "id": "route:/activity",
       "kind": "route",
-      "label": "/settings",
-      "file": "src/app/(tabs)/settings.tsx",
+      "label": "/activity",
+      "file": "src/app/(tabs)/activity/index.tsx",
       "meta": {
         "type": "page"
       }
+    },
+    {
+      "id": "route:/bills",
+      "kind": "route",
+      "label": "/bills",
+      "file": "src/app/bills/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/cards",
+      "kind": "route",
+      "label": "/cards",
+      "file": "src/app/(tabs)/cards/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/chat",
+      "kind": "route",
+      "label": "/chat",
+      "file": "src/app/(tabs)/chat/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/credit-record",
+      "kind": "route",
+      "label": "/credit-record",
+      "file": "src/app/credit-record.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/demo",
+      "kind": "route",
+      "label": "/demo",
+      "file": "src/app/demo.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/handoff/[paymentId]",
+      "kind": "route",
+      "label": "/handoff/[paymentId]",
+      "file": "src/app/handoff/[paymentId].tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/home",
+      "kind": "route",
+      "label": "/home",
+      "file": "src/app/(tabs)/home/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/login",
+      "kind": "route",
+      "label": "/login",
+      "file": "src/app/(auth)/login.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/onboarding/chat",
+      "kind": "route",
+      "label": "/onboarding/chat",
+      "file": "src/app/onboarding/chat.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/onboarding/review",
+      "kind": "route",
+      "label": "/onboarding/review",
+      "file": "src/app/onboarding/review.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/order/[proposalId]",
+      "kind": "route",
+      "label": "/order/[proposalId]",
+      "file": "src/app/order/[proposalId].tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/payees",
+      "kind": "route",
+      "label": "/payees",
+      "file": "src/app/payees/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/payees/[id]",
+      "kind": "route",
+      "label": "/payees/[id]",
+      "file": "src/app/payees/[id].tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/register",
+      "kind": "route",
+      "label": "/register",
+      "file": "src/app/(auth)/register.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/settings",
+      "kind": "route",
+      "label": "/settings",
+      "file": "src/app/(tabs)/settings/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/verify/[id]",
+      "kind": "route",
+      "label": "/verify/[id]",
+      "file": "src/app/verify/[id].tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/welcome",
+      "kind": "route",
+      "label": "/welcome",
+      "file": "src/app/(auth)/welcome.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:onboarding/_layout",
+      "kind": "route",
+      "label": "/onboarding (layout)",
+      "file": "src/app/onboarding/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "screen:activity/activity-screen",
+      "kind": "screen",
+      "label": "@/screens/activity/activity-screen",
+      "file": "src/screens/activity/activity-screen.tsx"
+    },
+    {
+      "id": "screen:activity/ledger-entry",
+      "kind": "screen",
+      "label": "@/screens/activity/ledger-entry",
+      "file": "src/screens/activity/ledger-entry.ts"
+    },
+    {
+      "id": "screen:auth/login-screen",
+      "kind": "screen",
+      "label": "@/screens/auth/login-screen",
+      "file": "src/screens/auth/login-screen.tsx"
+    },
+    {
+      "id": "screen:auth/register-screen",
+      "kind": "screen",
+      "label": "@/screens/auth/register-screen",
+      "file": "src/screens/auth/register-screen.tsx"
+    },
+    {
+      "id": "screen:auth/welcome-screen",
+      "kind": "screen",
+      "label": "@/screens/auth/welcome-screen",
+      "file": "src/screens/auth/welcome-screen.tsx"
+    },
+    {
+      "id": "screen:bills/bills-screen",
+      "kind": "screen",
+      "label": "@/screens/bills/bills-screen",
+      "file": "src/screens/bills/bills-screen.tsx"
+    },
+    {
+      "id": "screen:cards/cards-screen",
+      "kind": "screen",
+      "label": "@/screens/cards/cards-screen",
+      "file": "src/screens/cards/cards-screen.tsx"
+    },
+    {
+      "id": "screen:chat/chat-screen",
+      "kind": "screen",
+      "label": "@/screens/chat/chat-screen",
+      "file": "src/screens/chat/chat-screen.tsx"
+    },
+    {
+      "id": "screen:credit/credit-record-screen",
+      "kind": "screen",
+      "label": "@/screens/credit/credit-record-screen",
+      "file": "src/screens/credit/credit-record-screen.tsx"
+    },
+    {
+      "id": "screen:demo/demo-screen",
+      "kind": "screen",
+      "label": "@/screens/demo/demo-screen",
+      "file": "src/screens/demo/demo-screen.tsx"
+    },
+    {
+      "id": "screen:demo/notification-samples",
+      "kind": "screen",
+      "label": "@/screens/demo/notification-samples",
+      "file": "src/screens/demo/notification-samples.ts"
+    },
+    {
+      "id": "screen:handoff/handoff-screen",
+      "kind": "screen",
+      "label": "@/screens/handoff/handoff-screen",
+      "file": "src/screens/handoff/handoff-screen.tsx"
     },
     {
       "id": "screen:home/home-screen",
@@ -176,10 +470,64 @@
       "file": "src/screens/home/home-screen.tsx"
     },
     {
-      "id": "screen:settings/developer-tools",
+      "id": "screen:onboarding/onboarding-chat-screen",
       "kind": "screen",
-      "label": "@/screens/settings/developer-tools",
-      "file": "src/screens/settings/developer-tools.tsx"
+      "label": "@/screens/onboarding/onboarding-chat-screen",
+      "file": "src/screens/onboarding/onboarding-chat-screen.tsx"
+    },
+    {
+      "id": "screen:onboarding/onboarding-review-screen",
+      "kind": "screen",
+      "label": "@/screens/onboarding/onboarding-review-screen",
+      "file": "src/screens/onboarding/onboarding-review-screen.tsx"
+    },
+    {
+      "id": "screen:order/order-sheet-screen",
+      "kind": "screen",
+      "label": "@/screens/order/order-sheet-screen",
+      "file": "src/screens/order/order-sheet-screen.tsx"
+    },
+    {
+      "id": "screen:order/order-sheet-view",
+      "kind": "screen",
+      "label": "@/screens/order/order-sheet-view",
+      "file": "src/screens/order/order-sheet-view.tsx"
+    },
+    {
+      "id": "screen:payees/payee-detail-screen",
+      "kind": "screen",
+      "label": "@/screens/payees/payee-detail-screen",
+      "file": "src/screens/payees/payee-detail-screen.tsx"
+    },
+    {
+      "id": "screen:payees/payees-screen",
+      "kind": "screen",
+      "label": "@/screens/payees/payees-screen",
+      "file": "src/screens/payees/payees-screen.tsx"
+    },
+    {
+      "id": "screen:settings/caps-section",
+      "kind": "screen",
+      "label": "@/screens/settings/caps-section",
+      "file": "src/screens/settings/caps-section.tsx"
+    },
+    {
+      "id": "screen:settings/mandates-section",
+      "kind": "screen",
+      "label": "@/screens/settings/mandates-section",
+      "file": "src/screens/settings/mandates-section.tsx"
+    },
+    {
+      "id": "screen:settings/pending-changes",
+      "kind": "screen",
+      "label": "@/screens/settings/pending-changes",
+      "file": "src/screens/settings/pending-changes.tsx"
+    },
+    {
+      "id": "screen:settings/preset-cards",
+      "kind": "screen",
+      "label": "@/screens/settings/preset-cards",
+      "file": "src/screens/settings/preset-cards.tsx"
     },
     {
       "id": "screen:settings/settings-screen",
@@ -188,10 +536,28 @@
       "file": "src/screens/settings/settings-screen.tsx"
     },
     {
+      "id": "screen:settings/use-settings-update",
+      "kind": "screen",
+      "label": "@/screens/settings/use-settings-update",
+      "file": "src/screens/settings/use-settings-update.ts"
+    },
+    {
+      "id": "screen:verify/verify-screen",
+      "kind": "screen",
+      "label": "@/screens/verify/verify-screen",
+      "file": "src/screens/verify/verify-screen.tsx"
+    },
+    {
       "id": "hook:use-auth-redirect",
       "kind": "hook",
       "label": "@/hooks/use-auth-redirect",
       "file": "src/hooks/use-auth-redirect.ts"
+    },
+    {
+      "id": "hook:use-demo-now",
+      "kind": "hook",
+      "label": "@/hooks/use-demo-now",
+      "file": "src/hooks/use-demo-now.ts"
     },
     {
       "id": "hook:use-onboarding-redirect",
@@ -206,10 +572,22 @@
       "file": "src/hooks/use-push-token.ts"
     },
     {
+      "id": "hook:use-register-device",
+      "kind": "hook",
+      "label": "@/hooks/use-register-device",
+      "file": "src/hooks/use-register-device.ts"
+    },
+    {
       "id": "hook:use-sign-out-cleanup",
       "kind": "hook",
       "label": "@/hooks/use-sign-out-cleanup",
       "file": "src/hooks/use-sign-out-cleanup.ts"
+    },
+    {
+      "id": "store:chat",
+      "kind": "store",
+      "label": "@/stores/chat",
+      "file": "src/stores/chat.ts"
     },
     {
       "id": "store:consent",
@@ -234,6 +612,12 @@
       "kind": "store",
       "label": "@/stores/review-prompt",
       "file": "src/stores/review-prompt.ts"
+    },
+    {
+      "id": "store:session",
+      "kind": "store",
+      "label": "@/stores/session",
+      "file": "src/stores/session.ts"
     },
     {
       "id": "store:theme-mode",
@@ -284,6 +668,12 @@
       "file": "src/lib/cache.ts"
     },
     {
+      "id": "lib:categories",
+      "kind": "lib",
+      "label": "@/lib/categories",
+      "file": "src/lib/categories.ts"
+    },
+    {
       "id": "lib:clipboard",
       "kind": "lib",
       "label": "@/lib/clipboard",
@@ -314,6 +704,18 @@
       "file": "src/lib/env.ts"
     },
     {
+      "id": "lib:format",
+      "kind": "lib",
+      "label": "@/lib/format",
+      "file": "src/lib/format.ts"
+    },
+    {
+      "id": "lib:haptics",
+      "kind": "lib",
+      "label": "@/lib/haptics",
+      "file": "src/lib/haptics.ts"
+    },
+    {
       "id": "lib:i18n",
       "kind": "lib",
       "label": "@/lib/i18n",
@@ -330,6 +732,24 @@
       "kind": "lib",
       "label": "@/lib/native-toast",
       "file": "src/lib/native-toast.ts"
+    },
+    {
+      "id": "lib:passkey-errors",
+      "kind": "lib",
+      "label": "@/lib/passkey-errors",
+      "file": "src/lib/passkey-errors.ts"
+    },
+    {
+      "id": "lib:passkeys",
+      "kind": "lib",
+      "label": "@/lib/passkeys",
+      "file": "src/lib/passkeys.ts"
+    },
+    {
+      "id": "lib:passkeys.web",
+      "kind": "lib",
+      "label": "@/lib/passkeys.web",
+      "file": "src/lib/passkeys.web.ts"
     },
     {
       "id": "lib:payments",
@@ -482,6 +902,12 @@
       "file": "src/lib/utils.ts"
     },
     {
+      "id": "lib:uuid",
+      "kind": "lib",
+      "label": "@/lib/uuid",
+      "file": "src/lib/uuid.ts"
+    },
+    {
       "id": "lib:widgets",
       "kind": "lib",
       "label": "@/lib/widgets",
@@ -496,6 +922,11 @@
       "id": "env:EXPO_PUBLIC_APP_VARIANT",
       "kind": "env",
       "label": "EXPO_PUBLIC_APP_VARIANT"
+    },
+    {
+      "id": "env:EXPO_PUBLIC_DEMO_ADMIN_TOKEN",
+      "kind": "env",
+      "label": "EXPO_PUBLIC_DEMO_ADMIN_TOKEN"
     },
     {
       "id": "script:doctor",
@@ -560,6 +991,11 @@
   ],
   "edges": [
     {
+      "from": "hook:use-auth-redirect",
+      "to": "store:session",
+      "kind": "imports"
+    },
+    {
       "from": "hook:use-push-token",
       "to": "lib:shims/push",
       "kind": "imports"
@@ -567,6 +1003,16 @@
     {
       "from": "hook:use-push-token",
       "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-register-device",
+      "to": "lib:push",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-register-device",
+      "to": "store:session",
       "kind": "imports"
     },
     {
@@ -593,6 +1039,11 @@
       "from": "lib:api/client",
       "to": "env:EXPO_PUBLIC_API_URL",
       "kind": "reads"
+    },
+    {
+      "from": "lib:auth",
+      "to": "store:session",
+      "kind": "imports"
     },
     {
       "from": "lib:browser",
@@ -623,6 +1074,16 @@
       "from": "lib:env",
       "to": "env:EXPO_PUBLIC_APP_VARIANT",
       "kind": "reads"
+    },
+    {
+      "from": "lib:env",
+      "to": "env:EXPO_PUBLIC_DEMO_ADMIN_TOKEN",
+      "kind": "reads"
+    },
+    {
+      "from": "lib:format",
+      "to": "lib:i18n",
+      "kind": "imports"
     },
     {
       "from": "lib:i18n",
@@ -781,7 +1242,22 @@
     },
     {
       "from": "route:_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:_layout",
       "to": "store:theme-mode",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(auth)/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/_layout",
+      "to": "hook:use-register-device",
       "kind": "imports"
     },
     {
@@ -790,9 +1266,34 @@
       "kind": "imports"
     },
     {
+      "from": "route:(tabs)/activity/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/cards/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/chat/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/home/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/settings/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "route:/",
-      "to": "screen:home/home-screen",
-      "kind": "renders"
+      "to": "store:session",
+      "kind": "imports"
     },
     {
       "from": "route:/+not-found",
@@ -800,93 +1301,393 @@
       "kind": "imports"
     },
     {
+      "from": "route:/activity",
+      "to": "screen:activity/activity-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/bills",
+      "to": "screen:bills/bills-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/cards",
+      "to": "screen:cards/cards-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/chat",
+      "to": "screen:chat/chat-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/credit-record",
+      "to": "screen:credit/credit-record-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/demo",
+      "to": "screen:demo/demo-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/handoff/[paymentId]",
+      "to": "screen:handoff/handoff-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/home",
+      "to": "screen:home/home-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/login",
+      "to": "screen:auth/login-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/onboarding/chat",
+      "to": "screen:onboarding/onboarding-chat-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/onboarding/review",
+      "to": "screen:onboarding/onboarding-review-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/order/[proposalId]",
+      "to": "screen:order/order-sheet-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/payees",
+      "to": "screen:payees/payees-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/payees/[id]",
+      "to": "screen:payees/payee-detail-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/register",
+      "to": "screen:auth/register-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/settings",
       "to": "screen:settings/settings-screen",
       "kind": "renders"
     },
     {
-      "from": "screen:home/home-screen",
-      "to": "lib:readynative",
-      "kind": "imports"
+      "from": "route:/verify/[id]",
+      "to": "screen:verify/verify-screen",
+      "kind": "renders"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "hook:use-onboarding-redirect",
-      "kind": "imports"
+      "from": "route:/welcome",
+      "to": "screen:auth/welcome-screen",
+      "kind": "renders"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:auth",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:consent",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:crash",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:env",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/developer-tools",
+      "from": "route:onboarding/_layout",
       "to": "lib:i18n",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:payments",
+      "from": "screen:activity/activity-screen",
+      "to": "lib:format",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:privacy-categories",
+      "from": "screen:activity/activity-screen",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "lib:push",
+      "from": "screen:auth/login-screen",
+      "to": "lib:haptics",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "store:onboarding",
+      "from": "screen:auth/login-screen",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/developer-tools",
-      "to": "env:EXPO_PUBLIC_APP_VARIANT",
-      "kind": "reads"
-    },
-    {
-      "from": "screen:settings/settings-screen",
-      "to": "hook:use-onboarding-redirect",
+      "from": "screen:auth/login-screen",
+      "to": "lib:passkey-errors",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:account-data",
+      "from": "screen:auth/register-screen",
+      "to": "lib:haptics",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:analytics",
+      "from": "screen:auth/register-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/register-screen",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/welcome-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:bills/bills-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:bills/bills-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:cards/cards-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:cards/cards-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/chat-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/chat-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/chat-screen",
+      "to": "store:chat",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:credit/credit-record-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:credit/credit-record-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:demo/demo-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:demo/demo-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:demo/demo-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:demo/demo-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:handoff/handoff-screen",
+      "to": "lib:browser",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:handoff/handoff-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:handoff/handoff-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:home/home-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:home/home-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "store:chat",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
+      "to": "store:chat",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:order/order-sheet-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:order/order-sheet-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:order/order-sheet-screen",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:order/order-sheet-view",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:order/order-sheet-view",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payee-detail-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payee-detail-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payee-detail-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payees-screen",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payees-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payees-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/caps-section",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/caps-section",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/mandates-section",
+      "to": "lib:categories",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/mandates-section",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/mandates-section",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/mandates-section",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/mandates-section",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/mandates-section",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/pending-changes",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/pending-changes",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/preset-cards",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
       "from": "screen:settings/settings-screen",
       "to": "lib:auth",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:browser",
       "kind": "imports"
     },
     {
@@ -896,12 +1697,12 @@
     },
     {
       "from": "screen:settings/settings-screen",
-      "to": "lib:consent",
+      "to": "lib:env",
       "kind": "imports"
     },
     {
       "from": "screen:settings/settings-screen",
-      "to": "lib:crash",
+      "to": "lib:format",
       "kind": "imports"
     },
     {
@@ -911,42 +1712,42 @@
     },
     {
       "from": "screen:settings/settings-screen",
-      "to": "lib:payments",
+      "to": "env:EXPO_PUBLIC_DEMO_ADMIN_TOKEN",
+      "kind": "reads"
+    },
+    {
+      "from": "screen:settings/use-settings-update",
+      "to": "lib:haptics",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:privacy",
+      "from": "screen:settings/use-settings-update",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:privacy-categories",
+      "from": "screen:settings/use-settings-update",
+      "to": "lib:passkey-errors",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:readynative",
+      "from": "screen:verify/verify-screen",
+      "to": "lib:format",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "lib:store-review",
+      "from": "screen:verify/verify-screen",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "screen:settings/developer-tools",
-      "kind": "imports"
+      "from": "service:kassa-api",
+      "to": "env:EXPO_PUBLIC_API_URL",
+      "kind": "custom"
     },
     {
-      "from": "screen:settings/settings-screen",
-      "to": "store:consent",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/settings-screen",
-      "to": "store:onboarding",
+      "from": "store:chat",
+      "to": "lib:uuid",
       "kind": "imports"
     },
     {

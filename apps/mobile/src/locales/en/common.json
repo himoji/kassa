@@ -1,0 +1,60 @@
+{
+  "approxHome": "About {{amount}}",
+  "cancel": "Cancel",
+  "category": {
+    "groceries": "Groceries",
+    "eating_out": "Eating out",
+    "transport": "Transport",
+    "rent": "Rent",
+    "tuition": "Tuition",
+    "insurance": "Insurance",
+    "utilities": "Utilities",
+    "shopping": "Shopping",
+    "health": "Health",
+    "other": "Other"
+  },
+  "close": "Close",
+  "countdown": {
+    "due": "Due now",
+    "dh": "{{days}} d {{hours}} h",
+    "hm": "{{hours}} h {{minutes}} min",
+    "m": "{{minutes}} min"
+  },
+  "decision": {
+    "AUTO": "Auto-approved",
+    "ASK": "Needs your passkey",
+    "HANDOFF": "Pay it yourself",
+    "REFUSE": "Refused"
+  },
+  "errors": {
+    "conflict": "This changed while you were looking. Refresh and try again.",
+    "contract": "Kassa got an unexpected response. Update the app and try again.",
+    "loadTitle": "Could not load this",
+    "network": "No connection. Check your network and try again.",
+    "notFound": "This no longer exists.",
+    "passkeyCancelled": "Passkey approval was cancelled. Nothing was signed.",
+    "passkeyUnsupported": "This device cannot approve with a passkey.",
+    "request": "That request did not work. Try again.",
+    "server": "Kassa is having trouble. Try again in a moment.",
+    "signedOut": "Your session has ended. Sign in again.",
+    "unknown": "Something went wrong. Try again."
+  },
+  "proposalStatus": {
+    "PENDING_APPROVAL": "Waiting for your passkey",
+    "APPROVED": "Approved",
+    "REJECTED": "Rejected",
+    "REFUSED": "Refused by the rules",
+    "HANDOFF": "Pay it yourself",
+    "EXECUTED": "Paid",
+    "EXPIRED": "Expired",
+    "FAILED": "Failed"
+  },
+  "rail": {
+    "CARD_ISSUING": "One-time card",
+    "BANK_TRANSFER": "Bank transfer",
+    "HANDOFF": "Handoff (you pay)",
+    "PAY_IN_PLACE": "Pay in place"
+  },
+  "retry": "Try again",
+  "simulated": "Simulated"
+}

@@ -1,0 +1,17 @@
+{
+  "autopay": "Autopay",
+  "bestRoute": "Best route: {{from}} by {{rail}}, about {{cost}}",
+  "coverage": {
+    "COVERED": "Covered",
+    "SHORTFALL": "Short"
+  },
+  "covered45": "Covered for 45 days",
+  "dueOn": "Due {{date}} · {{category}}",
+  "empty": "No bills yet.",
+  "forecastFooter": "Based on your income and bills. Changes can shift it.",
+  "forecastTitle": "45-day forecast",
+  "shortfall": "Short on {{date}} by {{amount}}",
+  "suggestion": "Move {{amount}} from {{from}} to {{to}} by {{date}} to cover this",
+  "title": "Bills",
+  "upcomingTitle": "Upcoming"
+}

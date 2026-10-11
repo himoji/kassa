@@ -1,7 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "types": ["bun"]
+    "types": [
+      "bun"
+    ]
   },
-  "include": ["src", "test", "scripts"]
+  "include": [
+    "src",
+    "test",
+    "scripts",
+    "../../fixtures/**/*.ts",
+    "../../fixtures/**/*.json"
+  ]
 }

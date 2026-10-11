@@ -1,0 +1,44 @@
+{
+  "agentTitle": "Agent",
+  "clockFooter": "Moves the demo clock forward. Countdowns and cooling periods follow it.",
+  "clockTitle": "Demo clock",
+  "disabled": "Clock unavailable",
+  "done": "Demo step done",
+  "intro": "Simulated data only. Use these tools to walk through the app quickly.",
+  "notifFooter": "Sends the text as a bank or wallet notification. Simulated, nothing is charged.",
+  "notifLabel": "Notification text",
+  "notifSent": "Notification sent",
+  "notifTitle": "Notification simulator",
+  "now": "Now: {{time}}",
+  "plus1d": "+1 day",
+  "plus1h": "+1 hour",
+  "plus3d": "+3 days",
+  "replayHint": "Replays the agent's recorded answers instead of asking the live model.",
+  "replayMode": "Replay mode",
+  "reset": "Reset demo",
+  "resetConfirm": "Reset all simulated data? This cannot be undone.",
+  "resetTitle": "Reset",
+  "sample": {
+    "kzBankRu": "Kazakh bank text (Russian)",
+    "kzBankKk": "Kazakh bank text (Kazakh)",
+    "alipayCn": "Alipay notice (Chinese)",
+    "wechatCn": "WeChat Pay notice (Chinese)",
+    "revolutEn": "Card app notice (English)"
+  },
+  "scenario": {
+    "settlement": "Bank settlement",
+    "money-from-home": "Money from home",
+    "landlord-iban-email": "Landlord changes IBAN",
+    "pos-low-dough": "Low balance at checkout"
+  },
+  "scenarioHint": {
+    "settlement": "A card payment settles at the bank.",
+    "money-from-home": "Family sends money to your account.",
+    "landlord-iban-email": "An email asks you to pay a new account.",
+    "pos-low-dough": "A card payment at a shop with low funds."
+  },
+  "scenariosTitle": "Scenarios",
+  "sendNotif": "Send notification",
+  "settingsHint": "Simulated data, clock and agent controls",
+  "title": "Demo"
+}

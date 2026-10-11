@@ -8,12 +8,17 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=@kassa/api --filter=@kassa/mock-world",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "keys:generate": "bun scripts/keys-generate.ts"
+    "keys:generate": "bun scripts/keys-generate.ts",
+    "env:setup": "bun scripts/env-setup.ts",
+    "db:migrate": "bun run --cwd apps/api db:migrate",
+    "seed": "bun run --cwd apps/api seed",
+    "ledger:verify": "bun run --cwd apps/api ledger:verify",
+    "dev:all": "turbo run dev"
   },
   "devDependencies": {
     "@eslint/js": "^9",

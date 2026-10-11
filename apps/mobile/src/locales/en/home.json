@@ -1,0 +1,52 @@
+{
+  "alertBlocked_one": "{{count}} payee blocked",
+  "alertBlocked_other": "{{count}} payees blocked",
+  "alertCooling_one": "{{count}} new payee cooling down",
+  "alertCooling_other": "{{count}} new payees cooling down",
+  "alertCoolingHint": "Payments to it wait 24 hours.",
+  "alertDcc_one": "{{count}} card payment converted at a worse rate",
+  "alertDcc_other": "{{count}} card payments converted at a worse rate",
+  "alertFees": "{{amount}} lost to card fees this month",
+  "alertFeesHint": "See how to avoid them in Cards.",
+  "alerts": "Alerts",
+  "allBills": "All bills",
+  "balance": {
+    "title": "Balance"
+  },
+  "budgetA11y": "{{category}} budget: {{spent}} spent of {{limit}}",
+  "budgets": "Budgets",
+  "daysLeft_one": "{{count}} day left",
+  "daysLeft_other": "{{count}} days left",
+  "freeze": {
+    "a11y": "Freeze all payments",
+    "alreadyBody": "Payments are already frozen. Unfreezing is a loosening change and needs your passkey.",
+    "alreadyTitle": "Already frozen",
+    "button": "Freeze",
+    "confirm": "Freeze",
+    "confirmBody": "Kassa stops all new payments straight away. Unfreezing needs your passkey and takes 24 hours.",
+    "confirmTitle": "Freeze all payments?",
+    "done": "Payments frozen",
+    "frozen": "Frozen",
+    "frozenA11y": "Payments are frozen"
+  },
+  "frozenBody": "No payments go out until you unfreeze. Unfreezing needs your passkey and takes 24 hours.",
+  "frozenTitle": "Payments frozen",
+  "more": "More",
+  "next45": "Next 45 days",
+  "noBills": "No bills due in the next 45 days.",
+  "noBudgets": "No budgets yet.",
+  "pace": {
+    "ON_TRACK": "On track",
+    "AHEAD_OF_PACE": "Spending fast",
+    "OVER": "Over budget"
+  },
+  "rateDate": "Rate as of {{date}}",
+  "runOut": "At this pace, runs out {{date}}",
+  "spentOf": "{{spent}} of {{limit}} spent",
+  "tab": "Home",
+  "title": "Home",
+  "toSign": "To sign",
+  "totalA11y": "Total in home currency: {{amount}}",
+  "totalLabel": "Total in {{currency}}",
+  "upcoming": "Upcoming"
+}

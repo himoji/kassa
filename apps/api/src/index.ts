@@ -1,18 +1,23 @@
-// Phase 0 placeholder: Phase 1 replaces this with the Fastify server (spec §8).
-import { createServer } from "node:http";
+/* API entry point: env check, clock load, Fastify server, 15 s scheduler (spec §15). */
+import { closeDb } from "./db/client.ts";
+import { env } from "./env.ts";
+import { clock } from "./modules/clock/index.ts";
+import { startScheduler } from "./modules/scheduler/index.ts";
+import { buildServer } from "./server.ts";
 
-import { ReasonCode } from "@kassa/shared";
+const e = env();
+const app = await buildServer();
+await clock.load().catch((err: unknown) => app.log.warn({ err }, "demo_state not readable yet (run bun run db:migrate)"));
+const stop = e.SCHEDULER_ENABLED ? startScheduler((msg, err) => app.log.error({ err }, msg)) : () => undefined;
 
-const port = Number(process.env.PORT ?? 4000);
+async function shutdown(signal: string): Promise<void> {
+  app.log.info({ signal }, "shutting down");
+  stop();
+  await app.close();
+  await closeDb();
+  process.exit(0);
+}
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
-createServer((req, res) => {
-  if (req.url === "/api/health" || req.url === "/health") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true, service: "api", reasonCodes: ReasonCode.options.length }));
-    return;
-  }
-  res.writeHead(404, { "content-type": "application/json" });
-  res.end(JSON.stringify({ error: "not_found" }));
-}).listen(port, () => {
-  console.log(`[api] listening on :${port}`);
-});
+await app.listen({ port: e.PORT, host: e.HOST });

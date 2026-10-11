@@ -1,0 +1,26 @@
+{
+  "cheapest": "Cheapest",
+  "emptyBody": "Ask for a payment, a budget check or a log. Kassa drafts it, and you approve it with your passkey.",
+  "emptyTitle": "What do you need to pay or plan?",
+  "error": "Kassa could not reply just now.",
+  "inputA11y": "Message",
+  "newConversation": "New conversation",
+  "placeholder": "Ask Kassa",
+  "replay": "Replay",
+  "reviewAndSign": "Review and sign",
+  "routeCost": "Cost {{cost}} ({{markup}} markup), arrives {{arrival}}",
+  "routeLabel": "Pay from {{from}} by {{rail}}",
+  "routeSavings": "Saves {{amount}} against the worst route",
+  "routesTitle": "Routes for {{amount}}",
+  "send": "Send",
+  "stop": "Stop",
+  "suggest": {
+    "tuition": "Pay my tuition",
+    "budget": "How much can I still spend on food this week?",
+    "log": "Log a coffee for 1,200 HUF"
+  },
+  "tab": "Chat",
+  "thinking": "Kassa is thinking",
+  "title": "Chat",
+  "working": "Working on it"
+}

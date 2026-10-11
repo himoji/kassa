@@ -1,0 +1,53 @@
+{
+  "add": {
+    "account": "Account number or IBAN",
+    "coolingNote": "A new or changed payee cools down for 24 hours before you can pay it.",
+    "country": "Country code",
+    "created": "Payee added",
+    "currency": "Currency",
+    "invalid": "Check the name and account. The account must look valid for the country.",
+    "kind": "Type",
+    "name": "Name",
+    "submit": "Add payee",
+    "title": "Add payee"
+  },
+  "coolingEndsIn": "Can be paid in {{remaining}}",
+  "coolingFor": "Cooling, {{remaining}} left",
+  "coolingRule": "You can pay this payee once the 24 hours are over.",
+  "copied": "Account copied",
+  "copyAccount": "Copy account",
+  "detailTitle": "Payee",
+  "detailsTitle": "Details",
+  "empty": "No payees yet.",
+  "explainerBody": "Changing a payee's account details creates a new payee. A changed account is treated as a brand-new payee that cools down for 24 hours before it can be paid.",
+  "explainerTitle": "Why payees cool down",
+  "field": {
+    "account": "Account",
+    "country": "Country",
+    "currency": "Currency",
+    "kind": "Type",
+    "verifiedAt": "Verified"
+  },
+  "kind": {
+    "LANDLORD": "Landlord",
+    "UNIVERSITY": "University",
+    "INSURER": "Insurer",
+    "MERCHANT": "Merchant",
+    "SUPPLIER": "Supplier",
+    "PERSON": "Person",
+    "OWN_ACCOUNT": "Own account"
+  },
+  "meta": "{{kind}} · {{account}} · {{country}} · {{currency}}",
+  "never": "Never",
+  "newPayeeExplainer": "This is a new payee. It cools down for 24 hours before any payment can go to it.",
+  "notFound": "This payee could not be found.",
+  "replaces": "Replaces {{name}} ({{account}})",
+  "simulateVerify": "Simulate verification",
+  "simulateVerifyDone": "Verification simulated",
+  "status": {
+    "VERIFIED": "Verified",
+    "COOLING": "Cooling",
+    "BLOCKED": "Blocked"
+  },
+  "title": "Payees"
+}

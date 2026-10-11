@@ -34,12 +34,18 @@ export function Text({
   numberOfLines,
   style,
   children,
+  selectable,
+  accessibilityLabel,
+  testID,
 }: TextProps) {
   const { colors } = useTheme();
   return (
     <RnrText
       variant={VARIANT[variant]}
       numberOfLines={numberOfLines}
+      selectable={selectable}
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
       style={[
         color ? { color: colors[color] } : null,
         weight ? { fontWeight: fontWeight[weight] } : null,

@@ -1,0 +1,5 @@
+{
+  "//": "Not a workspace. Marks fixtures/*.ts as ES modules so they can import @kassa/shared (ESM) under NodeNext resolution.",
+  "private": true,
+  "type": "module"
+}

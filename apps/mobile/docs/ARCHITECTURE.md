@@ -24,6 +24,9 @@ flowchart LR
     nmodule_testing_jest["testing: jest"]
     nmodule_ui_nativewind4["ui: nativewind4"]
   end
+  subgraph services["service"]
+    nservice_kassa_api["Kassa API (/api)"]
+  end
   subgraph providers["provider"]
     nprovider_I18nProvider["I18nProvider"]
     nprovider_PushProvider["PushProvider"]
@@ -33,27 +36,78 @@ flowchart LR
   end
   subgraph routes["route"]
     nroute__layout["/ (layout)"]
+    nroute__auth___layout["/ (layout)"]
     nroute__tabs___layout["/ (layout)"]
+    nroute__tabs__activity__layout["/activity (layout)"]
+    nroute__tabs__cards__layout["/cards (layout)"]
+    nroute__tabs__chat__layout["/chat (layout)"]
+    nroute__tabs__home__layout["/home (layout)"]
+    nroute__tabs__settings__layout["/settings (layout)"]
     nroute__["/"]
     nroute___not_found["/+not-found"]
+    nroute__activity["/activity"]
+    nroute__bills["/bills"]
+    nroute__cards["/cards"]
+    nroute__chat["/chat"]
+    nroute__credit_record["/credit-record"]
+    nroute__demo["/demo"]
+    nroute__handoff__paymentId_["/handoff/[paymentId]"]
+    nroute__home["/home"]
+    nroute__login["/login"]
+    nroute__onboarding_chat["/onboarding/chat"]
+    nroute__onboarding_review["/onboarding/review"]
+    nroute__order__proposalId_["/order/[proposalId]"]
+    nroute__payees["/payees"]
+    nroute__payees__id_["/payees/[id]"]
+    nroute__register["/register"]
     nroute__settings["/settings"]
+    nroute__verify__id_["/verify/[id]"]
+    nroute__welcome["/welcome"]
+    nroute_onboarding__layout["/onboarding (layout)"]
   end
   subgraph screens["screen"]
+    nscreen_activity_activity_screen["@/screens/activity/activity-screen"]
+    nscreen_activity_ledger_entry["@/screens/activity/ledger-entry"]
+    nscreen_auth_login_screen["@/screens/auth/login-screen"]
+    nscreen_auth_register_screen["@/screens/auth/register-screen"]
+    nscreen_auth_welcome_screen["@/screens/auth/welcome-screen"]
+    nscreen_bills_bills_screen["@/screens/bills/bills-screen"]
+    nscreen_cards_cards_screen["@/screens/cards/cards-screen"]
+    nscreen_chat_chat_screen["@/screens/chat/chat-screen"]
+    nscreen_credit_credit_record_screen["@/screens/credit/credit-record-screen"]
+    nscreen_demo_demo_screen["@/screens/demo/demo-screen"]
+    nscreen_demo_notification_samples["@/screens/demo/notification-samples"]
+    nscreen_handoff_handoff_screen["@/screens/handoff/handoff-screen"]
     nscreen_home_home_screen["@/screens/home/home-screen"]
-    nscreen_settings_developer_tools["@/screens/settings/developer-tools"]
+    nscreen_onboarding_onboarding_chat_screen["@/screens/onboarding/onboarding-chat-screen"]
+    nscreen_onboarding_onboarding_review_screen["@/screens/onboarding/onboarding-review-screen"]
+    nscreen_order_order_sheet_screen["@/screens/order/order-sheet-screen"]
+    nscreen_order_order_sheet_view["@/screens/order/order-sheet-view"]
+    nscreen_payees_payee_detail_screen["@/screens/payees/payee-detail-screen"]
+    nscreen_payees_payees_screen["@/screens/payees/payees-screen"]
+    nscreen_settings_caps_section["@/screens/settings/caps-section"]
+    nscreen_settings_mandates_section["@/screens/settings/mandates-section"]
+    nscreen_settings_pending_changes["@/screens/settings/pending-changes"]
+    nscreen_settings_preset_cards["@/screens/settings/preset-cards"]
     nscreen_settings_settings_screen["@/screens/settings/settings-screen"]
+    nscreen_settings_use_settings_update["@/screens/settings/use-settings-update"]
+    nscreen_verify_verify_screen["@/screens/verify/verify-screen"]
   end
   subgraph hooks["hook"]
     nhook_use_auth_redirect["@/hooks/use-auth-redirect"]
+    nhook_use_demo_now["@/hooks/use-demo-now"]
     nhook_use_onboarding_redirect["@/hooks/use-onboarding-redirect"]
     nhook_use_push_token["@/hooks/use-push-token"]
+    nhook_use_register_device["@/hooks/use-register-device"]
     nhook_use_sign_out_cleanup["@/hooks/use-sign-out-cleanup"]
   end
   subgraph stores["store"]
+    nstore_chat["@/stores/chat"]
     nstore_consent["@/stores/consent"]
     nstore_create_store["@/stores/create-store"]
     nstore_onboarding["@/stores/onboarding"]
     nstore_review_prompt["@/stores/review-prompt"]
+    nstore_session["@/stores/session"]
     nstore_theme_mode["@/stores/theme-mode"]
     nstore_zustand_storage["@/stores/zustand-storage"]
   end
@@ -64,14 +118,20 @@ flowchart LR
     nlib_auth["@/lib/auth"]
     nlib_browser["@/lib/browser"]
     nlib_cache["@/lib/cache"]
+    nlib_categories["@/lib/categories"]
     nlib_clipboard["@/lib/clipboard"]
     nlib_confirm["@/lib/confirm"]
     nlib_consent["@/lib/consent"]
     nlib_crash["@/lib/crash"]
     nlib_env["@/lib/env"]
+    nlib_format["@/lib/format"]
+    nlib_haptics["@/lib/haptics"]
     nlib_i18n["@/lib/i18n"]
     nlib_location["@/lib/location"]
     nlib_native_toast["@/lib/native-toast"]
+    nlib_passkey_errors["@/lib/passkey-errors"]
+    nlib_passkeys["@/lib/passkeys"]
+    nlib_passkeys_web["@/lib/passkeys.web"]
     nlib_payments["@/lib/payments"]
     nlib_privacy["@/lib/privacy"]
     nlib_privacy_categories["@/lib/privacy-categories"]
@@ -97,11 +157,13 @@ flowchart LR
     nlib_store_review["@/lib/store-review"]
     nlib_tracking["@/lib/tracking"]
     nlib_utils["@/lib/utils"]
+    nlib_uuid["@/lib/uuid"]
     nlib_widgets["@/lib/widgets"]
   end
   subgraph envs["env"]
     nenv_EXPO_PUBLIC_API_URL["EXPO_PUBLIC_API_URL"]
     nenv_EXPO_PUBLIC_APP_VARIANT["EXPO_PUBLIC_APP_VARIANT"]
+    nenv_EXPO_PUBLIC_DEMO_ADMIN_TOKEN["EXPO_PUBLIC_DEMO_ADMIN_TOKEN"]
   end
   subgraph scripts["script"]
     nscript_doctor["scripts/doctor.ts"]
@@ -117,19 +179,25 @@ flowchart LR
   subgraph customs["custom"]
     n_id_["…"]
   end
+  nhook_use_auth_redirect -->|imports| nstore_session
   nhook_use_push_token -->|imports| nlib_shims_push
   nhook_use_push_token -->|imports| nlib_storage
+  nhook_use_register_device -->|imports| nlib_push
+  nhook_use_register_device -->|imports| nstore_session
   nhook_use_sign_out_cleanup -->|imports| nlib_auth
   nhook_use_sign_out_cleanup -->|imports| nlib_crash
   nhook_use_sign_out_cleanup -->|imports| nlib_privacy
   nlib_api_client -->|imports| nlib_env
   nlib_api_client -->|reads| nenv_EXPO_PUBLIC_API_URL
+  nlib_auth -->|imports| nstore_session
   nlib_browser -->|imports| nlib_crash
   nlib_cache -->|imports| nlib_storage
   nlib_cache -->|imports| nlib_storage_adapter
   nlib_clipboard -->|imports| nlib_crash
   nlib_env -->|reads| nenv_EXPO_PUBLIC_API_URL
   nlib_env -->|reads| nenv_EXPO_PUBLIC_APP_VARIANT
+  nlib_env -->|reads| nenv_EXPO_PUBLIC_DEMO_ADMIN_TOKEN
+  nlib_format -->|imports| nlib_i18n
   nlib_i18n -->|imports| nlib_storage
   nlib_privacy -->|imports| nlib_analytics
   nlib_privacy -->|imports| nlib_auth
@@ -161,40 +229,108 @@ flowchart LR
   nroute__layout -->|imports| nhook_use_onboarding_redirect
   nroute__layout -->|imports| nhook_use_sign_out_cleanup
   nroute__layout -->|imports| nlib_analytics
+  nroute__layout -->|imports| nlib_i18n
   nroute__layout -->|imports| nstore_theme_mode
+  nroute__auth___layout -->|imports| nlib_i18n
+  nroute__tabs___layout -->|imports| nhook_use_register_device
   nroute__tabs___layout -->|imports| nlib_i18n
-  nroute__ -->|renders| nscreen_home_home_screen
+  nroute__tabs__activity__layout -->|imports| nlib_i18n
+  nroute__tabs__cards__layout -->|imports| nlib_i18n
+  nroute__tabs__chat__layout -->|imports| nlib_i18n
+  nroute__tabs__home__layout -->|imports| nlib_i18n
+  nroute__tabs__settings__layout -->|imports| nlib_i18n
+  nroute__ -->|imports| nstore_session
   nroute___not_found -->|imports| nlib_i18n
+  nroute__activity -->|renders| nscreen_activity_activity_screen
+  nroute__bills -->|renders| nscreen_bills_bills_screen
+  nroute__cards -->|renders| nscreen_cards_cards_screen
+  nroute__chat -->|renders| nscreen_chat_chat_screen
+  nroute__credit_record -->|renders| nscreen_credit_credit_record_screen
+  nroute__demo -->|renders| nscreen_demo_demo_screen
+  nroute__handoff__paymentId_ -->|renders| nscreen_handoff_handoff_screen
+  nroute__home -->|renders| nscreen_home_home_screen
+  nroute__login -->|renders| nscreen_auth_login_screen
+  nroute__onboarding_chat -->|renders| nscreen_onboarding_onboarding_chat_screen
+  nroute__onboarding_review -->|renders| nscreen_onboarding_onboarding_review_screen
+  nroute__order__proposalId_ -->|renders| nscreen_order_order_sheet_screen
+  nroute__payees -->|renders| nscreen_payees_payees_screen
+  nroute__payees__id_ -->|renders| nscreen_payees_payee_detail_screen
+  nroute__register -->|renders| nscreen_auth_register_screen
   nroute__settings -->|renders| nscreen_settings_settings_screen
-  nscreen_home_home_screen -->|imports| nlib_readynative
-  nscreen_settings_developer_tools -->|imports| nhook_use_onboarding_redirect
-  nscreen_settings_developer_tools -->|imports| nlib_auth
-  nscreen_settings_developer_tools -->|imports| nlib_consent
-  nscreen_settings_developer_tools -->|imports| nlib_crash
-  nscreen_settings_developer_tools -->|imports| nlib_env
-  nscreen_settings_developer_tools -->|imports| nlib_i18n
-  nscreen_settings_developer_tools -->|imports| nlib_payments
-  nscreen_settings_developer_tools -->|imports| nlib_privacy_categories
-  nscreen_settings_developer_tools -->|imports| nlib_push
-  nscreen_settings_developer_tools -->|imports| nstore_onboarding
-  nscreen_settings_developer_tools -->|reads| nenv_EXPO_PUBLIC_APP_VARIANT
-  nscreen_settings_settings_screen -->|imports| nhook_use_onboarding_redirect
-  nscreen_settings_settings_screen -->|imports| nlib_account_data
-  nscreen_settings_settings_screen -->|imports| nlib_analytics
+  nroute__verify__id_ -->|renders| nscreen_verify_verify_screen
+  nroute__welcome -->|renders| nscreen_auth_welcome_screen
+  nroute_onboarding__layout -->|imports| nlib_i18n
+  nscreen_activity_activity_screen -->|imports| nlib_format
+  nscreen_activity_activity_screen -->|imports| nlib_i18n
+  nscreen_auth_login_screen -->|imports| nlib_haptics
+  nscreen_auth_login_screen -->|imports| nlib_i18n
+  nscreen_auth_login_screen -->|imports| nlib_passkey_errors
+  nscreen_auth_register_screen -->|imports| nlib_haptics
+  nscreen_auth_register_screen -->|imports| nlib_i18n
+  nscreen_auth_register_screen -->|imports| nlib_passkey_errors
+  nscreen_auth_welcome_screen -->|imports| nlib_i18n
+  nscreen_bills_bills_screen -->|imports| nlib_format
+  nscreen_bills_bills_screen -->|imports| nlib_i18n
+  nscreen_cards_cards_screen -->|imports| nlib_format
+  nscreen_cards_cards_screen -->|imports| nlib_i18n
+  nscreen_chat_chat_screen -->|imports| nlib_haptics
+  nscreen_chat_chat_screen -->|imports| nlib_i18n
+  nscreen_chat_chat_screen -->|imports| nstore_chat
+  nscreen_credit_credit_record_screen -->|imports| nlib_haptics
+  nscreen_credit_credit_record_screen -->|imports| nlib_i18n
+  nscreen_demo_demo_screen -->|imports| nlib_confirm
+  nscreen_demo_demo_screen -->|imports| nlib_format
+  nscreen_demo_demo_screen -->|imports| nlib_haptics
+  nscreen_demo_demo_screen -->|imports| nlib_i18n
+  nscreen_handoff_handoff_screen -->|imports| nlib_browser
+  nscreen_handoff_handoff_screen -->|imports| nlib_format
+  nscreen_handoff_handoff_screen -->|imports| nlib_i18n
+  nscreen_home_home_screen -->|imports| nlib_format
+  nscreen_home_home_screen -->|imports| nlib_i18n
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_format
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_haptics
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_i18n
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nstore_chat
+  nscreen_onboarding_onboarding_review_screen -->|imports| nlib_format
+  nscreen_onboarding_onboarding_review_screen -->|imports| nlib_haptics
+  nscreen_onboarding_onboarding_review_screen -->|imports| nlib_i18n
+  nscreen_onboarding_onboarding_review_screen -->|imports| nlib_passkey_errors
+  nscreen_onboarding_onboarding_review_screen -->|imports| nstore_chat
+  nscreen_order_order_sheet_screen -->|imports| nlib_haptics
+  nscreen_order_order_sheet_screen -->|imports| nlib_i18n
+  nscreen_order_order_sheet_screen -->|imports| nlib_passkey_errors
+  nscreen_order_order_sheet_view -->|imports| nlib_format
+  nscreen_order_order_sheet_view -->|imports| nlib_i18n
+  nscreen_payees_payee_detail_screen -->|imports| nlib_format
+  nscreen_payees_payee_detail_screen -->|imports| nlib_haptics
+  nscreen_payees_payee_detail_screen -->|imports| nlib_i18n
+  nscreen_payees_payees_screen -->|imports| nlib_clipboard
+  nscreen_payees_payees_screen -->|imports| nlib_haptics
+  nscreen_payees_payees_screen -->|imports| nlib_i18n
+  nscreen_settings_caps_section -->|imports| nlib_format
+  nscreen_settings_caps_section -->|imports| nlib_i18n
+  nscreen_settings_mandates_section -->|imports| nlib_categories
+  nscreen_settings_mandates_section -->|imports| nlib_confirm
+  nscreen_settings_mandates_section -->|imports| nlib_format
+  nscreen_settings_mandates_section -->|imports| nlib_haptics
+  nscreen_settings_mandates_section -->|imports| nlib_i18n
+  nscreen_settings_mandates_section -->|imports| nlib_passkey_errors
+  nscreen_settings_pending_changes -->|imports| nlib_format
+  nscreen_settings_pending_changes -->|imports| nlib_i18n
+  nscreen_settings_preset_cards -->|imports| nlib_i18n
   nscreen_settings_settings_screen -->|imports| nlib_auth
-  nscreen_settings_settings_screen -->|imports| nlib_browser
   nscreen_settings_settings_screen -->|imports| nlib_confirm
-  nscreen_settings_settings_screen -->|imports| nlib_consent
-  nscreen_settings_settings_screen -->|imports| nlib_crash
+  nscreen_settings_settings_screen -->|imports| nlib_env
+  nscreen_settings_settings_screen -->|imports| nlib_format
   nscreen_settings_settings_screen -->|imports| nlib_i18n
-  nscreen_settings_settings_screen -->|imports| nlib_payments
-  nscreen_settings_settings_screen -->|imports| nlib_privacy
-  nscreen_settings_settings_screen -->|imports| nlib_privacy_categories
-  nscreen_settings_settings_screen -->|imports| nlib_readynative
-  nscreen_settings_settings_screen -->|imports| nlib_store_review
-  nscreen_settings_settings_screen -->|imports| nscreen_settings_developer_tools
-  nscreen_settings_settings_screen -->|imports| nstore_consent
-  nscreen_settings_settings_screen -->|imports| nstore_onboarding
+  nscreen_settings_settings_screen -->|reads| nenv_EXPO_PUBLIC_DEMO_ADMIN_TOKEN
+  nscreen_settings_use_settings_update -->|imports| nlib_haptics
+  nscreen_settings_use_settings_update -->|imports| nlib_i18n
+  nscreen_settings_use_settings_update -->|imports| nlib_passkey_errors
+  nscreen_verify_verify_screen -->|imports| nlib_format
+  nscreen_verify_verify_screen -->|imports| nlib_i18n
+  nservice_kassa_api -->|custom| nenv_EXPO_PUBLIC_API_URL
+  nstore_chat -->|imports| nlib_uuid
   nstore_consent -->|imports| nlib_storage
   nstore_create_store -->|imports| nlib_storage_adapter
   nstore_onboarding -->|imports| nlib_storage
@@ -216,6 +352,12 @@ flowchart LR
 | `module:testing/jest`            | testing: jest            | -    |
 | `module:ui/nativewind4`          | ui: nativewind4          | -    |
 
+## service (1)
+
+| id                  | label            | file                |
+| ------------------- | ---------------- | ------------------- |
+| `service:kassa-api` | Kassa API (/api) | `src/api/client.ts` |
+
 ## provider (5)
 
 | id                         | label           | file                |
@@ -226,45 +368,96 @@ flowchart LR
 | `provider:ToastHost`       | ToastHost       | `src/providers.tsx` |
 | `provider:UiThemeProvider` | UiThemeProvider | `src/providers.tsx` |
 
-## route (5)
+## route (29)
 
-| id                     | label       | file                          |
-| ---------------------- | ----------- | ----------------------------- |
-| `route:_layout`        | / (layout)  | `src/app/_layout.tsx`         |
-| `route:(tabs)/_layout` | / (layout)  | `src/app/(tabs)/_layout.tsx`  |
-| `route:/`              | /           | `src/app/(tabs)/index.tsx`    |
-| `route:/+not-found`    | /+not-found | `src/app/+not-found.tsx`      |
-| `route:/settings`      | /settings   | `src/app/(tabs)/settings.tsx` |
+| id                              | label                | file                                  |
+| ------------------------------- | -------------------- | ------------------------------------- |
+| `route:_layout`                 | / (layout)           | `src/app/_layout.tsx`                 |
+| `route:(auth)/_layout`          | / (layout)           | `src/app/(auth)/_layout.tsx`          |
+| `route:(tabs)/_layout`          | / (layout)           | `src/app/(tabs)/_layout.tsx`          |
+| `route:(tabs)/activity/_layout` | /activity (layout)   | `src/app/(tabs)/activity/_layout.tsx` |
+| `route:(tabs)/cards/_layout`    | /cards (layout)      | `src/app/(tabs)/cards/_layout.tsx`    |
+| `route:(tabs)/chat/_layout`     | /chat (layout)       | `src/app/(tabs)/chat/_layout.tsx`     |
+| `route:(tabs)/home/_layout`     | /home (layout)       | `src/app/(tabs)/home/_layout.tsx`     |
+| `route:(tabs)/settings/_layout` | /settings (layout)   | `src/app/(tabs)/settings/_layout.tsx` |
+| `route:/`                       | /                    | `src/app/index.tsx`                   |
+| `route:/+not-found`             | /+not-found          | `src/app/+not-found.tsx`              |
+| `route:/activity`               | /activity            | `src/app/(tabs)/activity/index.tsx`   |
+| `route:/bills`                  | /bills               | `src/app/bills/index.tsx`             |
+| `route:/cards`                  | /cards               | `src/app/(tabs)/cards/index.tsx`      |
+| `route:/chat`                   | /chat                | `src/app/(tabs)/chat/index.tsx`       |
+| `route:/credit-record`          | /credit-record       | `src/app/credit-record.tsx`           |
+| `route:/demo`                   | /demo                | `src/app/demo.tsx`                    |
+| `route:/handoff/[paymentId]`    | /handoff/[paymentId] | `src/app/handoff/[paymentId].tsx`     |
+| `route:/home`                   | /home                | `src/app/(tabs)/home/index.tsx`       |
+| `route:/login`                  | /login               | `src/app/(auth)/login.tsx`            |
+| `route:/onboarding/chat`        | /onboarding/chat     | `src/app/onboarding/chat.tsx`         |
+| `route:/onboarding/review`      | /onboarding/review   | `src/app/onboarding/review.tsx`       |
+| `route:/order/[proposalId]`     | /order/[proposalId]  | `src/app/order/[proposalId].tsx`      |
+| `route:/payees`                 | /payees              | `src/app/payees/index.tsx`            |
+| `route:/payees/[id]`            | /payees/[id]         | `src/app/payees/[id].tsx`             |
+| `route:/register`               | /register            | `src/app/(auth)/register.tsx`         |
+| `route:/settings`               | /settings            | `src/app/(tabs)/settings/index.tsx`   |
+| `route:/verify/[id]`            | /verify/[id]         | `src/app/verify/[id].tsx`             |
+| `route:/welcome`                | /welcome             | `src/app/(auth)/welcome.tsx`          |
+| `route:onboarding/_layout`      | /onboarding (layout) | `src/app/onboarding/_layout.tsx`      |
 
-## screen (3)
+## screen (26)
 
-| id                                | label                              | file                                       |
-| --------------------------------- | ---------------------------------- | ------------------------------------------ |
-| `screen:home/home-screen`         | @/screens/home/home-screen         | `src/screens/home/home-screen.tsx`         |
-| `screen:settings/developer-tools` | @/screens/settings/developer-tools | `src/screens/settings/developer-tools.tsx` |
-| `screen:settings/settings-screen` | @/screens/settings/settings-screen | `src/screens/settings/settings-screen.tsx` |
+| id                                           | label                                         | file                                                  |
+| -------------------------------------------- | --------------------------------------------- | ----------------------------------------------------- |
+| `screen:activity/activity-screen`            | @/screens/activity/activity-screen            | `src/screens/activity/activity-screen.tsx`            |
+| `screen:activity/ledger-entry`               | @/screens/activity/ledger-entry               | `src/screens/activity/ledger-entry.ts`                |
+| `screen:auth/login-screen`                   | @/screens/auth/login-screen                   | `src/screens/auth/login-screen.tsx`                   |
+| `screen:auth/register-screen`                | @/screens/auth/register-screen                | `src/screens/auth/register-screen.tsx`                |
+| `screen:auth/welcome-screen`                 | @/screens/auth/welcome-screen                 | `src/screens/auth/welcome-screen.tsx`                 |
+| `screen:bills/bills-screen`                  | @/screens/bills/bills-screen                  | `src/screens/bills/bills-screen.tsx`                  |
+| `screen:cards/cards-screen`                  | @/screens/cards/cards-screen                  | `src/screens/cards/cards-screen.tsx`                  |
+| `screen:chat/chat-screen`                    | @/screens/chat/chat-screen                    | `src/screens/chat/chat-screen.tsx`                    |
+| `screen:credit/credit-record-screen`         | @/screens/credit/credit-record-screen         | `src/screens/credit/credit-record-screen.tsx`         |
+| `screen:demo/demo-screen`                    | @/screens/demo/demo-screen                    | `src/screens/demo/demo-screen.tsx`                    |
+| `screen:demo/notification-samples`           | @/screens/demo/notification-samples           | `src/screens/demo/notification-samples.ts`            |
+| `screen:handoff/handoff-screen`              | @/screens/handoff/handoff-screen              | `src/screens/handoff/handoff-screen.tsx`              |
+| `screen:home/home-screen`                    | @/screens/home/home-screen                    | `src/screens/home/home-screen.tsx`                    |
+| `screen:onboarding/onboarding-chat-screen`   | @/screens/onboarding/onboarding-chat-screen   | `src/screens/onboarding/onboarding-chat-screen.tsx`   |
+| `screen:onboarding/onboarding-review-screen` | @/screens/onboarding/onboarding-review-screen | `src/screens/onboarding/onboarding-review-screen.tsx` |
+| `screen:order/order-sheet-screen`            | @/screens/order/order-sheet-screen            | `src/screens/order/order-sheet-screen.tsx`            |
+| `screen:order/order-sheet-view`              | @/screens/order/order-sheet-view              | `src/screens/order/order-sheet-view.tsx`              |
+| `screen:payees/payee-detail-screen`          | @/screens/payees/payee-detail-screen          | `src/screens/payees/payee-detail-screen.tsx`          |
+| `screen:payees/payees-screen`                | @/screens/payees/payees-screen                | `src/screens/payees/payees-screen.tsx`                |
+| `screen:settings/caps-section`               | @/screens/settings/caps-section               | `src/screens/settings/caps-section.tsx`               |
+| `screen:settings/mandates-section`           | @/screens/settings/mandates-section           | `src/screens/settings/mandates-section.tsx`           |
+| `screen:settings/pending-changes`            | @/screens/settings/pending-changes            | `src/screens/settings/pending-changes.tsx`            |
+| `screen:settings/preset-cards`               | @/screens/settings/preset-cards               | `src/screens/settings/preset-cards.tsx`               |
+| `screen:settings/settings-screen`            | @/screens/settings/settings-screen            | `src/screens/settings/settings-screen.tsx`            |
+| `screen:settings/use-settings-update`        | @/screens/settings/use-settings-update        | `src/screens/settings/use-settings-update.ts`         |
+| `screen:verify/verify-screen`                | @/screens/verify/verify-screen                | `src/screens/verify/verify-screen.tsx`                |
 
-## hook (4)
+## hook (6)
 
 | id                             | label                           | file                                   |
 | ------------------------------ | ------------------------------- | -------------------------------------- |
 | `hook:use-auth-redirect`       | @/hooks/use-auth-redirect       | `src/hooks/use-auth-redirect.ts`       |
+| `hook:use-demo-now`            | @/hooks/use-demo-now            | `src/hooks/use-demo-now.ts`            |
 | `hook:use-onboarding-redirect` | @/hooks/use-onboarding-redirect | `src/hooks/use-onboarding-redirect.ts` |
 | `hook:use-push-token`          | @/hooks/use-push-token          | `src/hooks/use-push-token.ts`          |
+| `hook:use-register-device`     | @/hooks/use-register-device     | `src/hooks/use-register-device.ts`     |
 | `hook:use-sign-out-cleanup`    | @/hooks/use-sign-out-cleanup    | `src/hooks/use-sign-out-cleanup.ts`    |
 
-## store (6)
+## store (8)
 
 | id                      | label                    | file                            |
 | ----------------------- | ------------------------ | ------------------------------- |
+| `store:chat`            | @/stores/chat            | `src/stores/chat.ts`            |
 | `store:consent`         | @/stores/consent         | `src/stores/consent.ts`         |
 | `store:create-store`    | @/stores/create-store    | `src/stores/create-store.ts`    |
 | `store:onboarding`      | @/stores/onboarding      | `src/stores/onboarding.ts`      |
 | `store:review-prompt`   | @/stores/review-prompt   | `src/stores/review-prompt.ts`   |
+| `store:session`         | @/stores/session         | `src/stores/session.ts`         |
 | `store:theme-mode`      | @/stores/theme-mode      | `src/stores/theme-mode.ts`      |
 | `store:zustand-storage` | @/stores/zustand-storage | `src/stores/zustand-storage.ts` |
 
-## lib (40)
+## lib (47)
 
 | id                       | label                    | file                            |
 | ------------------------ | ------------------------ | ------------------------------- |
@@ -274,14 +467,20 @@ flowchart LR
 | `lib:auth`               | @/lib/auth               | `src/lib/auth.ts`               |
 | `lib:browser`            | @/lib/browser            | `src/lib/browser.ts`            |
 | `lib:cache`              | @/lib/cache              | `src/lib/cache.ts`              |
+| `lib:categories`         | @/lib/categories         | `src/lib/categories.ts`         |
 | `lib:clipboard`          | @/lib/clipboard          | `src/lib/clipboard.ts`          |
 | `lib:confirm`            | @/lib/confirm            | `src/lib/confirm.ts`            |
 | `lib:consent`            | @/lib/consent            | `src/lib/consent.ts`            |
 | `lib:crash`              | @/lib/crash              | `src/lib/crash.ts`              |
 | `lib:env`                | @/lib/env                | `src/lib/env.ts`                |
+| `lib:format`             | @/lib/format             | `src/lib/format.ts`             |
+| `lib:haptics`            | @/lib/haptics            | `src/lib/haptics.ts`            |
 | `lib:i18n`               | @/lib/i18n               | `src/lib/i18n.ts`               |
 | `lib:location`           | @/lib/location           | `src/lib/location.ts`           |
 | `lib:native-toast`       | @/lib/native-toast       | `src/lib/native-toast.ts`       |
+| `lib:passkey-errors`     | @/lib/passkey-errors     | `src/lib/passkey-errors.ts`     |
+| `lib:passkeys`           | @/lib/passkeys           | `src/lib/passkeys.ts`           |
+| `lib:passkeys.web`       | @/lib/passkeys.web       | `src/lib/passkeys.web.ts`       |
 | `lib:payments`           | @/lib/payments           | `src/lib/payments.ts`           |
 | `lib:privacy`            | @/lib/privacy            | `src/lib/privacy.ts`            |
 | `lib:privacy-categories` | @/lib/privacy-categories | `src/lib/privacy-categories.ts` |
@@ -307,14 +506,16 @@ flowchart LR
 | `lib:store-review`       | @/lib/store-review       | `src/lib/store-review.ts`       |
 | `lib:tracking`           | @/lib/tracking           | `src/lib/tracking.ts`           |
 | `lib:utils`              | @/lib/utils              | `src/lib/utils.ts`              |
+| `lib:uuid`               | @/lib/uuid               | `src/lib/uuid.ts`               |
 | `lib:widgets`            | @/lib/widgets            | `src/lib/widgets.ts`            |
 
-## env (2)
+## env (3)
 
-| id                            | label                   | file |
-| ----------------------------- | ----------------------- | ---- |
-| `env:EXPO_PUBLIC_API_URL`     | EXPO_PUBLIC_API_URL     | -    |
-| `env:EXPO_PUBLIC_APP_VARIANT` | EXPO_PUBLIC_APP_VARIANT | -    |
+| id                                 | label                        | file |
+| ---------------------------------- | ---------------------------- | ---- |
+| `env:EXPO_PUBLIC_API_URL`          | EXPO_PUBLIC_API_URL          | -    |
+| `env:EXPO_PUBLIC_APP_VARIANT`      | EXPO_PUBLIC_APP_VARIANT      | -    |
+| `env:EXPO_PUBLIC_DEMO_ADMIN_TOKEN` | EXPO_PUBLIC_DEMO_ADMIN_TOKEN | -    |
 
 ## script (9)
 
