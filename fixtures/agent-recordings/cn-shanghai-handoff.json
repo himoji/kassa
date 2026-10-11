@@ -1,0 +1,58 @@
+{
+  "scenario": "cn-shanghai-handoff",
+  "description": "Hand-written recording (spec §9 replay) for D-CN1, Dana's Shanghai exchange semester with region CN: the planner checks the dorm bill, the KZT/USD routes into CNY and the coverage forecast, then drafts the CNY payment; rules decide HANDOFF (Kassa prepares, the user pays the QR in the QR Wallet (simulated)). Placeholders: the payee named in the user text becomes payee_1.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "Pay the payee_1 my November dorm fee",
+      "match": ["dorm", "fee"],
+      "steps": [
+        {
+          "text": "Let me check the dorm bill and how to fund it in yuan.",
+          "toolCalls": [{ "toolName": "get_obligations", "input": { "withinDays": 30 } }]
+        },
+        {
+          "toolCalls": [
+            { "toolName": "get_routes", "input": { "fromCurrency": "KZT", "toCurrency": "CNY", "amountMinor": 180000, "dueDate": "2026-11-15" } },
+            { "toolName": "get_routes", "input": { "fromCurrency": "USD", "toCurrency": "CNY", "amountMinor": 180000, "dueDate": "2026-11-15" } },
+            { "toolName": "forecast_coverage", "input": {} }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "toolName": "propose_order",
+              "input": { "payeeRef": "payee_1", "amountMinor": 180000, "currency": "CNY", "purpose": "Dorm fee November 2026" }
+            }
+          ]
+        },
+        {
+          "text": "I've drafted the November dorm fee to payee_1: ¥1,800.00, shown with its tenge equivalent. You hold no yuan, so the comparison cards show the cheapest way to cover it from your tenge or dollars, and the forecast shows the yuan need on 15 November. With your region set to China, the rules hand the payment off to you: approve it with your passkey, then pay the QR code in the QR Wallet (simulated). Kassa only shows the Pay button when the QR names the same verified payee."
+        }
+      ]
+    },
+    {
+      "userText": "Buy a bedding set from payee_1 for ¥349",
+      "match": ["bedding"],
+      "steps": [
+        {
+          "toolCalls": [
+            {
+              "toolName": "propose_order",
+              "input": {
+                "payeeRef": "payee_1",
+                "amountMinor": 34900,
+                "currency": "CNY",
+                "purpose": "Bedding set",
+                "items": [{ "name": "Bedding set", "quantity": 1, "unitPriceMinor": 34900 }]
+              }
+            }
+          ]
+        },
+        {
+          "text": "I've drafted ¥349.00 to payee_1 for the bedding set. In region China this is a handoff: approve it, then pay the shop's QR code in the QR Wallet (simulated). If the QR names anyone other than the verified shop, Kassa shows a QR_PAYEE_MISMATCH warning, no Pay button, and nothing is paid."
+        }
+      ]
+    }
+  ]
+}

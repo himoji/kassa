@@ -338,3 +338,43 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
 ## 2026-10-11 — Demo determinism
 
 Demo determinism: money-from-home trigger = ₸1,000,000 (covers tuition + rent under both live and offline example rates); sim uses offline example rates by default (--live-fx to opt in).
+
+## 2026-10-12 — Triggers and small auto
+
+Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only inside a passkey-signed mandate (rule 7), never via the small-auto limit (rule 9) → ASK + TRIGGER_NEEDS_MANDATE. Strengthens I6.
+
+## 2026-10-12 — Chinese-context demos (D-CN1..3): data, seed option, per-region AI notice
+
+- **Problem:** the judges are Chinese; the plan asks for three CN demos without new product features, and the
+  hero seed must stay single-user for the existing tests.
+- **Per-region AI notice (PIPL).** `privacy/notice.ts` had one text for everyone. `aiNotice(region)` now appends one
+  line for region CN: AI providers outside mainland China receive the reduced chat and uploaded documents, which is
+  a cross-border transfer under PIPL Art. 38–39 that needs separate consent; the prototype states this and does
+  not yet ask for the separate consent (PRIVACY.md §13, COMPLIANCE.md stay accurate). With local models the line
+  says there is no cross-border transfer for AI. `GET /me` and the consent-required problem use the user's region;
+  the public `GET /privacy/ai-notice` uses the signed-in user's region, else `?region=`, else EU. The `AiNotice`
+  contract and `noticeVersion` are unchanged (the region line is a variant of the same notice version).
+- **Second persona behind a seed option.** `fixtures/seed-data.ts` exports `liWei` (Li Wei: home CNY, region EU,
+  SMART, capped wallet, caps in CNY) and `seed.personas = [liWei]`. `seedDatabase(..., { personas: true })` inserts
+  him; `bun run seed`, the sim daemon and `POST /demo/reset` pass it, unit tests that seed Dana do not, so their
+  "Dana is the only user" assumptions hold without changes. Dana stays `demo_state.demo_user_id`. Demo claim:
+  `POST /auth/register/options {demoClaim: "li-wei"}` (DEMO_ENABLED only; persona keys come from the seed file;
+  a claimed persona → `DEMO_ALREADY_CLAIMED` like the hero). Li Wei's landlord row has the same name as Dana's but
+  the landlord's account for his building (`ACCOUNTS.landlordLiWei`); his university row uses the same university
+  IBAN with his own RF reference, so two users hold the same account hash (a realistic cross-user case).
+- **CardKind.** The enum has no CNY member; Li Wei's CNY debit card is `MULTI` (no migration for a demo).
+- **rails.json:** three EXAMPLE CNY funding routes (`cny-mock-bank` ¥30 + 50 bps, 1 day; `cny-home-bank` ¥150 +
+  150 bps, 3 days; `cny-card` 150 bps, same day). They only apply to wallets that hold CNY (Dana holds none).
+- **Dana's Shanghai payees.** "Dorm Office in Shanghai" and "Buy Everything Shop from China" are seeded VERIFIED
+  MERCHANT payees (MERCHANT_ID accounts: Chinese QR merchants have no IBAN) plus a ¥1,800 monthly dorm-fee
+  obligation due 2026-11-15 (outside the "+3 days" window, so the rent-autopay story is unchanged).
+- **Demo trigger `cn-spending-day`** ingests the Alipay-style and WeChat Pay-style samples and a new Kazakh-bank
+  sample of a CNY purchase on the KZT card (`kz-bank-ru-cny-purchase.txt`). Capture only logs (I6).
+- **Bug fixed (demo route):** the `settlement` trigger said "on the home card" but picked the oldest pending
+  foreign transaction of any kind, so after the CN captures it settled the card-less Alipay wallet charge "in KZT
+  on the card". It now only settles charges on a card billed in the home currency (regression test in
+  `apps/api/test/demos/cn2-wallet-capture.test.ts`).
+- **No DCC in D-CN2.** DCC means a charge in the HOME currency abroad plus the local price; the CN samples are
+  CNY-denominated, so the fee x-ray shows a hidden card markup (4 %), not a DCC flag. `dccWarnings` stays empty.
+- **Mock QR wallet:** a code created by payee name for a known QR merchant now carries that merchant's city and
+  country in the EMV payload (Shanghai, CN) instead of the Budapest default (mock-world only).

@@ -13,7 +13,8 @@
  *  6 region CN or money mode HANDOFF → HANDOFF
  *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1)
  *  8 ASK_ME always asks; AUTOPILOT without mandate asks; SMART asks at risk ≥ 0.5 → ASK (T2)
- *  9 otherwise AUTO — only SMART, verified payee, ≤ small auto limit, capped wallet
+ *  9 otherwise AUTO — only SMART, verified payee, ≤ small auto limit, capped wallet;
+ *    trigger/scheduler drafts never (ASK + TRIGGER_NEEDS_MANDATE); they need a mandate (step 7)
  *
  * The agent's uncertainty (agentRequestedConfirm) can force ASK, never AUTO.
  */
@@ -154,6 +155,8 @@ export function decide(f: DecideFacts): DecideResult {
     (f.rail === "CARD_ISSUING" || f.rail === "BANK_TRANSFER") &&
     f.baseRulesSigned;
   if (!smallAutoOk) return ask(["AUTO_NOT_ELIGIBLE"], f);
+  // (2026-10-12) trigger/scheduler drafts may be AUTO only inside a mandate (step 7), never via the small-auto limit
+  if (f.triggerOrigin) return ask(["TRIGGER_NEEDS_MANDATE"], f);
   if (c.amountHomeMinor > f.smallAutoLimitHomeMinor) return ask(["ABOVE_SMALL_AUTO_LIMIT"], f);
   return { decision: "AUTO", reasonCodes: ["SMALL_AUTO"], tier: "T1", mandateId: null };
 }

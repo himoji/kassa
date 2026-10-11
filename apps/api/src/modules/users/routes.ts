@@ -100,7 +100,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         ? { agentMode: ds?.agentMode ?? e.AGENT_MODE, clockOffsetMs: clock.offsetMs(), now: clock.now().toISOString() }
         : null,
       onboarded: profile.baseRulesSignedAt !== null,
-      aiNotice: aiNotice(),
+      aiNotice: aiNotice(user.region),
       aiConsentAt: user.aiConsentAt?.toISOString() ?? null,
       restrictedAt: user.restrictedAt?.toISOString() ?? null,
     };

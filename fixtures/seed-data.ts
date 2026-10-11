@@ -1,6 +1,7 @@
 /*
- * Seed data for the demo user Dana (spec §18). Pure data: no I/O, deterministic. Track A's
- * apps/api/scripts/seed.ts inserts it; apps/mock-world reads balances and payee accounts from it.
+ * Seed data for the demo user Dana (spec §18) and the second persona Li Wei (D-CN3, `liWei`, listed in
+ * `seed.personas`). Pure data: no I/O, deterministic. Track A's apps/api/scripts/seed.ts inserts it;
+ * apps/mock-world reads balances and payee accounts from it.
  *
  * Conventions (docs/DECISIONS.md standards-first rule):
  * - Money: integer minor units + ISO 4217 code; exponents from @kassa/shared CURRENCY_EXPONENTS
@@ -136,6 +137,15 @@ export interface SeedBudget {
   limitHomeMinor: number;
 }
 
+/** Per-payment / day / month caps, small-auto limit and reserve, in home-currency minor units (spec §10). */
+export interface SeedCaps {
+  perPaymentMinor: number;
+  perDayMinor: number;
+  perMonthMinor: number;
+  smallAutoMinor: number;
+  reserveMinor: number;
+}
+
 export interface SeedMandate {
   /** The passkey-signed part. The seed has no passkey yet: Dana signs it during onboarding. */
   core: MandateCore;
@@ -183,6 +193,8 @@ export const IDS = {
     university: "05fc80e2-33ef-5d76-b50b-03068dcf3981", // seedId("payee/university")
     insurer: "aba740a6-4471-5669-9ba6-1d52652e6de9", // seedId("payee/insurer")
     pizzaShop: "68729ddb-6212-5270-8c2d-206e0dedec08", // seedId("payee/pizza-shop")
+    dormOffice: "92136838-87b2-5baf-9987-4f0f38b88a94", // seedId("payee/dorm-office-shanghai")
+    cnShop: "25b4c0ab-9ce4-5b5d-9209-b8af9fd8444c", // seedId("payee/buy-everything-shop-china")
   },
   cards: {
     kzt: "4a4f244a-a290-5458-bd38-fe445c8a6394", // seedId("card/kzt")
@@ -193,6 +205,7 @@ export const IDS = {
     rent: "c60680c9-e9b3-517f-8113-848cb50f5d10", // seedId("obligation/rent")
     tuition: "b6cca9dd-6a1d-5cfb-ae39-4c5270fd7b27", // seedId("obligation/tuition")
     insurance: "c4a83b54-6ce6-566a-9889-5bee5feb18b8", // seedId("obligation/insurance")
+    dormFee: "fcbf708c-9301-54d2-8aea-354a15317a6f", // seedId("obligation/dorm-fee")
   },
   mandates: {
     rent: "bdb39274-0fd8-5991-8ca8-a3ff208fc194", // seedId("mandate/rent")
@@ -219,6 +232,8 @@ export const ACCOUNTS = {
   supplierBHidden: "DE94760300800981124407",
   /** Dana's own home account in Kazakhstan (remittance source). */
   danaHomeKz: "KZ84722C000012345678",
+  /** Li Wei's flat: same landlord, billed to the landlord's account for that building (huIban 109/1832). */
+  landlordLiWei: "HU47109183242065038100000216",
 } as const;
 
 /** ISO 11649 structured creditor reference printed on the tuition invoice. */
@@ -334,6 +349,38 @@ export const payees: SeedPayee[] = [
     coolingUntil: null,
     replacesPayeeId: null,
   },
+  // D-CN1 (Shanghai exchange semester): QR-wallet merchants in mock-world QR_MERCHANTS. Chinese merchants
+  // have no IBAN; the handoff check compares the QR payee NAME with this verified name (spec §11).
+  {
+    id: IDS.payees.dormOffice,
+    userId: IDS.user,
+    name: "Dorm Office in Shanghai",
+    kind: "MERCHANT",
+    account: "dorm office in shanghai",
+    accountScheme: "MERCHANT_ID",
+    bic: null,
+    country: "CN",
+    currency: "CNY",
+    status: "VERIFIED",
+    verifiedAt: "2026-10-12T08:00:00.000Z",
+    coolingUntil: null,
+    replacesPayeeId: null,
+  },
+  {
+    id: IDS.payees.cnShop,
+    userId: IDS.user,
+    name: "Buy Everything Shop from China",
+    kind: "MERCHANT",
+    account: "buy everything shop from china",
+    accountScheme: "MERCHANT_ID",
+    bic: null,
+    country: "CN",
+    currency: "CNY",
+    status: "VERIFIED",
+    verifiedAt: "2026-10-12T08:05:00.000Z",
+    coolingUntil: null,
+    replacesPayeeId: null,
+  },
 ];
 
 export const obligations: SeedObligation[] = [
@@ -370,6 +417,19 @@ export const obligations: SeedObligation[] = [
     reference: "POL-778201-Q4",
     category: "insurance",
   },
+  {
+    // D-CN1: the Shanghai dorm bills monthly in CNY. Dana holds no CNY, so the forecast shows a CNY need
+    // funded from KZT/USD. Due after the demo's "+3 days" window, so the rent-autopay story is unchanged.
+    id: IDS.obligations.dormFee,
+    userId: IDS.user,
+    payeeId: IDS.payees.dormOffice,
+    amountMinor: toMinor("1800", "CNY"),
+    currency: "CNY",
+    dueDate: "2026-11-15",
+    recurrence: "MONTHLY",
+    reference: "SH-DORM-B12-NOV",
+    category: "rent",
+  },
 ];
 
 export const mandates: SeedMandate[] = [
@@ -399,10 +459,8 @@ export const budgets: SeedBudget[] = [
 
 // ---------- Transactions (30 days before SEED_NOW) ----------
 
-type CardKey = keyof typeof IDS.cards | null;
-
-/** [n, occurredAt, source, merchantRaw, merchantNorm, mcc, amount (major, decimal string), currency, card, category, flags] */
-type Row = [
+/** [n, occurredAt, source, merchantRaw, merchantNorm, mcc, amount (major, decimal string), currency, card key, category, flags] */
+type Row<K extends string = keyof typeof IDS.cards> = [
   number,
   string,
   TransactionSource,
@@ -411,7 +469,7 @@ type Row = [
   string | null,
   string,
   string,
-  CardKey,
+  K | null,
   string,
   { pending?: true; mergedInto?: number }?,
 ];
@@ -456,81 +514,298 @@ const ROWS: Row[] = [
   [35, "2026-10-27T08:15:00Z", "NOTIF_SIM", "COFFEE SHOP IN BUDAPEST", "coffee shop in", "5814", "1290", "HUF", "local", "eating_out"],
 ];
 
-const CARD_BILLING: Record<string, string> = Object.fromEntries(cards.map((c) => [c.id, c.billingCurrency]));
-
-function rateToHome(currency: string): string {
-  return crossRate(SEED_FX.rates, currency, HOME_CURRENCY, 6);
+/** Who the rows belong to: user, home currency, card ids/billing/markups and the seedId prefix of row ids. */
+interface TxnOwner<K extends string> {
+  userId: string;
+  homeCurrency: string;
+  cardIds: Record<K, string>;
+  cards: SeedCard[];
+  markupBps: Record<string, Record<string, number>>;
+  /** seedId name prefix: Dana's rows are `txn/NN` (kept stable), other personas `<persona>/txn/NN`. */
+  idPrefix: string;
 }
 
-function buildTransaction(row: Row): SeedTransaction {
-  const [n, at, source, merchantRaw, merchantNorm, mcc, amount, currency, cardKey, category, flags] = row;
-  const occurredAt = new Date(at).toISOString();
-  const amountMinor = toMinor(amount, currency);
-  const cardId = cardKey === null ? null : IDS.cards[cardKey];
-  const homeAmountMinor = convertMinor(amountMinor, currency, HOME_CURRENCY, rateToHome(currency));
+function rateToHome(currency: string, home: string): string {
+  return crossRate(SEED_FX.rates, currency, home, 6);
+}
 
-  let settledAmountMinor: number | null = null;
-  let settledCurrency: string | null = null;
-  let feeHomeMinor: number | null = null;
-  if (!flags?.pending) {
-    if (cardId === null) {
-      // Bank transfer seen on a statement: settles 1:1 in its own currency.
-      settledAmountMinor = amountMinor;
-      settledCurrency = currency;
-      feeHomeMinor = 0;
-    } else {
-      const billing = CARD_BILLING[cardId]!;
-      const markup = billing === currency ? 0 : (CARD_MARKUP_BPS[cardId]?.[currency] ?? 0);
-      settledCurrency = billing;
-      settledAmountMinor = convertMinor(amountMinor, currency, billing, crossRate(SEED_FX.rates, currency, billing, 10), {
-        markupBps: markup,
-      });
-      const settledHome = convertMinor(settledAmountMinor, billing, HOME_CURRENCY, rateToHome(billing));
-      feeHomeMinor = settledHome - homeAmountMinor; // spec §12: feeHome = settledHome − amount × mid
+function buildTransactions<K extends string>(rows: Row<K>[], o: TxnOwner<K>): SeedTransaction[] {
+  const billingOf: Record<string, string> = Object.fromEntries(o.cards.map((c) => [c.id, c.billingCurrency]));
+  const txnId = (n: number) => seedId(`${o.idPrefix}txn/${String(n).padStart(2, "0")}`);
+  return rows.map((row) => {
+    const [n, at, source, merchantRaw, merchantNorm, mcc, amount, currency, cardKey, category, flags] = row;
+    const occurredAt = new Date(at).toISOString();
+    const amountMinor = toMinor(amount, currency);
+    const cardId = cardKey === null ? null : o.cardIds[cardKey];
+    const homeAmountMinor = convertMinor(amountMinor, currency, o.homeCurrency, rateToHome(currency, o.homeCurrency));
+
+    let settledAmountMinor: number | null = null;
+    let settledCurrency: string | null = null;
+    let feeHomeMinor: number | null = null;
+    if (!flags?.pending) {
+      if (cardId === null) {
+        // Bank transfer seen on a statement: settles 1:1 in its own currency.
+        settledAmountMinor = amountMinor;
+        settledCurrency = currency;
+        feeHomeMinor = 0;
+      } else {
+        const billing = billingOf[cardId]!;
+        const markup = billing === currency ? 0 : (o.markupBps[cardId]?.[currency] ?? 0);
+        settledCurrency = billing;
+        settledAmountMinor = convertMinor(amountMinor, currency, billing, crossRate(SEED_FX.rates, currency, billing, 10), {
+          markupBps: markup,
+        });
+        const settledHome = convertMinor(settledAmountMinor, billing, o.homeCurrency, rateToHome(billing, o.homeCurrency));
+        feeHomeMinor = settledHome - homeAmountMinor; // spec §12: feeHome = settledHome − amount × mid
+      }
     }
-  }
-  const tenMinuteBucket = Math.floor(Date.parse(occurredAt) / 600_000);
-  return {
-    id: seedId(`txn/${String(n).padStart(2, "0")}`),
-    userId: IDS.user,
-    source,
-    occurredAt,
-    merchantRaw,
-    merchantNorm,
-    mcc,
-    amountMinor,
-    currency,
-    cardId,
-    homeAmountMinor,
-    rateUsed: rateToHome(currency),
-    // Example rates are applied as if published on the purchase date (labelled example values).
-    rateDate: occurredAt.slice(0, 10),
-    settledAmountMinor,
-    settledCurrency,
-    feeHomeMinor,
-    category,
-    dedupeKey: `${IDS.user}|${amountMinor}|${currency}|${merchantNorm}|${tenMinuteBucket}`,
-    mergedIntoId: flags?.mergedInto ? seedId(`txn/${String(flags.mergedInto).padStart(2, "0")}`) : null,
-    status: flags?.pending ? "PENDING" : "SETTLED",
-  };
+    const tenMinuteBucket = Math.floor(Date.parse(occurredAt) / 600_000);
+    return {
+      id: txnId(n),
+      userId: o.userId,
+      source,
+      occurredAt,
+      merchantRaw,
+      merchantNorm,
+      mcc,
+      amountMinor,
+      currency,
+      cardId,
+      homeAmountMinor,
+      rateUsed: rateToHome(currency, o.homeCurrency),
+      // Example rates are applied as if published on the purchase date (labelled example values).
+      rateDate: occurredAt.slice(0, 10),
+      settledAmountMinor,
+      settledCurrency,
+      feeHomeMinor,
+      category,
+      dedupeKey: `${o.userId}|${amountMinor}|${currency}|${merchantNorm}|${tenMinuteBucket}`,
+      mergedIntoId: flags?.mergedInto ? txnId(flags.mergedInto) : null,
+      status: flags?.pending ? "PENDING" : "SETTLED",
+    };
+  });
 }
 
-export const transactions: SeedTransaction[] = ROWS.map(buildTransaction);
+/** Card fee profiles derived from settled seed transactions (EXAMPLE values). */
+function feeProfiles(markupBps: Record<string, Record<string, number>>, cardList: SeedCard[], txns: SeedTransaction[]): SeedCardFeeProfile[] {
+  const billingOf: Record<string, string> = Object.fromEntries(cardList.map((c) => [c.id, c.billingCurrency]));
+  return Object.entries(markupBps).flatMap(([cardId, byCurrency]) =>
+    Object.entries(byCurrency).map(([fromCurrency, bps]) => ({
+      cardId,
+      fromCurrency,
+      toCurrency: billingOf[cardId]!,
+      medianMarkupBps: billingOf[cardId] === fromCurrency ? 0 : bps,
+      fixedFeeMinor: 0,
+      samples: txns.filter((t) => t.cardId === cardId && t.currency === fromCurrency && t.status === "SETTLED" && t.mergedIntoId === null).length,
+      exampleValues: true as const,
+    })),
+  );
+}
+
+export const transactions: SeedTransaction[] = buildTransactions(ROWS, {
+  userId: IDS.user,
+  homeCurrency: HOME_CURRENCY,
+  cardIds: IDS.cards,
+  cards,
+  markupBps: CARD_MARKUP_BPS,
+  idPrefix: "",
+});
 
 /** Card fee profiles derived from the settled seed transactions (EXAMPLE values). */
-export const cardFeeProfiles: SeedCardFeeProfile[] = Object.entries(CARD_MARKUP_BPS).flatMap(([cardId, byCurrency]) =>
-  Object.entries(byCurrency).map(([fromCurrency, bps]) => ({
-    cardId,
-    fromCurrency,
-    toCurrency: CARD_BILLING[cardId]!,
-    medianMarkupBps: CARD_BILLING[cardId] === fromCurrency ? 0 : bps,
-    fixedFeeMinor: 0,
-    samples: transactions.filter(
-      (t) => t.cardId === cardId && t.currency === fromCurrency && t.status === "SETTLED" && t.mergedIntoId === null,
-    ).length,
-    exampleValues: true as const,
-  })),
-);
+export const cardFeeProfiles: SeedCardFeeProfile[] = feeProfiles(CARD_MARKUP_BPS, cards, transactions);
+
+// ---------- Second persona: Li Wei (D-CN3) ----------
+/*
+ * Li Wei, a Chinese master's student in Budapest: home CNY, region EU, SMART, capped wallet. His parents remit
+ * CNY monthly; rent is HUF to the same landlord company as Dana (his own payee row, the account for his
+ * building), tuition is EUR to the same university (same account, his own reference). The API seeds him only
+ * with `seedDatabase(..., { personas: true })` (seed script, sim daemon, demo reset), so tests that seed
+ * Dana alone are unchanged. Ids are `seedId("li-wei/...")` (`user/li-wei` for the user).
+ */
+
+export const LI_WEI_IDS = {
+  user: "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b", // seedId("user/li-wei")
+  payees: {
+    landlord: "21e68b31-a232-5f36-a726-8832061eb3cb", // seedId("li-wei/payee/landlord")
+    university: "2efbc65e-4fa9-575f-a0a7-3ed8f3cc1db9", // seedId("li-wei/payee/university")
+  },
+  cards: {
+    cny: "ff1805cb-47c7-522b-acc5-13b99f78a303", // seedId("li-wei/card/cny")
+    local: "4172b1ff-f456-541d-806d-d6fb6730ded2", // seedId("li-wei/card/local")
+  },
+  obligations: {
+    rent: "fed661ad-7229-5443-81ba-199a0a752242", // seedId("li-wei/obligation/rent")
+    tuition: "c81e0569-d453-59a2-9bde-86ba2131491a", // seedId("li-wei/obligation/tuition")
+  },
+  budgets: {
+    groceries: "0c275d61-eadb-5866-a3d3-b62a893c2e43", // seedId("li-wei/budget/groceries")
+    eatingOut: "ef4fc91e-58d2-5956-8a07-745fddd735fe", // seedId("li-wei/budget/eating_out")
+    transport: "199526f0-93c3-5fe8-9267-fdf4201d5552", // seedId("li-wei/budget/transport")
+  },
+} as const;
+
+/** Persona key for the demo claim (`sim register <name> --claim-demo li-wei`). */
+export const LI_WEI_PERSONA = "li-wei";
+export const LI_WEI_HOME_CURRENCY = "CNY";
+/** Mock bank profile for Li Wei's capped wallet (alias: his user id and "li-wei"). */
+export const LI_WEI_MOCK_BANK_PROFILE_ID = 16_000_002;
+/** ISO 11649 creditor reference on Li Wei's tuition invoice. */
+export const LI_WEI_TUITION_REFERENCE = "RF32RUB2026L03318";
+
+const liWeiUser: SeedUser = {
+  id: LI_WEI_IDS.user,
+  displayName: "Li Wei",
+  homeCurrency: LI_WEI_HOME_CURRENCY,
+  region: "EU",
+  preset: "SMART",
+  moneyMode: "CAPPED_WALLET",
+  frozenAt: null,
+  createdAt: "2026-09-18T08:00:00.000Z",
+};
+
+const liWeiProfile: SeedProfile & { caps: SeedCaps } = {
+  userId: LI_WEI_IDS.user,
+  incomes: [{ source: "Parents", currency: "CNY", amountMinor: toMinor("12000", "CNY"), cadence: "MONTHLY", dayOfMonth: 20, nextDate: "2026-11-20" }],
+  notificationMode: "EACH",
+  reserveRules: {
+    protectObligationCategories: ["rent", "tuition"],
+    minBalances: [{ currency: "CNY", amountMinor: toMinor("2000", "CNY") }],
+  },
+  // Caps are in the home currency: roughly Dana's KZT defaults in value (EXAMPLE values).
+  caps: {
+    perPaymentMinor: toMinor("30000", "CNY"),
+    perDayMinor: toMinor("40000", "CNY"),
+    perMonthMinor: toMinor("60000", "CNY"),
+    smallAutoMinor: toMinor("100", "CNY"),
+    reserveMinor: toMinor("2000", "CNY"),
+  },
+};
+
+/** CNY covers EUR tuition only by conversion: the EUR and HUF balances are too small on their own. */
+const liWeiBalances: SeedBalance[] = [
+  { currency: "CNY", amountMinor: toMinor("60000", "CNY") },
+  { currency: "EUR", amountMinor: toMinor("450", "EUR") },
+  { currency: "HUF", amountMinor: toMinor("95000", "HUF") },
+];
+
+const liWeiCards: SeedCard[] = [
+  // CardKind has no CNY member; MULTI = a home-bank debit card that also pays abroad (docs/DECISIONS.md).
+  { id: LI_WEI_IDS.cards.cny, userId: LI_WEI_IDS.user, label: "Home bank CNY debit card (example)", last4: "3388", billingCurrency: "CNY", kind: "MULTI" },
+  { id: LI_WEI_IDS.cards.local, userId: LI_WEI_IDS.user, label: "Local HUF/EUR card (example)", last4: "1542", billingCurrency: "HUF", kind: "LOCAL_HUF" },
+];
+
+/** EXAMPLE markups: CNY debit card abroad ~150 bps (same as rails.json cny-card), local card 0–50 bps. */
+const LI_WEI_MARKUP_BPS: Record<string, Record<string, number>> = {
+  [LI_WEI_IDS.cards.cny]: { HUF: 150, EUR: 150 },
+  [LI_WEI_IDS.cards.local]: { HUF: 0, EUR: 50 },
+};
+
+const liWeiPayees: SeedPayee[] = [
+  {
+    id: LI_WEI_IDS.payees.landlord,
+    userId: LI_WEI_IDS.user,
+    name: "Landlord in Budapest",
+    kind: "LANDLORD",
+    account: ACCOUNTS.landlordLiWei,
+    accountScheme: "IBAN",
+    bic: "HFLTHUHBXXX",
+    country: "HU",
+    currency: "HUF",
+    status: "VERIFIED",
+    verifiedAt: "2026-09-03T11:00:00.000Z",
+    coolingUntil: null,
+    replacesPayeeId: null,
+  },
+  {
+    id: LI_WEI_IDS.payees.university,
+    userId: LI_WEI_IDS.user,
+    name: "University in Budapest",
+    kind: "UNIVERSITY",
+    account: ACCOUNTS.university,
+    accountScheme: "IBAN",
+    bic: "RVUBHUHBXXX",
+    country: "HU",
+    currency: "EUR",
+    status: "VERIFIED",
+    verifiedAt: "2026-09-06T10:15:00.000Z",
+    coolingUntil: null,
+    replacesPayeeId: null,
+  },
+];
+
+/** Both due after the demo's "+3 days" window (rent on the 5th, tuition 10 Nov), so Dana's scenarios are unchanged. */
+const liWeiObligations: SeedObligation[] = [
+  {
+    id: LI_WEI_IDS.obligations.rent,
+    userId: LI_WEI_IDS.user,
+    payeeId: LI_WEI_IDS.payees.landlord,
+    amountMinor: toMinor("165000", "HUF"),
+    currency: "HUF",
+    dueDate: "2026-11-05",
+    recurrence: "MONTHLY",
+    reference: "HF-APT2C-RENT",
+    category: "rent",
+  },
+  {
+    id: LI_WEI_IDS.obligations.tuition,
+    userId: LI_WEI_IDS.user,
+    payeeId: LI_WEI_IDS.payees.university,
+    amountMinor: toMinor("3200", "EUR"),
+    currency: "EUR",
+    dueDate: "2026-11-10",
+    recurrence: "TERM",
+    reference: LI_WEI_TUITION_REFERENCE,
+    category: "tuition",
+  },
+];
+
+const liWeiBudgets: SeedBudget[] = [
+  { id: LI_WEI_IDS.budgets.groceries, userId: LI_WEI_IDS.user, category: "groceries", periodStart: "2026-10-01", periodEnd: "2026-10-31", limitHomeMinor: toMinor("1500", "CNY") },
+  { id: LI_WEI_IDS.budgets.eatingOut, userId: LI_WEI_IDS.user, category: "eating_out", periodStart: "2026-10-01", periodEnd: "2026-10-31", limitHomeMinor: toMinor("1000", "CNY") },
+  { id: LI_WEI_IDS.budgets.transport, userId: LI_WEI_IDS.user, category: "transport", periodStart: "2026-10-01", periodEnd: "2026-10-31", limitHomeMinor: toMinor("300", "CNY") },
+];
+
+const LI_WEI_ROWS: Row<keyof typeof LI_WEI_IDS.cards>[] = [
+  [1, "2026-09-29T11:20:00Z", "NOTIF_SIM", "VALUE MART 0412 BUDAPEST", "value mart", "5411", "5640", "HUF", "local", "groceries"],
+  [2, "2026-10-01T09:00:00Z", "SETTLEMENT", "LANDLORD IN BUDAPEST RENT OCT", "landlord in budapest", "6513", "165000", "HUF", null, "rent"],
+  [3, "2026-10-02T12:10:00Z", "NOTIF_SIM", "CANTEEN IN BUDAPEST", "canteen in", "5812", "1890", "HUF", "local", "eating_out"],
+  [4, "2026-10-03T08:05:00Z", "SHORTCUT", "City Transit", "city transit", "4111", "3450", "HUF", "local", "transport"],
+  [5, "2026-10-04T16:30:00Z", "NOTIF_SIM", "ASIAN GROCERY IN BUDAPEST", "asian grocery in", "5411", "7820", "HUF", "cny", "groceries"],
+  [6, "2026-10-07T19:00:00Z", "NOTIF_SIM", "NOODLE BAR IN BUDAPEST", "noodle bar in", "5812", "3290", "HUF", "cny", "eating_out"],
+  [7, "2026-10-09T10:00:00Z", "NOTIF_SIM", "ONLINE BOOKSTORE EU", "online bookstore", "5942", "32.00", "EUR", "cny", "books"],
+  [8, "2026-10-11T13:40:00Z", "TEXT", "dumplings 2890", "dumpling house in", null, "2890", "HUF", "local", "eating_out"],
+  [9, "2026-10-14T17:15:00Z", "NOTIF_SIM", "GROCERY STORE IN BUDAPEST HU", "grocery store in", "5411", "6230", "HUF", "local", "groceries"],
+  [10, "2026-10-16T12:30:00Z", "NOTIF_SIM", "CANTEEN IN BUDAPEST", "canteen in", "5812", "1990", "HUF", "local", "eating_out"],
+  [11, "2026-10-18T20:45:00Z", "NOTIF_SIM", "CITY TAXI BUDAPEST HU", "city taxi", "4121", "3120", "HUF", "cny", "transport"],
+  [12, "2026-10-21T10:10:00Z", "NOTIF_SIM", "MOBILE OPERATOR IN HUNGARY", "mobile operator in hungary", "4814", "4990", "HUF", "local", "phone"],
+  [13, "2026-10-23T18:20:00Z", "NOTIF_SIM", "ASIAN GROCERY IN BUDAPEST", "asian grocery in", "5411", "9150", "HUF", "cny", "groceries"],
+  [14, "2026-10-25T13:00:00Z", "NOTIF_SIM", "NOODLE BAR IN BUDAPEST", "noodle bar in", "5812", "3490", "HUF", "local", "eating_out"],
+  [15, "2026-10-26T19:30:00Z", "NOTIF_SIM", "STREAMBOX.EXAMPLE", "streambox", "7922", "9.99", "EUR", "cny", "entertainment"],
+];
+
+const liWeiTransactions: SeedTransaction[] = buildTransactions(LI_WEI_ROWS, {
+  userId: LI_WEI_IDS.user,
+  homeCurrency: LI_WEI_HOME_CURRENCY,
+  cardIds: LI_WEI_IDS.cards,
+  cards: liWeiCards,
+  markupBps: LI_WEI_MARKUP_BPS,
+  idPrefix: "li-wei/",
+});
+
+/** Everything the API seeds for Li Wei (same row shapes as Dana's tables). */
+export const liWei = {
+  persona: LI_WEI_PERSONA,
+  mockBankProfileId: LI_WEI_MOCK_BANK_PROFILE_ID,
+  user: liWeiUser,
+  profile: liWeiProfile,
+  balances: liWeiBalances,
+  cards: liWeiCards,
+  cardFeeProfiles: feeProfiles(LI_WEI_MARKUP_BPS, liWeiCards, liWeiTransactions),
+  payees: liWeiPayees,
+  obligations: liWeiObligations,
+  budgets: liWeiBudgets,
+  transactions: liWeiTransactions,
+} as const;
 
 export const seed = {
   seedNow: SEED_NOW,
@@ -547,6 +822,8 @@ export const seed = {
   mandates,
   budgets,
   transactions,
+  /** Extra demo personas, inserted only with `seedDatabase(..., { personas: true })`. */
+  personas: [liWei],
 } as const;
 
 export default seed;

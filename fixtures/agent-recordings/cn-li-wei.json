@@ -1,0 +1,34 @@
+{
+  "scenario": "cn-li-wei",
+  "description": "Hand-written recording for D-CN3, Li Wei (home CNY, Budapest): the planner compares the three CNY → EUR tuition routes and the coverage forecast, then drafts the tuition payment; rules bind the cheapest executable funding route and decide (ASK). Obligations are listed by due date: rent (5 Nov) is payee_1, tuition (10 Nov) payee_2.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "Pay my tuition from my yuan",
+      "match": ["tuition", "yuan"],
+      "steps": [
+        {
+          "text": "Let me check your bills and your yuan.",
+          "toolCalls": [{ "toolName": "get_obligations", "input": { "withinDays": 30 } }]
+        },
+        {
+          "toolCalls": [
+            { "toolName": "get_routes", "input": { "fromCurrency": "CNY", "toCurrency": "EUR", "amountMinor": 320000, "dueDate": "2026-11-10" } },
+            { "toolName": "forecast_coverage", "input": {} }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "toolName": "propose_order",
+              "input": { "payeeRef": "payee_2", "amountMinor": 320000, "currency": "EUR", "purpose": "Tuition autumn term 2026", "rail": "BANK_TRANSFER" }
+            }
+          ]
+        },
+        {
+          "text": "I've drafted your tuition to payee_2: €3,200.00, about ¥26,560 at today's mid rate. The comparison card ranks three ways to pay it from yuan: the mock bank transfer is cheapest, the CNY debit card costs more in markup, and a home-bank international transfer is the most expensive. The rules engine bound the cheapest route into the order; review the canonical order and sign it with your passkey."
+        }
+      ]
+    }
+  ]
+}

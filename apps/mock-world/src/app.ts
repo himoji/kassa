@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 
-import { balances, IDS, MOCK_BANK_PROFILE_ID } from "../../../fixtures/seed-data.ts";
+import { balances, IDS, liWei, MOCK_BANK_PROFILE_ID } from "../../../fixtures/seed-data.ts";
 import { BankError, MockBank } from "./bank/bank.ts";
 import { ApiRates, type RateProvider } from "./bank/rates.ts";
 import type { Clock, FetchLike } from "./clock.ts";
@@ -76,7 +76,11 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     rates,
     webhooks,
     stepMs: config.bankStepMs,
-    initialBalances: [{ profileId: MOCK_BANK_PROFILE_ID, aliases: [IDS.user], balances }],
+    initialBalances: [
+      { profileId: MOCK_BANK_PROFILE_ID, aliases: [IDS.user], balances },
+      // D-CN3 second persona (seeded by the API with `personas: true`); alias "li-wei" for `sim mock remittance --profile li-wei`.
+      { profileId: liWei.mockBankProfileId, aliases: [liWei.user.id, liWei.persona], balances: [...liWei.balances] },
+    ],
   });
   const qr = new QrWallet({ clock, webhooks, publicUrl: config.publicUrl });
   const issuer =

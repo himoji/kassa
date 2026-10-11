@@ -29,13 +29,15 @@
     "settlement": "Bank settlement",
     "money-from-home": "Money from home",
     "landlord-iban-email": "Landlord changes IBAN",
-    "pos-low-dough": "Low balance at checkout"
+    "pos-low-dough": "Low balance at checkout",
+    "cn-spending-day": "Spending day in Shanghai"
   },
   "scenarioHint": {
     "settlement": "A card payment settles at the bank.",
     "money-from-home": "Family sends money to your account.",
     "landlord-iban-email": "An email asks you to pay a new account.",
-    "pos-low-dough": "A card payment at a shop with low funds."
+    "pos-low-dough": "A card payment at a shop with low funds.",
+    "cn-spending-day": "Wallet and card notices from a day in Shanghai."
   },
   "scenariosTitle": "Scenarios",
   "sendNotif": "Send notification",

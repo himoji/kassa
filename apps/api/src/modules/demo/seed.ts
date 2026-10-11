@@ -2,6 +2,10 @@
  * Seed / reset (spec §18). Inserts fixtures/seed-data.ts (Track D) — or a minimal inline fallback when
  * the fixture is absent — into an EMPTY database (reset truncates every table first), then sets the demo
  * clock so Clock.now() == seed.seedNow (story time, see the fixture header).
+ *
+ * `personas: true` also inserts the extra demo personas (`seed.personas`, e.g. Li Wei for D-CN3). The seed
+ * script, the sim daemon and POST /demo/reset pass it; unit tests that seed Dana alone do not, so their
+ * single-user assumptions hold. Dana stays the demo user (demo_state.demo_user_id).
  */
 import { PRESET_DEFAULTS } from "@kassa/shared";
 import { sql } from "drizzle-orm";
@@ -24,11 +28,21 @@ import { clearDekCache } from "../privacy/keys.ts";
 import { accountHash, encryptAccount, normalizeAccount } from "../payees/crypto.ts";
 import { DEFAULT_CAPS } from "../users/service.ts";
 
+type SeedCaps = { perPaymentMinor: number; perDayMinor: number; perMonthMinor: number; smallAutoMinor: number; reserveMinor: number };
+
+/** One seeded user with everything they own (Dana's part of `seed`, or one of `seed.personas`). */
+export type SeedUserData = Omit<SeedData, "seedNow" | "homeCurrency" | "personas"> & { profile: SeedData["profile"] & { caps?: SeedCaps } };
+
+/** A persona that can be claimed with `demoClaim: "<persona>"` (POST /auth/register/options). */
+export type SeedPersonaData = SeedUserData & { persona: string };
+
 /** The subset of fixtures/seed-data.ts `seed` this loader uses. */
 export type SeedData = {
   seedNow: string;
   homeCurrency: string;
   mockBankProfileId: number;
+  /** Extra demo personas (only inserted with `{ personas: true }`). */
+  personas?: readonly SeedPersonaData[];
   user: { id: string; displayName: string; homeCurrency: string; region: "EU" | "CN"; preset: "ASK_ME" | "SMART" | "AUTOPILOT"; moneyMode: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF"; createdAt: string };
   profile: {
     incomes: { source: string; currency: string; amountMinor: number; cadence: "WEEKLY" | "MONTHLY" | "TERM" | "ONCE"; nextDate: string }[];
@@ -117,69 +131,84 @@ export async function truncateAll(db: Db): Promise<void> {
   await db.execute(sql.raw(`TRUNCATE ${rows.map((r) => `"${r.tablename.replace(/"/g, '""')}"`).join(", ")} RESTART IDENTITY CASCADE`));
 }
 
-/** Insert seed data; `reset` truncates first. Sets the demo clock to seed time. */
-export async function seedDatabase(db: Db, data: SeedData, opts: { reset: boolean }): Promise<{ userId: string }> {
-  if (opts.reset) await truncateAll(db);
+/** Insert one user and everything they own (inside the seed transaction). */
+async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], data: SeedUserData): Promise<void> {
   const u = data.user;
   const minBalances = data.profile.reserveRules.minBalances ?? [];
   const reserveHome = minBalances.filter((b) => b.currency === u.homeCurrency).reduce((s, b) => s + b.amountMinor, 0);
-  await db.transaction(async (tx) => {
-    await tx.insert(users).values({
-      id: u.id,
-      displayName: u.displayName,
-      homeCurrency: u.homeCurrency,
-      region: u.region,
-      preset: u.preset,
-      moneyMode: u.moneyMode,
-      // The seeded hero agreed to AI processing in the (recorded) onboarding; real users consent at sign-up.
-      aiConsentAt: new Date(u.createdAt),
-      overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: PRESET_DEFAULTS[u.preset].moneyMode === u.moneyMode ? null : u.moneyMode },
-      createdAt: new Date(u.createdAt),
-    });
-    await tx.insert(profiles).values({
+  await tx.insert(users).values({
+    id: u.id,
+    displayName: u.displayName,
+    homeCurrency: u.homeCurrency,
+    region: u.region,
+    preset: u.preset,
+    moneyMode: u.moneyMode,
+    // The seeded hero agreed to AI processing in the (recorded) onboarding; real users consent at sign-up.
+    aiConsentAt: new Date(u.createdAt),
+    overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: PRESET_DEFAULTS[u.preset].moneyMode === u.moneyMode ? null : u.moneyMode },
+    createdAt: new Date(u.createdAt),
+  });
+  await tx.insert(profiles).values({
+    userId: u.id,
+    incomes: data.profile.incomes.map((i) => ({ source: i.source, currency: i.currency, amountMinor: i.amountMinor, cadence: i.cadence, nextDate: i.nextDate })),
+    notificationMode: data.profile.notificationMode,
+    reserveRules: {
+      ...data.profile.reserveRules,
+      reserves: minBalances.map((b) => ({ currency: b.currency, minMinor: b.amountMinor })),
+    },
+    // DEFAULT_CAPS are KZT-sized (the hero's home currency); other personas bring caps in their own currency.
+    caps: data.profile.caps ?? { ...DEFAULT_CAPS, reserveMinor: reserveHome || DEFAULT_CAPS.reserveMinor },
+    bankProfileId: data.mockBankProfileId,
+  });
+  if (data.cards.length) await tx.insert(cards).values(data.cards.map((c) => ({ id: c.id, label: c.label, last4: c.last4, billingCurrency: c.billingCurrency, kind: c.kind, userId: u.id })));
+  if (data.cardFeeProfiles.length) {
+    await tx.insert(cardFeeProfiles).values(
+      data.cardFeeProfiles.map((f) => ({ cardId: f.cardId, fromCurrency: f.fromCurrency, toCurrency: f.toCurrency, medianMarkupBps: f.medianMarkupBps, fixedFeeMinor: f.fixedFeeMinor, samples: f.samples })),
+    );
+  }
+  for (const p of data.payees) {
+    await tx.insert(payees).values({
+      id: p.id,
       userId: u.id,
-      incomes: data.profile.incomes.map((i) => ({ source: i.source, currency: i.currency, amountMinor: i.amountMinor, cadence: i.cadence, nextDate: i.nextDate })),
-      notificationMode: data.profile.notificationMode,
-      reserveRules: {
-        ...data.profile.reserveRules,
-        reserves: minBalances.map((b) => ({ currency: b.currency, minMinor: b.amountMinor })),
-      },
-      caps: { ...DEFAULT_CAPS, reserveMinor: reserveHome || DEFAULT_CAPS.reserveMinor },
-      bankProfileId: data.mockBankProfileId,
+      name: p.name,
+      kind: p.kind,
+      accountEnc: encryptAccount(u.id, normalizeAccount(p.account)),
+      accountHash: accountHash(p.account),
+      country: p.country,
+      currency: p.currency,
+      status: p.status,
+      verifiedAt: p.verifiedAt ? new Date(p.verifiedAt) : null,
+      coolingUntil: p.coolingUntil ? new Date(p.coolingUntil) : null,
+      replacesPayeeId: p.replacesPayeeId,
     });
-    if (data.cards.length) await tx.insert(cards).values(data.cards.map((c) => ({ ...c, userId: u.id })));
-    if (data.cardFeeProfiles.length) {
-      await tx.insert(cardFeeProfiles).values(
-        data.cardFeeProfiles.map((f) => ({ cardId: f.cardId, fromCurrency: f.fromCurrency, toCurrency: f.toCurrency, medianMarkupBps: f.medianMarkupBps, fixedFeeMinor: f.fixedFeeMinor, samples: f.samples })),
-      );
-    }
-    for (const p of data.payees) {
-      await tx.insert(payees).values({
-        id: p.id,
-        userId: u.id,
-        name: p.name,
-        kind: p.kind,
-        accountEnc: encryptAccount(u.id, normalizeAccount(p.account)),
-        accountHash: accountHash(p.account),
-        country: p.country,
-        currency: p.currency,
-        status: p.status,
-        verifiedAt: p.verifiedAt ? new Date(p.verifiedAt) : null,
-        coolingUntil: p.coolingUntil ? new Date(p.coolingUntil) : null,
-        replacesPayeeId: p.replacesPayeeId,
-      });
-    }
-    if (data.obligations.length) await tx.insert(obligations).values(data.obligations.map((o) => ({ ...o, userId: u.id })));
-    if (data.budgets.length) await tx.insert(budgets).values(data.budgets.map((b) => ({ ...b, userId: u.id })));
-    for (const t of data.transactions) {
-      await tx.insert(transactions).values({
-        ...t,
-        userId: u.id,
-        occurredAt: new Date(t.occurredAt),
-        rateUsed: Number(t.rateUsed),
-        createdAt: new Date(t.occurredAt),
-      });
-    }
+  }
+  if (data.obligations.length) {
+    await tx.insert(obligations).values(
+      data.obligations.map((o) => ({ id: o.id, payeeId: o.payeeId, amountMinor: o.amountMinor, currency: o.currency, dueDate: o.dueDate, recurrence: o.recurrence, reference: o.reference, category: o.category, userId: u.id })),
+    );
+  }
+  if (data.budgets.length) {
+    await tx.insert(budgets).values(data.budgets.map((b) => ({ id: b.id, category: b.category, periodStart: b.periodStart, periodEnd: b.periodEnd, limitHomeMinor: b.limitHomeMinor, userId: u.id })));
+  }
+  for (const t of data.transactions) {
+    await tx.insert(transactions).values({
+      ...t,
+      userId: u.id,
+      occurredAt: new Date(t.occurredAt),
+      rateUsed: Number(t.rateUsed),
+      createdAt: new Date(t.occurredAt),
+    });
+  }
+}
+
+/** Insert seed data; `reset` truncates first; `personas` adds `seed.personas`. Sets the demo clock to seed time. */
+export async function seedDatabase(db: Db, data: SeedData, opts: { reset: boolean; personas?: boolean }): Promise<{ userId: string; personaUserIds: string[] }> {
+  if (opts.reset) await truncateAll(db);
+  const u = data.user;
+  const personas = opts.personas ? (data.personas ?? []) : [];
+  await db.transaction(async (tx) => {
+    await insertUserData(tx, data);
+    for (const p of personas) await insertUserData(tx, p);
     // Seeded mandates are NOT inserted: they have no passkey signature yet. Dana signs the rent mandate
     // during onboarding (/onboarding/confirm/options suggests it; /mandates/options + /mandates create it).
     await tx
@@ -189,6 +218,12 @@ export async function seedDatabase(db: Db, data: SeedData, opts: { reset: boolea
   });
   const realNow = clock.nowMs() - clock.offsetMs();
   await clock.setOffset(Date.parse(data.seedNow) - realNow);
-  await ledger.append("DEMO_SEEDED", { userId: u.id, seedNow: data.seedNow, payees: data.payees.length, transactions: data.transactions.length });
-  return { userId: u.id };
+  await ledger.append("DEMO_SEEDED", {
+    userId: u.id,
+    seedNow: data.seedNow,
+    payees: data.payees.length,
+    transactions: data.transactions.length,
+    ...(personas.length ? { personas: personas.map((p) => ({ persona: p.persona, userId: p.user.id })) } : {}),
+  });
+  return { userId: u.id, personaUserIds: personas.map((p) => p.user.id) };
 }

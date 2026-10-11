@@ -9,6 +9,6 @@ import { loadSeedData, seedDatabase } from "../src/modules/demo/seed.ts";
 // Idempotent: makes `bun run seed` work on a brand-new PGlite directory.
 await migrateDatabaseUrl();
 const data = await loadSeedData();
-const { userId } = await seedDatabase(getDb(), data, { reset: true });
-console.log(`seeded user ${userId} (${data.user.displayName}); demo clock = ${data.seedNow}`);
+const { userId, personaUserIds } = await seedDatabase(getDb(), data, { reset: true, personas: true });
+console.log(`seeded user ${userId} (${data.user.displayName}) + ${personaUserIds.length} persona(s); demo clock = ${data.seedNow}`);
 await closeDb();

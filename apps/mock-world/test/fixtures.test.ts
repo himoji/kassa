@@ -16,6 +16,9 @@ import {
   mandates,
   profile,
   user,
+  liWei,
+  LI_WEI_IDS,
+  LI_WEI_TUITION_REFERENCE,
 } from "../../../fixtures/seed-data.ts";
 import { seedId, uuidV5 } from "../../../fixtures/uuid.ts";
 
@@ -166,5 +169,94 @@ describe("default export", () => {
     expect(seed.seedNow).toBe("2026-10-27T09:00:00.000Z");
     expect(seed.homeCurrency).toBe("KZT");
     expect(seed.mockBankProfileId).toBe(16_000_001);
+  });
+});
+
+describe("second persona Li Wei (D-CN3)", () => {
+  const li = liWei;
+  const liIds = [
+    li.user.id,
+    ...li.payees.map((p) => p.id),
+    ...li.cards.map((c) => c.id),
+    ...li.obligations.map((o) => o.id),
+    ...li.budgets.map((b) => b.id),
+    ...li.transactions.map((t) => t.id),
+  ];
+
+  it("every LI_WEI_IDS literal equals seedId of its name", () => {
+    expect(LI_WEI_IDS.user).toBe(seedId("user/li-wei"));
+    expect(LI_WEI_IDS.payees.landlord).toBe(seedId("li-wei/payee/landlord"));
+    expect(LI_WEI_IDS.payees.university).toBe(seedId("li-wei/payee/university"));
+    expect(LI_WEI_IDS.cards.cny).toBe(seedId("li-wei/card/cny"));
+    expect(LI_WEI_IDS.cards.local).toBe(seedId("li-wei/card/local"));
+    expect(LI_WEI_IDS.obligations.rent).toBe(seedId("li-wei/obligation/rent"));
+    expect(LI_WEI_IDS.obligations.tuition).toBe(seedId("li-wei/obligation/tuition"));
+    expect(LI_WEI_IDS.budgets.groceries).toBe(seedId("li-wei/budget/groceries"));
+    expect(LI_WEI_IDS.budgets.eatingOut).toBe(seedId("li-wei/budget/eating_out"));
+    expect(LI_WEI_IDS.budgets.transport).toBe(seedId("li-wei/budget/transport"));
+  });
+
+  it("Dana's dormOffice, cnShop and dormFee literal ids equal seedId of their names", () => {
+    expect(IDS.payees.dormOffice).toBe(seedId("payee/dorm-office-shanghai"));
+    expect(IDS.payees.cnShop).toBe(seedId("payee/buy-everything-shop-china"));
+    expect(IDS.obligations.dormFee).toBe(seedId("obligation/dorm-fee"));
+  });
+
+  it("every Li id is a UUIDv5 and Dana's and Li's ids together are unique", () => {
+    for (const id of liIds) expect(id).toMatch(UUID_V5);
+    const danaIds = [
+      user.id,
+      ...payees.map((p) => p.id),
+      ...cards.map((c) => c.id),
+      ...obligations.map((o) => o.id),
+      ...budgets.map((b) => b.id),
+      ...transactions.map((t) => t.id),
+      ...mandates.map((m) => m.core.mandateId),
+    ];
+    const all = [...danaIds, ...liIds];
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it("Li's IBAN payees pass the shared validator and the MOD 97 check", () => {
+    const ibanPayees = li.payees.filter((p) => p.accountScheme === "IBAN");
+    expect(ibanPayees.length).toBeGreaterThan(0);
+    for (const p of ibanPayees) {
+      expect(isValidIban(p.account), p.name).toBe(true);
+      expect(mod97IsOne(p.account), p.name).toBe(true);
+    }
+  });
+
+  it("the tuition reference is a valid ISO 11649 RF reference", () => {
+    expect(isValidRfReference(LI_WEI_TUITION_REFERENCE)).toBe(true);
+  });
+
+  it("user, currencies and balances", () => {
+    expect(li.user).toMatchObject({ homeCurrency: "CNY", region: "EU", preset: "SMART", moneyMode: "CAPPED_WALLET" });
+    const byCurrency = Object.fromEntries(li.balances.map((b) => [b.currency, b.amountMinor]));
+    expect(byCurrency).toEqual({ CNY: 6_000_000, EUR: 45_000, HUF: 9_500_000 });
+  });
+
+  it("every money field is a safe integer", () => {
+    for (const t of li.transactions) {
+      expect(Number.isSafeInteger(t.amountMinor), t.id).toBe(true);
+      expect(Number.isSafeInteger(t.homeAmountMinor), t.id).toBe(true);
+      if (t.settledAmountMinor !== null) expect(Number.isSafeInteger(t.settledAmountMinor), t.id).toBe(true);
+    }
+    for (const o of li.obligations) expect(Number.isSafeInteger(o.amountMinor), o.id).toBe(true);
+    for (const b of li.budgets) expect(Number.isSafeInteger(b.limitHomeMinor), b.id).toBe(true);
+    for (const b of li.balances) expect(Number.isSafeInteger(b.amountMinor), b.currency).toBe(true);
+  });
+
+  it("every Li transaction is SETTLED and dated within 31 days before SEED_NOW", () => {
+    for (const t of li.transactions) {
+      expect(t.status, t.id).toBe("SETTLED");
+      const at = Date.parse(t.occurredAt);
+      expect(at, t.id).toBeLessThanOrEqual(SEED_NOW);
+      expect(at, t.id).toBeGreaterThanOrEqual(SEED_NOW - 31 * DAY_MS);
+    }
+  });
+
+  it("seed.personas is exactly Li Wei", () => {
+    expect(seed.personas).toEqual([liWei]);
   });
 });
