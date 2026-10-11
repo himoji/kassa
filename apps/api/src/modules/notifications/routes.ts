@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
 import { notifications } from "../../db/schema.ts";
-import { notFound } from "../../http/problem.ts";
+import { ownedNotFound } from "../../http/audit.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { clock } from "../clock/index.ts";
 
@@ -58,7 +58,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .set({ readAt: clock.now() })
         .where(and(eq(notifications.id, req.params.id), eq(notifications.userId, userId)))
         .returning({ id: notifications.id });
-      if (rows.length === 0) throw notFound("notification");
+      if (rows.length === 0) {
+        throw await ownedNotFound(userId, "notification", req.params.id, async () => (await getDb().select({ id: notifications.id }).from(notifications).where(eq(notifications.id, req.params.id))).length > 0);
+      }
       return { ok: true };
     },
   );

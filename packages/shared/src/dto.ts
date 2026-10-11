@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { AiNotice } from "./privacyDto.ts";
+
 import {
   AgentMode,
   BudgetPace,
@@ -55,6 +57,12 @@ export const MeResponse = z.object({
   demo: z.object({ agentMode: AgentMode, clockOffsetMs: z.number().int(), now: IsoDateTime }).nullable(),
   /** False until POST /onboarding/confirm succeeded (added by Track C; optional = treated as true). */
   onboarded: z.boolean().optional(),
+  /** (added Phase 2) EU AI Act Art. 50 / GDPR Art. 13 notice about the AI and its provider. */
+  aiNotice: AiNotice.optional(),
+  /** (added Phase 2) when the user consented to AI processing; null = not given (agent/onboarding → 403 AI_CONSENT_REQUIRED). */
+  aiConsentAt: IsoDateTime.nullable().optional(),
+  /** (added Phase 2) GDPR Art. 18 restriction in force since (null = none). */
+  restrictedAt: IsoDateTime.nullable().optional(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

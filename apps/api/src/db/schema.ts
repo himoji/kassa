@@ -134,6 +134,29 @@ export const users = pgTable("users", {
     .default({ agentAutonomy: null, paymentPolicy: null, moneyMode: null }),
   frozenAt: tstz("frozen_at"),
   createdAt: tstz("created_at").notNull().defaultNow(),
+  /** (added, Phase 2) consent to AI processing (GDPR Art. 6(1)(a)/7); null = none → agent/onboarding refuse. */
+  aiConsentAt: tstz("ai_consent_at"),
+  /** (added, Phase 2) GDPR Art. 18 restriction of processing (implies frozen, no AI processing). */
+  restrictedAt: tstz("restricted_at"),
+  /** (added, Phase 2) GDPR Art. 17 erasure done: DEK shredded, personal rows deleted; sessions refused. */
+  erasedAt: tstz("erased_at"),
+});
+
+/**
+ * (added, Phase 2) Per-user data encryption key (DEK) for personal fields in append-only stores (ledger
+ * payload `pii`). The DEK is wrapped (AES-256-GCM, NIST SP 800-38D) with USER_KEK; erasure (GDPR Art. 17)
+ * nulls `wrappedDek` — crypto-shredding — and the row stays as a tombstone so a new key is never minted.
+ */
+export const userKeys = pgTable("user_keys", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  /** "v1.<iv>.<ciphertext>.<tag>" (base64url); null once shredded. */
+  wrappedDek: text("wrapped_dek"),
+  /** Identifies the KEK that wrapped the DEK (rotation): base64url(sha256(KEK))[0..16]. */
+  kekId: text("kek_id").notNull(),
+  createdAt: tstz("created_at").notNull().defaultNow(),
+  shreddedAt: tstz("shredded_at"),
 });
 
 export const profiles = pgTable("profiles", {
@@ -510,6 +533,8 @@ export const placeholderMaps = pgTable(
     placeholder: text("placeholder").notNull(),
     kind: text("kind").notNull(),
     realRef: text("real_ref").notNull(),
+    /** (added, Phase 2) for the retention purge (RETENTION_DAYS_PLACEHOLDER_MAPS). */
+    createdAt: tstz("created_at").notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.conversationId, t.placeholder] })],
 );

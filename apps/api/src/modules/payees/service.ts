@@ -8,9 +8,11 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
 import { payees } from "../../db/schema.ts";
+import { ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
 import { isValidIban, looksLikeIban } from "../screening/iban.ts";
 import { accountHash, decryptAccount, encryptAccount, maskAccount, normalizeAccount } from "./crypto.ts";
@@ -75,7 +77,9 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
     const p = inserted[0]!;
     await ledger.append(
       "PAYEE_CREATED",
-      { userId, payeeId: p.id, status: "COOLING", coolingUntil: coolingUntil.toISOString(), replacesPayeeId: p.replacesPayeeId, accountHash: p.accountHash, source: req.source ?? "user" },
+      // accountHash (sha256 of a third party's account) is sealed with the user's key: an IBAN space is small
+      // enough to brute-force a bare hash, and erasure must make it unreadable (GDPR Art. 17).
+      { userId, payeeId: p.id, status: "COOLING", coolingUntil: coolingUntil.toISOString(), replacesPayeeId: p.replacesPayeeId, source: req.source ?? "user", ...(await sealPii(userId, { accountHash: p.accountHash }, tx)) },
       tx,
     );
     return inserted;
@@ -97,7 +101,7 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
 export async function verifyCallback(userId: string, payeeId: string) {
   const db = getDb();
   const p = (await db.select().from(payees).where(and(eq(payees.id, payeeId), eq(payees.userId, userId))))[0];
-  if (!p) throw notFound("payee");
+  if (!p) throw await ownedNotFound(userId, "payee", payeeId, async () => (await db.select({ id: payees.id }).from(payees).where(eq(payees.id, payeeId))).length > 0);
   if (p.status === "VERIFIED") return p;
   if (p.status === "BLOCKED") throw conflict("REFUSE_UNVERIFIED_PAYEE", "Payee is blocked");
   const now = clock.now();

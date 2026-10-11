@@ -1,6 +1,7 @@
 /*
- * GET /me, PATCH /settings, GET /caps, GET /rule-changes, POST /freeze, POST /devices(/shortcut),
- * POST /onboarding/confirm/options, POST /onboarding/confirm (contracts: @kassa/shared dto.ts + appDto.ts).
+ * GET /me, PATCH /me (GDPR Art. 16), PATCH /settings, GET /caps, GET /rule-changes, POST /freeze,
+ * POST /unfreeze (I8 loosening), POST /devices(/shortcut), POST /onboarding/confirm/options,
+ * POST /onboarding/confirm (contracts: @kassa/shared dto.ts + appDto.ts + privacyDto.ts).
  */
 import {
   CapsResponse,
@@ -14,6 +15,9 @@ import {
   RegisterDeviceRequest,
   RuleChangesResponse,
   SettingsPatchRequest,
+  UnfreezeRequest,
+  UnfreezeResponse,
+  UpdateMeRequest,
   SettingsPatchResponse,
   sha256Base64url,
   jcsHash,
@@ -29,14 +33,18 @@ import { z } from "zod";
 import { getDb } from "../../db/client.ts";
 import { demoState, devices, obligations, payees, profiles, ruleChanges, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
+import { auditAssertionFailure } from "../../http/audit.ts";
 import { conflict, HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { aiNotice } from "../privacy/notice.ts";
+import { rectifyDisplayName } from "../privacy/service.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { effectiveOf, loadUser, settingsOf } from "./service.ts";
 import { patchSettings } from "./settings.ts";
+import { cancelPendingUnfreezes, requestUnfreeze } from "./unfreeze.ts";
 
 type OnboardingModule = {
   getOnboardingDraft?: (userId: string, conversationId: string) => Promise<OnboardingProfileDraft | null>;
@@ -71,9 +79,9 @@ function emptyDraft(): OnboardingProfileDraft {
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
 
-  app.get("/me", { schema: { response: { 200: MeResponse } } }, async (req) => {
+  async function me(userId: string) {
     const db = getDb();
-    const { user, profile } = await loadUser(db, userIdOf(req));
+    const { user, profile } = await loadUser(db, userId);
     const e = env();
     const ds = e.DEMO_ENABLED ? (await db.select().from(demoState).where(eq(demoState.id, 1)))[0] : undefined;
     const effective = effectiveOf(user);
@@ -92,7 +100,19 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         ? { agentMode: ds?.agentMode ?? e.AGENT_MODE, clockOffsetMs: clock.offsetMs(), now: clock.now().toISOString() }
         : null,
       onboarded: profile.baseRulesSignedAt !== null,
+      aiNotice: aiNotice(),
+      aiConsentAt: user.aiConsentAt?.toISOString() ?? null,
+      restrictedAt: user.restrictedAt?.toISOString() ?? null,
     };
+  }
+
+  app.get("/me", { schema: { response: { 200: MeResponse } } }, async (req) => me(userIdOf(req)));
+
+  // GDPR Art. 16 rectification (the name is the only free-form profile field; settings use PATCH /settings).
+  app.patch("/me", { schema: { body: UpdateMeRequest, response: { 200: MeResponse } } }, async (req) => {
+    const userId = userIdOf(req);
+    await rectifyDisplayName(userId, req.body.displayName);
+    return me(userId);
   });
 
   app.patch("/settings", { schema: { body: SettingsPatchRequest, response: { 200: SettingsPatchResponse } } }, async (req) =>
@@ -143,11 +163,18 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const rows = await db.transaction(async (tx) => {
       const r = await tx.update(users).set({ frozenAt: now }).where(and(eq(users.id, userId), isNull(users.frozenAt))).returning();
       if (r.length > 0) await ledger.append("ACCOUNT_FROZEN", { userId }, tx);
+      // Freezing again while an unfreeze is pending cancels it (tightening wins, I8).
+      await cancelPendingUnfreezes(tx, userId);
       return r;
     });
     const frozenAt = rows[0]?.frozenAt ?? (await loadUser(db, userId)).user.frozenAt ?? now;
     return { frozenAt: frozenAt.toISOString() };
   });
+
+  // Unfreeze is a loosening (I8, DECISIONS 2026-10-11): passkey over a fresh challenge, effective after 24 h.
+  app.post("/unfreeze", { schema: { body: UnfreezeRequest, response: { 200: UnfreezeResponse } } }, async (req) =>
+    requestUnfreeze(userIdOf(req), req.body),
+  );
 
   // Expo push token of this app install.
   app.post("/devices", { schema: { body: RegisterDeviceRequest } }, async (req, reply) => {
@@ -253,7 +280,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         throw new HttpProblem(409, "CHALLENGE_MISMATCH", "Signed rules differ from the server's; reload the review");
       }
       const check = await verifyRulesAssertion(db, { userId, assertion: req.body.assertion, expectedChallenge: gated.hash, challengeReason: "ASSERTION_INVALID" });
-      if (!check.ok) throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
+      if (!check.ok) {
+        await auditAssertionFailure(userId, "base-rules", check.reason);
+        throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
+      }
       const core = pending.core;
       const now = clock.now();
       const { currency: _currency, ...caps } = core.caps;

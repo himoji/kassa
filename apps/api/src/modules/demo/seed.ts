@@ -20,6 +20,7 @@ import {
 } from "../../db/schema.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { clearDekCache } from "../privacy/keys.ts";
 import { accountHash, encryptAccount, normalizeAccount } from "../payees/crypto.ts";
 import { DEFAULT_CAPS } from "../users/service.ts";
 
@@ -83,7 +84,7 @@ export const FALLBACK_SEED: SeedData = {
   cards: [],
   cardFeeProfiles: [],
   payees: [
-    { id: "8244c30e-61a5-5c07-b556-a9b7706bd087", name: "Hillside Flats Kft.", kind: "LANDLORD", account: "HU75109183242065038100000003", country: "HU", currency: "HUF", status: "VERIFIED", verifiedAt: "2026-09-02T10:00:00.000Z", coolingUntil: null, replacesPayeeId: null },
+    { id: "8244c30e-61a5-5c07-b556-a9b7706bd087", name: "Landlord in Budapest", kind: "LANDLORD", account: "HU75109183242065038100000003", country: "HU", currency: "HUF", status: "VERIFIED", verifiedAt: "2026-09-02T10:00:00.000Z", coolingUntil: null, replacesPayeeId: null },
   ],
   obligations: [
     { id: "c60680c9-e9b3-517f-8113-848cb50f5d10", payeeId: "8244c30e-61a5-5c07-b556-a9b7706bd087", amountMinor: 18_000_000, currency: "HUF", dueDate: "2026-11-01", recurrence: "MONTHLY", reference: null, category: "rent" },
@@ -110,6 +111,8 @@ export async function truncateAll(db: Db): Promise<void> {
     sql`select tablename from pg_tables where schemaname = 'public' and tablename <> '__drizzle_migrations'`,
   )) as unknown as { rows?: { tablename: string }[] } | { tablename: string }[];
   const rows = Array.isArray(res) ? res : (res.rows ?? []);
+  // user_keys is truncated too: cached data keys would otherwise seal new entries with keys no row holds.
+  clearDekCache();
   if (rows.length === 0) return;
   await db.execute(sql.raw(`TRUNCATE ${rows.map((r) => `"${r.tablename.replace(/"/g, '""')}"`).join(", ")} RESTART IDENTITY CASCADE`));
 }
@@ -128,6 +131,8 @@ export async function seedDatabase(db: Db, data: SeedData, opts: { reset: boolea
       region: u.region,
       preset: u.preset,
       moneyMode: u.moneyMode,
+      // The seeded hero agreed to AI processing in the (recorded) onboarding; real users consent at sign-up.
+      aiConsentAt: new Date(u.createdAt),
       overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: PRESET_DEFAULTS[u.preset].moneyMode === u.moneyMode ? null : u.moneyMode },
       createdAt: new Date(u.createdAt),
     });

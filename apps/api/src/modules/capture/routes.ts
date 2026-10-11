@@ -30,12 +30,22 @@ async function shortcutDeviceUser(req: FastifyRequest): Promise<string> {
   return row.userId;
 }
 
+/** Device-token owner per request (set in onRequest, read by the handler). */
+const shortcutUsers = new WeakMap<FastifyRequest, string>();
+
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     "/capture/shortcut",
-    { schema: { body: ShortcutPayload, response: { 200: CaptureEventResponse } } },
+    {
+      // Authenticate before the body is parsed or validated (no schema hints to unauthenticated callers).
+      onRequest: async (req) => {
+        shortcutUsers.set(req, await shortcutDeviceUser(req));
+      },
+      schema: { body: ShortcutPayload, response: { 200: CaptureEventResponse } },
+    },
     async (req) => {
-      const userId = await shortcutDeviceUser(req);
+      const userId = shortcutUsers.get(req);
+      if (!userId) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
       return ingestCapture(userId, { source: "SHORTCUT", shortcut: req.body });
     },
   );

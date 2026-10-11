@@ -9,7 +9,7 @@
       "language": "ru",
       "kind": "PURCHASE",
       "expected": {
-        "merchant": "FRESH MARKET HALL BP",
+        "merchant": "MARKET HALL IN BUDAPEST",
         "amountMinor": 476000,
         "currency": "HUF",
         "cardHint": "4821",
@@ -24,7 +24,7 @@
       "language": "kk",
       "kind": "PURCHASE",
       "expected": {
-        "merchant": "NOODLE BAR BUDAPEST",
+        "merchant": "NOODLE BAR IN BUDAPEST",
         "amountMinor": 349000,
         "currency": "HUF",
         "cardHint": "4821",
@@ -80,7 +80,7 @@
       "language": "en",
       "kind": "PURCHASE",
       "expected": {
-        "merchant": "Noodle Bar",
+        "merchant": "Noodle Bar in Budapest",
         "amountMinor": 1240,
         "currency": "EUR",
         "cardHint": "0596",
@@ -94,7 +94,7 @@
       "language": "en",
       "kind": "PURCHASE",
       "expected": {
-        "merchant": "Bean There Cafe",
+        "merchant": "Coffee Shop in Budapest",
         "amountMinor": 129000,
         "currency": "HUF",
         "cardHint": null,
@@ -109,7 +109,7 @@
       "language": "hu-HU",
       "kind": "PURCHASE",
       "expected": {
-        "merchant": "Corner Grocery",
+        "merchant": "Grocery Store in Budapest",
         "amountMinor": 387000,
         "currency": "HUF",
         "cardHint": "Local HUF/EUR card",

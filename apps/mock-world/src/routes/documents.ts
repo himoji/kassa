@@ -86,7 +86,7 @@ export function documentRoutes(app: FastifyInstance, deps: { docs: DocumentCache
   app.get("/inbox", async () => {
     // `tag` is ground truth for tests; it is not part of what a mail client would show.
     const emails = inboxEmails(deps.publicUrl).map(({ tag: _tag, ...e }) => e);
-    return { mailbox: "dana.seitkali@student.riverside-university.example", emails, simulated: true };
+    return { mailbox: "dana.seitkali@student.university-in-budapest.example", emails, simulated: true };
   });
 
   app.get("/inbox/:id", async (req) => {

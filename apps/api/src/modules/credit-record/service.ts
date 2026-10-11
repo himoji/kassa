@@ -11,11 +11,12 @@ import { randomBytes } from "node:crypto";
 import { getDb } from "../../db/client.ts";
 import { ledgerEntries, payments, profiles, proposals, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
-import { notFound } from "../../http/problem.ts";
+import { HttpProblem, notFound } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { checkpointPublicKey, ledger } from "../ledger/index.ts";
 import { entryHash } from "../ledger/internal.ts";
 import { keyIdOf, loadPrivateKey, signText, verifyText } from "../ledger/keys.ts";
+import { openPii, sealPii } from "../privacy/keys.ts";
 
 export type CreditBundle = {
   v: 1;
@@ -74,7 +75,9 @@ export async function exportCreditRecord(userId: string, req: { from: string; to
   const key = loadPrivateKey(env().LEDGER_CHECKPOINT_KEY);
   const pub = checkpointPublicKey();
   const sig = signText(key, sha256);
-  await ledger.append("CREDIT_RECORD_EXPORTED", { userId, verifyId: bundle.verifyId, sha256, sig, keyId: keyIdOf(pub), bundle });
+  // The bundle (holder initials, payment history summary) is sealed with the user's key: after an erasure
+  // (GDPR Art. 17) the public verify link stops resolving while the ledger chain stays intact.
+  await ledger.append("CREDIT_RECORD_EXPORTED", { userId, verifyId: bundle.verifyId, sha256, sig, keyId: keyIdOf(pub), ...(await sealPii(userId, { bundle })) });
   return { bundle, sha256 };
 }
 
@@ -87,7 +90,11 @@ export async function findCreditRecord(verifyId: string) {
       .where(and(eq(ledgerEntries.type, "CREDIT_RECORD_EXPORTED"), sql`${ledgerEntries.payload}->>'verifyId' = ${verifyId}`))
   )[0];
   if (!e) throw notFound("credit record");
-  const payload = e.payload as { bundle: CreditBundle; sha256: string; sig: string; keyId: string };
+  const raw = e.payload as { userId: string; bundle?: CreditBundle; pii?: string; sha256: string; sig: string; keyId: string };
+  // Pre-Phase-2 entries carry the bundle in clear; newer ones seal it with the holder's key.
+  const opened = raw.pii ? ((await openPii(raw.userId, raw.pii, db)) as { bundle: CreditBundle } | null) : raw.bundle ? { bundle: raw.bundle } : null;
+  if (!opened) throw new HttpProblem(410, "ACCOUNT_ERASED", "This credit record was withdrawn: the holder erased their data", { reasonCodes: ["ACCOUNT_ERASED"] });
+  const payload = { ...raw, bundle: opened.bundle };
   const pub = checkpointPublicKey();
   const valid =
     jcsHash(payload.bundle) === payload.sha256 &&

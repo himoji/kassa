@@ -15,6 +15,7 @@ import { issuedCards, profiles, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { addMs, clock, MINUTE_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { sealPii } from "../privacy/keys.ts";
 import { toHome } from "../money/fx.ts";
 import { updatePaymentStatus } from "../payments/status.ts";
 import { normalizeName } from "../screening/normalize.ts";
@@ -143,7 +144,8 @@ export async function authorizeCardUse(req: AuthorizationRequest): Promise<Autho
     cardId: req.cardId,
     amountMinor: req.amountMinor,
     currency: req.currency,
-    merchantNorm: normalizeMerchant(req.merchantName),
+    // Merchant of the user's purchase is personal: sealed with the user's key; unknown cards have no owner.
+    ...(card?.userId ? await sealPii(card.userId, { merchantNorm: normalizeMerchant(req.merchantName) }) : { merchantNorm: normalizeMerchant(req.merchantName) }),
     approved,
     reasonCodes: reason ? [reason] : [],
   });

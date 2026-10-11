@@ -17,7 +17,7 @@ describe("orders over HTTP", () => {
 
   async function pending() {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Riverside University Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
+    const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
     const r = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 240_000, currency: "EUR", purpose: "Tuition" });
     return { userId, auth, proposalId: r.proposalId, h: await bearer(userId) };
   }
@@ -28,7 +28,7 @@ describe("orders over HTTP", () => {
     expect(view.statusCode).toBe(200);
     const v = view.json();
     expect(v.webauthnOptions.challenge).toBe(v.orderHash);
-    expect(v.canonicalOrder).toMatchObject({ v: 1, amountMinor: 240_000, currency: "EUR", payeeName: "Riverside University Budapest" });
+    expect(v.canonicalOrder).toMatchObject({ v: 1, amountMinor: 240_000, currency: "EUR", payeeName: "University in Budapest" });
     expect(v.canonicalOrder.nonce).toMatch(/^[A-Za-z0-9_-]{22}$/); // 16 bytes base64url
     const ok = await app().inject({ method: "POST", url: `/api/orders/${proposalId}/approve`, headers: h, payload: { assertion: auth.assert(v.orderHash) } });
     expect(ok.statusCode).toBe(200);

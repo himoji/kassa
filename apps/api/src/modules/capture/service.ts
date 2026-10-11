@@ -16,6 +16,7 @@ import { rates } from "../fx/rates.ts";
 import { toHome } from "../fx/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { notify } from "../notifications/service.ts";
+import { sealPii } from "../privacy/keys.ts";
 import { readUntrusted } from "../reader/index.ts";
 import { categorize, lookupMerchant } from "./categorize.ts";
 import { dedupeCandidates, dedupeKey } from "./dedupe.ts";
@@ -218,8 +219,9 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
     parsedBy,
     amountMinor: ev.amountMinor,
     currency: ev.currency,
-    merchantNorm,
     category: cat.category,
+    // Merchant text is personal (spending behaviour): sealed with the user's key (GDPR Art. 17 crypto-shredding).
+    ...(await sealPii(userId, { merchantNorm })),
   });
 
   if (first) {

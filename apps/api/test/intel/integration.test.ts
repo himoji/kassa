@@ -76,21 +76,21 @@ describe("agent turn against the real rules module (REPLAY, no API key)", () => 
 describe("capture → dedupe → budget notification → settlement fee x-ray", () => {
   it("logs a KZ bank notification, merges the duplicate, notifies, and reconciles the settlement", async () => {
     const first = await ingestCapture(userId, { source: "NOTIF_SIM", rawText: KZ_SAMPLE });
-    expect(first).toMatchObject({ status: "LOGGED", parsedBy: "PARSER:KZ_BANK", merchantNorm: "fresh market hall", category: "groceries", amountMinor: 476000, currency: "HUF" });
+    expect(first).toMatchObject({ status: "LOGGED", parsedBy: "PARSER:KZ_BANK", merchantNorm: "market hall in", category: "groceries", amountMinor: 476000, currency: "HUF" });
     expect(first.homeAmountMinor).toBeGreaterThan(0);
-    const again = await ingestCapture(userId, { source: "SHORTCUT", fields: { merchant: "FRESH MARKET HALL BP", amountMinor: 476000, currency: "HUF", occurredAt: "2026-10-26T18:53:00Z" } });
+    const again = await ingestCapture(userId, { source: "SHORTCUT", fields: { merchant: "MARKET HALL IN BUDAPEST", amountMinor: 476000, currency: "HUF", occurredAt: "2026-10-26T18:53:00Z" } });
     expect(again).toMatchObject({ status: "MERGED", mergedIntoId: first.transactionId });
 
     const notes = await t.db().select().from(notifications).where(eq(notifications.userId, userId));
     const each = notes.find((n) => n.kind === "BUDGET_EACH");
     expect(each?.data).toMatchObject({ key: "budget.each" });
-    expect(each?.body).toMatch(/at Fresh Market Hall\. Groceries: \d+% used, \d+% left for \d+ days, (on track|ahead of pace|over budget)\./);
+    expect(each?.body).toMatch(/at Market Hall in Budapest\. Groceries: \d+% used, \d+% left for \d+ days, (on track|ahead of pace|over budget)\./);
 
     const tx = (await t.db().select().from(transactions).where(eq(transactions.id, first.transactionId!)))[0]!;
     expect(tx.status).toBe("PENDING");
     expect(tx.cardId).toBe(kztCardId);
     const settledKzt = Math.round((tx.homeAmountMinor! * 104) / 100); // 4 % over mid
-    const s = await reconcileSettlement(userId, { merchant: "FRESH MARKET HALL BP", amountMinor: 476000, currency: "HUF", settledAmountMinor: settledKzt, settledCurrency: "KZT" });
+    const s = await reconcileSettlement(userId, { merchant: "MARKET HALL IN BUDAPEST", amountMinor: 476000, currency: "HUF", settledAmountMinor: settledKzt, settledCurrency: "KZT" });
     expect(s.feeHomeMinor).toBe(settledKzt - tx.homeAmountMinor!);
     expect(s.markupBps).toBeGreaterThanOrEqual(399);
     expect(s.markupBps).toBeLessThanOrEqual(401);

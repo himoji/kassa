@@ -4,10 +4,12 @@ import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 
+import { ownedNotFound } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { isAiConfigError } from "../ai/errors.ts";
 import { currentAgentMode, recordingEnabled } from "../ai/mode.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
+import { requireAiConsent } from "../privacy/notice.ts";
 import { DocumentError, MAX_DOCUMENT_BYTES, storeDocument } from "../reader/index.ts";
 import { conversationOwner } from "./history.ts";
 import { startTurn } from "./loop.ts";
@@ -27,12 +29,15 @@ const MessageBody = AgentMessageRequest.extend({
 const routes: FastifyPluginAsyncZod = async (app) => {
   await app.register(multipart, { limits: { fileSize: MAX_DOCUMENT_BYTES, files: 1, fields: 5, fieldSize: 1024 } });
   app.addHook("preHandler", requireUser);
+  // GDPR Art. 6(1)(a)/7 consent + Art. 18 restriction, EU AI Act Art. 50 notice (privacy/notice.ts).
+  app.addHook("preHandler", requireAiConsent);
 
   app.post("/agent/message", { schema: { body: MessageBody } }, async (req, reply) => {
     const userId = userIdOf(req);
     const { conversationId, text, scenario } = req.body;
     const owner = await conversationOwner(conversationId);
-    if (owner && owner !== userId) throw new HttpProblem(403, "CONVERSATION_FORBIDDEN", "This conversation belongs to another user");
+    // BOLA (OWASP API1): someone else's conversation answers like a missing one; the probe is audited.
+    if (owner && owner !== userId) throw await ownedNotFound(userId, "conversation", conversationId, async () => true);
     const mode = await currentAgentMode();
     const abort = new AbortController();
     req.raw.on("close", () => {

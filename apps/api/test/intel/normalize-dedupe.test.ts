@@ -14,15 +14,15 @@ const merchants = JSON.parse(
 
 describe("normalizeMerchant", () => {
   it.each([
-    ["FRESH MARKET HALL BP", "fresh market hall"],
-    ["NOODLE BAR BUDAPEST", "noodle bar"],
+    ["MARKET HALL IN BUDAPEST", "market hall in"],
+    ["NOODLE BAR IN BUDAPEST", "noodle bar in"],
     ["VALUE MART 0412 BUDAPEST", "value mart"],
-    ["CORNER GROCERY KFT", "corner grocery"],
-    ["FRESH MARKET HALL BP, BUDAPEST, HU", "fresh market hall"],
+    ["GROCERY STORE IN BUDAPEST KFT", "grocery store in"],
+    ["MARKET HALL IN BUDAPEST, BUDAPEST, HU", "market hall in"],
     ["便利店(示例)", "便利店(示例)"],
     ["示例科技有限公司", "示例科技"],
-    ["Bean There Cafe.", "bean there cafe"],
-    ["PIZZA SHOP BUDAPEST HU", "pizza shop"],
+    ["Coffee Shop in Budapest.", "coffee shop in"],
+    ["PIZZA SHOP IN BUDAPEST HU", "pizza shop in"],
   ])("%s → %s", (raw, expected) => {
     expect(normalizeMerchant(raw)).toBe(expected);
   });
@@ -47,7 +47,7 @@ describe("dedupe", () => {
     userId: "u",
     amountMinor: 476000,
     currency: "HUF",
-    merchantNorm: "fresh market hall",
+    merchantNorm: "market hall in",
     occurredAt: new Date("2026-10-26T18:50:00Z"),
   };
 
@@ -57,7 +57,7 @@ describe("dedupe", () => {
 
   it("dedupeKey has the spec format userId|amountMinor|currency|merchantNorm|bucket", () => {
     expect(dedupeKey(base)).toBe(
-      `u|476000|HUF|fresh market hall|${Math.floor(Date.parse("2026-10-26T18:50:00Z") / 600000)}`,
+      `u|476000|HUF|market hall in|${Math.floor(Date.parse("2026-10-26T18:50:00Z") / 600000)}`,
     );
   });
 

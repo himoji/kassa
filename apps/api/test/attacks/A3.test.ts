@@ -35,7 +35,7 @@ describe("A3: payments without a valid approval", () => {
 
   it("forged approval row (attacker writes their own signature) → BAD_SIGNATURE", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Riverside University Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
+    const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
     const p = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 10_000, currency: "EUR", purpose: "x" });
     const view = await getOrderView(userId, p.proposalId);
     const now = new Date();
@@ -60,7 +60,7 @@ describe("A3: payments without a valid approval", () => {
 
   it("replaying an executed approval → NONCE_USED, still one payment", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Riverside University Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
+    const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
     const p = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 10_000, currency: "EUR", purpose: "x" });
     const view = await getOrderView(userId, p.proposalId);
     const res = await approveOrder(userId, p.proposalId, auth.assert(view.orderHash));
@@ -73,7 +73,7 @@ describe("A3: payments without a valid approval", () => {
 
   it("re-approving the same order with a replayed assertion is refused by rules", async () => {
     const { userId, auth } = await createUserWithPasskey({ counter: 5 });
-    const payee = await addPayee(userId, { name: "Riverside University Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
+    const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
     const p = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 10_000, currency: "EUR", purpose: "x" });
     const view = await getOrderView(userId, p.proposalId);
     const assertion = auth.assert(view.orderHash);

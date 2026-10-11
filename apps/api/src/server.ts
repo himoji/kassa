@@ -2,7 +2,8 @@
  * Fastify 5 server (spec §8). Every route lives under /api. Track A plugins are imported statically;
  * Track B plugins (src/modules/{agent,onboarding,capture,budget,fx}/routes.ts) are loaded dynamically and
  * skipped when the file does not exist yet, so a missing module never crashes the API.
- * Errors are RFC 9457 problem+json (http/problem.ts).
+ * Errors are RFC 9457 problem+json (http/problem.ts); 5xx bodies never carry messages or stacks.
+ * Security layer (http/security.ts): deny-by-default session check, helmet, strict CORS, rate limits, body limits.
  */
 import fastifyCookie from "@fastify/cookie";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyPluginAsync } from "fastify";
@@ -12,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 import { env } from "./env.ts";
 import { HttpProblem, problemBody } from "./http/problem.ts";
+import { DEFAULT_BODY_LIMIT, registerSecurity } from "./http/security.ts";
 import authRoutes from "./modules/auth/routes.ts";
 import creditRecordRoutes from "./modules/credit-record/routes.ts";
 import demoRoutes from "./modules/demo/routes.ts";
@@ -23,6 +25,7 @@ import orderRoutes from "./modules/orders/routes.ts";
 import { wireExecutor } from "./modules/orders/wiring.ts";
 import payeeRoutes from "./modules/payees/routes.ts";
 import paymentRoutes from "./modules/payments/routes.ts";
+import privacyRoutes from "./modules/privacy/routes.ts";
 import userRoutes from "./modules/users/routes.ts";
 import webhookRoutes from "./modules/webhooks/routes.ts";
 
@@ -48,12 +51,16 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
   const e = env();
   const app = Fastify({
     logger: opts.logger ?? e.NODE_ENV !== "test",
-    // Body size: invoices/screenshots go through B's upload route; JSON elsewhere stays small.
-    bodyLimit: 12 * 1024 * 1024,
+    // Body size (OWASP API4): JSON stays small; the document upload route gets its own limit (http/security.ts).
+    bodyLimit: DEFAULT_BODY_LIMIT,
+    // Rate limits key on req.ip: behind Caddy the client address comes from X-Forwarded-For (TRUST_PROXY).
+    trustProxy: e.trustProxy,
   });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   await app.register(fastifyCookie);
+  // Before any route: its onRoute hooks must see every route (deny by default).
+  await registerSecurity(app);
 
   app.setErrorHandler((err: FastifyError | HttpProblem | Error, req, reply) => {
     const instance = req.url;
@@ -96,7 +103,9 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
       await api.register(ledgerRoutes);
       await api.register(creditRecordRoutes);
       await api.register(webhookRoutes);
-      await api.register(demoRoutes);
+      await api.register(privacyRoutes);
+      // Demo routes exist only when DEMO_ENABLED (they also re-check at request time).
+      if (e.DEMO_ENABLED) await api.register(demoRoutes);
       for (const name of OPTIONAL_PLUGINS) {
         const plugin = await loadOptionalPlugin(name, app.log);
         if (plugin) await api.register(plugin);

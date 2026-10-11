@@ -170,5 +170,25 @@
   "USER_REJECTED": {
     "label": "You rejected it",
     "text": "You rejected this order, so nothing was sent."
+  },
+  "AI_CONSENT_REQUIRED": {
+    "label": "AI consent needed",
+    "text": "Kassa's assistant is an AI. Agree to AI processing in Settings > Privacy before chatting with it."
+  },
+  "PROCESSING_RESTRICTED": {
+    "label": "Processing restricted",
+    "text": "You restricted processing of your data, so Kassa keeps it but does not use it. Lift the restriction by unfreezing with your passkey."
+  },
+  "ACCOUNT_ERASED": {
+    "label": "Account erased",
+    "text": "This account was erased at your request. Its personal data can no longer be read."
+  },
+  "UNFREEZE_PENDING": {
+    "label": "Unfreeze pending",
+    "text": "Unfreezing is a loosening, so it takes effect 24 hours after you confirmed it with your passkey."
+  },
+  "RATE_LIMITED": {
+    "label": "Too many attempts",
+    "text": "Too many requests in a short time. Wait a minute and try again."
   }
 }

@@ -4,8 +4,8 @@ import type { ParsedEvent, TextParser } from "./types.ts";
 
 /*
  * English fintech app pushes (device time zone):
- *   Revolut-style: "Paid €12.40 at Noodle Bar" / "Card ••0596 · 27 Oct 2026, 12:40"
- *   Wise-style:    "You spent 1,290 HUF at Bean There Cafe." / "27 October 2026 at 09:15"
+ *   Revolut-style: "Paid €12.40 at Noodle Bar in Budapest" / "Card ••0596 · 27 Oct 2026, 12:40"
+ *   Wise-style:    "You spent 1,290 HUF at Coffee Shop in Budapest." / "27 October 2026 at 09:15"
  */
 
 const MONEY = String.raw`(?:([€$¥£]|[A-Z]{3})\s?([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s?([A-Z]{3}))`;

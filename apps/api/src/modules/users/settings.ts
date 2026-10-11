@@ -20,6 +20,7 @@ import { and, eq, isNull, lte } from "drizzle-orm";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { profiles, ruleChanges, users, type CapsJson } from "../../db/schema.ts";
+import { auditAssertionFailure } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
@@ -173,7 +174,10 @@ export async function patchSettings(
       throw new HttpProblem(409, "CHALLENGE_MISMATCH", "The signed change differs from this request; start again");
     }
     const check = await verifyRulesAssertion(db, { userId, assertion: body.assertion, expectedChallenge: gated.hash, challengeReason: "ASSERTION_INVALID" });
-    if (!check.ok) throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
+    if (!check.ok) {
+      await auditAssertionFailure(userId, "settings", check.reason);
+      throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
+    }
     assertion = body.assertion;
     changeHash = gated.hash;
   }

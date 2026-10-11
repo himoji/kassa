@@ -18,9 +18,11 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { approvals, budgets, payees, proposals, type ProposalDraftJson } from "../../db/schema.ts";
-import { HttpProblem, notFound } from "../../http/problem.ts";
+import { ownedNotFound } from "../../http/audit.ts";
+import { HttpProblem } from "../../http/problem.ts";
 import { addMs, clock, MINUTE_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { sealPii } from "../privacy/keys.ts";
 import { findMatchingMandate } from "../mandates/scope.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
@@ -349,7 +351,8 @@ export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrd
 
 async function loadOwnProposal(db: DbOrTx, userId: string, proposalId: string) {
   const p = (await db.select().from(proposals).where(and(eq(proposals.id, proposalId), eq(proposals.userId, userId))))[0];
-  if (!p) throw notFound("order");
+  // BOLA (OWASP API1): another user's order is indistinguishable from a missing one; the probe is audited.
+  if (!p) throw await ownedNotFound(userId, "order", proposalId, async () => (await db.select({ id: proposals.id }).from(proposals).where(eq(proposals.id, proposalId))).length > 0);
   return p;
 }
 
@@ -487,7 +490,9 @@ export async function rejectOrder(userId: string, proposalId: string, reason?: s
       .update(proposals)
       .set({ status: "REJECTED", reasonCodes: [...p.reasonCodes, "USER_REJECTED"], updatedAt: clock.now() })
       .where(eq(proposals.id, proposalId));
-    await ledger.append("ORDER_REJECTED", { userId, proposalId, reason: reason ?? null, reasonCodes: ["USER_REJECTED"] }, tx);
+    // The free-text reason is personal: sealed with the user's key (crypto-shredding on erasure).
+    const sealed = reason ? await sealPii(userId, { reason }, tx) : {};
+    await ledger.append("ORDER_REJECTED", { userId, proposalId, reasonCodes: ["USER_REJECTED"], ...sealed }, tx);
   });
 }
 

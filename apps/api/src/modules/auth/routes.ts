@@ -29,9 +29,11 @@ import { z } from "zod";
 import { getDb } from "../../db/client.ts";
 import { demoState, profiles, users, webauthnCredentialsRules } from "../../db/schema.ts";
 import { env } from "../../env.ts";
+import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { ledger } from "../ledger/index.ts";
 import { registerPaymentsCredential } from "../payments/credentials.ts";
+import { setAiConsent } from "../privacy/service.ts";
 import { verifyRulesAssertion } from "../rules/webauthn.ts";
 import { createUser } from "../users/service.ts";
 import { putChallenge, takeChallenge } from "./challenges.ts";
@@ -62,6 +64,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       let userId: string;
       let existingUser = false;
       if (current) {
+        // An erased account (GDPR Art. 17) can never get a new passkey.
+        const cur = (await db.select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, current)))[0];
+        if (!cur || cur.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
         userId = current;
         existingUser = true;
       } else if (req.body.demoClaim && e.DEMO_ENABLED) {
@@ -162,6 +167,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         await tx.insert(webauthnCredentialsRules).values(row);
         await registerPaymentsCredential(tx, row);
         await ledger.append("AUTH_PASSKEY_REGISTERED", { userId: pending.userId, credentialId: credential.id, newUser: !pending.existingUser }, tx);
+        // Consent to AI processing ticked on the sign-up screen (GDPR Art. 7; notice: GET /privacy/ai-notice).
+        if (req.body.aiConsent === true) await setAiConsent(pending.userId, true, tx);
       });
       return sessionBody(pending.userId, await startSession(reply, pending.userId, req.body.client));
     },
@@ -190,7 +197,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const cred = (
         await db.select().from(webauthnCredentialsRules).where(eq(webauthnCredentialsRules.credentialId, req.body.response.id))
       )[0];
-      if (!cred) throw new HttpProblem(401, "ASSERTION_INVALID", "Unknown passkey");
+      if (!cred) {
+        await audit("AUTH_LOGIN_FAILED", { userId: null, reasonCodes: ["ASSERTION_INVALID"], detail: "unknown credential" });
+        throw new HttpProblem(401, "ASSERTION_INVALID", "Unknown passkey");
+      }
       let res;
       try {
         res = await verifyAuthenticationResponse({
@@ -207,13 +217,20 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           },
         });
       } catch (err) {
+        await audit("AUTH_LOGIN_FAILED", { userId: cred.userId, credentialId: cred.credentialId, reasonCodes: ["ASSERTION_INVALID"] });
         throw new HttpProblem(401, "ASSERTION_INVALID", (err as Error).message);
       }
-      if (!res.verified) throw new HttpProblem(401, "ASSERTION_INVALID", "Login not verified");
+      if (!res.verified) {
+        await audit("AUTH_LOGIN_FAILED", { userId: cred.userId, credentialId: cred.credentialId, reasonCodes: ["ASSERTION_INVALID"] });
+        throw new HttpProblem(401, "ASSERTION_INVALID", "Login not verified");
+      }
+      const owner = (await db.select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, cred.userId)))[0];
+      if (!owner || owner.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
       await db
         .update(webauthnCredentialsRules)
         .set({ counter: res.authenticationInfo.newCounter })
         .where(eq(webauthnCredentialsRules.id, cred.id));
+      await audit("AUTH_LOGIN_SUCCEEDED", { userId: cred.userId, credentialId: cred.credentialId, client: req.body.client });
       return sessionBody(cred.userId, await startSession(reply, cred.userId, req.body.client));
     },
   );

@@ -202,3 +202,76 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
 
 ## 2026-10-11 — env management
 `bun run env:setup` (scripts/env-setup.ts) syncs both .env.example files with the keys the code reads, generates a local .env (secrets generated, public keys derived, dev defaults: AGENT_MODE=REPLAY, ISSUING_PROVIDER=fake, PGlite), links apps/api/.env and apps/mock-world/.env to it, and writes apps/mobile/.env. Never prints secret values; idempotent.
+
+## 2026-10-11 — Phase 2 security & compliance hardening (apps/api)
+- **Deny by default (OWASP API2, ASVS 4.1.5).** `src/http/security.ts` adds the session check to every route
+  through an `onRoute` hook (onRequest, before body parsing) unless the route is in `PUBLIC_ROUTES`, which states
+  why it may skip it and what authenticates it instead (webhook HMAC / Stripe signature, Shortcut device token,
+  demo admin token, refresh token) or that it carries no personal data (health, auth options, AI notice, FX
+  rates, demo clock, credit-record capability links). `test/security/http-hardening.test.ts` enumerates every
+  registered route: each non-listed route must answer 401 unauthenticated; listed routes with their own auth must
+  not succeed without it; no stale list entries. Routes' own auth hooks run after the rate limiter.
+- **BOLA (OWASP API1): 404, never 403,** for another user's order, payment, payee, mandate, notification,
+  transaction or conversation (was 403 `CONVERSATION_FORBIDDEN` for conversations). Each miss is audited as
+  `AUTHZ_DENIED {actorUserId, resource, resourceId, existed}` — written for missing AND foreign ids (uniform work),
+  and with `actorUserId` instead of `userId` so the prober's own `GET /ledger` cannot read `existed` back (found
+  while testing: with `userId` the audit log was an existence oracle).
+- **Audit log = ledger entries** (hash-chained, I12): `AUTH_LOGIN_SUCCEEDED/FAILED`, `AUTH_ASSERTION_FAILED`
+  (settings, base rules, mandates, unfreeze, erase), `AUTHZ_DENIED`, `UNFREEZE_REQUESTED`, `ACCOUNT_UNFROZEN`,
+  `PRIVACY_EXPORTED/RESTRICTED/ERASED`, `PROFILE_RECTIFIED`, `AI_CONSENT_GIVEN/WITHDRAWN`, `RETENTION_PURGED`
+  (existing: `AUTH_PASSKEY_REGISTERED`, `RULES_LOOSEN_PENDING`, `ACCOUNT_FROZEN`). No separate audit table: one
+  tamper-evident store, already verified by `ledger:verify`.
+- **Rate limits** (@fastify/rate-limit, per IP, in memory): global 600/min; 20/min for auth options/verify,
+  refresh, public credit-record verify and demo admin calls; 30/min for order approve, Shortcut capture, unfreeze
+  and privacy actions (env `RATE_LIMIT_*`). `TRUST_PROXY` makes `req.ip` the client behind Caddy (compose sets it).
+- **Headers/CORS/CSRF/body:** helmet with an API CSP (`default-src 'none'; frame-ancestors 'none'`), no-referrer,
+  HSTS only on https; CORS allow-list = PUBLIC_ORIGIN + EXTRA_ORIGINS with credentials; cookie-authenticated
+  state-changing requests with a foreign `Origin` → 403 `CSRF_ORIGIN_MISMATCH` (OWASP CSRF cheat sheet; SameSite=Lax
+  does not cover same-site origins such as mock-world on another localhost port). Body limit 1 MiB (was 12 MiB
+  globally); 11 MiB only on `POST /agent/documents`. 5xx problem+json never carries messages or stacks.
+- **Demo:** routes are not registered unless `DEMO_ENABLED`; production refuses to start with `DEMO_ENABLED` and a
+  `DEMO_ADMIN_TOKEN` shorter than 32 chars; admin token compared with `timingSafeEqual` over SHA-256 digests (no
+  length leak); a missing token is accepted only under `NODE_ENV=test` (dev previously allowed it).
+- **Unfreeze = loosening** (resolved decision above): `POST /unfreeze` → 428 PasskeyChallenge over
+  `jcsHash({v, kind:"UNFREEZE", userId, frozenAt, nonce})` → `rule_changes` row (kind `UNFREEZE`, LOOSEN,
+  effectiveAt +24 h); the scheduler lifts the freeze. A new freeze/restriction cancels pending unfreezes. The nonce
+  makes every challenge unique, so an old assertion cannot be replayed (the settings loosening has no nonce: its
+  challenge is deterministic per change — acceptable there because the change itself is what gets signed).
+- **Crypto-shredding (GDPR Art. 17).** Per-user 256-bit DEK in `user_keys`, wrapped with AES-256-GCM under env
+  `USER_KEK` (AAD = userId; AES-GCM rather than RFC 3394 AES-KW to keep one AEAD in the codebase). Personal fields
+  of ledger payloads are sealed into a `pii` member (`v1.<iv>.<ct>.<tag>`, AAD = userId): capture merchant,
+  card-authorization merchant, order-reject reason, QR payee name, remittance event (sender), payee account hash,
+  credit-record bundle, rectified display name. `GET /ledger`, the export and the public credit-record verify
+  decrypt for display. Erasure nulls the wrapped DEK (tombstone row, so no new key is minted) → the ciphertexts are
+  unreadable while every entry and hash stays: `ledger:verify` passes after an erasure (tested).
+- **What erasure deletes vs retains.** Deleted: passkeys (both stores), devices, payees, obligations, budgets,
+  cards, transactions, category memory, notifications, conversations + placeholder maps, documents, onboarding
+  drafts, unexecuted proposals; profile incomes/reserve rules; name → "[erased]". Retained under Art. 17(3)(b)
+  (payment record-keeping, e.g. AMLD Art. 40) and 17(3)(e): proposals that have an approval and their payments,
+  approvals, mandates (revoked), rule changes — with payee name, payee account hash, purpose and name-bearing
+  payment details overwritten; the order hash and approval signature still commit to the original order. The
+  user row stays as a tombstone (`erased_at`; every session and login refused). Not erased here: Stripe-side
+  cardholder data and the mock bank's own records (external processors; residual risk).
+- **Art. 18 restriction** = freeze + `restricted_at` (AI routes 403 `PROCESSING_RESTRICTED`, no digests); lifted
+  only through the passkey + 24 h unfreeze. **Art. 16** = `PATCH /me {displayName}`. **Art. 15/20** =
+  `GET /privacy/export` (all rows, decrypted, plus Art. 15(1) processing info).
+- **AI consent and notice.** `users.ai_consent_at`; agent chat, document upload and onboarding chat answer 403
+  `AI_CONSENT_REQUIRED` without it. Consent: `aiConsent: true` on `POST /auth/register/verify` or
+  `POST /privacy/ai-consent {consent}` (also withdraws, Art. 7(3)). `GET /me.aiNotice` and public
+  `GET /privacy/ai-notice` (EU AI Act Art. 50; GDPR Art. 13): "you are talking to an AI", planner/reader provider
+  and model from PLANNER_MODEL/READER_MODEL, `local` for local/ollama providers, what each model receives. Seed
+  sets consent for Dana.
+- **The Reader receives raw document text** (it must, to extract and evidence-check amount and account; I10
+  quarantine: no tools, no memory, schema output re-checked against the source). I11 applies to the planner: a
+  test runs a multi-tool turn on the seeded user (incl. a document's Reader output) and finds no IBAN, PAN, email,
+  phone, payee or user name in any planner prompt.
+- **PCI DSS scope (found while testing):** CARD placeholders stored the full PAN in `placeholder_maps.real_ref`.
+  Now `pan:<HMAC-SHA256 (key = HKDF(USER_KEK, "kassa:pan-ref:v1"))>:<last4>` (PCI DSS v4.0 3.5.1 keyed hash);
+  migration 0001 rewrites legacy rows to `pan:legacy:<last4>`. Tests: no column can hold a PAN; a full DB dump after
+  capturing a PAN contains it nowhere.
+- **Retention** (GDPR Art. 5(1)(e)), scheduler job at most hourly on the demo clock: notifications 90 d,
+  conversations + placeholder maps 30 d after last message, uploaded documents 30 d, raw captured merchant text
+  90 d (minimised to the normalised merchant, not deleted, since budgets need it). `RETENTION_DAYS_*`, 0 = keep.
+- **Dependencies:** apps/api/package.json now declares everything it imports (fastify, @fastify/cookie, drizzle,
+  jose, @simplewebauthn/server, pglite, postgres, stripe, …) — they were only present through hoisting and were
+  missing from bun.lock — plus @fastify/helmet, @fastify/cors, @fastify/rate-limit.

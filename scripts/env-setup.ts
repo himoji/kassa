@@ -33,6 +33,7 @@ const ROOT_KEYS: Entry[] = [
   { key: "LEDGER_CHECKPOINT_KEY", example: "" },
   { key: "LEDGER_CHECKPOINT_PUBLIC_KEY", example: "", comment: "optional; derived from LEDGER_CHECKPOINT_KEY when unset" },
   { key: "ACCOUNT_ENC_KEY", example: "", comment: "AES-256-GCM for payee account details" },
+  { key: "USER_KEK", example: "", comment: "AES-256-GCM key-encryption key for per-user data keys (GDPR erasure = crypto-shredding)" },
   { key: "MOCK_HMAC_SECRET", example: "" },
   { key: "ANTHROPIC_API_KEY", example: "" },
   { key: "OPENAI_API_KEY", example: "" },
@@ -58,6 +59,14 @@ const ROOT_KEYS: Entry[] = [
   { key: "MOCK_PUBLIC_URL", example: "http://localhost:4001", comment: "public base URL of mock-world pages" },
   { key: "MOCK_BANK_STEP_SECONDS", example: "", comment: "optional; demo-clock seconds per mock transfer state" },
   { key: "MOCK_BANK_TICK_MS", example: "", comment: "optional; mock bank status tick interval" },
+  { key: "TRUST_PROXY", example: "", comment: "unset = socket address; true behind a proxy that overwrites X-Forwarded-For (docker-compose Caddy); or IP/CIDR list" },
+  { key: "RATE_LIMIT_GLOBAL_PER_MIN", example: "600", comment: "requests per minute per IP, all routes" },
+  { key: "RATE_LIMIT_AUTH_PER_MIN", example: "20", comment: "auth options/verify, refresh, public verify" },
+  { key: "RATE_LIMIT_SENSITIVE_PER_MIN", example: "30", comment: "order approve, capture shortcut, privacy, unfreeze" },
+  { key: "RETENTION_DAYS_NOTIFICATIONS", example: "90", comment: "purge job; 0 = keep" },
+  { key: "RETENTION_DAYS_PLACEHOLDER_MAPS", example: "30", comment: "agent conversations + placeholder maps" },
+  { key: "RETENTION_DAYS_DOCUMENTS", example: "30", comment: "uploaded documents (invoices, screenshots)" },
+  { key: "RETENTION_DAYS_CAPTURED_TEXT", example: "90", comment: "raw merchant text of captured purchases" },
 ];
 
 /** Example values that were deliberately changed (docs/DECISIONS.md). */
@@ -84,12 +93,20 @@ const DEV_DEFAULTS: Record<string, string> = {
   PLANNER_MODEL: "anthropic:claude-sonnet-5-5",
   READER_MODEL: "anthropic:claude-haiku-5-5",
   LOCAL_BASE_URL: "http://localhost:11434/v1",
+  RATE_LIMIT_GLOBAL_PER_MIN: "600",
+  RATE_LIMIT_AUTH_PER_MIN: "20",
+  RATE_LIMIT_SENSITIVE_PER_MIN: "30",
+  RETENTION_DAYS_NOTIFICATIONS: "90",
+  RETENTION_DAYS_PLACEHOLDER_MAPS: "30",
+  RETENTION_DAYS_DOCUMENTS: "30",
+  RETENTION_DAYS_CAPTURED_TEXT: "90",
 };
 
 const b64url = (n: number) => randomBytes(n).toString("base64url");
 const SECRET_GENERATORS: Record<string, () => string> = {
   SESSION_SECRET: () => b64url(48),
   ACCOUNT_ENC_KEY: () => randomBytes(32).toString("base64"),
+  USER_KEK: () => randomBytes(32).toString("base64"),
   MOCK_HMAC_SECRET: () => b64url(32),
   DEMO_ADMIN_TOKEN: () => b64url(24),
 };

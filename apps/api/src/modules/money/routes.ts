@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
 import { cards, mandates, obligations, payees, transactions, users } from "../../db/schema.ts";
+import { ownedNotFound } from "../../http/audit.ts";
 import { HttpProblem, notFound } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { clock } from "../clock/index.ts";
@@ -222,7 +223,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       const userId = userIdOf(req);
       const ok = await setTransactionCategory(userId, req.params.id, req.body.category);
-      if (!ok) throw notFound("transaction");
+      if (!ok) {
+        throw await ownedNotFound(userId, "transaction", req.params.id, async () => (await getDb().select({ id: transactions.id }).from(transactions).where(eq(transactions.id, req.params.id))).length > 0);
+      }
       return reply.status(204).send();
     },
   );

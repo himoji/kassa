@@ -87,7 +87,7 @@ describe("health and pizza shop", () => {
       expect.objectContaining({
         amountMinor: 598_000,
         currency: "HUF",
-        merchant: expect.objectContaining({ name: "Pizza Shop" }),
+        merchant: expect.objectContaining({ name: "Pizza Shop in Budapest" }),
       }),
     );
   });

@@ -49,7 +49,7 @@ describe("messages renderEn", () => {
       key: "budget.each",
       params: {
         amount: { amountMinor: 476000, currency: "HUF" },
-        merchant: "Fresh Market Hall",
+        merchant: "Market Hall in Budapest",
         category: "groceries",
         usedPct: 62,
         leftPct: 38,
@@ -58,7 +58,7 @@ describe("messages renderEn", () => {
       },
     });
     expect(amount).toContain("4,760.00");
-    expect(r.body).toBe(`${amount} at Fresh Market Hall. Groceries: 62% used, 38% left for 5 days, on track.`);
+    expect(r.body).toBe(`${amount} at Market Hall in Budapest. Groceries: 62% used, 38% left for 5 days, on track.`);
   });
 
   it("AHEAD_OF_PACE renders as 'ahead of pace'", () => {

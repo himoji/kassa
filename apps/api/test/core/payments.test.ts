@@ -18,7 +18,7 @@ const t = useTestDb();
 /** Propose (ASK) and get a T2 approval WITHOUT executing it, so payments can be attacked directly. */
 async function approvedButNotExecuted(amountMinor = 240_000) {
   const { userId, auth } = await createUserWithPasskey();
-  const payee = await addPayee(userId, { name: "Riverside University Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
+  const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
   const r = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "EUR", purpose: "Tuition" });
   const view = await getOrderView(userId, r.proposalId);
   registerExecutor(null);
@@ -119,13 +119,13 @@ describe("payments verification", () => {
 
   it("screens bank transfers itself (I9) even if rules were bypassed", async () => {
     const a = await approvedButNotExecuted();
-    setSanctionsListForTests([{ id: "X1", name: "Riverside University Budapest", aliases: [] }]);
+    setSanctionsListForTests([{ id: "X1", name: "University in Budapest", aliases: [] }]);
     expect((await executeApproval(a.approvalId)).reasonCodes).toEqual(["REFUSE_SANCTIONS"]);
   });
 
   it("T1: re-checks mandate scope and the stored mandate assertion", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Hillside Flats Kft." });
+    const payee = await addPayee(userId, { name: "Landlord in Budapest" });
     await signBaseRules(userId, auth);
     const core = await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 30_000_000 });
     const first = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
@@ -139,7 +139,7 @@ describe("payments verification", () => {
 
   it("T1: a mandate whose stored fields were widened fails the signature check", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Hillside Flats Kft." });
+    const payee = await addPayee(userId, { name: "Landlord in Budapest" });
     await signBaseRules(userId, auth);
     const core = await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 20_000_000 });
     const { mandates } = await import("../../src/db/schema.ts");

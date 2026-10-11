@@ -46,7 +46,7 @@ function recipientFor(bank: MockBank, iban = IBAN) {
   return bank.createRecipient({
     currency: "EUR",
     profile: PROFILE,
-    accountHolderName: "Meridian Student Insurance Zrt.",
+    accountHolderName: "Student Insurer in EU",
     legalType: "BUSINESS",
     iban,
   });

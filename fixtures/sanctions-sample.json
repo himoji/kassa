@@ -111,8 +111,8 @@
     { "query": "Nortvind Arms Treiding OOO", "expectHitLogicalId": 990002, "kind": "transliterated Russian alias" },
     { "query": "Marek Quilfeather", "expectHitLogicalId": 990003, "kind": "fuzzy" },
     { "query": "Akzhol Sauda Toby", "expectHitLogicalId": 990004, "kind": "transliterated Kazakh" },
-    { "query": "Riverside University Budapest", "expectHitLogicalId": null, "kind": "negative (seed payee)" },
-    { "query": "Hillside Flats Kft.", "expectHitLogicalId": null, "kind": "negative (seed payee)" },
+    { "query": "University in Budapest", "expectHitLogicalId": null, "kind": "negative (seed payee)" },
+    { "query": "Landlord in Budapest", "expectHitLogicalId": null, "kind": "negative (seed payee)" },
     { "query": "Dana", "expectHitLogicalId": null, "kind": "negative (short name)" }
   ]
 }

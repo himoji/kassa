@@ -5,10 +5,12 @@
  *  - signed rule changes / mandates reaching effectiveAt → apply;
  *  - card expiry → cancel unused cards;
  *  - mock bank status progression → poll PROCESSING transfers (webhooks also push changes);
- *  - digest → Track B budget.sendDigestIfDue(userId) when exported.
+ *  - digest → Track B budget.sendDigestIfDue(userId) when exported;
+ *  - signed unfreezes reaching effectiveAt → lift the freeze (I8);
+ *  - retention purge (GDPR Art. 5(1)(e), RETENTION_DAYS_*), at most hourly on the clock.
  * Each job is isolated: one failing job never stops the others.
  */
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payments, proposals, users } from "../../db/schema.ts";
@@ -19,7 +21,9 @@ import { updatePaymentStatus } from "../payments/status.ts";
 import { expireCards } from "../rails/issuing.ts";
 import { getTransferStatus } from "../rails/mockBank.ts";
 import { proposeOrder } from "../rules/index.ts";
+import { purgeIfDue } from "../privacy/service.ts";
 import { applyDueRuleChanges } from "../users/settings.ts";
+import { applyDueUnfreezes } from "../users/unfreeze.ts";
 
 export const TICK_MS = 15_000;
 export const DUE_WINDOW_DAYS = 3;
@@ -97,16 +101,19 @@ async function sendDigests(): Promise<void> {
     return;
   }
   if (!mod.sendDigestIfDue) return;
-  for (const u of await getDb().select({ id: users.id }).from(users)) await mod.sendDigestIfDue(u.id);
+  // Erased (GDPR Art. 17) and restricted (Art. 18) accounts get no further processing.
+  for (const u of await getDb().select({ id: users.id }).from(users).where(and(isNull(users.erasedAt), isNull(users.restrictedAt)))) await mod.sendDigestIfDue(u.id);
 }
 
 const JOBS: [string, () => Promise<unknown>][] = [
   ["ruleChanges", applyDueRuleChanges],
+  ["unfreeze", applyDueUnfreezes],
   ["mandates", activateDueMandates],
   ["obligations", proposeDueObligations],
   ["cardExpiry", expireCards],
   ["bankPoll", pollBankTransfers],
   ["digest", sendDigests],
+  ["retention", purgeIfDue],
 ];
 
 let running = false;

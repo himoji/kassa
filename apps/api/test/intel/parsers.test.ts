@@ -61,7 +61,7 @@ describe("parseShortcut against the iOS Shortcut fixture", () => {
     expect(r).not.toBeNull();
     expect(r?.format).toBe("IOS_SHORTCUT");
     expect(r?.kind).toBe("PURCHASE");
-    expect(r?.merchantRaw).toBe("Corner Grocery");
+    expect(r?.merchantRaw).toBe("Grocery Store in Budapest");
     expect(r?.amountMinor).toBe(387000);
     expect(r?.currency).toBe("HUF");
     expect(r?.cardHint).toBe("Local HUF/EUR card");

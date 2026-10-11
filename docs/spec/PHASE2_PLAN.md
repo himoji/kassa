@@ -34,3 +34,23 @@ Code (Opus dev, security-critical):
 - OWASP Top 10 for LLM apps: prompt injection (Reader quarantine I10), insecure output handling (sheet renders canonical order only), excessive agency (I1), sensitive info disclosure (I11).
 Docs (Haiku drafts from explicit outlines, Opus reviews): docs/SECURITY.md (tier table ↔ code ↔ tests, threat model STRIDE, known risks, honest limit §2), docs/PRIVACY.md (GDPR Art. 30 record of processing, DPIA summary Art. 35, data flows, retention, DSAR), docs/COMPLIANCE.md (PSD2 SCA RTS Art. 5 dynamic linking, EU IPR Verification of Payee, GDPR, PIPL, PCI DSS scope, NIST SP 800-63B AAL2 for passkeys, OWASP ASVS L2 / API Top 10 / LLM Top 10 mapping, EU AI Act transparency, ISO 27001 Annex A highlights), docs/TESTS.md.
 Sim scenarios added for: IDOR (user B reads/approves user A's order), DSAR export/erasure then ledger:verify still passes, rate-limit/brute force, cross-user placeholder leakage, LLM prompt-injection exfiltration attempt.
+
+## Progress log
+- 2026-10-11: Phase 1 committed (2bb2292), 1,040 tests green. env:setup script added; Track A decisions resolved (DECISIONS.md). Onboarding replay recording added.
+- 2026-10-11: Phase 2 started in parallel: (a) Haiku rename of mock names, (b) Opus hardening (zero trust, GDPR, unfreeze, audit log), (c) Opus sim CLI + RUNBOOK (docs/evidence/sim/RUNBOOK.md). Next: Vitest attack suite A1–A8 + naive baseline; Haiku persona/attacker runs; docs (SECURITY/PRIVACY/COMPLIANCE/TESTS/README); final commit; cleanup + `pmset sleepnow`.
+
+## Known bugs to fix
+- **Reader checks lost across turns (I10).** `propose_order` builds `readerChecks` from `ctx.readDocs`, which holds
+  only documents read in the current turn plus those loaded by `dbTurnStore.readDocs()`. That loader selects
+  `agent_documents` rows by `conversationId`, so a document uploaded **without** a `conversationId` (the field is
+  optional on `POST /agent/documents`), read in one turn, then paid in a later turn produces a proposal with
+  `readerChecks: null`. A Reader amount/account mismatch (`READER_SOURCE_MISMATCH`, rules step 3) is then not
+  applied. Found by code reading while building the sim (apps/api/src/modules/agent/tools.ts `readerChecksFor`,
+  agent/store.ts `readDocs`); not yet reproduced by a test. Fix in apps/api/src (security owner); add a test.
+
+### More known bugs (found by sim run, 2026-10-11)
+- B2 Bank transfer rail pays only from the order-currency balance and never converts → tuition (€2,400 vs €300) and rent (HUF 180k vs 120k) end in RAIL_ERROR after approval. Fix: the mock-bank quote's source currency = funding currency of the cheapest feasible route (fx/routes, spec §12; Wise quote source≠target), chosen at proposal time and recorded in the canonical order (purpose/rail metadata signed) or a separate funding field; rules should REFUSE/ASK with a clear code (e.g. INSUFFICIENT_FUNDS) when no funding currency covers it, before the user signs.
+- B3 agent/redact.ts redacts enum values: payeeKind "LANDLORD" became "payee_2" because the payee's name "Landlord in Budapest" contains the token. Names must be matched as whole names, never inside structured enum fields.
+- B4 Scheduler re-proposes an obligation already paid (second tuition proposal after +3d) → double-payment risk. Track obligation settlement (paid period) and skip; idempotency key per obligation+period.
+- B5 search_catalog returns items without a payee reference, so the planner can't propose a merchant order without a free-text hint. Return the merchant's payee placeholder.
+- Test gaps to close in the attack suite: A1 e2e, A5 e2e, A7 e2e, webhook replay inside the 5-minute window (needs a seen-signature/nonce cache), malicious mock-bank status sequence.
