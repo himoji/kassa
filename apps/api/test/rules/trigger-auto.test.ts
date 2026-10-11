@@ -9,7 +9,7 @@ function base(): DecideFacts {
   return {
     now: NOW,
     frozen: false,
-    payee: { status: "VERIFIED", coolingUntil: null },
+    payee: { status: "VERIFIED", coolingUntil: null, hasAccount: true },
     readerChecks: undefined,
     rail: "CARD_ISSUING",
     screeningHit: false,

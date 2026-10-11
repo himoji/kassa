@@ -139,7 +139,7 @@ export async function exportUserData(userId: string) {
     payees: payeeRows.map(({ accountEnc, ...p }) => {
       let account: string | null = null;
       try {
-        account = decryptAccount(userId, accountEnc);
+        account = accountEnc === null ? null : decryptAccount(userId, accountEnc);
       } catch {
         account = null;
       }

@@ -33,7 +33,7 @@ function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | u
           <Text variant="caption">
             {t("payees:meta", {
               kind: t(`payees:kind.${payee.kind}`),
-              account: payee.accountMasked,
+              account: payee.accountMissing ? t("payees:accountNotAdded") : payee.accountMasked,
               currency: payee.currency,
               country: payee.country,
             })}
@@ -53,13 +53,15 @@ function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | u
           ) : null}
         </Pressable>
       </Link.Trigger>
-      <Link.Menu>
-        <Link.MenuAction
-          title={t("payees:copyAccount")}
-          icon="doc.on.doc"
-          onPress={() => void copyToClipboard(payee.accountMasked, { toast: t("payees:copied") })}
-        />
-      </Link.Menu>
+      {payee.accountMissing ? null : (
+        <Link.Menu>
+          <Link.MenuAction
+            title={t("payees:copyAccount")}
+            icon="doc.on.doc"
+            onPress={() => void copyToClipboard(payee.accountMasked, { toast: t("payees:copied") })}
+          />
+        </Link.Menu>
+      )}
     </Link>
   );
 }

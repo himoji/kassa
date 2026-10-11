@@ -24,9 +24,10 @@ import { accountHash, decryptAccount, encryptAccount, maskAccount, normalizeAcco
 export const COOLING_MS = DAY_MS;
 
 export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
-  let masked = "••••";
+  const accountMissing = p.accountEnc === null;
+  let masked = accountMissing ? "" : "••••";
   try {
-    masked = maskAccount(decryptAccount(p.userId, p.accountEnc));
+    if (p.accountEnc !== null) masked = maskAccount(decryptAccount(p.userId, p.accountEnc));
   } catch {
     // undecryptable (key rotated): show nothing rather than fail the list
   }
@@ -35,6 +36,7 @@ export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
     name: p.name,
     kind: p.kind,
     accountMasked: masked,
+    accountMissing,
     country: p.country,
     currency: p.currency,
     status: p.status,
@@ -127,13 +129,19 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
   if (!p) throw await ownedNotFound(userId, "payee", payeeId, async () => (await db.select({ id: payees.id }).from(payees).where(eq(payees.id, payeeId))).length > 0);
   if (p.status === "VERIFIED") return p;
   if (p.status === "BLOCKED") throw conflict("REFUSE_UNVERIFIED_PAYEE", "Payee is blocked");
+  // A payee without account details (captured in onboarding) has nothing to confirm: verifying it would make an
+  // account-less payee look payable. Checked before the cooling window (its coolingUntil is null).
+  if (p.accountHash === null) {
+    throw conflict("PAYEE_ACCOUNT_MISSING", "Add the payee's account details first", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_ACCOUNT_MISSING"] });
+  }
+  const accountHashValue = p.accountHash;
   const now = clock.now();
   if (p.coolingUntil && p.coolingUntil.getTime() > now.getTime()) {
     throw conflict("PAYEE_COOLING", "Payee is still cooling", { reasonCodes: ["PAYEE_COOLING"], details: { coolingUntil: p.coolingUntil.toISOString() } });
   }
 
   if (!body.challengeId || !body.assertion) {
-    const core: PayeeVerifyCore = { v: 1, kind: "PAYEE_VERIFY", userId, payeeId: p.id, payeeName: p.name, accountHash: p.accountHash, nonce: randomBytes(16).toString("base64url") };
+    const core: PayeeVerifyCore = { v: 1, kind: "PAYEE_VERIFY", userId, payeeId: p.id, payeeName: p.name, accountHash: accountHashValue, nonce: randomBytes(16).toString("base64url") };
     const hash = jcsHash(core);
     const challengeId = putGated({ userId, purpose: "payee-verify", hash, payload: core });
     throw new HttpProblem(428, "PASSKEY_REQUIRED", `Confirm ${p.name} with your passkey`, {

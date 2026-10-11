@@ -214,6 +214,8 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     if (!payee || payee.userId !== order.userId || payee.accountHash !== order.payeeAccountHash || payee.status === "BLOCKED") {
       refuse("REFUSE_UNVERIFIED_PAYEE", "payee missing, changed or blocked");
     }
+    // A payee captured without account details (onboarding) is never payable, whatever the order says.
+    if (payee.accountEnc === null || payee.accountHash === null) refuse("REFUSE_UNVERIFIED_PAYEE", "payee has no account details");
     if (payee.status === "COOLING" && (a.tier === "T1" || !payee.coolingUntil || payee.coolingUntil.getTime() > now.getTime())) {
       refuse("REFUSE_UNVERIFIED_PAYEE", "cooling payee: T2 only, after coolingUntil (I7)");
     }

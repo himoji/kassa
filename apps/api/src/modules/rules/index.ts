@@ -317,7 +317,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const result: DecideResult = decide({
     now,
     frozen: user.frozenAt !== null,
-    payee: payee ? { status: payee.status, coolingUntil: payee.coolingUntil } : null,
+    payee: payee ? { status: payee.status, coolingUntil: payee.coolingUntil, hasAccount: payee.accountHash !== null } : null,
     readerChecks: input.readerChecks,
     rail,
     screeningHit: screening.hit,
@@ -372,7 +372,8 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   };
   let order: CanonicalOrder | null = null;
   let hash: string | null = null;
-  if (result.decision !== "REFUSE" && payee) {
+  // decide() refuses a payee without account details; the accountHash check keeps an order from ever binding none.
+  if (result.decision !== "REFUSE" && payee && payee.accountHash !== null) {
     order = {
       v: 1,
       proposalId,

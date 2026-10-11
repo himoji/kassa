@@ -535,3 +535,32 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - **Demo entry.** `GET /api/auth/demo` → `{ enabled }` (public, only reports DEMO_ENABLED). The welcome screen's "Try the demo (simulated)" is the normal passkey registration with `demoClaim`, so the security model is unchanged.
 - **Onboarding AI consent.** The sign-up screen never sent `aiConsent`, and Settings is out of reach during onboarding, so new users were blocked at 403 AI_CONSENT_REQUIRED. The onboarding chat now shows the same notice + "I agree" card as the agent chat and re-sends the message (consent stays explicit, GDPR Art. 7).
 - **Web dark mode.** NativeWind's `colorScheme.set("system")` removes the `dark` class in class mode, so a dark OS got dark backgrounds with light-mode text. Web now applies the resolved mode.
+
+## 2026-10-13 — Onboarding bills become obligations with placeholder payees (no account yet); rent mandate offered after the rules
+
+- **Problem:** after onboarding, Home showed "No bills due in the next 45 days" although the chat captured rent, tuition
+  and insurance: `applyOnboardingDraft` skipped obligations because a payee needs account details (I7). For the same
+  reason the rent-mandate step never appeared: `/onboarding/confirm/options` only suggests a mandate for an existing
+  landlord bill, and a new user has none until the draft is applied (after the rules are signed). The app then went
+  straight to /home (`suggestedMandate: null`); the redirect hooks were not involved (`useOnboardingRedirect` is a
+  no-op; `useAuthRedirect` only redirects while `onboarded` is false or from the auth group).
+- **Choice (secure default):** applying the signed draft creates each dated bill as an obligation linked to a payee
+  re-used by name + kind, else a **placeholder payee**: `COOLING`, `coolingUntil` NULL, `accountEnc`/`accountHash` NULL
+  (migration `0006_payee_account_pending`: both columns nullable), country `ZZ` (ISO 3166-1 user-assigned, "unknown"),
+  ledgered `PAYEE_CREATED` with `accountMissing: true, source: "onboarding"`. Names are sanctions-screened like
+  POST /payees (I9); a hit skips the bill and is ledgered. Bills without a due date are skipped.
+- **Never payable without an account (defence in depth):** rules step 2 refuses `REFUSE_UNVERIFIED_PAYEE` +
+  new reason code `PAYEE_ACCOUNT_MISSING` whatever the status (a COOLING payee is otherwise T2-payable after
+  `coolingUntil`, so "cooling" alone was not enough); a NULL `coolingUntil` also refuses on its own; no canonical order
+  is built for a payee without an account hash; approve and payments refuse (account hash mismatch, explicit null
+  check); the simulated verify callback answers 409 `PAYEE_ACCOUNT_MISSING`, so such a payee can never become VERIFIED.
+  Tests: `apps/api/test/core/onboarding-obligations.test.ts`, `test/rules/decide.test.ts`.
+- **Rent mandate:** `POST /onboarding/confirm` now returns `suggestedMandate` + `suggestedMandatePayees`, computed after
+  the draft is applied; the suggestion accepts a COOLING landlord (BLOCKED never; VERIFIED preferred). Signing it
+  is safe: the rules still refuse every payment to that payee until it has a verified account. The app's review
+  screen goes rules → mandate (sign or skip) → home (`apps/mobile/src/screens/onboarding/__tests__/onboarding-review.test.tsx`).
+- **App:** `ObligationDto.payeeAccountMissing`, `PayeeDto.accountMissing` (`accountMasked` is ""). Home/Bills rows show
+  "Add payee details" and link to the payee; the payee screen says the details are needed and hides "Simulate
+  verification".
+- **Not done:** there is no "add account details to this payee" flow yet (an account change is a new payee, I7, and the
+  obligations would have to move to it). Seeded demo data (Dana) is unchanged: her payees all have accounts.

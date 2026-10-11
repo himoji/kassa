@@ -5,6 +5,7 @@
  *  1 frozen → REFUSE_FROZEN
  *  1b (added, B4) the obligation period already has a pending or paid proposal → DUPLICATE_OBLIGATION_PAYMENT
  *  2 payee missing / BLOCKED / COOLING before coolingUntil → REFUSE_UNVERIFIED_PAYEE
+ *    (added 2026-10-13) payee without account details → REFUSE_UNVERIFIED_PAYEE + PAYEE_ACCOUNT_MISSING
  *    (COOLING after coolingUntil is usable in T2 only → forces ASK with PAYEE_COOLING)
  *  3 reader mismatch on amount or account → REFUSE_SOURCE_MISMATCH
  *  4 screening hit (X4: every rail, not only bank transfers) → REFUSE_SANCTIONS
@@ -47,7 +48,8 @@ export type CapCheck = {
 export type DecideFacts = {
   now: Date;
   frozen: boolean;
-  payee: { status: PayeeStatus; coolingUntil: Date | null } | null;
+  /** hasAccount false = no account details yet (payee captured in onboarding): refused whatever its status. */
+  payee: { status: PayeeStatus; coolingUntil: Date | null; hasAccount: boolean } | null;
   readerChecks?: { amount?: "VERIFIED" | "UNVERIFIED"; account?: "VERIFIED" | "UNVERIFIED"; nonCriticalUnverified?: boolean };
   rail: Rail;
   screeningHit: boolean;
@@ -93,6 +95,7 @@ export function decide(f: DecideFacts): DecideResult {
   // 2
   let coolingAsk = false;
   if (!f.payee || f.payee.status === "BLOCKED") return refuse("REFUSE_UNVERIFIED_PAYEE");
+  if (!f.payee.hasAccount) return refuse("REFUSE_UNVERIFIED_PAYEE", "PAYEE_ACCOUNT_MISSING");
   if (f.payee.status === "COOLING") {
     if (!f.payee.coolingUntil || f.now.getTime() < f.payee.coolingUntil.getTime()) {
       return refuse("REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING");

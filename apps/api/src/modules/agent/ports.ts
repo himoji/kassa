@@ -28,7 +28,8 @@ export interface PayeeRow {
   status: "VERIFIED" | "COOLING" | "BLOCKED";
   verifiedAt: string | null;
   coolingUntil: string | null;
-  accountHash: string;
+  /** null = no account details yet (payee captured in onboarding; never payable). */
+  accountHash: string | null;
   replacesPayeeId: string | null;
 }
 

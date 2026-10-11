@@ -60,7 +60,7 @@ describe("Art. 15/16/17/20: export, rectify, erase by crypto-shredding", () => {
     h = await bearer(userId);
     const db = getDb();
     const payee = await addPayee(userId, { name: PAYEE, account: IBAN_OTHER, currency: "EUR", kind: "LANDLORD" });
-    accountHash = payee.accountHash;
+    accountHash = payee.accountHash!;
     // A payee created over HTTP (PAYEE_CREATED ledger entry with its sealed account hash).
     expect((await app().inject({ method: "POST", url: "/api/payees", headers: h, payload: { name: `${PAYEE} II`, kind: "LANDLORD", account: IBAN_OTHER, country: "HU", currency: "HUF" } })).statusCode).toBe(201);
     // Executed payment (retained record) + a rejected order with a free-text reason (sealed in the ledger).

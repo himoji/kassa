@@ -49,7 +49,7 @@ async function forgedMandateApproval(s: Awaited<ReturnType<typeof rentSetup>>, o
     userId: s.userId,
     payeeId: s.landlord.id,
     payeeName: s.landlord.name,
-    payeeAccountHash: s.landlord.accountHash,
+    payeeAccountHash: s.landlord.accountHash!,
     amountMinor: o.amountMinor,
     currency: "HUF",
     rail: "BANK_TRANSFER",

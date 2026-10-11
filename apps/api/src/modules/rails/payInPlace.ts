@@ -59,7 +59,8 @@ export async function onIntentSucceeded(intentId: string): Promise<boolean> {
   const order = prop?.canonicalOrder;
   if (!order) return false;
   const payee = (await db.select().from(payees).where(eq(payees.id, order.payeeId)))[0];
-  if (!payee) return false;
+  // No account details (onboarding placeholder): nothing to pay to; rules and payments refuse such orders earlier.
+  if (!payee || payee.accountEnc === null) return false;
   await ledger.append("PAY_IN_PLACE_SUCCEEDED", { userId: p.userId, paymentId: p.id, intentId });
   const card = await issuingRail.execute(order, {
     db,

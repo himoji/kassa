@@ -26,6 +26,7 @@ export const REASON_TEXT_EN: Partial<Record<ReasonCode, string>> = {
   PRESET_ASK_ME: "You chose Ask me, so every payment needs your passkey.",
   CAP_WITHIN_2X_ASK: "This payment is close to your limit, so the rules ask you to confirm it.",
   PAYEE_COOLING: "This payee is new or changed, so it cools down for 24 hours before it can be paid.",
+  PAYEE_ACCOUNT_MISSING: "Kassa does not have this payee's account details yet, so it cannot pay them. Add the payee's details first.",
   TRIGGER_ORIGIN: "This payment came from a message or notification, so it needs your approval before it goes ahead.",
   TRIGGER_NEEDS_MANDATE: "This was started automatically (not by you), so it only pays on its own inside a mandate you signed.",
   AUTO_NOT_ELIGIBLE: "Auto-pay needs Smart mode, a verified payee, a capped wallet and signed base rules, and one of these is missing.",

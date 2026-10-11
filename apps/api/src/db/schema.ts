@@ -216,10 +216,13 @@ export const payees = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     kind: payeeKindEnum("kind").notNull(),
-    /** AES-256-GCM (NIST SP 800-38D) ciphertext of the account details. */
-    accountEnc: text("account_enc").notNull(),
-    /** base64url(sha256(normalized account)). */
-    accountHash: text("account_hash").notNull(),
+    /**
+     * AES-256-GCM (NIST SP 800-38D) ciphertext of the account details. NULL (with accountHash NULL) = no account
+     * yet: a payee captured from the onboarding chat, kept COOLING with no coolingUntil and never payable (0006).
+     */
+    accountEnc: text("account_enc"),
+    /** base64url(sha256(normalized account)); NULL when accountEnc is NULL. */
+    accountHash: text("account_hash"),
     country: text("country").notNull(),
     currency: text("currency").notNull(),
     status: payeeStatusEnum("status").notNull().default("COOLING"),

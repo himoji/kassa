@@ -318,7 +318,15 @@ export const OnboardingConfirmRequest = z.object({
   assertion: AuthenticationResponseJSON,
 });
 export type OnboardingConfirmRequest = z.infer<typeof OnboardingConfirmRequest>;
-export const OnboardingConfirmResponse = z.object({ onboarded: z.literal(true) });
+export const OnboardingConfirmResponse = z.object({
+  onboarded: z.literal(true),
+  /**
+   * (added 2026-10-13) The rent mandate offered next, computed after the draft's bills were created (a new user has
+   * none at /confirm/options time). Signed separately via /mandates/options; null = nothing to offer.
+   */
+  suggestedMandate: MandateOptionsRequest.nullable(),
+  suggestedMandatePayees: z.array(z.object({ id: Uuid, name: z.string() })),
+});
 export type OnboardingConfirmResponse = z.infer<typeof OnboardingConfirmResponse>;
 
 // ---------- Handoff (spec §11) ----------
