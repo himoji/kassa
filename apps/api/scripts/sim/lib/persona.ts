@@ -88,7 +88,8 @@ function ensureOk(r: HttpResult, what: string): void {
 }
 
 /** Register a new passkey user (or claim the seeded demo user) and store the persona. */
-export async function registerPersona(name: string, opts: { claimDemo: boolean; force: boolean; aiConsent: boolean }): Promise<{ persona: PersonaFile; session: SessionBody }> {
+/** `claimDemo`: true = the seeded hero (Dana); a string = that seeded demo persona (e.g. "li-wei"). */
+export async function registerPersona(name: string, opts: { claimDemo: boolean | string; force: boolean; aiConsent: boolean }): Promise<{ persona: PersonaFile; session: SessionBody }> {
   const existing = readJson<PersonaFile>(personaPath(name));
   if (existing && !opts.force) fail("PERSONA_EXISTS", `persona "${name}" already exists (use --force to replace, or: sim login ${name})`);
   const s = daemonState();
@@ -96,7 +97,7 @@ export async function registerPersona(name: string, opts: { claimDemo: boolean; 
   const auth = new SoftAuthenticator();
   const headers = { "x-forwarded-for": ip };
   const o = await withRateLimitRetry(() =>
-    apiRequestRaw("POST", "/auth/register/options", { body: { displayName: name, ...(opts.claimDemo ? { demoClaim: true } : {}) }, headers }),
+    apiRequestRaw("POST", "/auth/register/options", { body: { displayName: name, ...(opts.claimDemo ? { demoClaim: opts.claimDemo } : {}) }, headers }),
   );
   ensureOk(o, "register/options");
   const ob = o.body as { challengeId: string; options: { challenge: string; rp?: { id?: string } } };

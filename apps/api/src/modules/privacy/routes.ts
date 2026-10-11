@@ -11,16 +11,20 @@ import {
   EraseResponse,
   jcsHash,
   PrivacyExportResponse,
+  Region,
   RestrictResponse,
 } from "@kassa/shared";
+import { eq } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomBytes } from "node:crypto";
+import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
+import { users } from "../../db/schema.ts";
 import { auditAssertionFailure } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
-import { userIdOf } from "../auth/session.ts";
+import { authenticate, userIdOf } from "../auth/session.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { aiNotice } from "./notice.ts";
 import { eraseUser, ERASED, exportUserData, RETAINED, restrictUser, setAiConsent } from "./service.ts";
@@ -28,7 +32,12 @@ import { eraseUser, ERASED, exportUserData, RETAINED, restrictUser, setAiConsent
 type EraseCore = { v: 1; kind: "ERASE"; userId: string; nonce: string };
 
 const routes: FastifyPluginAsyncZod = async (app) => {
-  app.get("/privacy/ai-notice", { schema: { response: { 200: AiNotice } } }, async () => aiNotice());
+  // Public (shown before sign-up): `?region=CN` previews the region line; a signed-in caller gets their own region.
+  app.get("/privacy/ai-notice", { schema: { querystring: z.object({ region: Region.optional() }), response: { 200: AiNotice } } }, async (req) => {
+    const userId = await authenticate(req).catch(() => null);
+    const own = userId ? (await getDb().select({ region: users.region }).from(users).where(eq(users.id, userId)))[0]?.region : undefined;
+    return aiNotice(own ?? req.query.region ?? "EU");
+  });
 
   app.get("/privacy/export", { schema: { response: { 200: PrivacyExportResponse } } }, async (req, reply) => {
     const body = await exportUserData(userIdOf(req));

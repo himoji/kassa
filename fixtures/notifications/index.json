@@ -74,6 +74,21 @@
       }
     },
     {
+      "file": "kz-bank-ru-cny-purchase.txt",
+      "format": "KZ_BANK",
+      "app": "Kazakh bank app (generic)",
+      "language": "ru",
+      "kind": "PURCHASE",
+      "expected": {
+        "merchant": "BUY EVERYTHING SHOP FROM CHINA",
+        "amountMinor": 26800,
+        "currency": "CNY",
+        "cardHint": "4821",
+        "time": "2026-10-26T20:05:00+05:00"
+      },
+      "notes": "D-CN2: a CNY purchase in Shanghai on Dana's home KZT card (*4821), shown by the Kazakh bank app in Almaty time. It stays PENDING until the bank settles it in KZT; `demo trigger settlement` then settles it with the example +4 % hidden markup (fee x-ray). The wallet samples above have no card, so only this one feeds a card fee profile."
+    },
+    {
       "file": "revolut-en-purchase.txt",
       "format": "REVOLUT",
       "app": "Revolut-style app",

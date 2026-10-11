@@ -29,6 +29,8 @@ export const ReasonCode = z.enum([
   "CAP_WITHIN_2X_ASK",
   "PAYEE_COOLING",
   "TRIGGER_ORIGIN",
+  // (added 2026-10-12) a trigger/scheduler draft outside a mandate never auto-pays via the small-auto limit
+  "TRIGGER_NEEDS_MANDATE",
   // (added by Track A) step 9: AUTO needs SMART + verified payee + capped wallet + signed base rules
   "AUTO_NOT_ELIGIBLE",
   // (added by Track A) step 9: amount above the small auto limit

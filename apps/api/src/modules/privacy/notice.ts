@@ -10,7 +10,7 @@
  *    memory and its output is schema-checked against the source (I10); it needs the raw text to extract the
  *    amount and account, so documents are NOT redacted before the Reader (documented in docs/PRIVACY.md).
  */
-import type { AiNotice } from "@kassa/shared";
+import type { AiNotice, Region } from "@kassa/shared";
 import type { FastifyRequest } from "fastify";
 import { eq } from "drizzle-orm";
 
@@ -35,7 +35,27 @@ function info(spec: () => ModelSpec): AiNotice["planner"] {
   }
 }
 
-export function aiNotice(): AiNotice {
+/**
+ * Region line (docs/DECISIONS.md 2026-10-12 "Per-region AI notice"). CN: PIPL (Personal Information
+ * Protection Law of the PRC) Art. 38–39 — personal information leaving mainland China is a cross-border
+ * transfer that needs the person to be told the recipient and to give separate consent. This prototype states
+ * the transfer; it has no separate PIPL consent flow (docs/PRIVACY.md section 13, docs/COMPLIANCE.md).
+ */
+function regionLine(region: Region, planner: AiNotice["planner"], reader: AiNotice["reader"]): string {
+  if (region !== "CN") return "";
+  const external = [planner, reader].filter((m) => !m.local).map((m) => m.provider);
+  if (external.length === 0) {
+    return " Region CN (PIPL): AI processing stays on Kassa's own server, so the AI step involves no cross-border transfer of your personal information.";
+  }
+  return (
+    ` Region CN (PIPL): ${[...new Set(external)].join(" and ")} may process your reduced chat and the documents you upload outside ` +
+    "mainland China. Under PIPL Art. 38–39 this is a cross-border transfer of personal information that needs your separate " +
+    "consent; this prototype does not yet ask for it separately. Choose a local model to keep AI processing on Kassa's own server."
+  );
+}
+
+/** `region` adds the per-region line (CN: PIPL cross-border transfer); default EU (no extra line). */
+export function aiNotice(region: Region = "EU"): AiNotice {
   const planner = info(() => plannerSpec());
   const reader = info(() => readerSpec());
   const where = (m: AiNotice["planner"]) => (m.local ? "a model running on our own server" : `${m.provider} (${m.model}), an external AI provider`);
@@ -47,7 +67,8 @@ export function aiNotice(): AiNotice {
       `documents you upload are read by ${where(reader)}. Before anything reaches the chat model, names, ` +
       "account and card numbers, emails and phone numbers are replaced by placeholders. The AI can only " +
       "propose payments: every payment is checked by fixed rules and needs your passkey or a mandate you signed. " +
-      "You can withdraw your consent at any time in Settings > Privacy.",
+      "You can withdraw your consent at any time in Settings > Privacy." +
+      regionLine(region, planner, reader),
     planner,
     reader,
     plannerReceives: ["chat messages (reduced)", "tool results: balances, budgets, obligations, payee facts (reduced)"],
@@ -64,14 +85,14 @@ export function aiNotice(): AiNotice {
  */
 export async function requireAiConsent(req: FastifyRequest): Promise<void> {
   const userId = userIdOf(req);
-  const u = (await getDb().select({ aiConsentAt: users.aiConsentAt, restrictedAt: users.restrictedAt }).from(users).where(eq(users.id, userId)))[0];
+  const u = (await getDb().select({ aiConsentAt: users.aiConsentAt, restrictedAt: users.restrictedAt, region: users.region }).from(users).where(eq(users.id, userId)))[0];
   if (u?.restrictedAt) {
     throw new HttpProblem(403, "PROCESSING_RESTRICTED", "You restricted processing of your data (GDPR Art. 18)", { reasonCodes: ["PROCESSING_RESTRICTED"] });
   }
   if (!u?.aiConsentAt) {
     throw new HttpProblem(403, "AI_CONSENT_REQUIRED", "Agree to AI processing first (POST /privacy/ai-consent)", {
       reasonCodes: ["AI_CONSENT_REQUIRED"],
-      details: { aiNotice: aiNotice() },
+      details: { aiNotice: aiNotice(u?.region ?? "EU") },
     });
   }
 }

@@ -38,7 +38,7 @@ Only one sim runs at a time. Parallel agents share it. Each agent uses its **own
 
 | Area | Commands |
 | --- | --- |
-| Personas | `register <p> [--claim-demo] [--no-onboard] [--no-mandate] [--no-ai-consent]`, `login <p>`, `onboard <p> [--no-mandate]`, `personas` |
+| Personas | `register <p> [--claim-demo [li-wei]] [--no-onboard] [--no-mandate] [--no-ai-consent]`, `login <p>`, `onboard <p> [--no-mandate]`, `personas` (`--claim-demo` = Dana; `--claim-demo li-wei` = the second seeded persona Li Wei) |
 | Read | `as <p> me \| balances \| budgets \| obligations \| forecast \| cards \| fees \| transactions \| payees \| mandates \| caps \| rule-changes \| notifications \| ledger \| proposals [--status PENDING_APPROVAL]` |
 | Write | `as <p> add-payee '<json>'`, `verify-payee <id>`, `create-mandate '<json>'`, `revoke-mandate <id>`, `settings get`, `settings patch '<json>' [--sign]`, `freeze`, `unfreeze [--sign]`, `capture-event '<json>'`, `upload <file> [--kind invoice\|notification\|email_change_request]` |
 | Orders | `as <p> order <proposalId>`, `approve <proposalId>`, `reject <proposalId> [--reason …]` |
@@ -46,8 +46,8 @@ Only one sim runs at a time. Parallel agents share it. Each agent uses its **own
 | Privacy | `as <p> privacy notice \| export [--out f] \| consent [--withdraw] \| restrict \| erase [--sign]`, `update-me '<json>'` |
 | Planner | `as <p> say '<chat text>' [--conversation id\|new]` = your chat message as the planner receives it (known payee names become `payee_N`) |
 | Planner tools | `tool <name> '<json>' --as <p> [--conversation id\|new] [--reader-output '<json>'\|@file]` for `get_profile_summary, get_balances, get_budget, get_obligations, get_payee_facts, search_catalog, get_routes, forecast_coverage, read_document, propose_order, log_expense` |
-| Demo | `demo status`, `demo clock +1h\|+1d\|+3d\|+Nh\|+Nd`, `demo trigger settlement\|money-from-home\|landlord-iban-email\|pos-low-dough`, `demo agent-mode LIVE\|REPLAY`, `demo tick` |
-| Mock world | `mock payees`, `invoice <payeeId> [--variant swapped-account]` (saves the PDF and prints its text), `suppliers`, `catalog <id>`, `price-list <id>`, `inbox [msgId]`, `shop-menu`, `shop-checkout <cardId>`, `shop-recharge <cardId>`, `charges`, `qr <qrPaymentId>`, `pos-emit [--sku --level --qty]`, `remittance [--amount 2500 --currency EUR]`, `transfers`, `outbox` |
+| Demo | `demo status`, `demo clock +1h\|+1d\|+3d\|+Nh\|+Nd`, `demo trigger settlement\|money-from-home\|landlord-iban-email\|pos-low-dough\|cn-spending-day`, `demo agent-mode LIVE\|REPLAY`, `demo tick` |
+| Mock world | `mock payees`, `invoice <payeeId> [--variant swapped-account]` (saves the PDF and prints its text), `suppliers`, `catalog <id>`, `price-list <id>`, `inbox [msgId]`, `shop-menu`, `shop-checkout <cardId>`, `shop-recharge <cardId>`, `charges`, `qr <qrPaymentId>`, `qr-swap on\|off` (A5 switch: new QR codes name another payee), `pos-emit [--sku --level --qty]`, `remittance [--amount 2500 --currency EUR] [--profile li-wei]`, `transfers`, `outbox` |
 | Evidence | `mark <name>`, `evidence <scenario> [--since <marker>]`, `ledger-verify`, `report <scenario> --result PASS\|FAIL --notes '<text>'\|@file` |
 
 Tool calls keep one placeholder map per conversation (default: the persona's own conversation). `--conversation new`
@@ -137,6 +137,83 @@ Invariants I1–I13: `docs/spec/TECH_SPEC.md` §2. Attacks A1–A8: §19.
 | P1 | Average user (demo user, `--claim-demo`, SMART) | Pay tuition, rent on autopay after +3 d, pizza on a one-time card, money from home, log spending | Tuition ASK → approved → SENT. Rent AUTO via the mandate after it is effective. Card works once, second charge `CARD_ALREADY_USED`. Capture logs only. `ledger-verify` ok | I2, I3, I4, I6, I8, I11, I12 |
 | P2 | Careful user (`settings patch '{"preset":"ASK_ME"}'`, instant tightening) | Review every order before paying; reject one | Every proposal is `ASK` (no AUTO, even small or under a mandate). `order` shows the canonical order with `hashMatches`. `reject` → `USER_REJECTED`, then `approve` on it → `NOT_PENDING` | I3, I8 |
 | P3 | Bad-actor user (own persona, `register p3-<run>`) | Exceed caps, loosen instantly, pay a fresh payee, use another user's data, abuse demo/consent flows | `settings patch` raising caps → 428 `PASSKEY_REQUIRED`; with `--sign` → pending, `effectiveAt` +24 h, `caps` unchanged. `add-payee` → COOLING; proposing to it → `REFUSE_UNVERIFIED_PAYEE`; `verify-payee` before 24 h → `PAYEE_COOLING`. Another user's ids (read with that user's persona): `as p3 order <theirProposalId>` / `handoff <theirPaymentId>` → 404; `tool … --conversation <theirConversationId>` → `CONVERSATION_FORBIDDEN`. `unfreeze` without `--sign` → 428 | I5, I7, I8, I11; A4 |
+
+### Chinese-context demos (CLI; offline example rates, `sim up --fresh`)
+
+Seed: Dana also has two VERIFIED Shanghai payees ("Dorm Office in Shanghai", "Buy Everything Shop from China",
+no IBAN: QR merchants) and a ¥1,800 monthly dorm fee due 2026-11-15. The sim also seeds a second persona, Li Wei
+(claim with `register <name> --claim-demo li-wei`). Amounts below are with the default offline example rates
+(1 EUR = ₸612.40 = ¥8.30); placeholders (`payee_N`) depend on the conversation, so read them from the outputs.
+
+| ID | Persona | Goal | Expected outcome | Invariants / attacks |
+| --- | --- | --- | --- | --- |
+| D-CN1 | Dana, Shanghai exchange semester (region CN) | Pay the dorm fee and a shop purchase in CNY; see how the CNY need is funded; read the AI notice | Every proposal `HANDOFF` / `HANDOFF_REGION`, canonical order `rail: HANDOFF`, CNY. Dorm fee QR `MATCH` → `pay-qr` → `SENT`. With `mock qr-swap on` the shop order is `CANCELED` `QR_PAYEE_MISMATCH`, no wallet URL, `pay-qr` refuses. Routes into CNY come from KZT/USD; forecast shows a CNY shortfall funded from KZT. `privacy notice` mentions PIPL cross-border processing | I2, I3; A5 |
+| D-CN2 | Dana, Alipay/WeChat Pay capture | Log a day of Chinese spending; see the card's hidden fee | Three captures `LOGGED` in CNY with KZT amounts; two `BUDGET_EACH` notifications; the CNY charge on the KZT card settles with a 4 % markup (`FEES_SETTLED`, fee x-ray profile CNY→KZT 400 bps). No proposal or payment (I6). No DCC flag (CNY-denominated charges are not DCC) | I6 |
+| D-CN3 | Li Wei, Chinese master's student in Budapest (home CNY) | Pay EUR tuition from CNY; see coverage; receive money from home | Three CNY → EUR routes, cheapest first; coverage funds EUR and HUF needs from CNY; tuition `ASK`, funded from CNY via `cny-mock-bank`, approved → `SENT`; Dana and Li cannot read each other's orders (404) | I3, I8; A4-style BOLA |
+
+**D-CN1 (Shanghai handoff):**
+```bash
+$S up --fresh && $S register dana --claim-demo
+$S mark dcn1
+$S as dana settings patch '{"region":"CN"}'          # tightening → instant: settings.region "CN", pending []
+$S as dana privacy notice                            # text ends with "Region CN (PIPL): … cross-border transfer … separate consent …"
+$S tool get_obligations '{}' --as dana               # dorm fee: payeeRef payee_4, 180000 CNY, homeAmountMinor 13280964 (₸132,809.64), due 2026-11-15
+$S tool get_routes '{"fromCurrency":"KZT","toCurrency":"CNY","amountMinor":180000,"dueDate":"2026-11-15"}' --as dana
+#   kzt-mock-bank ₸1,720.45 < kzt-card ₸5,312.39 < kzt-home-bank ₸9,890.57 (costHomeMinor 172045 / 531239 / 989057)
+$S tool get_routes '{"fromCurrency":"USD","toCurrency":"CNY","amountMinor":180000,"dueDate":"2026-11-15"}' --as dana
+#   usd-mock-bank ₸1,387.76 (cheapest overall) < usd-card ₸3,322.20
+$S tool forecast_coverage '{}' --as dana             # CNY shortfall {2026-11-15, 180000}; suggestion KZT → CNY 180000 via kzt-mock-bank
+$S tool propose_order '{"payeeRef":"<dorm payeeRef>","amountMinor":180000,"currency":"CNY","purpose":"Dorm fee November 2026"}' --as dana
+#   decision HANDOFF, reasonCodes [HANDOFF_REGION], "CN¥1,800.00 (≈ KZT 132,809.64)"
+$S as dana order <proposalId>                        # canonical order: payeeName "Dorm Office in Shanghai", 180000 CNY, rail HANDOFF, hashMatches true
+$S as dana approve <proposalId>                      # paymentStatus PROCESSING (the QR is issued; nothing moved yet)
+$S as dana handoff <paymentId>                       # check MATCH, nameSimilarity 1, walletUrl set; QR payload names Shanghai, CN
+$S as dana pay-qr <paymentId>; $S as dana payment <paymentId>    # paid → status SENT
+# Swapped QR (A5) on the shop purchase:
+$S mock qr-swap on
+$S as dana say "Buy a bedding set from Buy Everything Shop from China for ¥349"   # plannerSees "… from payee_N …"
+$S tool propose_order '{"payeeRef":"<shop payeeRef>","amountMinor":34900,"currency":"CNY","purpose":"Bedding set"}' --as dana   # HANDOFF
+$S as dana approve <proposalId>                      # paymentStatus CANCELED, reasonCodes [QR_PAYEE_MISMATCH]
+$S as dana handoff <paymentId>                       # qrPayeeName "Unknown Trading Company" vs verified shop, similarity ≈ 0.63, walletUrl null
+$S as dana pay-qr <paymentId>                        # ok:false, "no Pay button"; payment stays CANCELED; balances unchanged
+$S mock qr-swap off
+$S evidence dcn1 --since dcn1; $S ledger-verify
+```
+
+**D-CN2 (Alipay/WeChat Pay capture + fee x-ray):**
+```bash
+$S mark dcn2
+$S demo trigger cn-spending-day
+#   alipay ¥32.50 → ₸2,397.95 groceries ("CN¥32.50 at Convenience Store (sample). Groceries: …% used …")
+#   wechat ¥45.00 → ₸3,320.24 eating_out; KZ bank ¥268.00 on card *4821 → ₸19,773.88, PENDING
+#   (each converted with the rate for its purchase date, 2026-10-26; offline the example table answers and reports
+#   its own date 2026-10-27 as rateDate, live (--live-fx) it is the published rate of that day)
+$S as dana notifications --limit 3                   # two BUDGET_EACH
+$S demo trigger settlement                           # settles the CNY charge on the KZT card: feeHomeMinor 79096 (₸790.96), markupBps 400, dcc null,
+                                                     # cardProfile CNY→KZT 400 bps (1 sample); the card-less wallet charges stay PENDING
+$S as dana fees                                      # profiles incl. CNY→KZT 400; dccWarnings []; monthlyFeesLostHomeMinor includes 79096
+$S as dana notifications --limit 1                   # FEES_SETTLED "BUY EVERYTHING SHOP FROM CHINA: KZT 790.96 in conversion fees (4.00% over mid)."
+$S as dana proposals                                 # no proposal came from capture (I6)
+```
+
+**D-CN3 (Li Wei, CNY → EUR):**
+```bash
+$S register li --claim-demo li-wei                   # userId 1c6e6d69-…, displayName "Li Wei"; signs base rules + suggested rent mandate (HUF 190,000)
+$S mark dcn3
+$S as li balances                                    # homeCurrency CNY: ¥60,000 / €450 / HUF 95,000
+$S tool get_obligations '{}' --as li                 # rent HUF 165,000 due 2026-11-05 (payee_1), tuition €3,200 due 2026-11-10 (payee_2), RF32RUB2026L03318
+$S tool get_routes '{"fromCurrency":"CNY","toCurrency":"EUR","amountMinor":320000,"dueDate":"2026-11-10"}' --as li
+#   cny-mock-bank ¥162.80 < cny-card ¥398.40 < cny-home-bank ¥548.40 (costHomeMinor 16280 / 39840 / 54840)
+$S tool forecast_coverage '{}' --as li               # EUR shortfall {2026-11-10, 275000}, HUF {2026-11-05, 7000000}; both funded from CNY via cny-mock-bank
+$S tool propose_order '{"payeeRef":"payee_2","amountMinor":320000,"currency":"EUR","purpose":"Tuition RF32RUB2026L03318"}' --as li
+#   ASK [ABOVE_SMALL_AUTO_LIMIT]; "€3,200.00 (≈ CN¥26,560.00) … at most CN¥26,990.03"
+$S as li order <proposalId>                          # fundingCurrency CNY, fundingRouteId cny-mock-bank, fundingAmountMinor 2699003, markup 50 bps
+$S as dana order <proposalId>                        # 404: another user's order (BOLA)
+$S as li approve <proposalId>; $S demo clock +1h; $S as li payment <paymentId>   # PROCESSING → SENT; bank debited ¥26,722.80 (¥26,560 + ¥132.80 markup + ¥30 fee)
+$S mock remittance --amount 12000 --currency CNY --profile li-wei               # parents' monthly ¥12,000 → Li's wallet only
+$S as li notifications --limit 1                     # MONEY_FROM_HOME
+$S evidence dcn3 --since dcn3; $S ledger-verify; $S down
+```
 
 ### Security scenarios (deterministic Vitest; run and judge)
 

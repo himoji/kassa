@@ -31,6 +31,7 @@ import { demoState, profiles, users, webauthnCredentialsRules } from "../../db/s
 import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
+import { loadSeedData } from "../demo/seed.ts";
 import { ledger } from "../ledger/index.ts";
 import { registerPaymentsCredential } from "../payments/credentials.ts";
 import { setAiConsent } from "../privacy/service.ts";
@@ -52,8 +53,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     "/auth/register/options",
     {
       schema: {
-        // (extension) demoClaim: bind the first passkey to the seeded hero user when DEMO_ENABLED.
-        body: RegisterOptionsRequest.extend({ demoClaim: z.boolean().optional() }),
+        // (extension) demoClaim: bind the first passkey to the seeded hero user when DEMO_ENABLED; a persona
+        // key (e.g. "li-wei") claims that seeded demo persona instead (D-CN3, seed `personas`).
+        body: RegisterOptionsRequest.extend({ demoClaim: z.union([z.boolean(), z.string().regex(/^[a-z0-9-]{1,32}$/)]).optional() }),
         response: { 200: RegisterOptionsResponse.extend({ requiresExistingAssertion: z.boolean() }) },
       },
     },
@@ -72,12 +74,21 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       } else if (req.body.demoClaim && e.DEMO_ENABLED) {
         const ds = (await db.select().from(demoState).where(eq(demoState.id, 1)))[0];
         if (!ds?.demoUserId) throw new HttpProblem(409, "DEMO_NOT_SEEDED", "Run the seed first");
+        let claimId = ds.demoUserId;
+        if (typeof req.body.demoClaim === "string") {
+          const key = req.body.demoClaim;
+          const persona = (await loadSeedData()).personas?.find((p) => p.persona === key);
+          if (!persona) throw new HttpProblem(404, "DEMO_PERSONA_UNKNOWN", `No seeded demo persona "${key}"`);
+          const seeded = (await db.select({ id: users.id }).from(users).where(eq(users.id, persona.user.id)))[0];
+          if (!seeded) throw new HttpProblem(409, "DEMO_NOT_SEEDED", "Seed with personas first (bun run seed, sim up, or demo reset)");
+          claimId = persona.user.id;
+        }
         const creds = await db
           .select({ id: webauthnCredentialsRules.id })
           .from(webauthnCredentialsRules)
-          .where(eq(webauthnCredentialsRules.userId, ds.demoUserId));
+          .where(eq(webauthnCredentialsRules.userId, claimId));
         if (creds.length > 0) throw new HttpProblem(409, "DEMO_ALREADY_CLAIMED", "Sign in with the existing passkey");
-        userId = ds.demoUserId;
+        userId = claimId;
         existingUser = true;
       } else {
         userId = randomUUID();

@@ -1,0 +1,230 @@
+{
+  "scenario": "dcn3",
+  "marker": {
+    "seq": 23,
+    "at": "2026-10-27T09:00:31.163Z",
+    "createdAt": "2026-10-11T10:26:56.979Z"
+  },
+  "generatedAt": "2026-10-27T10:00:37.642Z",
+  "since": {
+    "seq": 23,
+    "at": "2026-10-27T09:00:31.163Z"
+  },
+  "ledgerVerify": {
+    "ok": true,
+    "entries": 32,
+    "checkpoints": 1,
+    "headHash": "ESGuGz0xpNaGxPj8oJJRqSnQDYNzHGuHuaL5BxT3sdU",
+    "problems": []
+  },
+  "ledger": [
+    {
+      "seq": 24,
+      "ts": "2026-10-27T09:00:32.920Z",
+      "type": "PROPOSAL_CREATED",
+      "payload": {
+        "fx": {
+          "rate": "8.3",
+          "source": "fx",
+          "rateDate": "2026-10-27"
+        },
+        "rail": "BANK_TRANSFER",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "funding": {
+          "routeId": "cny-mock-bank",
+          "currency": "CNY",
+          "markupBps": 50,
+          "balancesKnown": true,
+          "maxAmountMinor": 2699003,
+          "estimatedAmountMinor": 2672280
+        },
+        "payeeId": "2efbc65e-4fa9-575f-a0a7-3ed8f3cc1db9",
+        "currency": "EUR",
+        "decision": "ASK",
+        "createdBy": "AGENT",
+        "orderHash": "-d_EBElHJkePzfJPIYoqaKvqAoRlmrmMD1ueCzAm5c8",
+        "riskScore": 0.3,
+        "obligation": {
+          "period": "2026-11-10",
+          "obligationId": "c81e0569-d453-59a2-9bde-86ba2131491a"
+        },
+        "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "amountMinor": 320000,
+        "reasonCodes": [
+          "ABOVE_SMALL_AUTO_LIMIT"
+        ]
+      },
+      "hash": "jJEVr2vYR6u9DPld792fOnfacM3h5KEgTguXccTRQwI"
+    },
+    {
+      "seq": 25,
+      "ts": "2026-10-27T09:00:33.618Z",
+      "type": "AUTHZ_DENIED",
+      "payload": {
+        "existed": true,
+        "resource": "order",
+        "resourceId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "actorUserId": "c83d27e3-4e03-570f-8fea-87db32399c12"
+      },
+      "hash": "v-tmiGZjdbz_lZtmSs_nnu3yr4GxavmyZ3CF2Lr12ns"
+    },
+    {
+      "seq": 26,
+      "ts": "2026-10-27T09:00:33.978Z",
+      "type": "APPROVAL_ISSUED",
+      "payload": {
+        "tier": "T2",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "orderHash": "-d_EBElHJkePzfJPIYoqaKvqAoRlmrmMD1ueCzAm5c8",
+        "approvalId": "edb6575c-8752-4531-afc4-6d81a330a460",
+        "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "credentialId": "Pr3UrMSzfb39IFxGqgN8fg"
+      },
+      "hash": "Kv_AY4nlpIApDyqxq6qnPNCr-EOg2XT-AVb_Noq3ysM"
+    },
+    {
+      "seq": 27,
+      "ts": "2026-10-27T09:00:33.985Z",
+      "type": "PAYMENT_CREATED",
+      "payload": {
+        "rail": "BANK_TRANSFER",
+        "tier": "T2",
+        "nonce": "xTtIRFPRRNMQYdp38LCRog",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "currency": "EUR",
+        "orderHash": "-d_EBElHJkePzfJPIYoqaKvqAoRlmrmMD1ueCzAm5c8",
+        "paymentId": "bef2c9b8-96f8-48ad-9587-7d51d7ae5c4e",
+        "approvalId": "edb6575c-8752-4531-afc4-6d81a330a460",
+        "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "amountMinor": 320000
+      },
+      "hash": "u2hpNIva6ZTw0lKp-CVa0ESh7ThaMTCFRtMSrY_U-Io"
+    },
+    {
+      "seq": 28,
+      "ts": "2026-10-27T09:00:34.006Z",
+      "type": "WEBHOOK_UNMATCHED",
+      "payload": {
+        "kind": "bank",
+        "state": "processing",
+        "transferId": "67143861"
+      },
+      "hash": "pup7P67UFlDmARy1Z7LOTaL9OTmR_LPuZK_xDt7OqvU"
+    },
+    {
+      "seq": 29,
+      "ts": "2026-10-27T09:00:34.011Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "rail": "BANK_TRANSFER",
+        "status": "PROCESSING",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "paymentId": "bef2c9b8-96f8-48ad-9587-7d51d7ae5c4e",
+        "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "reasonCodes": []
+      },
+      "hash": "fGNVPcf1CGAbXtsYpjV-bkd4j7eIh8VfmPV0PSpNC-8"
+    },
+    {
+      "seq": 30,
+      "ts": "2026-10-27T10:00:34.386Z",
+      "type": "DEMO_CLOCK_ADVANCED",
+      "payload": {
+        "now": "2026-10-27T10:00:34.385Z",
+        "hours": 1
+      },
+      "hash": "13cdTG95Hca1FWOkC15tMLevh0bEXMS4GUqhjXCQeoY"
+    },
+    {
+      "seq": 31,
+      "ts": "2026-10-27T10:00:35.129Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "from": "PROCESSING",
+        "source": "scheduler:mock-bank-poll",
+        "status": "SENT",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "paymentId": "bef2c9b8-96f8-48ad-9587-7d51d7ae5c4e",
+        "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "reasonCodes": []
+      },
+      "hash": "_9lpJzmwiYSMK0D0iThDUql15wXzsaFLsr2i2bG-7ks"
+    },
+    {
+      "seq": 32,
+      "ts": "2026-10-27T10:00:36.570Z",
+      "type": "TRIGGER_REMITTANCE",
+      "payload": {
+        "pii": "v1.PPxdZDcHznJrYNZ9.GQnd5sVtau1G2XPavhFiPtH5Iyeycif8H9W3SsJHtxAES_e9dCTKS1jIqMDziV5YDS1qokXJyvvzBQN6E6xEaOsgudPPDm89ORRw49e3JPsrsk21ou-dAk4caYVWfS2T4S8IyZxwfQkqhZYibb6EYNXKUNmgmbFtPJVuDhHUTQcxbmN672MI_TIQK4yR013fOtMHM3sYxVFIg58hV6zGFqR9CKGtDMqAYkNAcw3FF0KPMJ4UeCyAicmNA_gjUUux8OACsR7uDrMmIxWcf5HVHifmQYD8CguElgty5X5DTOkL6gA6_JIKYE2VbViB-bpPXZ74F5w5trPjxflasYz1QqxuPTnQc3w0LceWIuVkazZzyQ.Ddrwuqkq33FgCx6fqWr8ig",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "eventId": "1cd3e718-298e-472d-a4ad-d8dd5c35ba83"
+      },
+      "hash": "ESGuGz0xpNaGxPj8oJJRqSnQDYNzHGuHuaL5BxT3sdU"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+      "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+      "createdBy": "AGENT",
+      "decision": "ASK",
+      "status": "EXECUTED",
+      "reasonCodes": [
+        "ABOVE_SMALL_AUTO_LIMIT"
+      ],
+      "riskScore": 0.3,
+      "orderHash": "-d_EBElHJkePzfJPIYoqaKvqAoRlmrmMD1ueCzAm5c8",
+      "canonicalOrder": {
+        "v": 1,
+        "rail": "BANK_TRANSFER",
+        "nonce": "xTtIRFPRRNMQYdp38LCRog",
+        "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+        "payeeId": "2efbc65e-4fa9-575f-a0a7-3ed8f3cc1db9",
+        "purpose": "Tuition RF32RUB2026L03318",
+        "currency": "EUR",
+        "expiresAt": "2026-10-27T09:10:32.901Z",
+        "mandateId": null,
+        "payeeName": "University in Budapest",
+        "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+        "amountMinor": 320000,
+        "homeCurrency": "CNY",
+        "fundingRouteId": "cny-mock-bank",
+        "fundingCurrency": "CNY",
+        "homeAmountMinor": 2656000,
+        "fundingMarkupBps": 50,
+        "payeeAccountHash": "7-5dNbFYmRRGD_FVeXxTJ1-MEcQKCtMu9P-TybQe96Y",
+        "fundingAmountMinor": 2699003
+      }
+    }
+  ],
+  "payments": [
+    {
+      "id": "bef2c9b8-96f8-48ad-9587-7d51d7ae5c4e",
+      "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+      "proposalId": "5b9813e1-a539-420e-87ae-aa3024b9ceed",
+      "rail": "BANK_TRANSFER",
+      "status": "SENT",
+      "amountMinor": 320000,
+      "currency": "EUR",
+      "reasonCodes": []
+    }
+  ],
+  "notifications": [
+    {
+      "id": "38ec525d-ea5b-4dfa-85e6-5d21b32a34fa",
+      "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+      "kind": "ORDER_NEEDS_APPROVAL",
+      "title": "Review and sign",
+      "body": "Needs your passkey approval: €3,200.00 to University in Budapest. Paid from your CNY balance, at most CN¥26,990.03 incl. fees. Reasons: ABOVE_SMALL_AUTO_LIMIT.",
+      "createdAt": "2026-10-27T09:00:32.925Z"
+    },
+    {
+      "id": "959a0a3d-3391-4e0a-8025-02ed023177da",
+      "userId": "1c6e6d69-558a-5b2e-b4ac-3fbe56f6db3b",
+      "kind": "MONEY_FROM_HOME",
+      "title": "Money from home",
+      "body": "Incoming transfer (simulated). Ask Kassa for the cheapest way to convert it.",
+      "createdAt": "2026-10-27T10:00:36.572Z"
+    }
+  ]
+}

@@ -8,11 +8,13 @@ import { applyBps } from "../../src/modules/fx/rational.ts";
 const svc = new RatesService({ offline: true });
 
 describe("rails loading", () => {
-  it("loadRails reads the 8 fixture routes", () => {
+  it("loadRails reads the 11 fixture routes", () => {
     const { rails, fromFixture } = loadRails();
     expect(fromFixture).toBe(true);
-    expect(rails).toHaveLength(8);
+    expect(rails).toHaveLength(11);
     expect(rails.map((r) => r.id)).toContain("kzt-mock-bank");
+    // D-CN3: CNY funding for a Chinese student (mock bank, home bank, CNY debit card).
+    expect(rails.map((r) => r.id)).toEqual(expect.arrayContaining(["cny-mock-bank", "cny-home-bank", "cny-card"]));
   });
 
   it("parseRailsJson returns null for an empty array", () => {

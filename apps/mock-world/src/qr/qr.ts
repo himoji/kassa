@@ -67,7 +67,11 @@ export class QrWallet {
   }
 
   async create(input: CreateQrInput): Promise<QrPayment> {
-    const merchant = input.merchantId ? QR_MERCHANTS[input.merchantId] : undefined;
+    // The API's handoff rail names the payee only: a known QR merchant still gets its own city / country
+    // in the EMV payload (e.g. "Dorm Office in Shanghai" → Shanghai, CN), others default to Budapest, HU.
+    const merchant = input.merchantId
+      ? QR_MERCHANTS[input.merchantId]
+      : Object.values(QR_MERCHANTS).find((m) => m.name === input.payeeName);
     if (input.merchantId && !merchant) throw new QrError(404, "UNKNOWN_MERCHANT", `Unknown merchant ${input.merchantId}`);
     const intended = merchant?.name ?? input.payeeName;
     if (!intended) throw new QrError(400, "BAD_REQUEST", "merchantId or payeeName is required");

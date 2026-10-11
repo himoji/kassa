@@ -10,6 +10,9 @@
     { "routeId": "usd-card", "label": "USD card", "fundingCurrency": "USD", "rail": "CARD_ISSUING", "provider": "CARD", "cardKind": "USD", "feeFixedMinor": 0, "feeCurrency": "USD", "markupBps": 250, "settlementDays": 0 },
     { "routeId": "huf-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "HUF", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 0, "feeCurrency": "HUF", "markupBps": 35, "settlementDays": 0 },
     { "routeId": "huf-card", "label": "Local HUF/EUR card", "fundingCurrency": "HUF", "rail": "CARD_ISSUING", "provider": "CARD", "cardKind": "LOCAL_HUF", "feeFixedMinor": 0, "feeCurrency": "HUF", "markupBps": 50, "settlementDays": 0 },
-    { "routeId": "eur-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "EUR", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 50, "feeCurrency": "EUR", "markupBps": 35, "settlementDays": 0 }
+    { "routeId": "eur-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "EUR", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 50, "feeCurrency": "EUR", "markupBps": 35, "settlementDays": 0 },
+    { "routeId": "cny-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "CNY", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 3000, "feeCurrency": "CNY", "markupBps": 50, "settlementDays": 1 },
+    { "routeId": "cny-home-bank", "label": "Home bank international transfer (China)", "fundingCurrency": "CNY", "rail": "BANK_TRANSFER", "provider": "HOME_BANK", "cardKind": null, "feeFixedMinor": 15000, "feeCurrency": "CNY", "markupBps": 150, "settlementDays": 3 },
+    { "routeId": "cny-card", "label": "Home CNY debit card", "fundingCurrency": "CNY", "rail": "CARD_ISSUING", "provider": "CARD", "cardKind": "MULTI", "feeFixedMinor": 0, "feeCurrency": "CNY", "markupBps": 150, "settlementDays": 0 }
   ]
 }

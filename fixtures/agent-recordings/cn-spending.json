@@ -1,0 +1,22 @@
+{
+  "scenario": "cn-spending",
+  "description": "Hand-written recording for D-CN2: the user logs a CNY metro fare in Shanghai; log_expense only records spending (I6), converted to the home currency, then the planner reads the transport budget.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "I just paid ¥28 for the metro in Shanghai",
+      "match": ["metro", "shanghai"],
+      "steps": [
+        {
+          "toolCalls": [{ "toolName": "log_expense", "input": { "text": "城市地铁(示例) 28 CNY" } }]
+        },
+        {
+          "toolCalls": [{ "toolName": "get_budget", "input": { "category": "transport" } }]
+        },
+        {
+          "text": "Logged ¥28.00 at City Metro (sample) under transport, converted to your home currency at today's rate. The budget card shows what is left this month. I only record spending here; nothing was paid."
+        }
+      ]
+    }
+  ]
+}

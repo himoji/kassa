@@ -315,7 +315,7 @@
             "outcome": "BLOCKED",
             "decision": "ASK",
             "reasonCodes": [
-              "ABOVE_SMALL_AUTO_LIMIT",
+              "TRIGGER_NEEDS_MANDATE",
               "TRIGGER_ORIGIN"
             ],
             "ledger": [

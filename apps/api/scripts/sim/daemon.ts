@@ -38,7 +38,7 @@ else process.env.FX_OFFLINE = "1";
 await migrateDatabaseUrl();
 const seeded = (await getDb().select().from(demoState).where(eq(demoState.id, 1)))[0];
 if (!seeded?.demoUserId) {
-  const { userId } = await seedDatabase(getDb(), await loadSeedData(), { reset: false });
+  const { userId } = await seedDatabase(getDb(), await loadSeedData(), { reset: false, personas: true });
   log(`seeded demo user ${userId}`);
 }
 await clock.load();

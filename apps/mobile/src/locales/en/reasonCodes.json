@@ -63,6 +63,10 @@
     "label": "Started from a message",
     "text": "This payment came from a message or notification, so it needs your approval before it goes ahead."
   },
+  "TRIGGER_NEEDS_MANDATE": {
+    "label": "Needs your approval",
+    "text": "This was started automatically (not by you), so it only pays on its own inside a mandate you signed."
+  },
   "AUTO_NOT_ELIGIBLE": {
     "label": "Not eligible for auto-pay",
     "text": "Auto-pay needs Smart mode, a verified payee, a capped wallet and signed base rules, and one of these is missing."

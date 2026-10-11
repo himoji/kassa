@@ -52,7 +52,7 @@ const TOOL_NAMES = [
 
 const USAGE = {
   lifecycle: ["up [--fresh] [--scheduler] [--live-fx]", "down", "status", "reset", "logs [--tail N]"],
-  personas: ["register <persona> [--claim-demo] [--no-onboard] [--no-mandate] [--no-ai-consent] [--force]", "login <persona>", "onboard <persona> [--no-mandate]", "personas"],
+  personas: ["register <persona> [--claim-demo [li-wei]] [--no-onboard] [--no-mandate] [--no-ai-consent] [--force]", "login <persona>", "onboard <persona> [--no-mandate]", "personas"],
   user: [
     "as <persona> me|balances|budgets [--category c]|obligations|forecast|cards|fees|transactions [--limit n --cursor c]|payees|mandates|caps|rule-changes|notifications|ledger [--limit n]|proposals [--status S]",
     "as <persona> add-payee '<json>' | verify-payee <payeeId> | create-mandate '<json>' | revoke-mandate <mandateId>",
@@ -64,10 +64,10 @@ const USAGE = {
     "as <persona> privacy notice|export [--out file]|consent [--withdraw]|restrict|erase [--sign] | update-me '<json>' | shortcut-token | credit-record '<json>'",
   ],
   tools: ["as <persona> say '<chat text>' [--conversation id]   (user message as the planner sees it; mints payee_N refs)", `tool <name> '<json>' --as <persona> [--conversation <id>|new] [--reader-output '<json>'|@file]  (names: ${TOOL_NAMES.join(", ")})`],
-  demo: ["demo status | clock +1h|+1d|+3d|+Nh|+Nd | trigger <settlement|money-from-home|landlord-iban-email|pos-low-dough> | agent-mode <LIVE|REPLAY> | tick"],
+  demo: ["demo status | clock +1h|+1d|+3d|+Nh|+Nd | trigger <settlement|money-from-home|landlord-iban-email|pos-low-dough|cn-spending-day> | agent-mode <LIVE|REPLAY> | tick"],
   mock: [
     "mock inbox [messageId] | suppliers | catalog <supplierId> | price-list <supplierId> | payees | invoice <payeeId> [--variant swapped-account]",
-    "mock qr <qrPaymentId> | pos-emit [--sku S --level N --qty N] | remittance [--amount 400000 --currency KZT --sender text] | outbox | transfers",
+    "mock qr <qrPaymentId> | qr-swap on|off | pos-emit [--sku S --level N --qty N] | remittance [--amount 400000 --currency KZT --sender text --profile li-wei] | outbox | transfers",
     "mock shop-menu | shop-checkout <cardId> [--amount minor | --items '<json>'] | shop-recharge <cardId> | charges",
   ],
   evidence: ["mark <name>", "evidence <scenario> [--since <marker>]", "report <scenario> --result PASS|FAIL --notes '<text>'|@file", "ledger-verify"],
@@ -281,6 +281,11 @@ async function mockCmd(sub: string | undefined, rest: string[], args: Args) {
     }
     case "qr":
       return mockGet(`/qr/payments/${encodeURIComponent(need(arg, "qrPaymentId"))}`);
+    case "qr-swap": {
+      // A5 demo switch in the mock QR wallet: while on, every NEW QR request names another payee.
+      if (arg !== "on" && arg !== "off") fail("BAD_ARGS", "mock qr-swap on|off");
+      return mockPost("/qr/attack/swap", { enabled: arg === "on" });
+    }
     case "pos-emit": {
       const qty = flagStr(args, "qty");
       return mockPost("/pos/emit", {
@@ -294,6 +299,8 @@ async function mockCmd(sub: string | undefined, rest: string[], args: Args) {
         amount: flagStr(args, "amount") ?? "1000000",
         currency: flagStr(args, "currency") ?? "KZT",
         ...(flagStr(args, "sender") ? { sender: flagStr(args, "sender") } : {}),
+        // Mock bank profile id or alias (user id, or "li-wei"); default: the demo user's wallet.
+        ...(flagStr(args, "profile") ? { profileId: flagStr(args, "profile") } : {}),
       });
     case "outbox":
       return mockGet("/outbox");
@@ -351,7 +358,7 @@ async function main(argv: string[]): Promise<unknown> {
     case "register": {
       const name = need(rest[0], "persona name");
       const { persona, session } = await registerPersona(name, {
-        claimDemo: flagBool(args, "claim-demo"),
+        claimDemo: flagStr(args, "claim-demo") ?? flagBool(args, "claim-demo"),
         force: flagBool(args, "force"),
         aiConsent: !flagBool(args, "no-ai-consent"),
       });

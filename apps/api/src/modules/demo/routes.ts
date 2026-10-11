@@ -7,20 +7,22 @@
  * the demo clock (coordination doc).
  */
 import { DEMO_TOKEN_HEADER, DemoAgentModeRequest, DemoClockAdvanceRequest, DemoScenario, DemoStateResponse } from "@kassa/shared";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { demoState, transactions, users } from "../../db/schema.ts";
+import { cards, demoState, transactions, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { notify } from "../notifications/service.ts";
 import { mockWorld } from "../rails/http.ts";
+import { ingestCapture } from "../capture/service.ts";
 import { tick } from "../scheduler/index.ts";
 import { loadSeedData, seedDatabase } from "./seed.ts";
 
@@ -59,6 +61,13 @@ async function demoUserId(): Promise<string> {
   return u.id;
 }
 
+/**
+ * D-CN2 "a spending day in Shanghai": the two Chinese wallet notices (Alipay-style, WeChat Pay-style; no card)
+ * and the Kazakh bank's notice of a CNY purchase on the home KZT card (*4821), from fixtures/notifications.
+ */
+export const CN_SPENDING_DAY_SAMPLES = ["alipay-cn-purchase.txt", "wechat-pay-cn-purchase.txt", "kz-bank-ru-cny-purchase.txt"] as const;
+const NOTIFICATIONS_DIR = new URL("../../../../../fixtures/notifications/", import.meta.url);
+
 /** Scenario triggers (spec §15). Triggers only create events/drafts — never approvals (I6). */
 async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>> {
   const userId = await demoUserId();
@@ -66,12 +75,23 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
   switch (scenario) {
     case "settlement": {
       // Settle the oldest pending foreign purchase on the home card (+~4% example markup) via Track B capture.
+      // Only charges on a card billed in the home currency: a wallet payment (no card, e.g. the Alipay/WeChat
+      // samples of cn-spending-day) never settles in KZT on a card statement.
       const u = (await db.select().from(users).where(eq(users.id, userId)))[0]!;
+      const homeCards = (await db.select({ id: cards.id }).from(cards).where(and(eq(cards.userId, userId), eq(cards.billingCurrency, u.homeCurrency)))).map((c) => c.id);
+      if (homeCards.length === 0) return { settled: false, reason: "no card billed in the home currency" };
       const t = (
         await db
           .select()
           .from(transactions)
-          .where(and(eq(transactions.userId, userId), eq(transactions.status, "PENDING"), ne(transactions.currency, u.homeCurrency)))
+          .where(
+            and(
+              eq(transactions.userId, userId),
+              eq(transactions.status, "PENDING"),
+              ne(transactions.currency, u.homeCurrency),
+              inArray(transactions.cardId, homeCards),
+            ),
+          )
           .orderBy(asc(transactions.occurredAt))
           .limit(1)
       )[0];
@@ -96,6 +116,16 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
       return { mock: await mockWorld("POST", "/remittance/incoming", { userId, amountMinor: 100_000_000, currency: "KZT" }).catch((e: Error) => ({ error: e.message })) };
     case "pos-low-dough":
       return { mock: await mockWorld("POST", "/pos/emit", { sku: "dough", level: "low" }).catch((e: Error) => ({ error: e.message })) };
+    case "cn-spending-day": {
+      // Capture only logs (I6): each notice is parsed, logged in CNY, converted to the home currency at the
+      // purchase-date rate and budgeted; nothing is proposed or paid.
+      const captured = [];
+      for (const file of CN_SPENDING_DAY_SAMPLES) {
+        const rawText = await readFile(new URL(file, NOTIFICATIONS_DIR), "utf8");
+        captured.push({ sample: file, ...(await ingestCapture(userId, { source: "NOTIF_SIM", rawText })) });
+      }
+      return { captured };
+    }
     case "landlord-iban-email":
       await notify(userId, {
         kind: "INBOX_NEW_EMAIL",
@@ -124,7 +154,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   });
 
   app.post("/demo/reset", { ...admin, schema: { response: { 200: DemoStateResponse } } }, async (req) => {
-    await seedDatabase(getDb(), await loadSeedData(), { reset: true });
+    await seedDatabase(getDb(), await loadSeedData(), { reset: true, personas: true });
     // Mock world keeps its own in-memory state (wallet, transfers, QR codes): reset it too (best effort).
     await mockWorld("POST", "/reset", {}).catch((err: Error) => req.log.warn({ err }, "mock-world reset failed"));
     return state();
