@@ -3,10 +3,12 @@
  * so each step is unit-testable.
  *
  *  1 frozen → REFUSE_FROZEN
+ *  1b (added, B4) the obligation period already has a pending or paid proposal → DUPLICATE_OBLIGATION_PAYMENT
  *  2 payee missing / BLOCKED / COOLING before coolingUntil → REFUSE_UNVERIFIED_PAYEE
  *    (COOLING after coolingUntil is usable in T2 only → forces ASK with PAYEE_COOLING)
  *  3 reader mismatch on amount or account → REFUSE_SOURCE_MISMATCH
  *  4 screening hit (bank transfers) → REFUSE_SANCTIONS
+ *  4b (added, B2) bank transfer with no funding route that covers it (spec §12) → INSUFFICIENT_FUNDS
  *  5 caps / protected reserve → REFUSE_CAP (SMART: ASK when within 2× the cap)
  *  6 region CN or money mode HANDOFF → HANDOFF
  *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1)
@@ -52,6 +54,10 @@ export type DecideFacts = {
   smallAutoLimitHomeMinor: number;
   /** Base rules (incl. the small auto limit) were passkey-signed — payments needs this for T1 without a mandate. */
   baseRulesSigned: boolean;
+  /** (added, B4) a proposal for the same obligation period is pending approval or paid. */
+  duplicateObligation?: boolean;
+  /** (added, B2) bank transfers: false = no funding currency × rail covers the order incl. fees by the due date. */
+  fundingAvailable?: boolean | null;
 };
 
 export type DecideResult = {
@@ -66,6 +72,8 @@ const refuse = (...codes: ReasonCode[]): DecideResult => ({ decision: "REFUSE", 
 export function decide(f: DecideFacts): DecideResult {
   // 1
   if (f.frozen) return refuse("REFUSE_FROZEN");
+  // 1b
+  if (f.duplicateObligation) return refuse("DUPLICATE_OBLIGATION_PAYMENT");
 
   // 2
   let coolingAsk = false;
@@ -84,6 +92,8 @@ export function decide(f: DecideFacts): DecideResult {
 
   // 4
   if (f.rail === "BANK_TRANSFER" && f.screeningHit) return refuse("REFUSE_SANCTIONS");
+  // 4b
+  if (f.rail === "BANK_TRANSFER" && f.fundingAvailable === false) return refuse("INSUFFICIENT_FUNDS");
 
   // 5
   const c = f.caps;

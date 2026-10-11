@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
 import { payments, proposals, transactions } from "../../db/schema.ts";
+import { releaseSettlement } from "../obligations/settlements.ts";
 import { normalizeName } from "../screening/normalize.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
@@ -55,6 +56,8 @@ export async function updatePaymentStatus(
         dedupeKey: `kassa-payment|${p.id}`,
       });
     }
+    // B4: a payment that failed or was canceled after execution no longer settles its obligation period.
+    if (status === "FAILED" || status === "CANCELED") await releaseSettlement(tx, p.proposalId);
     await ledger.append("PAYMENT_STATUS", { userId: p.userId, proposalId: p.proposalId, paymentId, status, from: p.status, source: extra.source, reasonCodes: extra.reasonCodes ?? [] }, tx);
   });
   return true;

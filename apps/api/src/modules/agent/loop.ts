@@ -63,7 +63,8 @@ export async function knownNames(ports: AgentPorts): Promise<KnownName[]> {
   const [profile, payees] = await Promise.all([ports.profile(), ports.payees()]);
   return [
     { name: profile.displayName, kind: "PERSON", ref: profile.displayName, personal: true },
-    ...payees.map((p) => ({ name: p.name, kind: "PAYEE" as const, ref: p.id, personal: p.kind === "PERSON" || p.kind === "LANDLORD" })),
+    // Only natural persons (PERSON, OWN_ACCOUNT) get token matching; redact.ts enforces that for organisations.
+    ...payees.map((p) => ({ name: p.name, kind: "PAYEE" as const, ref: p.id, payeeKind: p.kind, personal: p.kind === "PERSON" || p.kind === "OWN_ACCOUNT" })),
   ];
 }
 

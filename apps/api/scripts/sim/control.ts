@@ -39,6 +39,7 @@ import type { z } from "zod";
 import { getDb } from "../../src/db/client.ts";
 import { issuedCards, ledgerEntries, notifications, payments, proposals, users } from "../../src/db/schema.ts";
 import { buildTools, dbPorts, dbTurnStore, knownNames, Redactor, type AgentPorts, type ToolContext } from "../../src/modules/agent/index.ts";
+import { bindToConversation } from "../../src/modules/agent/ports.ts";
 import { conversationOwner } from "../../src/modules/agent/history.ts";
 import { verifyToken } from "../../src/modules/auth/session.ts";
 import { clock } from "../../src/modules/clock/index.ts";
@@ -124,7 +125,14 @@ async function runTool(body: Json, userId: string): Promise<unknown> {
   const base = dbPorts(userId, conversationId);
   const ports: AgentPorts =
     body.readerOutput !== undefined
-      ? { ...base, readDocument: (docId) => readDocument(docId, { userId, model: callerReaderModel(body.readerOutput), modelLabel: "sim:caller-reader" }) }
+      ? {
+          ...base,
+          async readDocument(docId) {
+            const r = await readDocument(docId, { userId, model: callerReaderModel(body.readerOutput), modelLabel: "sim:caller-reader" });
+            await bindToConversation(userId, docId, conversationId);
+            return r;
+          },
+        }
       : base;
   const store = dbTurnStore(conversationId, userId);
   const [existing, names, dbDocs] = await Promise.all([

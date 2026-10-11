@@ -17,6 +17,8 @@ import {
 
 import { isAiConfigError } from "../ai/errors.ts";
 import { parseAmountString } from "../capture/amount.ts";
+import { clock, isoDate } from "../clock/index.ts";
+import { normalizeMerchant } from "../capture/normalize.ts";
 import type { ReaderResult } from "../reader/index.ts";
 import type { AgentPorts, PayeeRow } from "./ports.ts";
 import type { Redactor } from "./redact.ts";
@@ -54,6 +56,8 @@ export type ToolName =
   | "read_document"
   | "propose_order"
   | "log_expense";
+
+const STATUS_RANK: Record<PayeeRow["status"], number> = { VERIFIED: 0, COOLING: 1, BLOCKED: 2 };
 
 /** The only tool allowed to change state (I1). log_expense only records spending (I6). */
 export const WRITE_TOOLS: readonly ToolName[] = ["propose_order"];
@@ -189,9 +193,16 @@ export function buildTools(ctx: ToolContext): ToolSet {
     }),
 
     search_catalog: tool({
-      description: "Items with prices from a mock shop or supplier catalog (merchant id, e.g. 'pizza', 'supplier-a').",
+      description:
+        "Items with prices from a mock shop or supplier catalog (merchant id, e.g. 'pizza', 'supplier-a'). payeeRef is the merchant's payee placeholder for propose_order (null if the user has no payee for it); payeeStatus is its status or UNKNOWN.",
       inputSchema: SearchCatalogInput,
-      execute: safe(async ({ merchant, query }) => ports.catalog(merchant, query)),
+      execute: safe(async ({ merchant, query }) => {
+        const c = await ports.catalog(merchant, query);
+        // The merchant's payee is matched by normalised name (same normaliser as capture); VERIFIED wins over other rows.
+        const key = c.merchantName ? normalizeMerchant(c.merchantName) : "";
+        const payee = key ? (await allPayees()).filter((p) => normalizeMerchant(p.name) === key).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status])[0] : undefined;
+        return { ...c, payeeRef: payee ? ref(payee.id) : null, payeeStatus: payee?.status ?? "UNKNOWN" };
+      }),
     }),
 
     get_routes: tool({
@@ -254,8 +265,23 @@ export function buildTools(ctx: ToolContext): ToolSet {
         }
         const payeeId = e.realRef;
         const payee = (await allPayees()).find((p) => p.id === payeeId);
-        const readerChecks = readerChecksFor(ctx, input.amountMinor, input.currency, payee ?? null);
-        const obligation = (await ports.obligations()).find((o) => o.payeeId === payeeId && o.amountMinor === input.amountMinor && o.currency === input.currency);
+        // B1 (I10): documents the order is based on, by docId. Unknown or unread ids fail closed (no proposal).
+        const docIds = [...new Set(input.docIds ?? [])];
+        if (docIds.length > 0) {
+          const cited = await ports.storedReads(docIds);
+          const unknown = docIds.filter((id) => !cited.has(id));
+          if (unknown.length > 0) return { error: "DOC_NOT_FOUND", message: `Unknown docId(s): ${unknown.join(", ")}` };
+          const unread = docIds.filter((id) => cited.get(id) === null);
+          if (unread.length > 0) return { error: "DOC_NOT_READ", message: `Call read_document first for: ${unread.join(", ")}` };
+        }
+        const stored = await ports.storedReads();
+        const checked = readerChecksFor(ctx, input.amountMinor, input.currency, payee ?? null, { stored: nonNull(stored), explicitDocIds: docIds });
+        const readerChecks = checked?.checks ?? null;
+        // The bill this order pays (B4: its period is claimed by rules). Upcoming first, then the latest past-due one,
+        // so a bill already paid after its due date is still recognised as paid.
+        const today = isoDate(clock.now());
+        const matching = (await ports.obligations(undefined, { includePast: true })).filter((o) => o.payeeId === payeeId && o.amountMinor === input.amountMinor && o.currency === input.currency);
+        const obligation = matching.find((o) => o.dueDate >= today) ?? matching.filter((o) => o.dueDate < today).at(-1);
         const result = await ports.proposeOrder({
           userId: ports.userId,
           createdBy: "AGENT",
@@ -265,9 +291,10 @@ export function buildTools(ctx: ToolContext): ToolSet {
           purpose: input.purpose,
           ...(input.rail ? { rail: input.rail } : {}),
           ...(input.items ? { items: input.items } : {}),
-          ...(obligation ? { category: obligation.category, obligationId: obligation.id } : {}),
+          ...(obligation ? { category: obligation.category, obligationId: obligation.id, dueDate: obligation.dueDate } : {}),
           ...(input.agentRequestedConfirm ? { agentRequestedConfirm: true } : {}),
           ...(readerChecks ? { readerChecks } : {}),
+          ...(checked && checked.docIds.length > 0 ? { sourceDocIds: checked.docIds } : {}),
         });
         ctx.proposals.push(result);
         if (result.decision === "REFUSE" || result.reasonCodes.includes("PAYEE_COOLING")) {
@@ -304,29 +331,70 @@ export function buildTools(ctx: ToolContext): ToolSet {
   };
 }
 
+type Check = "VERIFIED" | "UNVERIFIED";
+export type ProposalReaderChecks = { amount?: Check; account?: Check; nonCriticalUnverified?: boolean };
+
+function nonNull<K, V>(m: Map<K, V | null>): Map<K, V> {
+  const out = new Map<K, V>();
+  for (const [k, v] of m) if (v !== null) out.set(k, v);
+  return out;
+}
+
+/** What a document claims, verified or not: `parsed` holds only VERIFIED values, so fall back to the raw fields. */
+function claimed(r: ReaderResult): { amountMinor: number | null; currency: string | null; account: string | null } {
+  const currency = r.parsed.currency ?? r.fields.currency?.value?.trim().toUpperCase() ?? null;
+  let amountMinor = r.parsed.amountMinor ?? null;
+  const rawAmount = r.fields.amount?.value;
+  if (amountMinor === null && rawAmount && currency) {
+    try {
+      amountMinor = parseAmountString(rawAmount, currency, "auto");
+    } catch {
+      amountMinor = null;
+    }
+  }
+  const rawAccount = r.parsed.account ?? r.fields.accountNumber?.value ?? null;
+  return { amountMinor, currency, account: rawAccount ? rawAccount.replace(/\s+/g, "").toUpperCase() : null };
+}
+
 /**
- * Reader checks for a proposal (spec §9 → rules step 3): the invoices read in this conversation that
- * this order is about (same amount + currency, or whose amount could not be verified). An invoice whose
- * verified account differs from the payee's stored account counts as an account mismatch.
+ * Reader checks for a proposal (spec §9 → rules step 3; B1). Considered documents, regardless of turn:
+ *  - every document cited in `explicitDocIds` (any kind); its verified amount must also equal the order's;
+ *  - invoices read in this conversation (ctx.readDocs) that match the order or whose amount is unverified;
+ *  - any read invoice of the user (`stored`, persisted per docId) whose claimed amount + currency equals the
+ *    order's, or whose claimed account is the payee's account.
+ * The result is the worst status over them. An invoice account that differs from the payee's stored account
+ * counts as an account mismatch. null = no document concerns this order.
  */
 export function readerChecksFor(
   ctx: Pick<ToolContext, "readDocs" | "ports">,
   amountMinor: number,
   currency: string,
   payee: PayeeRow | null,
-): { amount?: "VERIFIED" | "UNVERIFIED"; account?: "VERIFIED" | "UNVERIFIED"; nonCriticalUnverified?: boolean } | null {
-  const relevant = [...ctx.readDocs.values()].filter(
-    (r) => r.kind === "invoice" && (r.checks.amount !== "VERIFIED" || (r.parsed.amountMinor === amountMinor && r.parsed.currency === currency)),
-  );
-  if (relevant.length === 0) return null;
-  let amount: "VERIFIED" | "UNVERIFIED" = "VERIFIED";
-  let account: "VERIFIED" | "UNVERIFIED" = "VERIFIED";
+  opts: { stored?: Map<string, ReaderResult>; explicitDocIds?: readonly string[] } = {},
+): { checks: ProposalReaderChecks; docIds: string[] } | null {
+  const explicit = new Set(opts.explicitDocIds ?? []);
+  const all = new Map<string, ReaderResult>([...(opts.stored ?? new Map<string, ReaderResult>()), ...ctx.readDocs]);
+  const hashOf = (account: string) => ctx.ports.accountHashOf(account);
+  let amount: Check = "VERIFIED";
+  let account: Check = "VERIFIED";
   let nonCritical = false;
-  for (const r of relevant) {
-    if (r.checks.amount !== "VERIFIED") amount = "UNVERIFIED";
+  const used: string[] = [];
+  for (const [docId, r] of all) {
+    const c = claimed(r);
+    const amountMatch = c.amountMinor === amountMinor && c.currency === currency;
+    const accountMatch = c.account !== null && payee !== null && hashOf(c.account) === payee.accountHash;
+    const inConversation = ctx.readDocs.has(docId) && (r.checks.amount !== "VERIFIED" || amountMatch);
+    const relevant = explicit.has(docId) || (r.kind === "invoice" && (amountMatch || accountMatch || inConversation));
+    if (!relevant) continue;
+    used.push(docId);
+    if (r.checks.amount === "UNVERIFIED") amount = "UNVERIFIED";
+    if (r.kind === "invoice" && r.checks.amount !== "VERIFIED") amount = "UNVERIFIED";
+    // A cited source whose verified amount differs from the order does not back this order.
+    if (explicit.has(docId) && r.parsed.amountMinor !== undefined && !(r.parsed.amountMinor === amountMinor && r.parsed.currency === currency)) amount = "UNVERIFIED";
     if (r.checks.account === "UNVERIFIED") account = "UNVERIFIED";
-    if (r.parsed.account && payee && ctx.ports.accountHashOf(r.parsed.account) !== payee.accountHash) account = "UNVERIFIED";
+    if (c.account && payee && hashOf(c.account) !== payee.accountHash) account = "UNVERIFIED";
     if (r.checks.nonCriticalUnverified) nonCritical = true;
   }
-  return { amount, account, nonCriticalUnverified: nonCritical };
+  if (used.length === 0) return null;
+  return { checks: { amount, account, nonCriticalUnverified: nonCritical }, docIds: used.sort() };
 }

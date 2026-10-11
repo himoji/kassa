@@ -14,7 +14,7 @@ const PAN = "4111111111111111";
 const names: KnownName[] = [
   { name: "Dana Nurlanovna", kind: "PERSON", ref: "Dana Nurlanovna", personal: true },
   { name: "Budapest University of Technology", kind: "PAYEE", ref: "11111111-1111-4111-8111-111111111111" },
-  { name: "Kovács Péter", kind: "PAYEE", ref: "22222222-2222-4222-8222-222222222222", personal: true },
+  { name: "Kovács Péter", kind: "PAYEE", ref: "22222222-2222-4222-8222-222222222222", payeeKind: "PERSON", personal: true },
 ];
 
 describe("detectors (I11)", () => {

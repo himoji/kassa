@@ -5,7 +5,7 @@
  * in our own maths). Status changes arrive as HMAC webhooks (POST /api/webhooks/mock/bank) and are also
  * polled by the scheduler.
  */
-import { fromMinor, isSupportedCurrency, toMinor, type CanonicalOrder, type PaymentStatus } from "@kassa/shared";
+import { fromMinor, isSupportedCurrency, orderFunding, toMinor, type CanonicalOrder, type PaymentStatus } from "@kassa/shared";
 
 import { eq } from "drizzle-orm";
 
@@ -50,15 +50,37 @@ export const mockBankRail: Rail = {
   async execute(order: CanonicalOrder, ctx: ExecCtx): Promise<RailResult> {
     const profile = await bankProfileFor(order.userId);
     const legalType = ctx.payee.kind === "PERSON" || ctx.payee.kind === "OWN_ACCOUNT" ? "PRIVATE" : "BUSINESS";
+    // B2: the signed funding binding decides which balance pays (spec §12). Orders signed before the binding
+    // existed (no funding fields) keep the old same-currency behaviour.
+    const funding = orderFunding(order);
+    const sourceCurrency = funding?.currency ?? order.currency;
     // Field names follow Wise (decimal amounts, nested details) plus the minor-unit / flat variants the
     // mock accepts; the mock ignores what it does not need.
-    const quote = await mockWorld<{ id: string }>("POST", `/v3/profiles/${profile}/quotes`, {
-      sourceCurrency: order.currency,
-      targetCurrency: order.currency,
-      targetAmount: decimal(order.amountMinor, order.currency),
-      targetAmountMinor: order.amountMinor,
-      payOut: "BANK_TRANSFER",
-    });
+    const quote = await mockWorld<{ id: string; sourceCurrency?: string; targetCurrency?: string; sourceAmountMinor?: number; targetAmountMinor?: number }>(
+      "POST",
+      `/v3/profiles/${profile}/quotes`,
+      {
+        sourceCurrency,
+        targetCurrency: order.currency,
+        targetAmount: decimal(order.amountMinor, order.currency),
+        targetAmountMinor: order.amountMinor,
+        ...(funding ? { routeId: funding.routeId } : {}),
+        payOut: "BANK_TRANSFER",
+      },
+    );
+    // Payments-side check before any money moves (no transfer is created on failure): the quote must deliver
+    // exactly the signed amount and debit no more than the signed maximum from the signed funding currency.
+    if (quote.targetCurrency !== order.currency || quote.targetAmountMinor !== order.amountMinor || quote.sourceCurrency !== sourceCurrency) {
+      return { status: "FAILED", railRef: `quote:${quote.id}`, reasonCodes: ["FUNDING_ABOVE_SIGNED_MAX"], details: { quoteId: quote.id, error: "quote does not match the signed order" } };
+    }
+    if (funding && (typeof quote.sourceAmountMinor !== "number" || quote.sourceAmountMinor > funding.maxAmountMinor)) {
+      return {
+        status: "FAILED",
+        railRef: `quote:${quote.id}`,
+        reasonCodes: ["FUNDING_ABOVE_SIGNED_MAX"],
+        details: { quoteId: quote.id, quoteSourceAmountMinor: quote.sourceAmountMinor ?? null, signedMaxMinor: funding.maxAmountMinor, fundingCurrency: funding.currency },
+      };
+    }
     const recipient = await mockWorld<{ id: string | number }>("POST", `/v1/accounts`, {
       profile,
       currency: order.currency,
@@ -82,7 +104,11 @@ export const mockBankRail: Rail = {
     });
     // Funding moves the transfer out of incoming_payment_waiting; later states arrive by webhook/poll.
     const status = mapWiseStatus(funded.status === "REJECTED" ? "cancelled" : (transfer.status ?? "processing"));
-    return { status, railRef: String(transfer.id), details: { quoteId: quote.id, recipientId: recipient.id } };
+    return {
+      status,
+      railRef: String(transfer.id),
+      details: { quoteId: quote.id, recipientId: recipient.id, sourceCurrency, sourceAmountMinor: quote.sourceAmountMinor ?? null, ...(funding ? { signedMaxMinor: funding.maxAmountMinor } : {}) },
+    };
   },
 };
 

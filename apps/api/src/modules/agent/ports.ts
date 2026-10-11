@@ -1,9 +1,10 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { BudgetDto, BudgetImpact, CaptureEventResponse, ForecastResponse, ProposalSummary, RouteDto } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
+import { agentDocuments } from "../../db/schema.intel.ts";
 import { budgetImpact, listBudgets } from "../budget/index.ts";
 import { ingestCapture, type CaptureInput } from "../capture/index.ts";
 import { clock, isoDate } from "../clock/index.ts";
@@ -52,6 +53,16 @@ export interface ProfileRow {
   incomes: IncomeJson[];
 }
 
+/** Catalog lookup result: items on success; `error` (and no items) when the merchant has no catalog. */
+export interface CatalogLookup {
+  error?: string;
+  merchant?: string;
+  /** The merchant's display name from its catalog; matched to a payee by normalised name. */
+  merchantName?: string | null;
+  currency?: string | null;
+  items?: Array<{ sku: string | undefined; name: string; unitPriceMinor: number; currency: string }>;
+}
+
 export interface AgentPorts {
   userId: string;
   conversationId: string;
@@ -60,12 +71,19 @@ export interface AgentPorts {
   balances(): Promise<Array<{ currency: string; amountMinor: number }>>;
   toHome(amountMinor: number, currency: string): Promise<number>;
   budgets(category?: string): Promise<BudgetDto[]>;
-  obligations(withinDays?: number): Promise<ObligationRow[]>;
+  /** Upcoming bills (due today or later). `includePast` also returns past-due ones (B4: linking an order to its period). */
+  obligations(withinDays?: number, opts?: { includePast?: boolean }): Promise<ObligationRow[]>;
   paymentCount(payeeId: string): Promise<number>;
-  catalog(merchant: string, query: string): Promise<unknown>;
+  catalog(merchant: string, query: string): Promise<CatalogLookup>;
   routes(a: { fromCurrency?: string; toCurrency: string; amountMinor: number; dueDate?: string }): Promise<{ homeCurrency: string; routes: RouteDto[] }>;
   forecast(): Promise<ForecastResponse>;
   readDocument(docId: string): Promise<ReaderResult>;
+  /**
+   * Persisted Reader results of this user's documents (I10, B1), independent of turn and conversation.
+   * With `docIds`: only those of the user's documents (null = uploaded but never read; unknown ids absent).
+   * Without: every document of the user that has been read.
+   */
+  storedReads(docIds?: string[]): Promise<Map<string, ReaderResult | null>>;
   accountHashOf(account: string): string;
   /** THE write path (I1). */
   proposeOrder(input: ProposeOrderInput): Promise<ProposeOrderResult>;
@@ -74,6 +92,17 @@ export interface AgentPorts {
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
+
+/**
+ * A document uploaded without a conversationId belongs to the first conversation that reads it, so later
+ * turns of that conversation load it with the other documents read there (agent/store.ts readDocs).
+ */
+export async function bindToConversation(userId: string, docId: string, conversationId: string): Promise<void> {
+  await getDb()
+    .update(agentDocuments)
+    .set({ conversationId })
+    .where(and(eq(agentDocuments.id, docId), eq(agentDocuments.userId, userId), isNull(agentDocuments.conversationId)));
+}
 
 export function dbPorts(userId: string, conversationId: string): AgentPorts {
   const db = getDb();
@@ -115,12 +144,18 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     async budgets(category) {
       return (await listBudgets(userId, category)).budgets;
     },
-    async obligations(withinDays) {
+    async obligations(withinDays, opts) {
       const today = isoDate(clock.now());
       const rows = await db
         .select()
         .from(obligations)
-        .where(and(eq(obligations.userId, userId), gte(obligations.dueDate, today), withinDays ? lte(obligations.dueDate, addDays(today, withinDays)) : undefined))
+        .where(
+          and(
+            eq(obligations.userId, userId),
+            opts?.includePast ? undefined : gte(obligations.dueDate, today),
+            withinDays ? lte(obligations.dueDate, addDays(today, withinDays)) : undefined,
+          ),
+        )
         // Deterministic order → deterministic payee_N placeholders (replay recordings rely on it).
         .orderBy(asc(obligations.dueDate), asc(obligations.id));
       return rows.map((o) => ({
@@ -143,8 +178,10 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
       const url = id === "pizza" || id === "pizza-shop" || id === "pizzashop" ? `${base}/shop/pizza/menu` : `${base}/suppliers/${encodeURIComponent(id)}/catalog`;
       const res = await fetch(url);
       if (!res.ok) return { error: "CATALOG_NOT_FOUND", merchant };
-      const body = (await res.json()) as { currency?: string; items?: Array<Record<string, unknown>> };
+      const body = (await res.json()) as { currency?: string; items?: Array<Record<string, unknown>>; merchant?: { name?: unknown }; supplier?: { name?: unknown } };
       const q = query.toLowerCase();
+      // The merchant's display name (pizza `merchant.name`, supplier `supplier.name`) is matched to a payee by the tools.
+      const merchantName = typeof body.merchant?.name === "string" ? body.merchant.name : typeof body.supplier?.name === "string" ? body.supplier.name : null;
       // Structured fields only: free-text notes from a merchant are untrusted (I10) and are dropped.
       const items = (body.items ?? [])
         .map((i) => ({
@@ -154,14 +191,26 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
           currency: String(i.currency ?? body.currency ?? ""),
         }))
         .filter((i) => Number.isSafeInteger(i.unitPriceMinor) && (q === "*" || i.name.toLowerCase().includes(q) || (i.sku ?? "").toLowerCase().includes(q)));
-      return { merchant: id, currency: body.currency ?? null, items: items.slice(0, 25) };
+      return { merchant: id, merchantName, currency: body.currency ?? null, items: items.slice(0, 25) };
     },
     async routes(a) {
       const r = await getRoutes({ userId, ...a });
       return { homeCurrency: r.homeCurrency, routes: r.routes.map(({ amountInFundingMinor: _a, totalDebitFundingMinor: _t, ...dto }) => dto) };
     },
     forecast: () => forecastCoverage(userId),
-    readDocument: (docId) => readDocument(docId, { userId }),
+    async readDocument(docId) {
+      const r = await readDocument(docId, { userId });
+      await bindToConversation(userId, docId, conversationId);
+      return r;
+    },
+    async storedReads(docIds) {
+      if (docIds && docIds.length === 0) return new Map();
+      const rows = await db
+        .select({ id: agentDocuments.id, r: agentDocuments.readerResult })
+        .from(agentDocuments)
+        .where(and(eq(agentDocuments.userId, userId), docIds ? inArray(agentDocuments.id, docIds) : isNotNull(agentDocuments.readerResult)));
+      return new Map(rows.map((x) => [x.id, (x.r as unknown as ReaderResult | null) ?? null]));
+    },
     accountHashOf: (account) => accountHash(account),
     proposeOrder: (input) => proposeOrder(input),
     async proposalCard(proposalId) {

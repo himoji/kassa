@@ -52,6 +52,11 @@ export function fakePorts(opts: { decision?: ProposeOrderResult["decision"]; rea
       if (!d) throw Object.assign(new Error("Document not found"), { code: "DOC_NOT_FOUND" });
       return d;
     },
+    storedReads: async (docIds) => {
+      const out = new Map<string, ReaderResult | null>();
+      if (docIds) for (const id of docIds) if (opts.docs?.[id]) out.set(id, opts.docs[id]!);
+      return out;
+    },
     accountHashOf: (a) => `hash:${a}`,
     proposeOrder: async (input) => {
       log.proposeOrder.push(input);

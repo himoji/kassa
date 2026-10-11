@@ -14,7 +14,10 @@ import { env } from "../../env.ts";
  *  - Email: RFC 5322 §3.4.1 addr-spec, dot-atom local part (the practical subset; no quoted strings).
  *  - Phone: ITU-T E.164, "+" followed by 8–15 digits, separators allowed.
  *  - Personal names: the user's profile name and payee names known to the server, matched
- *    case-insensitively on Unicode letter boundaries.
+ *    case-insensitively on Unicode letter boundaries. A payee name matches only as the whole name
+ *    (so "Landlord in Budapest" never redacts the word LANDLORD); a person's name also matches a
+ *    single first/last-name token of ≥ 3 letters.
+ *  - Enum/code fields (ENUM_KEYS: kind, payeeKind, status, …) are never redacted in tool outputs.
  *
  * Every hit becomes a stable placeholder for the conversation (same value → same placeholder).
  * The mapping lives in `placeholder_maps` (server only); `propose_order` resolves `payee_N` refs.
@@ -51,9 +54,14 @@ export interface KnownName {
   kind: "PAYEE" | "PERSON";
   /** PAYEE: payeeId. PERSON: the name itself. */
   ref: string;
-  /** For people: also redact single name tokens (first / last name) of ≥ 3 letters. */
+  /** PAYEE: the payee's kind. Natural persons (PERSON, OWN_ACCOUNT) get token matching; organisations never do. */
+  payeeKind?: string;
+  /** Natural persons only: also redact single name tokens (first / last name) of ≥ 3 letters. */
   personal?: boolean;
 }
+
+/** Payee kinds that are natural persons (their surname is personal data, I11); all others are organisations. */
+const NATURAL_PAYEE_KINDS: ReadonlySet<string> = new Set(["PERSON", "OWN_ACCOUNT"]);
 
 // ---------- IBAN (ISO 13616) ----------
 
@@ -160,7 +168,8 @@ function nameHits(text: string, names: KnownName[]): Hit[] {
   for (const n of names) {
     const full = n.name.trim();
     if (full.length >= 2) terms.push({ term: full, n });
-    if (n.personal) for (const tok of full.split(/\s+/)) if (tok.length >= 3 && tok !== full) terms.push({ term: tok, n });
+    const natural = n.kind === "PERSON" || NATURAL_PAYEE_KINDS.has(n.payeeKind ?? "");
+    if (natural && n.personal) for (const tok of full.split(/\s+/)) if (tok.length >= 3 && tok !== full) terms.push({ term: tok, n });
   }
   // Longest first so "Dana Nurlanovna" wins over "Dana".
   terms.sort((a, b) => b.term.length - a.term.length);
@@ -202,6 +211,15 @@ const PREFIX: Record<PlaceholderKind, string> = {
   EMAIL: "email",
   PHONE: "phone",
 };
+
+/**
+ * Keys whose values hold enums or codes (never personal data). `redactValue` passes these values through
+ * verbatim, so a payee named "Verified Shop" cannot turn status "VERIFIED" into a placeholder.
+ */
+export const ENUM_KEYS: ReadonlySet<string> = new Set([
+  "kind", "payeeKind", "status", "decision", "reasonCodes", "reasonCode", "rail", "currency", "homeCurrency", "category",
+  "preset", "moneyMode", "region", "tier", "source", "type", "cadence", "recurrence", "period", "notificationMode",
+]);
 
 /** Matches any placeholder this module emits. */
 export const PLACEHOLDER_RE = /\b(?:payee|person|iban|card|email|phone)_\d+(?:_\d+)?\b/g;
@@ -268,13 +286,14 @@ export class Redactor {
     return out + text.slice(pos);
   }
 
-  /** Deep-redact every string in a JSON-like value (object keys are left alone). */
+  /** Deep-redact every string in a JSON-like value (object keys are left alone; ENUM_KEYS values verbatim). */
   redactValue<T>(value: T): T {
-    const walk = (v: unknown): unknown => {
+    const walk = (v: unknown, key?: string): unknown => {
+      if (key !== undefined && ENUM_KEYS.has(key)) return v;
       if (typeof v === "string") return this.redactText(v);
-      if (Array.isArray(v)) return v.map(walk);
+      if (Array.isArray(v)) return v.map((x) => walk(x));
       if (v && typeof v === "object" && !(v instanceof Date) && !(v instanceof Uint8Array)) {
-        return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+        return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]));
       }
       return v;
     };

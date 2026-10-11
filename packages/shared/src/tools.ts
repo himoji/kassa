@@ -55,6 +55,12 @@ export const ProposeOrderInput = z.object({
     .boolean()
     .optional()
     .describe("Set true if unsure; forces ASK, never AUTO"),
+  // (added 2026-10-11, B1) explicit source documents; their persisted Reader checks always reach the rules (I10).
+  docIds: z
+    .array(z.string().uuid())
+    .max(10)
+    .optional()
+    .describe("docId of every document (invoice) this payment is based on, from read_document"),
 });
 export const LogExpenseInput = z.object({
   text: z.string().min(1).max(1000).describe("Free-text expense, e.g. 'coffee 1200 HUF'"),

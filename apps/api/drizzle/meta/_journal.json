@@ -15,6 +15,13 @@
       "when": 1791693682516,
       "tag": "0001_security_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791695819186,
+      "tag": "0002_obligation_settlements",
+      "breakpoints": true
     }
   ]
 }

@@ -275,3 +275,62 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
 - **Dependencies:** apps/api/package.json now declares everything it imports (fastify, @fastify/cookie, drizzle,
   jose, @simplewebauthn/server, pglite, postgres, stripe, …) — they were only present through hoisting and were
   missing from bun.lock — plus @fastify/helmet, @fastify/cors, @fastify/rate-limit.
+
+## 2026-10-11 — Phase 2 bug fixes B1, B2, B4 (apps/api, packages/shared)
+
+- **B1, Reader checks across turns (I10, rules §10 step 3).** Problem: `propose_order` only saw documents read in
+  the current turn or uploaded with the conversation's id, so a document uploaded without `conversationId`, read in
+  one turn and paid in a later one skipped `REFUSE_SOURCE_MISMATCH`. Choice: Reader results stay persisted per docId
+  (`agent_documents.reader_result`, with their checks) and `propose_order` gathers checks regardless of turn: every
+  document cited in the new optional `docIds` input (unknown → `DOC_NOT_FOUND`, never read → `DOC_NOT_READ`, no
+  proposal), invoices read in this conversation (as before), and any read invoice of the user whose *claimed* amount
+  + currency equals the order's or whose claimed account is the payee's account. Claimed = the Reader's raw field
+  value, because `parsed` holds only VERIFIED values (an unverified amount used to be invisible to matching). The
+  worst status wins; a cited document whose verified amount differs from the order counts as an amount mismatch. A
+  document uploaded without a conversation is bound to the first conversation that reads it. The applied docIds
+  are stored on the proposal draft (`sourceDocIds`). Trade-off: a suspicious invoice keeps refusing agent proposals
+  of the same amount (or to the same account) until it is purged by retention (30 d); scheduler/mandate payments do
+  not use Reader checks.
+- **B2, funding route bound into the signed order (spec §12).** Problem: the bank rail quoted order currency →
+  order currency, so a bill larger than that one balance failed with `RAIL_ERROR` after the user had signed.
+  Choice: at proposal time rules (`rules/funding.ts`) pick the cheapest feasible route over funding currency ×
+  rail from `fixtures/rails.json`, restricted to what the bank rail can execute (`provider: MOCK_BANK`, rail
+  BANK_TRANSFER), arrival ≤ due date, balance ≥ converted amount + markup + fixed fee; if no route arrives by the
+  due date (or it already passed) the cheapest late one is used rather than not paying. The choice is signed in
+  four new optional `CanonicalOrder` fields: `fundingCurrency`, `fundingAmountMinor` (a MAXIMUM debit: estimate
+  + 100 bps FX/rounding tolerance on converted routes, capped at the balance), `fundingRouteId`,
+  `fundingMarkupBps`. `v` stays 1: optional fields leave the JCS bytes of orders without them unchanged (old
+  golden vector still passes; a funded golden vector was added). All four or none (`orderFunding()`; `orderHash`
+  refuses a partial binding). The mock bank quote is `source = fundingCurrency, target = order currency,
+  routeId`; before creating any transfer the rail checks that the quote delivers exactly the signed amount and
+  debits ≤ `fundingAmountMinor`, else the payment fails with `FUNDING_ABOVE_SIGNED_MAX` and no money moves. No
+  feasible route → rules step 4b `REFUSE` `INSUFFICIENT_FUNDS` before anything is signed (also a hard refusal in
+  `HARD_REFUSE_CODES`). Mandate (T1) scope and both daily caps still use the payee-currency amount / its home
+  value. Balances unknown (mock bank unreachable): the same-currency route is bound (exact debit, no conversion),
+  rules do not refuse, and the bank's own funds check is the backstop. `refreshIfExpired` re-issues an order with
+  the same funding binding (a stale maximum fails safely at execution).
+- **B4, one payment per obligation period.** Problem: the agent's tuition proposal carried the obligation id but
+  no due date, so the scheduler's `(obligationId, draft.dueDate)` check missed it and proposed tuition again after
+  "+3 days" (double-payment risk). Choice: new table `obligation_settlements` (migration
+  `0002_obligation_settlements.sql`, PK `(obligation_id, period)` = idempotency key, unique `proposal_id`). Rules
+  derive the period (the obligation's due date) for every proposal linked to an obligation (ownership checked:
+  `BAD_OBLIGATION`), refuse when the period is pending or paid (step 1b, `DUPLICATE_OBLIGATION_PAYMENT`) and claim it
+  inside the proposal transaction; a lost race rolls back and re-decides as a duplicate. PENDING → PAID when the
+  payment is created; a rejected order or a FAILED / CANCELED payment (rails, webhooks, polling) deletes the row and
+  frees the period. The scheduler skips settled periods, rolls MONTHLY obligations once PAID, and still tries a
+  period only once itself. The agent links orders to upcoming bills first, else to the latest past-due one, so a
+  bill paid after its due date is still recognised. The migration backfills settlements from existing live
+  proposals.
+- **Demo story (spec §18 + Build Plan).** SEED_NOW = Oct 27 is after the parents' Oct 25 transfer (incomes'
+  `nextDate` is Nov 25), so the seeded ₸900,000 already includes it; balances stay as spec §18. With them no single
+  balance covers tuition €2,400 (≈ ₸1.21–1.47 M depending on the rate source; the wallet's total is barely above it
+  and spread over four currencies), so tuition is now refused with `INSUFFICIENT_FUNDS` until money arrives, while
+  rent (HUF 180,000 > HUF 120,000) is funded from KZT and autopays without any top-up. The "money from home" demo
+  trigger now sends the parents' ₸600,000 (spec §18 amount, was ₸300,000, which could not cover tuition at any
+  rate). Numbers on 2026-10-11 live rates (EUR ₸505.63, HUF ₸1.384): tuition debits ₸1,221,171 (signed max
+  ₸1,233,383), rent ₸251,481 (signed max ₸253,996); ₸900,000 + ₸600,000 covers both, ₸27,348 KZT left. **Offline
+  caveat:** with the example table (`FX_OFFLINE=1`, EUR ₸612.40) tuition needs ₸1,478,834 and rent ₸283,380, so
+  ₸600,000 pays tuition but rent is then refused `INSUFFICIENT_FUNDS`; an offline demo needs ≥ ₸862,214 extra (send
+  money from home twice). The Build Plan's "convert ₸400,000" / "Parents send ₸400,000" lines predate this check and
+  cannot fund tuition with the spec balances. Rules' protected reserve is still checked on the total wallet in KZT,
+  not per currency (`reserveRules.minBalances` KZT 50,000 is not enforced per currency; unchanged).

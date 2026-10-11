@@ -291,7 +291,7 @@ async function mockCmd(sub: string | undefined, rest: string[], args: Args) {
     }
     case "remittance":
       return mockPost("/remittance/incoming", {
-        amount: flagStr(args, "amount") ?? "300000",
+        amount: flagStr(args, "amount") ?? "600000",
         currency: flagStr(args, "currency") ?? "KZT",
         ...(flagStr(args, "sender") ? { sender: flagStr(args, "sender") } : {}),
       });

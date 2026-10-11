@@ -74,7 +74,8 @@ describe("sim CLI smoke", () => {
     // RF… = ISO 11649 creditor reference (same MOD 97 check, not a country code): allowed, it is not personal data.
     expect(candidates.filter((c) => !c.startsWith("RF") && isValidIban(c))).toEqual([]);
 
-    // The bank rail pays from the wallet in the order currency: make sure it is funded (simulated money from home).
+    // No single seeded balance covers the largest bill (rules would REFUSE INSUFFICIENT_FUNDS, B2): fund it first
+    // (simulated money from home); the cheapest funding route is then the same-currency one.
     const top = sim("mock", "remittance", "--amount", String(Math.ceil(bill.amountMinor / 100) + 10), "--currency", bill.currency);
     expect(top.json.httpStatus).toBe(202);
 
