@@ -13,6 +13,8 @@ import {
   effectiveSettings,
   jcs,
   jcsHash,
+  presetDerivedChanges,
+  type DerivedSettingChange,
   type SettingsPatch,
   type UserSettings,
 } from "@kassa/shared";
@@ -26,6 +28,7 @@ import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
+import { notify } from "../notifications/service.ts";
 import { loadUser, settingsOf } from "./service.ts";
 
 export const LOOSEN_DELAY_MS = DAY_MS;
@@ -129,6 +132,8 @@ function beforeOf(current: UserSettings, caps: CapsJson, c: ChangeSet): ChangeSe
 
 export type PatchResult = {
   settings: UserSettings;
+  /** (Y6, p2 B6) implicit setting changes of a preset switch, shown and notified explicitly, never silent. */
+  derivedChanges: DerivedSettingChange[];
   pending: { ruleChangeId: string; kind: string; direction: "LOOSEN" | "TIGHTEN"; effectiveAt: string }[];
 };
 
@@ -225,8 +230,22 @@ export async function patchSettings(
     return s;
   });
   const rc = ruleChange as { id: string; effectiveAt: Date } | null;
+  const derivedChanges =
+    patch.preset !== undefined && patch.preset !== current.preset
+      ? presetDerivedChanges(current.preset, patch.preset, { ...current.overrides, ...patch.overrides })
+      : [];
+  if (derivedChanges.length > 0) {
+    const text = derivedChanges.map((c) => `${c.setting} ${c.from} → ${c.to}`).join(", ");
+    await notify(userId, {
+      kind: "SETTINGS_DERIVED_CHANGE",
+      title: "Other settings changed with your preset",
+      body: `Switching to ${patch.preset} also changed: ${text}.`,
+      data: { key: "settings.derived_change", params: { fromPreset: current.preset, toPreset: patch.preset, changes: derivedChanges } },
+    });
+  }
   return {
     settings,
+    derivedChanges,
     pending: rc ? [{ ruleChangeId: rc.id, kind: "SETTINGS", direction: "LOOSEN", effectiveAt: rc.effectiveAt.toISOString() }] : [],
   };
 }

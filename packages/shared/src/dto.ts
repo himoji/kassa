@@ -69,6 +69,8 @@ export type MeResponse = z.infer<typeof MeResponse>;
 /** PATCH /settings result: applied now (tightening) or pending (loosening, I8). */
 export const SettingsPatchResponse = z.object({
   settings: UserSettings,
+  /** (Y6, p2 B6, additive) implicit changes a preset switch causes, e.g. moneyMode CAPPED_WALLET -> PAY_IN_PLACE. */
+  derivedChanges: z.array(z.object({ setting: z.string(), from: z.string(), to: z.string() })).default([]),
   pending: z.array(
     z.object({
       ruleChangeId: Uuid,

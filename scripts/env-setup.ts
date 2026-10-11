@@ -52,6 +52,7 @@ const ROOT_KEYS: Entry[] = [
   { key: "STRIPE_ISSUING_CURRENCY", example: "", comment: "currency of the Stripe Issuing balance (e.g. EUR)" },
   { key: "ISSUING_PROVIDER", example: "fake", comment: "stripe | fake (fake is used whenever Stripe keys are absent)" },
   { key: "PAYMENTS_DAILY_CAP_HOME_MINOR", example: "200000000", comment: "₸2,000,000 — see docs/DECISIONS.md (spec's ₸500,000 refuses the hero tuition)" },
+  { key: "PAYMENTS_DAILY_CAP_CURRENCY", example: "KZT", comment: "reference currency of PAYMENTS_DAILY_CAP_HOME_MINOR" },
   { key: "SMALL_AUTO_DAILY_MAX_COUNT", example: "3", comment: "small-auto (T1 without mandate) payments per UTC day; then ASK SMALL_AUTO_BUDGET_EXHAUSTED" },
   { key: "SMALL_AUTO_DAILY_AMOUNT_MULTIPLE", example: "3", comment: "small-auto total per day = this × the signed small-auto limit" },
   { key: "SCHEDULER_ENABLED", example: "true" },

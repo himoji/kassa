@@ -33,15 +33,27 @@ function formatRate(scaled: bigint): string {
   return frac ? `${whole}.${frac}` : `${whole}`;
 }
 
-/** amountMinor (from) × rate (to per from) → to minor units, half away from zero. */
-export function convertMinor(amountMinor: number, from: string, to: string, rate: string): number {
+/** Exact decimal rate as a fraction (quoted fx rates carry up to 10 decimals; fallback rates 8). */
+function rateFraction(rate: string): [bigint, bigint] {
+  const m = /^(\d+)(?:\.(\d{1,12}))?$/.exec(rate.trim());
+  if (!m) throw new RangeError(`bad rate ${rate}`);
+  const frac = m[2] ?? "";
+  return [BigInt(m[1]! + frac), 10n ** BigInt(frac.length)];
+}
+
+/** "nearest" rounds half away from zero (default); "down" truncates toward zero (caps are non-negative). */
+export type Rounding = "nearest" | "down";
+
+/** amountMinor (from) × rate (to per from) → to minor units, half away from zero unless rounding is "down". */
+export function convertMinor(amountMinor: number, from: string, to: string, rate: string, rounding: Rounding = "nearest"): number {
   const expFrom = currencyExponent(from);
   const expTo = currencyExponent(to);
-  const num = BigInt(amountMinor) * parseRate(rate) * 10n ** BigInt(expTo);
-  const den = SCALE * 10n ** BigInt(expFrom);
+  const [rn, rd] = rateFraction(rate);
+  const num = BigInt(amountMinor) * rn * 10n ** BigInt(expTo);
+  const den = rd * 10n ** BigInt(expFrom);
   const neg = num < 0n;
   const abs = neg ? -num : num;
-  const q = (abs * 2n + den) / (2n * den);
+  const q = rounding === "down" ? abs / den : (abs * 2n + den) / (2n * den);
   const v = Number(neg ? -q : q);
   if (!Number.isSafeInteger(v)) throw new RangeError("converted amount exceeds safe integer range");
   return v;
@@ -84,12 +96,22 @@ export function useFallbackFxForTests(on: boolean): void {
   disableFxModule = on;
 }
 
-export async function toHome(amountMinor: number, currency: string, homeCurrency: string, date: Date): Promise<HomeAmount> {
+export async function toHome(
+  amountMinor: number,
+  currency: string,
+  homeCurrency: string,
+  date: Date,
+  rounding: Rounding = "nearest",
+): Promise<HomeAmount> {
   if (currency === homeCurrency) return { amountMinor, rate: "1", rateDate: isoDate(date), source: "fx" };
   const fx = await loadFx();
   if (fx?.toHome) {
     try {
       const r = await fx.toHome(amountMinor, currency, homeCurrency, date);
+      // Rounding down is recomputed from the quoted rate (the fx module itself rounds to nearest).
+      if (rounding === "down") {
+        return { amountMinor: convertMinor(amountMinor, currency, homeCurrency, r.rate, "down"), rate: r.rate, rateDate: r.rateDate, source: "fx" };
+      }
       if (Number.isSafeInteger(r.amountMinor)) return { ...r, source: "fx" };
     } catch {
       // fall through to the labelled fallback
@@ -99,5 +121,5 @@ export async function toHome(amountMinor: number, currency: string, homeCurrency
     throw new RangeError(`unsupported currency pair ${currency}/${homeCurrency}`);
   }
   const rate = fallbackRate(currency, homeCurrency);
-  return { amountMinor: convertMinor(amountMinor, currency, homeCurrency, rate), rate, rateDate: isoDate(date), source: "fallback" };
+  return { amountMinor: convertMinor(amountMinor, currency, homeCurrency, rate, rounding), rate, rateDate: isoDate(date), source: "fallback" };
 }

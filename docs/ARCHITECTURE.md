@@ -354,6 +354,7 @@ The full list, with the reasoning, is in `DECISIONS.md` (standards-first rule, 2
 | `agentMode` preset switch | `agentAutonomy` | Name clash with the demo `agentMode` | DECISIONS 2026-10-10 |
 | Native app from scratch | Expo app generated from ReadyNative Pro | Time before the feature freeze | DECISIONS 2026-10-10 (licence item open) |
 | `PAYMENTS_DAILY_CAP_HOME_MINOR` 50,000,000 | 200,000,000 | The hero tuition would always be refused | DECISIONS 2026-10-11 |
+| `PAYMENTS_DAILY_CAP_CURRENCY` | KZT | Reference currency of the cap; converted to each home currency, rounded down (fail closed) | DECISIONS 2026-10-12 |
 | Route cost with late-arrival penalty | Late routes excluded, no penalty term | Simpler and deterministic | Section 4.1 |
 | Single Postgres | PGlite by default, Postgres when `DATABASE_URL` is set | No Docker needed for local use | DECISIONS 2026-10-11 |
 
