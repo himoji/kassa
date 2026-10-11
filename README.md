@@ -1,8 +1,5 @@
 # Kassa
 
-<!-- replace OWNER with the GitHub org/user -->
-![CI](https://github.com/OWNER/kassa/actions/workflows/ci.yml/badge.svg)
-
 **The agent can prepare anything, but only your signature can move your money.**
 
 Kassa is a student finance assistant for cross-border payments, built for the WeBank FinTechathon 2026, Topic C (Cross-border and Student Finance Assistant). It logs spending in every currency, exposes hidden card fees, plans bills against the forecast, and pays by the cheapest route. The AI agent only drafts. Deterministic rules decide what is allowed. Money moves only with a passkey signature over the exact order, or inside a mandate the user signed with a passkey earlier.
@@ -116,7 +113,7 @@ bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; ex
 
 - Counts from the final `bun run test`: API 633 tests in 72 files (unit, invariant, attack, security and integration), mock world 279, shared 34, mobile Jest 410. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
-- CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`). The badge at the top still has the `OWNER` placeholder to replace.
+- CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`).
 
 ## Docker Compose (optional deployment path)
 
@@ -128,8 +125,8 @@ This path is not used for local development. The Dockerfiles exist, but this rep
 
 | Item | Where | Note |
 | --- | --- | --- |
-| Kassa's own code | Repository root | No root `LICENSE` file has been chosen yet |
-| ReadyNative Pro (base of `apps/mobile`) | `apps/mobile/LICENSE` | Commercial licence. Open item: the licence does not allow publishing the kit's source on public repositories without written permission from the licensor. This is recorded in [docs/DECISIONS.md](docs/DECISIONS.md) and must be resolved before the repository is made public |
+| Kassa's own code | `LICENSE` (repository root) | MIT License, Copyright (c) 2026 Madiyar Baizhigitov and the Kassa team. `package.json` files of the root, `apps/api`, `apps/mock-world` and `packages/shared` carry `"license": "MIT"` |
+| ReadyNative Pro (base of `apps/mobile`) | `apps/mobile/LICENSE`; notice at the end of `LICENSE` | Commercial ReadyNative licence, unchanged. The licensor (Madiyar Baizhigitov, trading as ReadyNative) is also an author of Kassa and permits publication of these files in this repository as part of the Kassa entry to the 2026 Shenzhen International FinTech Competition (FinTechathon). Further redistribution of the boilerplate outside this entry requires a ReadyNative licence. Recorded in [docs/DECISIONS.md](docs/DECISIONS.md) |
 | Third-party notices | `apps/mobile/LICENSES/` | `expo-skills-MIT.txt`, `expo-template-MIT.txt`. Do not remove |
 | npm dependencies | `package.json` files and `bun.lock` | Licences come from each package. Not audited in this pass |
 | Mock companies | `apps/mock-world/src/world/` | Fictitious, generic names (for example "Pizza Shop in Budapest", "QR Wallet (simulated)"). No real brand logos |

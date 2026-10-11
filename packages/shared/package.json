@@ -1,6 +1,7 @@
 {
   "name": "@kassa/shared",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Kassa shared contracts: zod schemas, CanonicalOrder + JCS hashing, enums, reason codes, money utils, agent tool schemas, API DTOs.",

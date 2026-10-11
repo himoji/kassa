@@ -63,11 +63,11 @@ Deviations from `docs/spec/TECH_SPEC.md` (spec §0: date, problem, choice). Newe
 
 ReadyNative is a commercial licence (`apps/mobile/LICENSE`). Section 3b forbids publishing the kit's
 source "publicly or privately … including on public repositories"; section 3c forbids sharing it outside
-the licence scope. The competition requires a public GitHub repository. **Open item:** before making this
-repo public, get written permission from the licensor (ReadyNative / Madiyar Baizhigitov). Keeping the repo
-private and adding judges as collaborators also shares the source outside the licence scope (3c), so that
-route needs the same permission. Do not remove `apps/mobile/LICENSE` or the
-`apps/mobile/LICENSES/` notices (section 3e).
+the licence scope. The competition requires a public GitHub repository. **Resolved:** the licensor (Madiyar
+Baizhigitov, trading as ReadyNative) is also an author of Kassa and permits publication of these files in this
+repository as part of the FinTechathon entry. Further redistribution outside this entry needs a ReadyNative
+licence. The permission is stated in the notice at the end of the root `LICENSE`. Do not remove
+`apps/mobile/LICENSE` or the `apps/mobile/LICENSES/` notices (section 3e).
 
 ## 2026-10-10 — Standards-first rule for unspecified details
 Problem: the spec leaves many small details open (formats, encodings, algorithms).
@@ -522,3 +522,5 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
 
 ## 2026-10-12 — Ledgers created before migration 0004 (signed head)
 `ledger:verify` reports "head anchor missing" for a ledger written before the signed head existed (correct: it can't prove the tail wasn't truncated). Dev/demo databases are re-created (`db:migrate` + `seed`); there is no production data. A production upgrade would need a one-time, audited anchoring of the existing head.
+
+## 2026-10-12 — Licensing: Kassa code under MIT (root LICENSE). ReadyNative-derived files in apps/mobile stay under the ReadyNative Commercial License; the licensor (a Kassa author) permits their publication in this repository for the FinTechathon entry.
