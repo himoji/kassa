@@ -80,3 +80,28 @@ After the attack suite lands (it reads the seed), add a few demos with Chinese c
 - D-CN3 Second seeded persona "Li Wei", a Chinese master's student in Budapest (home CNY; parents remit CNY monthly; HUF rent, EUR tuition) — shows the same engine for a Chinese user: CNY→EUR tuition route comparison, CNY coverage forecast. Also gives the BOLA/cross-user tests a realistic second user.
 - Agent recordings for each (REPLAY), RUNBOOK scenarios, and Haiku persona runs include them.
 - New Opus subagents get docs/spec/AGENT_BRIEFING.md first.
+- 2026-10-12: committed 66bd744 (attack suite, baseline, invariants, webhook replay, CI) and 2978995 (Chinese demos D-CN1..3, trigger→mandate rule, SECURITY refresh). 1,227 tests green.
+- 2026-10-12: final Haiku runs launched in parallel, each on an isolated sim (SIM_DIR=.data/sim-<id>, ports 41x0/41x1/41x9): p1 average, p2 careful, p3 bad actor, cn (CN demos + compromised planner), security (Vitest scenario review + docs/TESTS.md). Reports → docs/evidence/sim/<id>/REPORT.md.
+- Remaining after that: triage BROKEN/FAIL items (fix with Opus dev), aggregate docs/evidence/sim/SUMMARY.md, fix SECURITY.md R24 (A1/A5/A7 e2e now exist) + TESTS.md link, mobile jest "worker failed to exit gracefully" leak warning, final commit, cleanup (.data/sim-* daemons, ports 4000-4149), `pmset sleepnow`.
+
+## Final fix pass (from sim reports 2026-10-12; see docs/evidence/sim/*/REPORT.md)
+Track X — money path & security (Opus): 
+- X1 mandate scope: AUTO under a mandate only for drafts linked to an obligation whose payee+category are in the mandate and amount ≤ the obligation amount (cn B5a). Other drafts to that payee → ASK.
+- X2 payments daily cap summed across currencies in home currency (F3); rules pre-check payments cap usage so the user isn't asked then refused (p3 O1).
+- X3 payee verify-callback requires a passkey assertion (F1); per-day small-auto budget (count + amount) (F2).
+- X4 sanctions screening on every rail and at payee creation (F6, p3 B1).
+- X5 erase revokes all refresh tokens / refresh refuses erased users (p3 B2).
+- X6 ledger head anchor so tail truncation/re-hash after the last checkpoint is detected (F5).
+- X7 handoff QR payee-name check before the passkey prompt (cn note 1).
+- X8 approve never silently re-issues an expired order: 410 ORDER_EXPIRED + new order to review (p2 B3).
+- X9 PAYMENT_SENT notifications for bank transfers and card charges, with payee, amount (original + home), mandate when T1 (p1 B3, B5).
+- X10 tests: wrong/revoked Shortcut token, injected notification text, payments-level missing base-rules negative (security WEAK items); rerun "revoke mandate under SMART → no autopay".
+Track Y — agent, data, UX, sim (Opus):
+- Y1 redactor must not match inside UUIDs/ids (p3 B3); placeholders keyed by payee id not name (p3 B4).
+- Y2 seed: claimed demo account not pre-consented unless the sim asks; seed ledger entries scoped per user (p2 B1, B2).
+- Y3 PIPL: region CN requires a separate cross-border consent before agent processing (cn note 2).
+- Y4 forecast top-up sized to the first shortfall (+ reserve) (p1 B2, cn D-CN3); same-currency routes return a direct route (p1 B10).
+- Y5 log_expense uses the capture categoriser (p1 B6); search_catalog accepts payee placeholders (p1 B8).
+- Y6 user-facing text: pretty merchant names (not normalised keys), names re-hydrated (no placeholders shown to users), plain-language reason codes, home-currency equivalent on CNY notifications, fees exampleValues flag correct (cn notes 3–7); ASK_ME preset's derived moneyMode shown explicitly (p2 B6); signed-max margin explained (p1 B9).
+- Y7 sim: recategorise command, `demo clock` waits for pending mock-bank webhooks, runbook fixes (NOTIF_SIM, `as <p> approve`), sim-smoke cleanup leaves no orphan daemons; mobile jest open-handle warning.
+Then (Haiku): docs refresh — SECURITY.md (R4/R24 stale, new controls, residual risks incl. shared mock HMAC secret F8), RUNBOOK §5 stale gaps, TESTS.md counts, SUMMARY fix status.

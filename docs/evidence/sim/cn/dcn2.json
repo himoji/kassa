@@ -1,0 +1,136 @@
+{
+  "scenario": "dcn2",
+  "marker": {
+    "seq": 14,
+    "at": "2026-10-27T09:01:17.657Z",
+    "createdAt": "2026-10-11T10:30:25.632Z"
+  },
+  "generatedAt": "2026-10-27T09:01:44.249Z",
+  "since": {
+    "seq": 14,
+    "at": "2026-10-27T09:01:17.657Z"
+  },
+  "ledgerVerify": {
+    "ok": true,
+    "entries": 20,
+    "checkpoints": 1,
+    "headHash": "aBspARPtTlGBYVDwLto6MbIcbyJnoPXycXKyUOCKV14",
+    "problems": []
+  },
+  "ledger": [
+    {
+      "seq": 15,
+      "ts": "2026-10-27T09:01:19.197Z",
+      "type": "CAPTURE_LOGGED",
+      "payload": {
+        "pii": "v1.urIwoeUwCFb87eRn.P4-OGz3u6h99NDeU-daLsZe5X2TFkkhPMlxSrf3oamPZkUDH.dWjO4C_amPD7GkPz0X7a_g",
+        "source": "NOTIF_SIM",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "category": "groceries",
+        "currency": "CNY",
+        "parsedBy": "PARSER:ALIPAY",
+        "amountMinor": 3250,
+        "mergedIntoId": null,
+        "transactionId": "53c4db6a-8395-4efc-9feb-5c483189efdb"
+      },
+      "hash": "Z9Zih8MVTpdp_tFxSGCBQZ-Taw1pLYl2XTHHEwqAySs"
+    },
+    {
+      "seq": 16,
+      "ts": "2026-10-27T09:01:19.237Z",
+      "type": "CAPTURE_LOGGED",
+      "payload": {
+        "pii": "v1.T063ZNfM_D6ooCKt.aHnkJK8AsHB4aDNtdYJrYTkQeJVjQHOCt_SSV7oSD3Bf.-rqtclx1IE8qItjpNpo-cQ",
+        "source": "NOTIF_SIM",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "category": "eating_out",
+        "currency": "CNY",
+        "parsedBy": "PARSER:WECHAT_PAY",
+        "amountMinor": 4500,
+        "mergedIntoId": null,
+        "transactionId": "f808dd00-4562-4bea-a505-233fccb5ab3e"
+      },
+      "hash": "XHPrrQua67IxUgE_kBWdzjoo2tkMSJP11QmbwdacfdA"
+    },
+    {
+      "seq": 17,
+      "ts": "2026-10-27T09:01:19.331Z",
+      "type": "CAPTURE_LOGGED",
+      "payload": {
+        "pii": "v1.5Ss9r9dNZx_BRZCz.CHVKkqXRzsbLi1i_a1vnnafvyZxAAdPoJ1-82yGmLFKB0bGXb7Q-BwtPVzMtMfavAg._FXHzjrI8ucbNecY-r7u0w",
+        "source": "NOTIF_SIM",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "category": "other",
+        "currency": "CNY",
+        "parsedBy": "PARSER:KZ_BANK",
+        "amountMinor": 26800,
+        "mergedIntoId": null,
+        "transactionId": "1b02a9ae-e31c-4106-83ca-dd13459f87d3"
+      },
+      "hash": "Gcov1SxENpzZBk3cUrx9BDWU1w8kRu0ZxDL_f82L33k"
+    },
+    {
+      "seq": 18,
+      "ts": "2026-10-27T09:01:19.333Z",
+      "type": "DEMO_TRIGGER",
+      "payload": {
+        "scenario": "cn-spending-day"
+      },
+      "hash": "56J2zBzUiykhM-KPLVuCuu-cf4il7oV_HTjMIcRg5Mc"
+    },
+    {
+      "seq": 19,
+      "ts": "2026-10-27T09:01:27.391Z",
+      "type": "SETTLEMENT_RECONCILED",
+      "payload": {
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "midRate": "73.7831325301",
+        "rateDate": "2026-10-27",
+        "markupBps": 400,
+        "feeHomeMinor": 79096,
+        "dccOverMidBps": null,
+        "transactionId": "1b02a9ae-e31c-4106-83ca-dd13459f87d3",
+        "settledCurrency": "KZT",
+        "settledAmountMinor": 2056484
+      },
+      "hash": "B-OkIQpYIilv1PiSlPgEyCRHkjM12-xn2yrv8Wx0Hbs"
+    },
+    {
+      "seq": 20,
+      "ts": "2026-10-27T09:01:27.394Z",
+      "type": "DEMO_TRIGGER",
+      "payload": {
+        "scenario": "settlement"
+      },
+      "hash": "aBspARPtTlGBYVDwLto6MbIcbyJnoPXycXKyUOCKV14"
+    }
+  ],
+  "proposals": [],
+  "payments": [],
+  "notifications": [
+    {
+      "id": "c6c09ca3-8370-4d54-8d50-6565a6048779",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "BUDGET_EACH",
+      "title": "Groceries budget",
+      "body": "CN¥32.50 at Convenience Store (sample). Groceries: 85% used, 15% left for 5 days, on track.",
+      "createdAt": "2026-10-27T09:01:19.207Z"
+    },
+    {
+      "id": "2c4934ab-48e4-47b6-bafd-c445cb8e125e",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "BUDGET_EACH",
+      "title": "Eating out budget",
+      "body": "CN¥45.00 at Noodle House (sample). Eating out: 81% used, 19% left for 5 days, on track.",
+      "createdAt": "2026-10-27T09:01:19.245Z"
+    },
+    {
+      "id": "b140f31c-ca86-4c7d-87ac-6398e8f451c0",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "FEES_SETTLED",
+      "title": "Card fee found",
+      "body": "BUY EVERYTHING SHOP FROM CHINA: KZT 790.96 in conversion fees (4.00% over mid).",
+      "createdAt": "2026-10-27T09:01:27.390Z"
+    }
+  ]
+}
