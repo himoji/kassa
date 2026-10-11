@@ -10,6 +10,8 @@ import { useAuthRedirect } from "@/hooks/use-auth-redirect";
 import { useOnboardingRedirect } from "@/hooks/use-onboarding-redirect";
 import { useSignOutCleanup } from "@/hooks/use-sign-out-cleanup";
 import { analytics } from "@/lib/analytics";
+import { useKassaT } from "@/lib/i18n";
+import { inlineTitleOptions, largeTitleOptions } from "@/navigation/stack-options";
 import { Providers } from "@/providers";
 import { hydrateThemeMode } from "@/stores/theme-mode";
 
@@ -53,9 +55,59 @@ function RootStack() {
     analytics.screen(pathname);
   }, [pathname]);
 
+  const t = useKassaT();
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="(tabs)" />
+      {/* Confirmation sheet (spec §16): native form sheet with detents (UISheetPresentationController /
+          Material bottom sheet). Renders only the server's canonical order. */}
+      <Stack.Screen
+        name="order/[proposalId]"
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.8, 1],
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="payees/index"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("payees:title") }}
+      />
+      <Stack.Screen
+        name="payees/[id]"
+        options={{ ...inlineTitleOptions, headerShown: true, title: t("payees:detailTitle") }}
+      />
+      <Stack.Screen
+        name="bills/index"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("bills:title") }}
+      />
+      <Stack.Screen
+        name="credit-record"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("credit:title") }}
+      />
+      <Stack.Screen
+        name="verify/[id]"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("credit:verifyTitle") }}
+      />
+      <Stack.Screen
+        name="handoff/[paymentId]"
+        options={{ ...inlineTitleOptions, headerShown: true, title: t("handoff:title") }}
+      />
+      <Stack.Screen
+        name="demo"
+        options={{
+          ...inlineTitleOptions,
+          headerShown: true,
+          presentation: "modal",
+          title: t("demo:title"),
+        }}
+      />
       <Stack.Screen name="+not-found" />
       {/* gen:stack */}
     </Stack>

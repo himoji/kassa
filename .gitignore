@@ -27,3 +27,6 @@ coverage/
 # logs
 *.log
 npm-debug.*
+
+# local PGlite database (bun run dev without Docker)
+.data/

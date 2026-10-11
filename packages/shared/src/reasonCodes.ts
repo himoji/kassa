@@ -25,6 +25,10 @@ export const ReasonCode = z.enum([
   "CAP_WITHIN_2X_ASK",
   "PAYEE_COOLING",
   "TRIGGER_ORIGIN",
+  // (added by Track A) step 9: AUTO needs SMART + verified payee + capped wallet + signed base rules
+  "AUTO_NOT_ELIGIBLE",
+  // (added by Track A) step 9: amount above the small auto limit
+  "ABOVE_SMALL_AUTO_LIMIT",
   // Reader (I10)
   "READER_SOURCE_MISMATCH",
   "READER_FIELD_UNVERIFIED",
@@ -48,6 +52,8 @@ export const ReasonCode = z.enum([
   "MERCHANT_MISMATCH",
   "AMOUNT_OVER_LIMIT",
   "CURRENCY_MISMATCH",
+  // (added by Track A) the rail (mock bank / Stripe / mock world) failed or was unreachable
+  "RAIL_ERROR",
   // Rule changes (I8) and webhooks (I13)
   "LOOSEN_PENDING",
   "PASSKEY_REQUIRED",

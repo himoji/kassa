@@ -1,0 +1,56 @@
+{
+  "scenario": "onboarding",
+  "description": "Hand-written recording for POST /onboarding/message in REPLAY (no API key): Dana's four-turn onboarding chat. Each step's text is the structured output {reply, draft, complete}; values match fixtures/seed-data.ts (user, profile incomes, obligations, budgets, cards). Turns are picked by keywords, else by the number of earlier user turns in the conversation.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "Hi! I'm Dana, a Kazakh master's student in Budapest. My home currency is the tenge.",
+      "match": [
+        "kazakh",
+        "student"
+      ],
+      "steps": [
+        {
+          "text": "{\"reply\": \"Nice to meet you, Dana! I've set your home currency to KZT and your region to the EU. Where does your money come from, and when does it arrive?\", \"draft\": {\"displayName\": \"Dana\", \"homeCurrency\": \"KZT\", \"region\": \"EU\", \"preset\": null, \"moneyMode\": null, \"notificationMode\": null, \"incomes\": [], \"obligations\": [], \"budgets\": [], \"cards\": []}, \"complete\": false}"
+        }
+      ]
+    },
+    {
+      "userText": "My parents send ₸600,000 on the 25th of every month, and I get a $400 scholarship on the 1st.",
+      "match": [
+        "parents",
+        "scholarship"
+      ],
+      "steps": [
+        {
+          "text": "{\"reply\": \"Got it: ₸600,000 from your parents on the 25th and a $400 scholarship on the 1st, both monthly. Which bills do you pay regularly?\", \"draft\": {\"displayName\": \"Dana\", \"homeCurrency\": \"KZT\", \"region\": \"EU\", \"preset\": null, \"moneyMode\": null, \"notificationMode\": null, \"incomes\": [{\"source\": \"Parents\", \"currency\": \"KZT\", \"amountMinor\": 60000000, \"cadence\": \"MONTHLY\", \"nextDate\": \"2026-11-25\"}, {\"source\": \"Scholarship\", \"currency\": \"USD\", \"amountMinor\": 40000, \"cadence\": \"MONTHLY\", \"nextDate\": \"2026-11-01\"}], \"obligations\": [], \"budgets\": [], \"cards\": []}, \"complete\": false}"
+        }
+      ]
+    },
+    {
+      "userText": "Rent is HUF 180,000 to my landlord Hillside Flats Kft. on the 1st. Tuition is €2,400 to Riverside University Budapest, due October 31, and I pay Meridian Student Insurance Zrt. €96 per term, next on November 15.",
+      "match": [
+        "rent",
+        "tuition",
+        "insurance"
+      ],
+      "steps": [
+        {
+          "text": "{\"reply\": \"Noted three bills: rent HUF 180,000 monthly on the 1st, tuition €2,400 due 31 October, and insurance €96 per term (next 15 November). You'll add each payee's account details later, and new payees wait 24 hours before autopay. What monthly budgets would you like, which cards do you use, and how much should I do on my own?\", \"draft\": {\"displayName\": \"Dana\", \"homeCurrency\": \"KZT\", \"region\": \"EU\", \"preset\": null, \"moneyMode\": null, \"notificationMode\": null, \"incomes\": [{\"source\": \"Parents\", \"currency\": \"KZT\", \"amountMinor\": 60000000, \"cadence\": \"MONTHLY\", \"nextDate\": \"2026-11-25\"}, {\"source\": \"Scholarship\", \"currency\": \"USD\", \"amountMinor\": 40000, \"cadence\": \"MONTHLY\", \"nextDate\": \"2026-11-01\"}], \"obligations\": [{\"payeeName\": \"Hillside Flats Kft.\", \"payeeKind\": \"LANDLORD\", \"amountMinor\": 18000000, \"currency\": \"HUF\", \"dueDate\": \"2026-11-01\", \"recurrence\": \"MONTHLY\", \"category\": \"rent\"}, {\"payeeName\": \"Riverside University Budapest\", \"payeeKind\": \"UNIVERSITY\", \"amountMinor\": 240000, \"currency\": \"EUR\", \"dueDate\": \"2026-10-31\", \"recurrence\": \"TERM\", \"category\": \"tuition\"}, {\"payeeName\": \"Meridian Student Insurance Zrt.\", \"payeeKind\": \"INSURER\", \"amountMinor\": 9600, \"currency\": \"EUR\", \"dueDate\": \"2026-11-15\", \"recurrence\": \"TERM\", \"category\": \"insurance\"}], \"budgets\": [], \"cards\": []}, \"complete\": false}"
+        }
+      ]
+    },
+    {
+      "userText": "Budgets: groceries ₸90,000, eating out ₸60,000, transport ₸20,000 a month. Cards: home bank KZT card ending 4821, USD card 7310 and a local HUF/EUR card 0596. Use the Smart preset with the capped wallet, and notify me after each purchase.",
+      "match": [
+        "budgets",
+        "smart"
+      ],
+      "steps": [
+        {
+          "text": "{\"reply\": \"All set: budgets for groceries ₸90,000, eating out ₸60,000 and transport ₸20,000; three cards; the Smart preset with a capped wallet; and a notification after each purchase. Review your profile and sign the base rules with your passkey to finish.\", \"draft\": {\"displayName\": \"Dana\", \"homeCurrency\": \"KZT\", \"region\": \"EU\", \"preset\": \"SMART\", \"moneyMode\": \"CAPPED_WALLET\", \"notificationMode\": \"EACH\", \"incomes\": [{\"source\": \"Parents\", \"currency\": \"KZT\", \"amountMinor\": 60000000, \"cadence\": \"MONTHLY\", \"nextDate\": \"2026-11-25\"}, {\"source\": \"Scholarship\", \"currency\": \"USD\", \"amountMinor\": 40000, \"cadence\": \"MONTHLY\", \"nextDate\": \"2026-11-01\"}], \"obligations\": [{\"payeeName\": \"Hillside Flats Kft.\", \"payeeKind\": \"LANDLORD\", \"amountMinor\": 18000000, \"currency\": \"HUF\", \"dueDate\": \"2026-11-01\", \"recurrence\": \"MONTHLY\", \"category\": \"rent\"}, {\"payeeName\": \"Riverside University Budapest\", \"payeeKind\": \"UNIVERSITY\", \"amountMinor\": 240000, \"currency\": \"EUR\", \"dueDate\": \"2026-10-31\", \"recurrence\": \"TERM\", \"category\": \"tuition\"}, {\"payeeName\": \"Meridian Student Insurance Zrt.\", \"payeeKind\": \"INSURER\", \"amountMinor\": 9600, \"currency\": \"EUR\", \"dueDate\": \"2026-11-15\", \"recurrence\": \"TERM\", \"category\": \"insurance\"}], \"budgets\": [{\"category\": \"groceries\", \"limitHomeMinor\": 9000000}, {\"category\": \"eating_out\", \"limitHomeMinor\": 6000000}, {\"category\": \"transport\", \"limitHomeMinor\": 2000000}], \"cards\": [{\"label\": \"Home bank KZT card (example)\", \"last4\": \"4821\", \"billingCurrency\": \"KZT\", \"kind\": \"HOME_KZT\"}, {\"label\": \"USD card (example)\", \"last4\": \"7310\", \"billingCurrency\": \"USD\", \"kind\": \"USD\"}, {\"label\": \"Local HUF/EUR card (example)\", \"last4\": \"0596\", \"billingCurrency\": \"HUF\", \"kind\": \"LOCAL_HUF\"}]}, \"complete\": true}"
+        }
+      ]
+    }
+  ]
+}

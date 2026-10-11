@@ -1,0 +1,13 @@
+{
+  "_note": "EXAMPLE mid-market rates for offline use and tests. NOT live data. Quoted ECB-style: 1 EUR = rates[X] units of X. Live rates come from the API fx module (Frankfurter/ECB for EUR, USD, HUF, CNY; National Bank of Kazakhstan for KZT).",
+  "exampleValues": true,
+  "base": "EUR",
+  "date": "2026-10-27",
+  "rates": {
+    "EUR": "1",
+    "USD": "1.1650",
+    "HUF": "392.50",
+    "KZT": "612.40",
+    "CNY": "8.3000"
+  }
+}

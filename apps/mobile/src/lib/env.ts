@@ -11,6 +11,8 @@ import { z } from "zod";
 const schema = z.object({
   APP_VARIANT: z.enum(["dev", "preview", "prod"]).default("dev"),
   API_URL: z.string().optional(),
+  /** Demo panel admin token (spec §15, DEMO_ADMIN_TOKEN). Demo builds only; never a real secret. */
+  DEMO_ADMIN_TOKEN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -50,6 +52,7 @@ function warnInsecureApiUrl(url: string | undefined): void {
 const raw = {
   APP_VARIANT: optional(process.env.EXPO_PUBLIC_APP_VARIANT),
   API_URL: optional(process.env.EXPO_PUBLIC_API_URL),
+  DEMO_ADMIN_TOKEN: optional(process.env.EXPO_PUBLIC_DEMO_ADMIN_TOKEN),
 };
 
 const result = schema.safeParse(raw);

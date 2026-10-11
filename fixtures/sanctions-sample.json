@@ -1,0 +1,118 @@
+{
+  "_licence": "Format: EU Financial Sanctions Files (FSF) consolidated list, XML schema 1.1, rendered as JSON with the same element and attribute names. Source of the real list: European Commission, https://webgate.ec.europa.eu/fsd/fsf (reuse authorised under Commission Decision 2011/833/EU on the reuse of Commission documents, with acknowledgement of the source). THE ENTRIES BELOW ARE FICTITIOUS ILLUSTRATIONS for tests and the demo, not real designations: copying real names from memory risks attributing a sanction to the wrong person (see docs/DECISIONS.md). The screening module can load the real FSF export, which has this structure.",
+  "_purpose": "Spec §18 sanctions sample and invariant I9 tests: exact, fuzzy and transliterated matching. `testCases` lists queries and the expected hit.",
+  "illustrative": true,
+  "export": {
+    "generationDate": "2026-10-20T06:00:00.000+02:00",
+    "globalFileId": 900001,
+    "sanctionEntity": [
+      {
+        "logicalId": 990001,
+        "euReferenceNumber": "EU.9001.01",
+        "unitedNationId": "",
+        "designationDate": "2024-02-23",
+        "designationDetails": "",
+        "remark": "Fictitious entry for testing transliteration (Cyrillic original with Latin aliases).",
+        "regulation": {
+          "regulationType": "amendment",
+          "organisationType": "council",
+          "publicationDate": "2024-02-23",
+          "entryIntoForceDate": "2024-02-23",
+          "numberTitle": "0000/0000 (fictitious)",
+          "programme": "TEST",
+          "publicationUrl": "https://example.org/fictitious-regulation"
+        },
+        "subjectType": { "code": "person", "classificationCode": "P" },
+        "nameAlias": [
+          { "logicalId": 991001, "wholeName": "Святослав Игоревич Кассов", "firstName": "Святослав", "middleName": "Игоревич", "lastName": "Кассов", "gender": "M", "nameLanguage": "RU", "strong": true, "function": "Director of a fictitious trading company" },
+          { "logicalId": 991002, "wholeName": "Sviatoslav Igorevich Kassov", "firstName": "Sviatoslav", "middleName": "Igorevich", "lastName": "Kassov", "gender": "M", "nameLanguage": "EN", "strong": true, "function": "" }
+        ],
+        "citizenship": [{ "countryIso2Code": "XX", "countryDescription": "FICTITIOUS" }],
+        "birthdate": [{ "birthdate": "1971-04-12", "year": 1971, "countryIso2Code": "XX" }]
+      },
+      {
+        "logicalId": 990002,
+        "euReferenceNumber": "EU.9002.02",
+        "unitedNationId": "",
+        "designationDate": "2023-06-23",
+        "designationDetails": "",
+        "remark": "Fictitious entity for testing legal-suffix and word-order tolerant matching.",
+        "regulation": {
+          "regulationType": "amendment",
+          "organisationType": "council",
+          "publicationDate": "2023-06-23",
+          "entryIntoForceDate": "2023-06-24",
+          "numberTitle": "0000/0001 (fictitious)",
+          "programme": "TEST",
+          "publicationUrl": "https://example.org/fictitious-regulation"
+        },
+        "subjectType": { "code": "enterprise", "classificationCode": "E" },
+        "nameAlias": [
+          { "logicalId": 992001, "wholeName": "Northwind Arms Trading LLC", "firstName": "", "middleName": "", "lastName": "", "gender": "", "nameLanguage": "EN", "strong": true, "function": "" },
+          { "logicalId": 992002, "wholeName": "ООО Нортвинд Армс Трейдинг", "firstName": "", "middleName": "", "lastName": "", "gender": "", "nameLanguage": "RU", "strong": true, "function": "" }
+        ],
+        "citizenship": [],
+        "birthdate": []
+      },
+      {
+        "logicalId": 990003,
+        "euReferenceNumber": "EU.9003.03",
+        "unitedNationId": "",
+        "designationDate": "2022-03-15",
+        "designationDetails": "",
+        "remark": "Fictitious person, Latin script only.",
+        "regulation": {
+          "regulationType": "amendment",
+          "organisationType": "council",
+          "publicationDate": "2022-03-15",
+          "entryIntoForceDate": "2022-03-15",
+          "numberTitle": "0000/0002 (fictitious)",
+          "programme": "TEST",
+          "publicationUrl": "https://example.org/fictitious-regulation"
+        },
+        "subjectType": { "code": "person", "classificationCode": "P" },
+        "nameAlias": [
+          { "logicalId": 993001, "wholeName": "Marek Quillfeather", "firstName": "Marek", "middleName": "", "lastName": "Quillfeather", "gender": "M", "nameLanguage": "EN", "strong": true, "function": "" }
+        ],
+        "citizenship": [{ "countryIso2Code": "XX", "countryDescription": "FICTITIOUS" }],
+        "birthdate": [{ "birthdate": "1980-09-01", "year": 1980, "countryIso2Code": "XX" }]
+      },
+      {
+        "logicalId": 990004,
+        "euReferenceNumber": "EU.9004.04",
+        "unitedNationId": "",
+        "designationDate": "2025-01-27",
+        "designationDetails": "",
+        "remark": "Fictitious entity with a Kazakh-Cyrillic name for transliteration tests (letters ә, ғ, қ, ұ).",
+        "regulation": {
+          "regulationType": "amendment",
+          "organisationType": "council",
+          "publicationDate": "2025-01-27",
+          "entryIntoForceDate": "2025-01-28",
+          "numberTitle": "0000/0003 (fictitious)",
+          "programme": "TEST",
+          "publicationUrl": "https://example.org/fictitious-regulation"
+        },
+        "subjectType": { "code": "enterprise", "classificationCode": "E" },
+        "nameAlias": [
+          { "logicalId": 994001, "wholeName": "Ақжол Сауда Тобы ЖШС", "firstName": "", "middleName": "", "lastName": "", "gender": "", "nameLanguage": "KK", "strong": true, "function": "" }
+        ],
+        "citizenship": [],
+        "birthdate": []
+      }
+    ]
+  },
+  "testCases": [
+    { "query": "Святослав Кассов", "expectHitLogicalId": 990001, "kind": "exact-cyrillic" },
+    { "query": "Svyatoslav Kassov", "expectHitLogicalId": 990001, "kind": "transliteration-variant (BGN/PCGN-style 'Svyatoslav' vs listed 'Sviatoslav')" },
+    { "query": "Sviatoslav Kasov", "expectHitLogicalId": 990001, "kind": "fuzzy (one letter dropped)" },
+    { "query": "Kassov Sviatoslav", "expectHitLogicalId": 990001, "kind": "word order" },
+    { "query": "Northwind Arms Trading", "expectHitLogicalId": 990002, "kind": "legal suffix stripped" },
+    { "query": "Nortvind Arms Treiding OOO", "expectHitLogicalId": 990002, "kind": "transliterated Russian alias" },
+    { "query": "Marek Quilfeather", "expectHitLogicalId": 990003, "kind": "fuzzy" },
+    { "query": "Akzhol Sauda Toby", "expectHitLogicalId": 990004, "kind": "transliterated Kazakh" },
+    { "query": "Riverside University Budapest", "expectHitLogicalId": null, "kind": "negative (seed payee)" },
+    { "query": "Hillside Flats Kft.", "expectHitLogicalId": null, "kind": "negative (seed payee)" },
+    { "query": "Dana", "expectHitLogicalId": null, "kind": "negative (short name)" }
+  ]
+}

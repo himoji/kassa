@@ -203,6 +203,10 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
       },
     ],
     "expo-dev-client",
+    // Session tokens in the Keychain / Keystore (spec §8 native bearer + refresh).
+    "expo-secure-store",
+    // Pay in place (spec §11): PaymentSheet. Apple Pay is out of scope (spec §22).
+    ["@stripe/stripe-react-native", { enableGooglePay: false }],
     // iOS 27: adopt the UIScene life cycle (see the plugin header).
     "./plugins/with-scene-lifecycle.js",
   ],

@@ -1,0 +1,22 @@
+{
+  "cardMeta": "•••• {{last4}} · {{currency}} · {{kind}}",
+  "dccChip": "Rate warning",
+  "dccExplainer": "Some merchants offer to charge you in your home currency. That conversion is usually more expensive. Choose the local currency instead.",
+  "dccOverMid": "About {{pct}} over the mid-market rate",
+  "dccTitle": "Card conversion warnings",
+  "exampleValues": "Example values, not your real data.",
+  "feesLostHint": "Fees you paid this month on card conversions.",
+  "feesLostLabel": "Fees lost this month",
+  "kind": {
+    "HOME_KZT": "Home currency card",
+    "USD": "USD card",
+    "LOCAL_HUF": "Local card",
+    "MULTI": "Multi-currency card"
+  },
+  "markup": "{{markup}} median markup from {{samples}} transactions",
+  "noCards": "No cards yet.",
+  "pair": "{{from}} to {{to}}",
+  "tab": "Cards",
+  "title": "Cards",
+  "useFor": "Use for {{currency}}"
+}

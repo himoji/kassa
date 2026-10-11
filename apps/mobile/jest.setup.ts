@@ -129,6 +129,28 @@ jest.mock(
   { virtual: true }
 );
 
+// Kassa native modules: passkeys and the keystore have no JS implementation under jest.
+jest.mock("react-native-passkeys", () => ({
+  isSupported: () => true,
+  get: jest.fn(() => Promise.resolve(null)),
+  create: jest.fn(() => Promise.resolve(null)),
+}));
+jest.mock("expo-secure-store", () => {
+  const store = new Map<string, string>();
+  return {
+    WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
+    getItemAsync: (k: string) => Promise.resolve(store.get(k) ?? null),
+    setItemAsync: (k: string, v: string) => {
+      store.set(k, v);
+      return Promise.resolve();
+    },
+    deleteItemAsync: (k: string) => {
+      store.delete(k);
+      return Promise.resolve();
+    },
+  };
+});
+
 // Mocks the UI components need under jest (native style engines, …).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require("./src/components/ui/jest-setup");

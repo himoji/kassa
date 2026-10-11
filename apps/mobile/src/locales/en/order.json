@@ -1,0 +1,23 @@
+{
+  "approve": "Approve with passkey",
+  "approvedChip": "Approved",
+  "approvedToast": "Approved. Kassa is on it.",
+  "budgetImpactLine": "{{before}} left before, {{after}} after, out of a {{limit}} limit",
+  "budgetImpactTitle": "Effect on {{category}}",
+  "expires": "Expires in",
+  "integrityError": "This order does not match what was signed. Nothing was sent. Go back and review it again.",
+  "mandate": "Mandate",
+  "passkeyNote": "Approving signs this exact order with your passkey. The AI's chat text is not part of what you sign.",
+  "payInPlaceButton": "Pay now",
+  "payInPlaceFailed": "Could not prepare the payment. Try again.",
+  "payInPlaceIntro": "Kassa prepares this payment with its payment partner. You confirm it at the end.",
+  "payInPlacePrepare": "Prepare payment",
+  "payInPlaceTitle": "Pay in place",
+  "purpose": "Purpose",
+  "rail": "Payment route",
+  "reject": "Reject",
+  "rejectedToast": "Order rejected. Nothing was sent.",
+  "signedOrderId": "Order ID",
+  "title": "Paying",
+  "withinMandate": "Within your signed mandate"
+}

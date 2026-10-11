@@ -1,0 +1,33 @@
+{
+  "backToChat": "Back to chat",
+  "cadence": {
+    "WEEKLY": "Weekly",
+    "MONTHLY": "Monthly",
+    "TERM": "Each term",
+    "ONCE": "Once"
+  },
+  "chatTitle": "Set up",
+  "draftBill": "Bill: {{payee}}, {{amount}}",
+  "draftBudgets_one": "{{count}} budget",
+  "draftBudgets_other": "{{count}} budgets",
+  "draftHome": "Home currency: {{currency}}",
+  "draftIncome": "{{source}}: {{amount}}, {{cadence}}",
+  "draftTitle": "Your draft",
+  "greeting": "Hi. Tell me about your income, your bills and what you want to keep in budget. I will draft it, and you review it before anything is signed.",
+  "mandateBody": "A mandate lets bills inside these limits pay themselves. Tightening or revoking it takes effect straight away.",
+  "mandateDelay": "Creating a mandate needs your passkey and takes effect after 24 hours.",
+  "mandatePayee": "Payee",
+  "mandatePerPayment": "Per payment",
+  "mandatePerPeriod": "Per {{period}}",
+  "mandateTitle": "Autopay mandate",
+  "placeholder": "Tell Kassa about your money",
+  "reviewIntro": "Check these rules. Signing them sets them with your passkey.",
+  "reviewTitle": "Review",
+  "rulesHash": "Rules fingerprint {{hash}}",
+  "rulesSigned": "Rules signed",
+  "rulesTitle": "Your rules",
+  "signMandate": "Sign mandate with passkey",
+  "signRules": "Sign rules with passkey",
+  "skipMandate": "Skip for now",
+  "toReview": "Review my setup"
+}

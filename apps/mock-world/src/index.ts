@@ -1,16 +1,22 @@
-// Phase 0 placeholder: Phase 1 replaces this with the Fastify mock world (spec §17). Everything here is simulated.
-import { createServer } from "node:http";
+// Mock world entry point (spec §17). Everything served here is simulated.
+import { buildMockWorld } from "./app.ts";
+import { loadConfig, usingDevSecret } from "./config.ts";
 
-const port = Number(process.env.PORT ?? 4001);
+const config = loadConfig();
+const { app } = await buildMockWorld({ config });
+if (usingDevSecret(config)) app.log.warn("MOCK_HMAC_SECRET not set: using the dev-only secret (set it to match the API)");
 
-createServer((req, res) => {
-  if (req.url === "/mock/health" || req.url === "/health") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true, service: "mock-world", simulated: true }));
-    return;
-  }
-  res.writeHead(404, { "content-type": "application/json" });
-  res.end(JSON.stringify({ error: "not_found" }));
-}).listen(port, () => {
-  console.log(`[mock-world] listening on :${port}`);
-});
+const shutdown = async (signal: string) => {
+  app.log.info({ signal }, "shutting down");
+  await app.close();
+  process.exit(0);
+};
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+try {
+  await app.listen({ port: config.port, host: config.host });
+} catch (err) {
+  app.log.error(err);
+  process.exit(1);
+}

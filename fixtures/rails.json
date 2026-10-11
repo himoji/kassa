@@ -1,0 +1,15 @@
+{
+  "_note": "EXAMPLE fee and markup values per funding currency x rail (spec §11, §12), labelled as examples in the UI. Amounts are integer minor units (ISO 4217 exponent, see @kassa/shared CURRENCY_EXPONENTS). markupBps is applied only when fundingCurrency differs from the bill currency. provider MOCK_BANK routes are the ones the mock bank (apps/mock-world) quotes; CARD routes map to the seeded cards by cardKind.",
+  "exampleValues": true,
+  "version": 1,
+  "routes": [
+    { "routeId": "kzt-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "KZT", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 99000, "feeCurrency": "KZT", "markupBps": 55, "settlementDays": 1 },
+    { "routeId": "kzt-home-bank", "label": "Home bank international transfer", "fundingCurrency": "KZT", "rail": "BANK_TRANSFER", "provider": "HOME_BANK", "cardKind": null, "feeFixedMinor": 750000, "feeCurrency": "KZT", "markupBps": 180, "settlementDays": 3 },
+    { "routeId": "kzt-card", "label": "Home KZT card", "fundingCurrency": "KZT", "rail": "CARD_ISSUING", "provider": "CARD", "cardKind": "HOME_KZT", "feeFixedMinor": 0, "feeCurrency": "KZT", "markupBps": 400, "settlementDays": 0 },
+    { "routeId": "usd-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "USD", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 150, "feeCurrency": "USD", "markupBps": 45, "settlementDays": 1 },
+    { "routeId": "usd-card", "label": "USD card", "fundingCurrency": "USD", "rail": "CARD_ISSUING", "provider": "CARD", "cardKind": "USD", "feeFixedMinor": 0, "feeCurrency": "USD", "markupBps": 250, "settlementDays": 0 },
+    { "routeId": "huf-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "HUF", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 0, "feeCurrency": "HUF", "markupBps": 35, "settlementDays": 0 },
+    { "routeId": "huf-card", "label": "Local HUF/EUR card", "fundingCurrency": "HUF", "rail": "CARD_ISSUING", "provider": "CARD", "cardKind": "LOCAL_HUF", "feeFixedMinor": 0, "feeCurrency": "HUF", "markupBps": 50, "settlementDays": 0 },
+    { "routeId": "eur-mock-bank", "label": "Mock bank transfer (Wise-like)", "fundingCurrency": "EUR", "rail": "BANK_TRANSFER", "provider": "MOCK_BANK", "cardKind": null, "feeFixedMinor": 50, "feeCurrency": "EUR", "markupBps": 35, "settlementDays": 0 }
+  ]
+}

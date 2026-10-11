@@ -1,5 +1,5 @@
 # Build from the repo root: docker build -f apps/mock-world/Dockerfile .
-# Phase 0 stub: installs only this workspace's dependency closure and runs the TypeScript source with bun.
+# Runs the TypeScript source with bun; mock-world reads fixtures/ (seed data, rails, rates, invoice specs).
 FROM oven/bun:1.4 AS deps
 WORKDIR /app
 COPY package.json bun.lock bunfig.toml ./
@@ -16,6 +16,7 @@ ENV NODE_ENV=production PORT=4001
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json bunfig.toml tsconfig.base.json ./
 COPY packages/shared packages/shared
+COPY fixtures fixtures
 COPY apps/mock-world apps/mock-world
 WORKDIR /app/apps/mock-world
 EXPOSE 4001

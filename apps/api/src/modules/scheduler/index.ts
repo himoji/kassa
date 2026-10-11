@@ -1,0 +1,136 @@
+/*
+ * In-process scheduler (spec §15): every 15 s, driven by the Clock.
+ *  - obligations due within 3 days → proposal (createdBy=SCHEDULER), once per (obligation, dueDate);
+ *    a MONTHLY obligation rolls to next month once its proposal executed;
+ *  - signed rule changes / mandates reaching effectiveAt → apply;
+ *  - card expiry → cancel unused cards;
+ *  - mock bank status progression → poll PROCESSING transfers (webhooks also push changes);
+ *  - digest → Track B budget.sendDigestIfDue(userId) when exported.
+ * Each job is isolated: one failing job never stops the others.
+ */
+import { and, eq, inArray, lte, sql } from "drizzle-orm";
+
+import { getDb } from "../../db/client.ts";
+import { obligations, payments, proposals, users } from "../../db/schema.ts";
+import { addMs, clock, DAY_MS, isoDate } from "../clock/index.ts";
+import { ledger } from "../ledger/index.ts";
+import { activateDueMandates } from "../mandates/service.ts";
+import { updatePaymentStatus } from "../payments/status.ts";
+import { expireCards } from "../rails/issuing.ts";
+import { getTransferStatus } from "../rails/mockBank.ts";
+import { proposeOrder } from "../rules/index.ts";
+import { applyDueRuleChanges } from "../users/settings.ts";
+
+export const TICK_MS = 15_000;
+export const DUE_WINDOW_DAYS = 3;
+
+/** ISO 8601 date + n calendar months, day clamped to the month's length. */
+export function addMonths(date: string, n: number): string {
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const target = new Date(Date.UTC(y, m - 1 + n, 1));
+  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, last));
+  return isoDate(target);
+}
+
+export async function proposeDueObligations(): Promise<number> {
+  const db = getDb();
+  const now = clock.now();
+  const horizon = isoDate(addMs(now, DUE_WINDOW_DAYS * DAY_MS));
+  const due = await db.select().from(obligations).where(lte(obligations.dueDate, horizon));
+  let created = 0;
+  for (const o of due) {
+    const existing = await db
+      .select({ id: proposals.id, status: proposals.status })
+      .from(proposals)
+      .where(and(eq(proposals.obligationId, o.id), sql`${proposals.draft}->>'dueDate' = ${o.dueDate}`));
+    if (existing.length > 0) {
+      if (o.recurrence === "MONTHLY" && existing.some((p) => p.status === "EXECUTED")) {
+        const next = addMonths(o.dueDate, 1);
+        await db.update(obligations).set({ dueDate: next }).where(eq(obligations.id, o.id));
+        await ledger.append("OBLIGATION_ROLLED", { userId: o.userId, obligationId: o.id, from: o.dueDate, to: next });
+      }
+      continue;
+    }
+    await proposeOrder({
+      userId: o.userId,
+      createdBy: "SCHEDULER",
+      payeeId: o.payeeId,
+      amountMinor: o.amountMinor,
+      currency: o.currency,
+      purpose: (o.reference ? `${o.category} ${o.reference}` : `${o.category} due ${o.dueDate}`).slice(0, 140),
+      category: o.category,
+      obligationId: o.id,
+      dueDate: o.dueDate,
+    });
+    created++;
+  }
+  return created;
+}
+
+export async function pollBankTransfers(): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.rail, "BANK_TRANSFER"), inArray(payments.status, ["CREATED", "PROCESSING"])));
+  let changed = 0;
+  for (const p of rows) {
+    if (!p.railRef) continue;
+    try {
+      const status = await getTransferStatus(p.railRef);
+      if (status !== p.status && (await updatePaymentStatus(p.id, status, { source: "scheduler:mock-bank-poll" }))) changed++;
+    } catch {
+      // mock bank unreachable: try again next tick
+    }
+  }
+  return changed;
+}
+
+type BudgetModule = { sendDigestIfDue?: (userId: string) => Promise<unknown> };
+async function sendDigests(): Promise<void> {
+  let mod: BudgetModule = {};
+  try {
+    const path = new URL("../budget/index.ts", import.meta.url).href;
+    mod = (await import(/* @vite-ignore */ path)) as BudgetModule;
+  } catch {
+    return;
+  }
+  if (!mod.sendDigestIfDue) return;
+  for (const u of await getDb().select({ id: users.id }).from(users)) await mod.sendDigestIfDue(u.id);
+}
+
+const JOBS: [string, () => Promise<unknown>][] = [
+  ["ruleChanges", applyDueRuleChanges],
+  ["mandates", activateDueMandates],
+  ["obligations", proposeDueObligations],
+  ["cardExpiry", expireCards],
+  ["bankPoll", pollBankTransfers],
+  ["digest", sendDigests],
+];
+
+let running = false;
+
+/** One scheduler pass. Re-entrancy guarded: a slow tick is never overlapped. */
+export async function tick(log: (msg: string, err?: unknown) => void = () => undefined): Promise<void> {
+  if (running) return;
+  running = true;
+  try {
+    await clock.load();
+    for (const [name, job] of JOBS) {
+      try {
+        await job();
+      } catch (err) {
+        log(`scheduler job ${name} failed`, err);
+      }
+    }
+  } finally {
+    running = false;
+  }
+}
+
+export function startScheduler(log: (msg: string, err?: unknown) => void): () => void {
+  const timer = setInterval(() => void tick(log), TICK_MS);
+  timer.unref?.();
+  return () => clearInterval(timer);
+}

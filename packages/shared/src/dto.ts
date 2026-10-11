@@ -53,6 +53,8 @@ export const MeResponse = z.object({
   settings: UserSettings,
   effective: EffectiveSettings,
   demo: z.object({ agentMode: AgentMode, clockOffsetMs: z.number().int(), now: IsoDateTime }).nullable(),
+  /** False until POST /onboarding/confirm succeeded (added by Track C; optional = treated as true). */
+  onboarded: z.boolean().optional(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

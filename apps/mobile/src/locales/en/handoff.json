@@ -1,0 +1,13 @@
+{
+  "match": "Match",
+  "mismatch": "Mismatch",
+  "mismatchBody": "The name in the QR code does not match the verified payee, so Kassa will not let you pay it. Do not scan it with another app.",
+  "mismatchTitle": "Do not pay this QR code",
+  "nameCheck": "Name check",
+  "openWallet": "Open wallet",
+  "qrA11y": "QR code for {{name}}",
+  "qrPayee": "Name in QR code",
+  "scanHint": "Scan this with your bank or wallet app to pay the verified payee.",
+  "title": "Pay yourself",
+  "verifiedPayee": "Verified payee"
+}

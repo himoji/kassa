@@ -1,0 +1,161 @@
+/*
+ * Spec §10 evaluation order, first match wins. Pure: every fact is gathered beforehand (rules/facts.ts),
+ * so each step is unit-testable.
+ *
+ *  1 frozen → REFUSE_FROZEN
+ *  2 payee missing / BLOCKED / COOLING before coolingUntil → REFUSE_UNVERIFIED_PAYEE
+ *    (COOLING after coolingUntil is usable in T2 only → forces ASK with PAYEE_COOLING)
+ *  3 reader mismatch on amount or account → REFUSE_SOURCE_MISMATCH
+ *  4 screening hit (bank transfers) → REFUSE_SANCTIONS
+ *  5 caps / protected reserve → REFUSE_CAP (SMART: ASK when within 2× the cap)
+ *  6 region CN or money mode HANDOFF → HANDOFF
+ *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1)
+ *  8 ASK_ME always asks; AUTOPILOT without mandate asks; SMART asks at risk ≥ 0.5 → ASK (T2)
+ *  9 otherwise AUTO — only SMART, verified payee, ≤ small auto limit, capped wallet
+ *
+ * The agent's uncertainty (agentRequestedConfirm) can force ASK, never AUTO.
+ */
+import type { Decision, EffectiveSettings, PayeeStatus, Preset, Rail, ReasonCode, Region, Tier } from "@kassa/shared";
+
+import { SMART_RISK_THRESHOLD } from "./riskWeights.ts";
+
+export type CapCheck = {
+  /** Order amount in home minor units. */
+  amountHomeMinor: number;
+  perPaymentHomeMinor: number;
+  dailyHomeMinor: number;
+  monthlyHomeMinor: number;
+  usedTodayHomeMinor: number;
+  usedThisMonthHomeMinor: number;
+  /** Balance after the payment would fall below the protected reserve (null = balance unknown). */
+  reserveBreached: boolean | null;
+};
+
+export type DecideFacts = {
+  now: Date;
+  frozen: boolean;
+  payee: { status: PayeeStatus; coolingUntil: Date | null } | null;
+  readerChecks?: { amount?: "VERIFIED" | "UNVERIFIED"; account?: "VERIFIED" | "UNVERIFIED"; nonCriticalUnverified?: boolean };
+  rail: Rail;
+  screeningHit: boolean;
+  caps: CapCheck;
+  preset: Preset;
+  effective: EffectiveSettings;
+  region: Region;
+  /** An active, effective, signed mandate whose scope covers this order. */
+  mandate: { id: string } | null;
+  /** Mandates exist for this payee but the order is outside their scope. */
+  mandateOutOfScope: boolean;
+  riskScore: number;
+  agentRequestedConfirm: boolean;
+  triggerOrigin: boolean;
+  smallAutoLimitHomeMinor: number;
+  /** Base rules (incl. the small auto limit) were passkey-signed — payments needs this for T1 without a mandate. */
+  baseRulesSigned: boolean;
+};
+
+export type DecideResult = {
+  decision: Decision;
+  reasonCodes: ReasonCode[];
+  tier: Tier | null;
+  mandateId: string | null;
+};
+
+const refuse = (...codes: ReasonCode[]): DecideResult => ({ decision: "REFUSE", reasonCodes: codes, tier: null, mandateId: null });
+
+export function decide(f: DecideFacts): DecideResult {
+  // 1
+  if (f.frozen) return refuse("REFUSE_FROZEN");
+
+  // 2
+  let coolingAsk = false;
+  if (!f.payee || f.payee.status === "BLOCKED") return refuse("REFUSE_UNVERIFIED_PAYEE");
+  if (f.payee.status === "COOLING") {
+    if (!f.payee.coolingUntil || f.now.getTime() < f.payee.coolingUntil.getTime()) {
+      return refuse("REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING");
+    }
+    coolingAsk = true;
+  }
+
+  // 3
+  if (f.readerChecks?.amount === "UNVERIFIED" || f.readerChecks?.account === "UNVERIFIED") {
+    return refuse("REFUSE_SOURCE_MISMATCH", "READER_SOURCE_MISMATCH");
+  }
+
+  // 4
+  if (f.rail === "BANK_TRANSFER" && f.screeningHit) return refuse("REFUSE_SANCTIONS");
+
+  // 5
+  const c = f.caps;
+  const breaches: { total: number; cap: number }[] = [];
+  if (c.amountHomeMinor > c.perPaymentHomeMinor) breaches.push({ total: c.amountHomeMinor, cap: c.perPaymentHomeMinor });
+  if (c.usedTodayHomeMinor + c.amountHomeMinor > c.dailyHomeMinor) {
+    breaches.push({ total: c.usedTodayHomeMinor + c.amountHomeMinor, cap: c.dailyHomeMinor });
+  }
+  if (c.usedThisMonthHomeMinor + c.amountHomeMinor > c.monthlyHomeMinor) {
+    breaches.push({ total: c.usedThisMonthHomeMinor + c.amountHomeMinor, cap: c.monthlyHomeMinor });
+  }
+  if (breaches.length > 0 || c.reserveBreached === true) {
+    const within2x = c.reserveBreached !== true && breaches.every((b) => b.total <= 2 * b.cap);
+    if (f.preset === "SMART" && within2x) {
+      return withFlags({ decision: "ASK", reasonCodes: ["CAP_WITHIN_2X_ASK"], tier: "T2", mandateId: null }, f);
+    }
+    return refuse("REFUSE_CAP");
+  }
+
+  // 6
+  if (f.region === "CN") return withFlags({ decision: "HANDOFF", reasonCodes: ["HANDOFF_REGION"], tier: "T2", mandateId: null }, f);
+  if (f.effective.moneyMode === "HANDOFF") {
+    return withFlags({ decision: "HANDOFF", reasonCodes: ["HANDOFF_MODE"], tier: "T2", mandateId: null }, f);
+  }
+
+  const alwaysAsk = f.preset === "ASK_ME" || f.effective.paymentPolicy === "ALWAYS_ASK";
+
+  // 7
+  if (f.mandate && !alwaysAsk) {
+    if (f.agentRequestedConfirm) return ask(["MANDATE_MATCH", "AGENT_REQUESTED_CONFIRM"], f);
+    if (coolingAsk) return ask(["PAYEE_COOLING"], f);
+    return { decision: "AUTO", reasonCodes: ["MANDATE_MATCH"], tier: "T1", mandateId: f.mandate.id };
+  }
+
+  // 8
+  const why: ReasonCode[] = [];
+  if (alwaysAsk) why.push("PRESET_ASK_ME");
+  if (coolingAsk) why.push("PAYEE_COOLING");
+  if (f.agentRequestedConfirm) why.push("AGENT_REQUESTED_CONFIRM");
+  if (f.effective.paymentPolicy === "NEVER_ASK" || f.preset === "AUTOPILOT") {
+    // Autopilot only acts inside a mandate (spec §10 step 8: "no mandate means ask").
+    why.push(f.mandateOutOfScope ? "MANDATE_OUT_OF_SCOPE" : "AUTO_NOT_ELIGIBLE");
+  } else if (f.riskScore >= SMART_RISK_THRESHOLD) {
+    why.push("RISK_HIGH");
+  }
+  if (why.length > 0) {
+    if (f.mandateOutOfScope && !why.includes("MANDATE_OUT_OF_SCOPE")) why.push("MANDATE_OUT_OF_SCOPE");
+    return ask(why, f);
+  }
+
+  // 9
+  const smallAutoOk =
+    f.preset === "SMART" &&
+    f.effective.paymentPolicy === "RISK_BASED" &&
+    f.payee.status === "VERIFIED" &&
+    f.effective.moneyMode === "CAPPED_WALLET" &&
+    (f.rail === "CARD_ISSUING" || f.rail === "BANK_TRANSFER") &&
+    f.baseRulesSigned;
+  if (!smallAutoOk) return ask(["AUTO_NOT_ELIGIBLE"], f);
+  if (c.amountHomeMinor > f.smallAutoLimitHomeMinor) return ask(["ABOVE_SMALL_AUTO_LIMIT"], f);
+  return { decision: "AUTO", reasonCodes: ["SMALL_AUTO"], tier: "T1", mandateId: null };
+}
+
+function ask(codes: ReasonCode[], f: DecideFacts): DecideResult {
+  return withFlags({ decision: "ASK", reasonCodes: codes, tier: "T2", mandateId: null }, f);
+}
+
+/** Informational flags appended to non-refusals (A7 "anomaly flag" for trigger-originated drafts). */
+function withFlags(r: DecideResult, f: DecideFacts): DecideResult {
+  const codes = [...r.reasonCodes];
+  if (f.mandateOutOfScope && r.decision === "ASK" && !codes.includes("MANDATE_OUT_OF_SCOPE")) codes.push("MANDATE_OUT_OF_SCOPE");
+  if (f.triggerOrigin && !codes.includes("TRIGGER_ORIGIN")) codes.push("TRIGGER_ORIGIN");
+  if (f.readerChecks?.nonCriticalUnverified && !codes.includes("READER_FIELD_UNVERIFIED")) codes.push("READER_FIELD_UNVERIFIED");
+  return { ...r, reasonCodes: codes };
+}

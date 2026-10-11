@@ -1,0 +1,174 @@
+{
+  "REFUSE_FROZEN": {
+    "label": "Payments are frozen",
+    "text": "Payments are frozen, so this one was refused. Unfreezing needs your passkey and takes 24 hours."
+  },
+  "REFUSE_UNVERIFIED_PAYEE": {
+    "label": "Payee not verified",
+    "text": "The payee has not been verified, so Kassa cannot pay it. Verify the payee first."
+  },
+  "REFUSE_SOURCE_MISMATCH": {
+    "label": "Source does not match",
+    "text": "The details came from a source that does not match the payment, so it was refused. Check the request with the payee."
+  },
+  "REFUSE_SANCTIONS": {
+    "label": "Blocked by sanctions check",
+    "text": "This payment was blocked by a sanctions check. It cannot be paid through Kassa."
+  },
+  "REFUSE_CAP": {
+    "label": "Over your limit",
+    "text": "This payment is above one of your limits, so it was refused. Lower the amount or raise the limit with your passkey."
+  },
+  "HANDOFF_REGION": {
+    "label": "Pay it yourself",
+    "text": "Because of your region, Kassa cannot send this payment. Pay it yourself using the handoff screen."
+  },
+  "HANDOFF_MODE": {
+    "label": "Pay it yourself",
+    "text": "Your money mode is set to handoff, so you need to pay this one yourself from the handoff screen."
+  },
+  "MANDATE_MATCH": {
+    "label": "Covered by a mandate",
+    "text": "This bill matches a mandate you signed, so it can be paid automatically within its limits."
+  },
+  "MANDATE_OUT_OF_SCOPE": {
+    "label": "Outside your mandate",
+    "text": "This payment is outside the limits of your mandate, so it needs your passkey."
+  },
+  "SMALL_AUTO": {
+    "label": "Small enough to auto-pay",
+    "text": "This is under your auto-pay limit to a verified payee, so Kassa can pay it without asking."
+  },
+  "RISK_HIGH": {
+    "label": "Needs a closer look",
+    "text": "The rules see something unusual about this payment, so they ask you to approve it."
+  },
+  "AGENT_REQUESTED_CONFIRM": {
+    "label": "Kassa asked for approval",
+    "text": "Kassa asked for your approval before it goes ahead, so nothing is paid until you sign it."
+  },
+  "PRESET_ASK_ME": {
+    "label": "Your preset asks first",
+    "text": "You chose Ask me, so every payment needs your passkey."
+  },
+  "CAP_WITHIN_2X_ASK": {
+    "label": "Close to your limit",
+    "text": "This payment is close to your limit, so the rules ask you to confirm it."
+  },
+  "PAYEE_COOLING": {
+    "label": "Payee is cooling down",
+    "text": "This payee is new or changed, so it cools down for 24 hours before it can be paid."
+  },
+  "TRIGGER_ORIGIN": {
+    "label": "Started from a message",
+    "text": "This payment came from a message or notification, so it needs your approval before it goes ahead."
+  },
+  "AUTO_NOT_ELIGIBLE": {
+    "label": "Not eligible for auto-pay",
+    "text": "Auto-pay needs Smart mode, a verified payee, a capped wallet and signed base rules, and one of these is missing."
+  },
+  "ABOVE_SMALL_AUTO_LIMIT": {
+    "label": "Above auto-pay limit",
+    "text": "The amount is above your auto-pay limit, so it needs your passkey."
+  },
+  "READER_SOURCE_MISMATCH": {
+    "label": "Document source mismatch",
+    "text": "The document does not come from the sender it names, so Kassa will not use its details."
+  },
+  "READER_FIELD_UNVERIFIED": {
+    "label": "Detail could not be checked",
+    "text": "One of the details in this document could not be verified, so please check it before you pay."
+  },
+  "APPROVAL_EXPIRED": {
+    "label": "Approval expired",
+    "text": "Your approval ran out before it was used, so nothing was paid. Review the order and approve it again."
+  },
+  "ORDER_EXPIRED": {
+    "label": "Order expired",
+    "text": "This order is no longer valid, so nothing was paid. Ask Kassa for a new one."
+  },
+  "BAD_SIGNATURE": {
+    "label": "Signature did not check out",
+    "text": "The passkey signature could not be verified, so nothing was paid. Try approving again."
+  },
+  "ORDER_HASH_MISMATCH": {
+    "label": "Order changed after signing",
+    "text": "The order is not the same as the one you signed, so nothing was paid. Review it again."
+  },
+  "ASSERTION_INVALID": {
+    "label": "Passkey check failed",
+    "text": "Your passkey response was not accepted, so nothing was paid. Try again."
+  },
+  "USER_NOT_VERIFIED": {
+    "label": "Passkey not verified",
+    "text": "Your passkey was not verified for this action, so nothing was paid."
+  },
+  "COUNTER_REGRESSION": {
+    "label": "Passkey out of date",
+    "text": "This passkey response is older than the last one, so it was refused for safety. Try again."
+  },
+  "NO_APPROVAL": {
+    "label": "No approval found",
+    "text": "Kassa did not find your approval for this payment, so nothing was paid."
+  },
+  "NONCE_USED": {
+    "label": "Approval already used",
+    "text": "This approval was already used, so it cannot be used again. Nothing was paid twice."
+  },
+  "MANDATE_INACTIVE": {
+    "label": "Mandate not active",
+    "text": "The mandate for this bill is not active yet or has been revoked, so it cannot pay automatically."
+  },
+  "PAYMENTS_DAILY_CAP": {
+    "label": "Daily limit reached",
+    "text": "You have reached your daily payment limit, so this payment waits until tomorrow or until you raise the limit."
+  },
+  "QR_PAYEE_MISMATCH": {
+    "label": "QR name does not match",
+    "text": "The name in the QR code does not match the verified payee, so Kassa will not let you pay it."
+  },
+  "CARD_ALREADY_USED": {
+    "label": "Card already used",
+    "text": "This one-time card was already used, so it cannot be charged again."
+  },
+  "CARD_EXPIRED": {
+    "label": "Card expired",
+    "text": "The card for this payment has expired, so it was not charged. Ask Kassa to try again."
+  },
+  "MERCHANT_MISMATCH": {
+    "label": "Merchant does not match",
+    "text": "The merchant does not match the payment you approved, so nothing was charged."
+  },
+  "AMOUNT_OVER_LIMIT": {
+    "label": "Amount over card limit",
+    "text": "The amount is more than the card allows, so nothing was charged."
+  },
+  "CURRENCY_MISMATCH": {
+    "label": "Currency does not match",
+    "text": "The currency does not match the payment you approved, so nothing was charged."
+  },
+  "RAIL_ERROR": {
+    "label": "Payment provider problem",
+    "text": "The payment provider failed or could not be reached, so nothing was confirmed. Try again later."
+  },
+  "LOOSEN_PENDING": {
+    "label": "Change waiting for delay",
+    "text": "A change that loosens a rule is still waiting for its 24-hour delay to end."
+  },
+  "PASSKEY_REQUIRED": {
+    "label": "Passkey needed",
+    "text": "This change needs your passkey before it can be made."
+  },
+  "WEBHOOK_SIGNATURE_INVALID": {
+    "label": "Update could not be trusted",
+    "text": "A payment update failed its signature check, so Kassa ignored it."
+  },
+  "WEBHOOK_REPLAY_WINDOW": {
+    "label": "Old update ignored",
+    "text": "A payment update arrived too late to trust, so Kassa ignored it."
+  },
+  "USER_REJECTED": {
+    "label": "You rejected it",
+    "text": "You rejected this order, so nothing was sent."
+  }
+}
