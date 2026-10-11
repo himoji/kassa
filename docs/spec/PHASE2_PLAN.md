@@ -106,3 +106,5 @@ Track Y — agent, data, UX, sim (Opus):
 - Y7 sim: recategorise command, `demo clock` waits for pending mock-bank webhooks, runbook fixes (NOTIF_SIM, `as <p> approve`), sim-smoke cleanup leaves no orphan daemons; mobile jest open-handle warning.
 Then (Haiku): docs refresh — SECURITY.md (R4/R24 stale, new controls, residual risks incl. shared mock HMAC secret F8), RUNBOOK §5 stale gaps, TESTS.md counts, SUMMARY fix status.
 - 2026-10-12: final fix pass committed (916c00c, ef1735a); 1,356 tests green (api 633, mobile 410, mock-world 279, shared 34); dev DB re-created for the signed ledger head; ledger:verify ok. Remaining: cleanup + `pmset sleepnow`.
+- 2026-10-13: live AI (OpenRouter, any provider: structured-output fallback, retries), web/iOS run fixes, onboarding mandate step + onboarding bills committed (9393e5e, 9eb54fa). 1,420 tests green.
+- Known small gaps (next session if wanted): (1) no UI/API path to add account details to an account-less onboarding payee, so those bills can't be paid yet; (2) "Covered" chip shows even with a ₸0 balance (API always sends COVERED); (3) native iOS passkeys need a real HTTPS domain + associated domains (web demo works).
