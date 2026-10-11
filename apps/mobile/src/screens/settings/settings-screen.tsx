@@ -27,7 +27,7 @@ import { useKassaT } from "@/lib/i18n";
 import { CapsSection } from "./caps-section";
 import { MandatesSection } from "./mandates-section";
 import { PendingChanges } from "./pending-changes";
-import { PresetCards } from "./preset-cards";
+import { PresetCards, useDerivedChangesText } from "./preset-cards";
 import { useApplySettings } from "./use-settings-update";
 
 /** "Follow preset" is a null override (spec §10: switches derive from the preset unless overridden). */
@@ -48,6 +48,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
   const t = useKassaT();
   const f = useFormat();
   const { apply, pending } = useApplySettings();
+  const derivedText = useDerivedChangesText();
   const s = me.settings;
   const defaults = PRESET_DEFAULTS[s.preset];
   const customised = Object.values(s.overrides).some((v) => v !== null);
@@ -66,7 +67,8 @@ function SettingsBody({ me }: { me: MeResponse }) {
         <PresetCards
           value={s.preset}
           disabled={pending}
-          onChange={(preset) => void apply({ preset })}
+          overrides={s.overrides}
+          onChange={(preset) => void apply({ preset }, derivedText(s.preset, preset, s.overrides))}
         />
       </Box>
 

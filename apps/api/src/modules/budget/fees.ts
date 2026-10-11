@@ -7,7 +7,7 @@ import { cardFeeProfiles, cards, notifications, transactions, users } from "../.
 import { clock } from "../clock/index.ts";
 import { bestCard } from "../fx/fees.ts";
 import { applyBps } from "../fx/rational.ts";
-import { toHome } from "../fx/index.ts";
+import { rates, toHome } from "../fx/index.ts";
 import { medianInt } from "../fx/forecast.ts";
 
 /*
@@ -61,10 +61,22 @@ export async function cardFees(userId: string, db: DbOrTx = getDb()): Promise<Ca
     .select({ data: notifications.data })
     .from(notifications)
     .where(and(eq(notifications.userId, userId), eq(notifications.kind, "FEES_DCC")));
+  type DccData = { transactionId: string; cardId?: string | null; merchantNorm: string; overMidBps: number; params?: { merchant?: unknown } };
   const dccWarnings = dcc
-    .map((n) => n.data as { transactionId?: string; cardId?: string | null; merchantNorm?: string; overMidBps?: number } | null)
-    .filter((d): d is { transactionId: string; cardId: string | null; merchantNorm: string; overMidBps: number } => !!d?.transactionId)
-    .map((d) => ({ transactionId: d.transactionId, cardId: d.cardId ?? null, merchantNorm: d.merchantNorm, overMidBps: d.overMidBps }));
+    .map((n) => n.data as Partial<DccData> | null)
+    .filter((d): d is DccData => !!d?.transactionId)
+    // `merchant` = the display name the notification showed (Y6); merchantNorm stays as the matching key.
+    .map((d) => ({
+      transactionId: d.transactionId,
+      cardId: d.cardId ?? null,
+      merchantNorm: d.merchantNorm,
+      merchant: typeof d.params?.merchant === "string" ? d.params.merchant : d.merchantNorm,
+      overMidBps: d.overMidBps,
+    }));
+
+  // Amounts converted with the labelled offline example table are example values too (cn note 7).
+  const probe = await rates().getRate(homeCurrency === "EUR" ? "USD" : "EUR", homeCurrency, today);
+  const exampleRates = probe.source === "STATIC_EXAMPLE";
 
   return {
     homeCurrency,
@@ -72,7 +84,7 @@ export async function cardFees(userId: string, db: DbOrTx = getDb()): Promise<Ca
     monthlyFeesLostHomeMinor: Number(lost[0]?.total ?? 0),
     bestCardByCurrency,
     dccWarnings,
-    // Seeded profiles are labelled example values until real settlements have produced samples.
-    exampleValues: profiles.every((p) => p.samples === 0) || Number(lost[0]?.n ?? 0) === 0,
+    // Example values: offline example rates, or seeded profiles before real settlements have produced samples.
+    exampleValues: exampleRates || profiles.every((p) => p.samples === 0) || Number(lost[0]?.n ?? 0) === 0,
   };
 }

@@ -136,6 +136,11 @@ export const users = pgTable("users", {
   createdAt: tstz("created_at").notNull().defaultNow(),
   /** (added, Phase 2) consent to AI processing (GDPR Art. 6(1)(a)/7); null = none → agent/onboarding refuse. */
   aiConsentAt: tstz("ai_consent_at"),
+  /**
+   * (added 2026-10-12, Track Y3, migration 0005) separate consent to the cross-border transfer of personal
+   * information for AI processing (PIPL Art. 38–39); required for region CN when a model runs outside Kassa's server.
+   */
+  piplConsentAt: tstz("pipl_consent_at"),
   /** (added, Phase 2) GDPR Art. 18 restriction of processing (implies frozen, no AI processing). */
   restrictedAt: tstz("restricted_at"),
   /** (added, Phase 2) GDPR Art. 17 erasure done: DEK shredded, personal rows deleted; sessions refused. */
@@ -391,6 +396,22 @@ export type ProposalDraftJson = {
   riskFeatures?: Record<string, number>;
   /** (added 2026-10-11, B1) documents whose persisted Reader checks were applied (I10). */
   sourceDocIds?: string[];
+  /**
+   * (added 2026-10-12, X7) HANDOFF orders: the merchant's QR request fetched and checked against the verified payee
+   * when the order was first shown, BEFORE the passkey prompt; the handoff rail pays exactly this QR.
+   */
+  handoffQr?: {
+    qrPaymentId: string;
+    qrPayeeName: string;
+    verifiedPayeeName: string;
+    nameSimilarity: number;
+    check: "MATCH" | "QR_PAYEE_MISMATCH";
+    qrPayload: string;
+    walletUrl: string | null;
+    qrAmountMinor: number;
+    qrCurrency: string;
+    checkedAt: string;
+  };
 };
 
 export const proposals = pgTable(
@@ -548,6 +569,20 @@ export const ledgerEntries = pgTable("ledger_entries", {
 
 export const ledgerCheckpoints = pgTable("ledger_checkpoints", {
   seq: bigint("seq", { mode: "number" }).primaryKey(),
+  headHash: text("head_hash").notNull(),
+  sig: text("sig").notNull(),
+  keyId: text("key_id").notNull(),
+  ts: tstz("ts").notNull(),
+});
+
+/**
+ * (added 2026-10-12, X6) Signed head anchor: a single row (id = 1) rewritten in the same transaction as every
+ * append, so truncating or re-hashing entries after the last checkpoint is detected (ledger/internal.ts verifyChain).
+ * sig = Ed25519 (LEDGER_CHECKPOINT_KEY) over a domain-separated JCS message (headMessage), never a checkpoint's.
+ */
+export const ledgerHead = pgTable("ledger_head", {
+  id: integer("id").primaryKey().default(1),
+  seq: bigint("seq", { mode: "number" }).notNull(),
   headHash: text("head_hash").notNull(),
   sig: text("sig").notNull(),
   keyId: text("key_id").notNull(),

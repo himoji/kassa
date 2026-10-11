@@ -6,8 +6,10 @@ import { normalizeMerchant } from "./normalize.ts";
 
 /*
  * Categorisation (spec §13): user correction for this merchantNorm (remembered) → ISO 18245 MCC map →
- * merchant dictionary (`fixtures/merchants.json`, Track D) → Reader-assisted fallback (caller supplies
- * it; returns null when no model is available) → "other".
+ * merchant dictionary (`fixtures/merchants.json`, Track D) → dictionary keywords (whole words of the merchant
+ * text, e.g. "coffee" → eating_out; Track Y5, so a typed "coffee 1200 HUF" lands where the coffee-shop capture
+ * does) → Reader-assisted fallback (caller supplies it; returns null when no model is available) → "other".
+ * Capture and the agent's log_expense both go through ingestCapture → categorize (one categoriser).
  */
 
 export interface MerchantEntry {
@@ -22,6 +24,8 @@ export interface MerchantDictionary {
   categories: string[];
   mccToCategory: Record<string, string>;
   merchants: MerchantEntry[];
+  /** category → lower-case words that name it ("coffee", "metro"); matched as whole words of merchantNorm. */
+  keywords?: Record<string, string[]>;
 }
 
 /** ISO 18245 MCC ranges for the budget categories, used when the fixture is absent or lacks a code. */
@@ -57,6 +61,7 @@ export function loadMerchantDictionary(path = FIXTURE): MerchantDictionary {
         categories: raw.categories?.length ? raw.categories : DEFAULT_CATEGORIES,
         mccToCategory: raw.mccToCategory ?? {},
         merchants: raw.merchants ?? [],
+        keywords: raw.keywords ?? {},
       };
     } catch (e) {
       console.warn(`[capture] could not read ${path}`, e);
@@ -82,6 +87,16 @@ export function lookupMerchant(merchantNorm: string, d = loadMerchantDictionary(
   return null;
 }
 
+/** First category whose keyword is a whole word of the merchant text (category order = dictionary order). */
+export function categoryFromKeywords(merchantNorm: string, d = loadMerchantDictionary()): string | null {
+  const words = new Set(merchantNorm.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+  if (words.size === 0) return null;
+  for (const [category, list] of Object.entries(d.keywords ?? {})) {
+    if (d.categories.includes(category) && list.some((k) => words.has(k.toLowerCase()))) return category;
+  }
+  return null;
+}
+
 export type CategorySource = "USER" | "MCC" | "DICTIONARY" | "READER" | "DEFAULT";
 
 export interface CategorizeInput {
@@ -101,6 +116,9 @@ export async function categorize(i: CategorizeInput, d = loadMerchantDictionary(
   const byMcc = categoryFromMcc(i.mcc ?? null, d);
   if (byMcc) return { category: byMcc, source: "MCC", mcc };
   if (entry) return { category: entry.category, source: "DICTIONARY", mcc };
+  // Keywords live in the same dictionary fixture, so they report as DICTIONARY (no new CategorySource).
+  const byKeyword = categoryFromKeywords(i.merchantNorm, d);
+  if (byKeyword) return { category: byKeyword, source: "DICTIONARY", mcc };
   if (i.readerFallback) {
     let c: string | null = null;
     try {

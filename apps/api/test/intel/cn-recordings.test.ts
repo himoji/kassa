@@ -9,6 +9,8 @@ import { startTurn } from "../../src/modules/agent/loop.ts";
 import { dbPorts } from "../../src/modules/agent/ports.ts";
 import { loadRecording, selectTurn } from "../../src/modules/agent/replay.ts";
 import { dbTurnStore } from "../../src/modules/agent/store.ts";
+import { assertAiProcessingAllowed } from "../../src/modules/privacy/notice.ts";
+import { setAiConsent, setPiplConsent } from "../../src/modules/privacy/service.ts";
 import { loadSeedData, seedDatabase } from "../../src/modules/demo/seed.ts";
 import { getDb } from "../../src/db/client.ts";
 import { useTestDb } from "../helpers/db.ts";
@@ -68,8 +70,14 @@ describe("CN demo recordings (REPLAY, no API key)", () => {
     expect(selectTurn("please pay the TUITION now").recording.scenario).toBe("tuition");
   });
 
-  it("D-CN1: with region CN the dorm fee turn proposes ¥1,800 to the dorm office and rules decide HANDOFF", async () => {
+  it("D-CN1: region CN needs the separate PIPL consent first (Y3); then the dorm fee turn proposes ¥1,800 and rules decide HANDOFF", async () => {
     await getDb().update(users).set({ region: "CN" }).where(eq(users.id, IDS.user));
+    // The seed grants no consent (Y2); the user gives the AI consent and then, for region CN, the separate
+    // cross-border consent (PIPL Art. 38–39) deliberately. The agent routes refuse until both are given.
+    await setAiConsent(IDS.user, true);
+    await expect(assertAiProcessingAllowed(IDS.user)).rejects.toMatchObject({ code: "PIPL_CONSENT_REQUIRED" });
+    await setPiplConsent(IDS.user, true);
+    await expect(assertAiProcessingAllowed(IDS.user)).resolves.toBeUndefined();
     const s = await turn(IDS.user, "Pay the Dorm Office in Shanghai my November dorm fee");
     expect(s.toolCalls.map((c) => c.toolName)).toEqual(["get_obligations", "get_routes", "get_routes", "forecast_coverage", "propose_order"]);
     const rows = await getDb().select().from(proposals).where(eq(proposals.userId, IDS.user));

@@ -10,6 +10,8 @@ import {
   EraseRequest,
   EraseResponse,
   jcsHash,
+  PiplConsentRequest,
+  PiplConsentResponse,
   PrivacyExportResponse,
   Region,
   RestrictResponse,
@@ -27,7 +29,7 @@ import { putGated, takeGated } from "../auth/challenges.ts";
 import { authenticate, userIdOf } from "../auth/session.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { aiNotice } from "./notice.ts";
-import { eraseUser, ERASED, exportUserData, RETAINED, restrictUser, setAiConsent } from "./service.ts";
+import { eraseUser, ERASED, exportUserData, RETAINED, restrictUser, setAiConsent, setPiplConsent } from "./service.ts";
 
 type EraseCore = { v: 1; kind: "ERASE"; userId: string; nonce: string };
 
@@ -47,6 +49,12 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   app.post("/privacy/ai-consent", { schema: { body: AiConsentRequest, response: { 200: AiConsentResponse } } }, async (req) => {
     const at = await setAiConsent(userIdOf(req), req.body.consent);
     return { aiConsentAt: at?.toISOString() ?? null };
+  });
+
+  // Region CN: separate consent to the cross-border transfer for AI processing (PIPL Art. 38–39); withdrawable.
+  app.post("/privacy/pipl-consent", { schema: { body: PiplConsentRequest, response: { 200: PiplConsentResponse } } }, async (req) => {
+    const at = await setPiplConsent(userIdOf(req), req.body.consent);
+    return { piplConsentAt: at?.toISOString() ?? null };
   });
 
   app.post("/privacy/restrict", { schema: { response: { 200: RestrictResponse } } }, async (req) => {

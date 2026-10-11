@@ -2,7 +2,9 @@
  * up / down / status / logs. `up` spawns the daemon detached (logs in .data/sim/logs/) with explicit env
  * overrides; process env beats .env in Bun, so the sim never reads or edits .env files and never touches
  * the dev database (its own PGlite dir under .data/sim/pglite). `down` stops the daemon gracefully, then
- * signals any leftover pid, and checks that every sim port is free.
+ * signals the daemon's whole process group (the daemon is spawned detached, so it leads its own group and its
+ * mock-world child is a member: nothing survives even if the daemon hung or never wrote state.json), and checks
+ * that every sim port is free. A test can set SIM_OWNER_PID: the daemon then stops itself when that process dies.
  */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -19,6 +21,16 @@ export function alive(pid: number | null | undefined): boolean {
   if (!pid) return false;
   try {
     process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Any process left in process group `pgid` (kill(-pgid, 0), POSIX). */
+export function groupAlive(pgid: number): boolean {
+  try {
+    process.kill(-pgid, 0);
     return true;
   } catch (e) {
     return (e as NodeJS.ErrnoException).code === "EPERM";
@@ -145,18 +157,38 @@ export async function down() {
     graceful = r?.status === 200;
     for (let i = 0; i < 50 && alive(pid); i++) await sleep(200);
   }
-  const killed: number[] = [];
-  for (const p of [pid, state?.mockPid ?? null]) {
-    if (!alive(p)) continue;
-    try {
-      process.kill(p!, "SIGTERM");
-      killed.push(p!);
-    } catch {
-      // gone
+  // The daemon leads its process group (spawn detached → setsid), so pgid = daemon pid. Signal the group: that also
+  // reaches mock-world when the daemon hung or died before writing state.json (only daemon.pid known).
+  const pgid = pid ?? null;
+  const signal = (sig: NodeJS.Signals): number[] => {
+    const hit: number[] = [];
+    if (pgid && groupAlive(pgid)) {
+      try {
+        process.kill(-pgid, sig);
+        hit.push(-pgid);
+      } catch {
+        // group gone
+      }
     }
+    for (const p of [pid, state?.mockPid ?? null]) {
+      if (!alive(p)) continue;
+      try {
+        process.kill(p!, sig);
+        hit.push(p!);
+      } catch {
+        // gone
+      }
+    }
+    return hit;
+  };
+  const anyAlive = () => alive(pid) || alive(state?.mockPid) || (pgid !== null && groupAlive(pgid));
+  const killed = signal("SIGTERM");
+  for (let i = 0; i < 25 && anyAlive(); i++) await sleep(200);
+  if (anyAlive()) {
+    // A stopped (SIGSTOP) or hung process never handles SIGTERM: SIGKILL the group.
+    signal("SIGKILL");
+    for (let i = 0; i < 25 && anyAlive(); i++) await sleep(200);
   }
-  for (let i = 0; i < 25 && (alive(pid) || alive(state?.mockPid)); i++) await sleep(200);
-  for (const p of [pid, state?.mockPid ?? null]) if (alive(p)) process.kill(p!, "SIGKILL");
   for (let i = 0; i < 25; i++) {
     const b = await portsReport();
     if (!b.api && !b.mock && !b.control) break;
@@ -168,7 +200,16 @@ export async function down() {
   removeFile(FILES.demoToken);
   const listening = await portsReport();
   const portsFree = !listening.api && !listening.mock && !listening.control;
-  return { stopped: true, graceful, signaled: killed, portsFree, listening, daemonAlive: alive(pid), mockAlive: alive(state?.mockPid) };
+  return {
+    stopped: true,
+    graceful,
+    signaled: killed,
+    portsFree,
+    listening,
+    daemonAlive: alive(pid),
+    mockAlive: alive(state?.mockPid),
+    groupAlive: pgid !== null && groupAlive(pgid),
+  };
 }
 
 export function tailFile(file: string, n: number): string[] {

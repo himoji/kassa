@@ -1,6 +1,8 @@
 export * from "./primitives.ts";
 export * from "./enums.ts";
 export * from "./reasonCodes.ts";
+// (added 2026-10-12, Track Y6) plain-language reason texts
+export * from "./reasonText.ts";
 export * from "./jcs.ts";
 export * from "./order.ts";
 export * from "./mandate.ts";

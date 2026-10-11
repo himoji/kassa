@@ -11,6 +11,8 @@
 import { randomUUID } from "node:crypto";
 import { rmSync, writeFileSync } from "node:fs";
 
+import { type Preset, presetDerivedChanges, type SettingsOverrides } from "@kassa/shared";
+
 import { type Args, flagBool, flagStr, parseArgs } from "./lib/args.ts";
 import {
   approve,
@@ -26,6 +28,7 @@ import {
   payQr,
   result,
   say,
+  settleWebhooks,
   tool,
   upload,
 } from "./lib/commands.ts";
@@ -55,16 +58,17 @@ const USAGE = {
   personas: ["register <persona> [--claim-demo [li-wei]] [--no-onboard] [--no-mandate] [--no-ai-consent] [--force]", "login <persona>", "onboard <persona> [--no-mandate]", "personas"],
   user: [
     "as <persona> me|balances|budgets [--category c]|obligations|forecast|cards|fees|transactions [--limit n --cursor c]|payees|mandates|caps|rule-changes|notifications|ledger [--limit n]|proposals [--status S]",
-    "as <persona> add-payee '<json>' | verify-payee <payeeId> | create-mandate '<json>' | revoke-mandate <mandateId>",
+    "as <persona> add-payee '<json>' | verify-payee <payeeId> [--sign] | create-mandate '<json>' | revoke-mandate <mandateId>",
     "as <persona> settings get | settings patch '<json>' [--sign]",
     "as <persona> freeze | unfreeze [--sign]",
     "as <persona> order <proposalId> | approve <proposalId> | reject <proposalId> [--reason text]",
+    "as <persona> recategorise <transactionId> <category>   (also: sim recategorise <persona> <transactionId> <category>)",
     "as <persona> capture-event '<json>'|@file | settlement '<json>' | upload <file> [--kind invoice|notification|email_change_request] [--conversation id]",
     "as <persona> handoff <paymentId> | pay-qr <paymentId> | payment <paymentId>|--proposal <proposalId> | intent <paymentId> | simulate-intent <paymentId>",
-    "as <persona> privacy notice|export [--out file]|consent [--withdraw]|restrict|erase [--sign] | update-me '<json>' | shortcut-token | credit-record '<json>'",
+    "as <persona> privacy notice|export [--out file]|consent [--withdraw]|pipl-consent [--withdraw]|restrict|erase [--sign] | update-me '<json>' | shortcut-token | credit-record '<json>'",
   ],
   tools: ["as <persona> say '<chat text>' [--conversation id]   (user message as the planner sees it; mints payee_N refs)", `tool <name> '<json>' --as <persona> [--conversation <id>|new] [--reader-output '<json>'|@file]  (names: ${TOOL_NAMES.join(", ")})`],
-  demo: ["demo status | clock +1h|+1d|+3d|+Nh|+Nd | trigger <settlement|money-from-home|landlord-iban-email|pos-low-dough|cn-spending-day> | agent-mode <LIVE|REPLAY> | tick"],
+  demo: ["demo status | clock +1h|+1d|+3d|+Nh|+Nd (waits for the mock bank's webhooks) | trigger <settlement|money-from-home|landlord-iban-email|pos-low-dough|cn-spending-day> | agent-mode <LIVE|REPLAY> | tick"],
   mock: [
     "mock inbox [messageId] | suppliers | catalog <supplierId> | price-list <supplierId> | payees | invoice <payeeId> [--variant swapped-account]",
     "mock qr <qrPaymentId> | qr-swap on|off | pos-emit [--sku S --level N --qty N] | remittance [--amount 400000 --currency KZT --sender text --profile li-wei] | outbox | transfers",
@@ -146,7 +150,8 @@ async function personaAction(p: PersonaFile, action: string | undefined, rest: s
     case "add-payee":
       return post(p, "/payees", await jsonArg(arg, "payee JSON {name, kind, account, country, currency}"));
     case "verify-payee":
-      return post(p, `/payees/${need(arg, "payeeId")}/verify-callback`);
+      // Passkey-gated (X3/F1): 428 → with --sign the persona's passkey signs the challenge bound to this payee.
+      return gated(p, "POST", `/payees/${need(arg, "payeeId")}/verify-callback`, {}, flagBool(args, "sign"), "POST /payees/:id/verify-callback");
     case "create-mandate":
       return createMandate(p, (await jsonArg(arg, "mandate JSON {payeeIds, categories, currency, maxPerPaymentMinor, maxPerPeriodMinor, period, validUntil}")) as Record<string, unknown>);
     case "revoke-mandate":
@@ -156,7 +161,15 @@ async function personaAction(p: PersonaFile, action: string | undefined, rest: s
         const [me, caps, changes] = [await get(p, "/me"), await get(p, "/caps"), await get(p, "/rule-changes?status=all")];
         return { ok: true, me: me.data, caps: caps.data, ruleChanges: changes.data };
       }
-      if (arg === "patch") return gated(p, "PATCH", "/settings", (await jsonArg(rest[1], "settings patch JSON")) as Record<string, unknown>, flagBool(args, "sign"), "PATCH /settings");
+      if (arg === "patch") {
+        const patch = (await jsonArg(rest[1], "settings patch JSON")) as Record<string, unknown>;
+        const before = (await get(p, "/me")).data as { settings: { preset: Preset; overrides: SettingsOverrides } };
+        const r = await gated(p, "PATCH", "/settings", patch, flagBool(args, "sign"), "PATCH /settings");
+        // A preset switch can change other settings implicitly (ASK_ME → money mode PAY_IN_PLACE, spec §10): say so (p2 B6).
+        const to = typeof patch.preset === "string" ? (patch.preset as Preset) : null;
+        const derived = to ? presetDerivedChanges(before.settings.preset, to, before.settings.overrides) : [];
+        return derived.length ? { ...(r as object), derivedChanges: derived } : r;
+      }
       return fail("BAD_ARGS", "settings get | settings patch '<json>' [--sign]");
     }
     case "freeze":
@@ -196,6 +209,14 @@ async function personaAction(p: PersonaFile, action: string | undefined, rest: s
       return post(p, "/devices/shortcut");
     case "credit-record":
       return post(p, "/credit-record/export", await jsonArg(arg, "credit record JSON {from, to}"));
+    case "recategorise":
+    case "recategorize": {
+      // Correct a transaction's category; capture remembers it for that merchant (spec §13, p1 B7).
+      const transactionId = need(arg, "transactionId");
+      const category = need(rest[1], "category");
+      const r = await post(p, `/transactions/${transactionId}/category`, { category });
+      return { ...(r as object), transactionId, category };
+    }
     case "update-me":
       return result(await personaRequest(p, "PATCH", "/me", { body: await jsonArg(arg, "profile JSON {displayName}") }), "PATCH /me");
     case "privacy": {
@@ -212,13 +233,16 @@ async function personaAction(p: PersonaFile, action: string | undefined, rest: s
           return r;
         }
         case "consent":
-          return result(await personaRequest(p, "POST", "/privacy/ai-consent", { body: { consent: !flagBool(args, "withdraw") }, consentRetry: false }), "POST /privacy/ai-consent");
+          return result(await personaRequest(p, "POST", "/privacy/ai-consent", { body: { consent: !flagBool(args, "withdraw") } }), "POST /privacy/ai-consent");
+        case "pipl-consent":
+          // Region CN: the separate cross-border consent for AI processing (PIPL Art. 38–39), given deliberately.
+          return result(await personaRequest(p, "POST", "/privacy/pipl-consent", { body: { consent: !flagBool(args, "withdraw") } }), "POST /privacy/pipl-consent");
         case "restrict":
           return post(p, "/privacy/restrict");
         case "erase":
           return gated(p, "POST", "/privacy/erase", { confirm: "ERASE" }, flagBool(args, "sign"), "POST /privacy/erase");
         default:
-          return fail("BAD_ARGS", "privacy notice | export [--out file] | consent [--withdraw] | restrict | erase [--sign]");
+          return fail("BAD_ARGS", "privacy notice | export [--out file] | consent [--withdraw] | pipl-consent [--withdraw] | restrict | erase [--sign]");
       }
     }
     case "tool":
@@ -243,17 +267,28 @@ async function demoCmd(sub: string | undefined, rest: string[]) {
     case "status":
     case undefined:
       return demo("GET", "/demo/clock");
-    case "clock":
-      return demo("POST", "/demo/clock/advance", { hours: parseHours(rest[0]) });
-    case "trigger":
-      return demo("POST", `/demo/trigger/${need(rest[0], "scenario")}`);
+    case "clock": {
+      // Waits until the mock bank's webhooks for the new demo time have landed (p1 B11).
+      const since = Date.now();
+      const r = await demo("POST", "/demo/clock/advance", { hours: parseHours(rest[0]) });
+      const now = (r as { data?: { now?: unknown } }).data?.now;
+      return { ...(r as object), webhooks: await settleWebhooks(typeof now === "string" ? now : null, since) };
+    }
+    case "trigger": {
+      const since = Date.now();
+      const r = await demo("POST", `/demo/trigger/${need(rest[0], "scenario")}`);
+      return { ...(r as object), webhooks: await settleWebhooks(null, since) };
+    }
     case "agent-mode": {
       const mode = need(rest[0], "LIVE|REPLAY").toUpperCase();
       if (mode !== "LIVE" && mode !== "REPLAY") fail("BAD_ARGS", "agent-mode LIVE|REPLAY");
       return demo("POST", "/demo/agent-mode", { mode });
     }
-    case "tick":
-      return control("/tick");
+    case "tick": {
+      const since = Date.now();
+      const r = await control("/tick");
+      return { ...(r as object), webhooks: await settleWebhooks(null, since) };
+    }
     default:
       return fail("BAD_ARGS", "unknown demo command", { usage: USAGE.demo });
   }
@@ -377,6 +412,11 @@ async function main(argv: string[]): Promise<unknown> {
     case "as": {
       const p = loadPersona(need(rest[0], "persona name"));
       return personaAction(p, rest[1], rest.slice(2), args);
+    }
+    case "recategorise":
+    case "recategorize": {
+      const p = loadPersona(need(rest[0], "persona name"));
+      return personaAction(p, "recategorise", rest.slice(1), args);
     }
     case "tool":
       return runTool(personaFlag(args), rest, args);

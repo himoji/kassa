@@ -29,6 +29,11 @@ export const CanonicalOrder = z.object({
   fundingAmountMinor: z.number().int().positive().optional(),
   fundingRouteId: z.string().min(1).max(64).optional(),
   fundingMarkupBps: z.number().int().nonnegative().optional(),
+  // (added 2026-10-12, X1) The bill this order pays: the obligation and its period (due date, ISO 8601), both or
+  // neither. Signed with the order, so a mandate (T1) payment is bound to the obligation the user's mandate
+  // covers; payments re-checks the obligation independently (payee, category, amount ≤ bill, period unsettled).
+  obligationId: z.string().uuid().optional(),
+  obligationPeriod: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 export type CanonicalOrder = z.infer<typeof CanonicalOrder>;
 
@@ -40,7 +45,24 @@ export type CanonicalOrder = z.infer<typeof CanonicalOrder>;
 export function orderHash(order: CanonicalOrder): string {
   const parsed = CanonicalOrder.parse(order);
   orderFunding(parsed); // all-or-none funding fields: a partial binding is never hashed (or signed)
+  orderObligation(parsed); // all-or-none obligation link (X1)
   return jcsHash(parsed);
+}
+
+/**
+ * (added 2026-10-12, Track Y6, p1 B9) Allowance for exchange-rate moves between signing and the bank's conversion,
+ * included in a converting order's signed maximum (fundingAmountMinor). Must equal rules/funding.ts FX_TOLERANCE_BPS
+ * (a test pins it). The bank debits its actual quote; above the signed maximum nothing is sent.
+ */
+export const FUNDING_FX_TOLERANCE_BPS = 100;
+
+/** Plain-language explanation of the signed maximum ("at most …") for a converting order. */
+export function fundingMarginNoteEn(maxFormatted: string, fundingCurrency: string): string {
+  return (
+    `At most ${maxFormatted} from your ${fundingCurrency} balance: the converted amount and the route's fees, plus up to ` +
+    `${FUNDING_FX_TOLERANCE_BPS / 100}% for exchange-rate moves before the bank converts. You are debited the bank's actual ` +
+    "quote; if it would be higher than this maximum, nothing is sent."
+  );
 }
 
 export type OrderFunding = { currency: string; maxAmountMinor: number; routeId: string; markupBps: number };
@@ -52,4 +74,14 @@ export function orderFunding(order: CanonicalOrder): OrderFunding | null {
   if (present === 0) return null;
   if (present !== f.length) throw new RangeError("canonical order: funding fields must be all present or all absent");
   return { currency: order.fundingCurrency!, maxAmountMinor: order.fundingAmountMinor!, routeId: order.fundingRouteId!, markupBps: order.fundingMarkupBps! };
+}
+
+export type OrderObligation = { obligationId: string; period: string };
+
+/** (added 2026-10-12, X1) The signed obligation link of an order, or null. Throws on a partial link. */
+export function orderObligation(order: CanonicalOrder): OrderObligation | null {
+  const present = [order.obligationId, order.obligationPeriod].filter((x) => x !== undefined).length;
+  if (present === 0) return null;
+  if (present !== 2) throw new RangeError("canonical order: obligationId and obligationPeriod must be both present or both absent");
+  return { obligationId: order.obligationId!, period: order.obligationPeriod! };
 }

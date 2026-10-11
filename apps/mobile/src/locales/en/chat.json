@@ -1,5 +1,13 @@
 {
   "cheapest": "Cheapest",
+  "consent": {
+    "aiTitle": "Agree to AI processing",
+    "aiBody": "Kassa's assistant is an AI. It sees your chat with names and account numbers replaced by placeholders, and it can only draft payments.",
+    "piplTitle": "Cross-border AI processing (PIPL)",
+    "piplBody": "You are in region CN and Kassa's AI runs outside mainland China. Under China's PIPL (Art. 38–39) this cross-border transfer needs your separate consent. You can withdraw it at any time.",
+    "agree": "I agree",
+    "failed": "Kassa could not save your consent. Try again."
+  },
   "emptyBody": "Ask for a payment, a budget check or a log. Kassa drafts it, and you approve it with your passkey.",
   "emptyTitle": "What do you need to pay or plan?",
   "error": "Kassa could not reply just now.",

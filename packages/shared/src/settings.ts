@@ -39,6 +39,22 @@ export function effectiveSettings(preset: Preset, overrides: SettingsOverrides):
 }
 
 /**
+ * (added 2026-10-12, Track Y6, p2 B6) Settings a preset change changes implicitly: effective values that differ
+ * before and after because they follow the preset (no override). E.g. SMART → ASK_ME derives moneyMode
+ * CAPPED_WALLET → PAY_IN_PLACE (spec §10 presets). Shown and notified explicitly, never silent.
+ */
+export type DerivedSettingChange = { setting: keyof EffectiveSettings; from: string; to: string };
+
+export function presetDerivedChanges(fromPreset: Preset, toPreset: Preset, overrides: SettingsOverrides): DerivedSettingChange[] {
+  if (fromPreset === toPreset) return [];
+  const before = effectiveSettings(fromPreset, overrides);
+  const after = effectiveSettings(toPreset, overrides);
+  return (Object.keys(after) as Array<keyof EffectiveSettings>)
+    .filter((k) => before[k] !== after[k])
+    .map((k) => ({ setting: k, from: before[k], to: after[k] }));
+}
+
+/**
  * Spec §10: invalid combinations are rejected. "Never ask" only makes sense when Kassa itself can
  * pay inside a mandate (capped wallet): HANDOFF and PAY_IN_PLACE both need the user at pay time.
  */

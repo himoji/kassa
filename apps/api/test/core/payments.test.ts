@@ -10,7 +10,7 @@ import { clock } from "../../src/modules/clock/index.ts";
 import { executeApproval } from "../../src/modules/payments/index.ts";
 import { approveOrder, getOrderView, proposeOrder, registerExecutor } from "../../src/modules/rules/index.ts";
 import { setSanctionsListForTests } from "../../src/modules/screening/index.ts";
-import { addActiveMandate, addPayee, createUserWithPasskey, IBAN_UNIVERSITY, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { addActiveMandate, addObligation, addPayee, createUserWithPasskey, IBAN_UNIVERSITY, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
 
 const t = useTestDb();
@@ -100,17 +100,22 @@ describe("payments verification", () => {
     expect((await executeApproval(a.approvalId)).reasonCodes).toEqual(["REFUSE_UNVERIFIED_PAYEE"]);
   });
 
-  it("enforces its own daily cap per user and currency (I5)", async () => {
-    setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "150000000" }); // ₸1.5M; €2,400 ≈ ₸1.344M
+  it("enforces its own daily cap per user in the home currency, summed across currencies (I5, X2)", async () => {
+    setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "150000000" }); // ₸1.5M
     try {
+      // €2,400 ≈ ₸1.344M (fallback rate). Both orders are approved before either executes, so rules saw no usage
+      // and only payments' own cap stands between them.
       const a = await approvedButNotExecuted();
+      const landlord = await addPayee(a.userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "HUF" });
+      const r2 = await proposeOrder({ userId: a.userId, createdBy: "USER", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent" }); // ≈ ₸259,200
+      const v2 = await getOrderView(a.userId, r2.proposalId);
+      registerExecutor(null);
+      const second = await approveOrder(a.userId, r2.proposalId, a.auth.assert(v2.orderHash));
+      offlineEnvironment();
       expect((await executeApproval(a.approvalId)).status).toBe("PROCESSING");
-      // Second order the same day, same user and currency: rules allow it (caps are higher), payments does not.
-      const view2 = await proposeOrder({ userId: a.userId, createdBy: "USER", payeeId: a.payee.id, amountMinor: 50_000, currency: "EUR", purpose: "Fees" });
-      const v = await getOrderView(a.userId, view2.proposalId);
-      const res = await approveOrder(a.userId, view2.proposalId, a.auth.assert(v.orderHash));
-      expect(res.reasonCodes).toEqual(["PAYMENTS_DAILY_CAP"]);
-      // The nonce of the refused order was not consumed (cap is checked before the nonce insert).
+      // Different currency (HUF after EUR): the day's total in KZT is over the cap.
+      expect((await executeApproval(second.approvalId)).reasonCodes).toEqual(["PAYMENTS_DAILY_CAP"]);
+      // The nonce of the refused order was not consumed (the cap refusal rolls the nonce insert back).
       expect(await getDb().select().from(usedNonces)).toHaveLength(1);
     } finally {
       setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000" });
@@ -128,10 +133,11 @@ describe("payments verification", () => {
     const payee = await addPayee(userId, { name: "Landlord in Budapest" });
     await signBaseRules(userId, auth);
     const core = await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 30_000_000 });
-    const first = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
+    const [rent, rent2] = [await addObligation(userId, payee.id), await addObligation(userId, payee.id)];
+    const first = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: rent.id });
     expect(first.decision).toBe("AUTO");
-    // Period usage now 18M of 30M: a second 18M rent is outside the mandate → rules ASK, never AUTO.
-    const second = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent again", category: "rent" });
+    // Period usage now 18M of 30M: a second 18M bill is outside the mandate → rules ASK, never AUTO.
+    const second = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent again", obligationId: rent2.id });
     expect(second.decision).toBe("ASK");
     expect(second.reasonCodes).toContain("MANDATE_OUT_OF_SCOPE");
     expect(core.mandateId).toBeTruthy();
@@ -144,7 +150,8 @@ describe("payments verification", () => {
     const core = await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 20_000_000 });
     const { mandates } = await import("../../src/db/schema.ts");
     await getDb().update(mandates).set({ maxPerPaymentMinor: 99_000_000, maxPerPeriodMinor: 99_000_000 }).where(eq(mandates.id, core.mandateId));
-    const r = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 50_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
+    const bill = await addObligation(userId, payee.id, { amountMinor: 50_000_000 });
+    const r = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 50_000_000, currency: "HUF", purpose: "Rent", obligationId: bill.id });
     // Rules matched the (tampered) row, but payments recomputes mandateHash and refuses.
     expect(r.decision).toBe("AUTO");
     expect(r.reasonCodes).toContain("BAD_SIGNATURE");

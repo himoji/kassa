@@ -89,3 +89,25 @@ Tracks: A = core money path (apps/api), B = intelligence (apps/api), C = mobile 
   - **rules `proposeOrder`** derives the obligation period itself (`dueDate` input optional) and refuses a second live proposal per (obligationId, period); `obligationId` of another user / payee → 400 `BAD_OBLIGATION`. New input `sourceDocIds` (stored on the draft).
   - **DB:** migration `apps/api/drizzle/0002_obligation_settlements.sql` (run `bun run db:migrate`). `fixtures/rails.json` `provider` is now read by the API (only `MOCK_BANK` routes fund bank transfers).
   - **Demo:** `POST /demo/trigger/money-from-home` sends ₸600,000 (was ₸300,000); `sim mock remittance` defaults to 600000 KZT.
+- 2026-10-12 (Track X, final fix pass, apps/api + packages/shared) — ADDITIVE, `CanonicalOrder.v` unchanged.
+  - **`CanonicalOrder`** gains optional `obligationId` (uuid) + `obligationPeriod` (YYYY-MM-DD), both or neither (`orderObligation(order)`; `orderHash` refuses a partial link). Set on every order linked to a bill; orders without them hash as before. Payments requires it for T1 mandate payments (X1).
+  - **`ReasonCode`** gains `MANDATE_SCOPE_MISMATCH` (X1: payee is in a mandate, draft not linked to an in-scope bill → ASK) and `SMALL_AUTO_BUDGET_EXHAUSTED` (X3: per-day small-auto budget used → ASK; payments refuses with it too). en labels in `apps/mobile/src/locales/en/reasonCodes.json`. Rules may now also return `REFUSE_CAP` + `PAYMENTS_DAILY_CAP` before signing (X2).
+  - **`OrderView`** gains optional `reissuedFromOrderHash` (X8: this GET replaced an expired order — show "expired, review again") and `handoff {check, qrPayeeName, verifiedPayeeName, nameSimilarity}` (X7).
+  - **Behaviour changes for clients (C / sim):** `POST /payees/:id/verify-callback` is passkey-gated: first call → **428 PASSKEY_REQUIRED** `{challengeId, webauthnOptions}`, resend `{challengeId, assertion}` (body `PasskeyGatedRequest`); challenge for another payee → 409 `CHALLENGE_MISMATCH`. `POST /payees` with a sanctions-listed name → **422 `REFUSE_SANCTIONS`** (not stored). `POST /orders/:id/approve` on an expired order → **410 `ORDER_EXPIRED`** with `details` = the re-issued `OrderView` (sign its `orderHash` after review; the sent assertion is discarded). HANDOFF orders: `GET /orders/:id` fetches and checks the merchant QR before the passkey prompt; a mismatch makes the proposal `REFUSED` with `QR_PAYEE_MISMATCH` (`webauthnOptions: null`, approve → 409 `QR_PAYEE_MISMATCH`, no payment row); the handoff rail pays exactly that QR. `/auth/refresh` for an erased account → 401 `ACCOUNT_ERASED`. Notifications `PAYMENT_SENT` / `PAYMENT_FAILED` now come for every rail with `data {key: "payment.sent"|"payment.failed", params {payee, amount, home, rail, mandate|null, reasonCodes}, paymentId, proposalId, status}`; the bank webhook's generic "Payment sent" is gone.
+  - **Sim (Track Y):** `sim … approve` signs whatever `GET /orders/:id` returns; it should stop when the view carries `reissuedFromOrderHash` (that is p2 B3) and handle 410 details. The verify-callback command needs the 428 round trip with the persona's soft authenticator.
+  - **DB:** migration `apps/api/drizzle/0004_ledger_head.sql` (table `ledger_head`, signed head anchor, X6). Its journal `when` is later than 0005's so databases that already applied 0005 still get 0004; `meta/0005_snapshot.json` now chains from 0004 and includes `ledger_head` (drizzle-kit generate reports no drift). New env `SMALL_AUTO_DAILY_MAX_COUNT` (3), `SMALL_AUTO_DAILY_AMOUNT_MULTIPLE` (3).
+- 2026-10-12 (Track Y, final fix pass, apps/api + packages/shared) — ADDITIVE, `CanonicalOrder.v` unchanged.
+  - **`ReasonCode`** gains `PIPL_CONSENT_REQUIRED` (en label in `apps/mobile/src/locales/en/reasonCodes.json`).
+  - **New endpoint** `POST /privacy/pipl-consent {consent}` → `{piplConsentAt}` (`PiplConsentRequest/Response`). Region CN
+    with an external planner/Reader: agent chat, `/agent/documents`, `/onboarding/message` (and the sim planner) answer
+    **403 `PIPL_CONSENT_REQUIRED`** (details.aiNotice) until it is given, after the AI-consent check. `AiNotice` gains
+    optional `crossBorderConsentRequired`. Export `data.user.piplConsentAt`. Migration `0005_pipl_consent.sql`.
+  - **`RouteDto`** gains optional `noConversion`, `balanceCovers`. **`CardFeesResponse.dccWarnings[]`** gains optional
+    `merchant` (display name). Forecast suggestions are now sized to the first shortfall.
+  - **Shared helpers:** `REASON_TEXT_EN`, `reasonTextEn`, `reasonsSentenceEn` (plain-language reasons, for server text
+    such as rules' `summarize()`); `presetDerivedChanges(fromPreset, toPreset, overrides)`; `FUNDING_FX_TOLERANCE_BPS`
+    (= rules `FX_TOLERANCE_BPS`) and `fundingMarginNoteEn(maxFormatted, currency)`.
+  - **Behaviour:** the demo seed grants no AI consent (`seedDatabase(..., { aiConsent: true })` for tests);
+    `DEMO_SEEDED` is one ledger entry per seeded user. `budget.each` params gain optional `home` (home equivalent of a
+    foreign spend). Agent-proposed orders carry re-hydrated purpose / item names (no `payee_N`).
+

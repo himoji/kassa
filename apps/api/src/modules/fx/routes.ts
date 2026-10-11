@@ -86,6 +86,23 @@ export async function getRoutes(req: RouteRequest, svc: RatesService = rates()):
     .map((c) => ({ ...c, savingsVsWorstHomeMinor: worst - c.costHomeMinor }));
 }
 
+/**
+ * The direct route for a bill paid from a balance in the same currency (p1 B10): no conversion, markup 0, the
+ * cheapest same-currency rail arriving by the due date. Ignores the balance cap so the user always sees the direct
+ * option; `balanceCovers` says whether today's balance in that currency pays amount + fees. null = no such rail.
+ */
+export async function directRoute(
+  req: Omit<RouteRequest, "fundingCurrencies" | "top">,
+  svc: RatesService = rates(),
+): Promise<(RankedRoute & { noConversion: true; balanceCovers: boolean }) | null> {
+  const balance = req.balances.find((b) => b.currency === req.toCurrency)?.amountMinor ?? 0;
+  const best = (
+    await getRoutes({ ...req, balances: [{ currency: req.toCurrency, amountMinor: Number.MAX_SAFE_INTEGER }], fundingCurrencies: [req.toCurrency], top: 1 }, svc)
+  )[0];
+  if (!best) return null;
+  return { ...best, savingsVsWorstHomeMinor: 0, noConversion: true, balanceCovers: best.totalDebitFundingMinor <= balance };
+}
+
 async function toHomeMinor(amountMinor: number, currency: string, home: string, date: string, svc: RatesService): Promise<number> {
   if (amountMinor === 0 || currency === home) return amountMinor;
   const q = await svc.getRate(currency, home, date);

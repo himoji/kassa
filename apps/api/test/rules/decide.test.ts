@@ -128,9 +128,11 @@ describe("decide: step 4 sanctions screening", () => {
     expect(r.reasonCodes).toContain("REFUSE_SANCTIONS");
   });
 
-  it("screening hit on a card-issuing rail is not a sanctions refusal", () => {
-    const r = decide({ ...base(), screeningHit: true, rail: "CARD_ISSUING" });
-    expect(r.reasonCodes).not.toContain("REFUSE_SANCTIONS");
+  // X4 (security review F6, p3 B1): screening applies to every rail, not only bank transfers.
+  it.each(["CARD_ISSUING", "HANDOFF", "PAY_IN_PLACE"] as const)("screening hit on %s refuses too", (rail) => {
+    const r = decide({ ...base(), screeningHit: true, rail });
+    expect(r.decision).toBe("REFUSE");
+    expect(r.reasonCodes).toEqual(["REFUSE_SANCTIONS"]);
   });
 });
 
@@ -385,5 +387,31 @@ describe("decide: step 4b funding (B2)", () => {
   it("unknown funding (null) and non-bank rails are not refused for funds", () => {
     expect(decide({ ...base(), fundingAvailable: null }).decision).toBe("AUTO");
     expect(decide({ ...base(), rail: "CARD_ISSUING", fundingAvailable: false }).decision).toBe("AUTO");
+  });
+});
+
+describe("decide: Phase 2 fix pass (X1, X2, X3)", () => {
+  it("X1: a mandate payee outside the mandate's scope never auto-pays, not even below the small-auto limit", () => {
+    const r = decide({ ...base(), mandateScopeMismatch: true });
+    expect(r.decision).toBe("ASK");
+    expect(r.reasonCodes).toContain("MANDATE_SCOPE_MISMATCH");
+    const o = decide({ ...base(), mandateOutOfScope: true });
+    expect(o.decision).toBe("ASK");
+    expect(o.reasonCodes).toContain("MANDATE_OUT_OF_SCOPE");
+  });
+
+  it("X2: over payments' own daily cap → REFUSE_CAP + PAYMENTS_DAILY_CAP, also where SMART would ask within 2×", () => {
+    const within2x = { ...base().caps, amountHomeMinor: 50_000_000, usedTodayHomeMinor: 180_000_000, paymentsDailyHomeMinor: 200_000_000 };
+    expect(decide({ ...base(), caps: within2x })).toMatchObject({ decision: "REFUSE", reasonCodes: ["REFUSE_CAP", "PAYMENTS_DAILY_CAP"] });
+    const underRulesCaps = { ...base().caps, amountHomeMinor: 500_000, usedTodayHomeMinor: 0, dailyHomeMinor: 900_000_000, paymentsDailyHomeMinor: 400_000 };
+    expect(decide({ ...base(), caps: underRulesCaps }).reasonCodes).toEqual(["REFUSE_CAP", "PAYMENTS_DAILY_CAP"]);
+    expect(decide({ ...base(), caps: { ...base().caps, paymentsDailyHomeMinor: 200_000_000 } }).decision).toBe("AUTO");
+  });
+
+  it("X3: small-auto beyond the per-day budget (count or amount) → ASK SMALL_AUTO_BUDGET_EXHAUSTED", () => {
+    const budget = { usedCount: 2, usedHomeMinor: 1_000_000, maxCount: 3, maxHomeMinor: 3_000_000 };
+    expect(decide({ ...base(), smallAutoBudget: budget }).decision).toBe("AUTO");
+    expect(decide({ ...base(), smallAutoBudget: { ...budget, usedCount: 3 } }).reasonCodes).toContain("SMALL_AUTO_BUDGET_EXHAUSTED");
+    expect(decide({ ...base(), smallAutoBudget: { ...budget, usedHomeMinor: 2_600_000 } }).reasonCodes).toContain("SMALL_AUTO_BUDGET_EXHAUSTED");
   });
 });

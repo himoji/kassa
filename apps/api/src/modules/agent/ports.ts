@@ -75,6 +75,8 @@ export interface AgentPorts {
   obligations(withinDays?: number, opts?: { includePast?: boolean }): Promise<ObligationRow[]>;
   paymentCount(payeeId: string): Promise<number>;
   catalog(merchant: string, query: string): Promise<CatalogLookup>;
+  /** (Y5) Catalog ids with their merchant names (pizza shop + suppliers), to map a payee placeholder to its catalog. */
+  catalogDirectory?(): Promise<Array<{ id: string; name: string }>>;
   routes(a: { fromCurrency?: string; toCurrency: string; amountMinor: number; dueDate?: string }): Promise<{ homeCurrency: string; routes: RouteDto[] }>;
   forecast(): Promise<ForecastResponse>;
   readDocument(docId: string): Promise<ReaderResult>;
@@ -171,6 +173,22 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     },
     async paymentCount(payeeId) {
       return (await payeeHistory(db, userId, payeeId)).count;
+    },
+    async catalogDirectory() {
+      const base = `${process.env.MOCK_WORLD_URL ?? "http://localhost:4001"}/mock`;
+      const out: Array<{ id: string; name: string }> = [];
+      const menu = await fetch(`${base}/shop/pizza/menu`).catch(() => null);
+      if (menu?.ok) {
+        const name = ((await menu.json()) as { merchant?: { name?: unknown } }).merchant?.name;
+        if (typeof name === "string") out.push({ id: "pizza", name });
+      }
+      const sup = await fetch(`${base}/suppliers`).catch(() => null);
+      if (sup?.ok) {
+        for (const x of ((await sup.json()) as { suppliers?: Array<{ id?: unknown; name?: unknown }> }).suppliers ?? []) {
+          if (typeof x.id === "string" && typeof x.name === "string") out.push({ id: x.id, name: x.name });
+        }
+      }
+      return out;
     },
     async catalog(merchant, query) {
       const base = `${process.env.MOCK_WORLD_URL ?? "http://localhost:4001"}/mock`;

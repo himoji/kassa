@@ -14,6 +14,7 @@ import { useSessionStore } from "@/stores/session";
 
 import { api } from "../client";
 import { keys } from "../keys";
+import { withPasskeyGate } from "../passkey-gate";
 
 export function usePayees() {
   const authed = useSessionStore((s) => s.status) === "authenticated";
@@ -38,8 +39,11 @@ export function useCreatePayee() {
 export function useSimulatePayeeVerification() {
   const qc = useQueryClient();
   return useMutation({
+    // Passkey-gated (X3): 428 PASSKEY_REQUIRED with a challenge bound to this payee → sign, resend.
     mutationFn: (id: string) =>
-      api.request(`/payees/${encodeURIComponent(id)}/verify-callback`, { json: {} }),
+      withPasskeyGate((proof) =>
+        api.request(`/payees/${encodeURIComponent(id)}/verify-callback`, { json: { ...proof } })
+      ),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.payees }),
   });
 }

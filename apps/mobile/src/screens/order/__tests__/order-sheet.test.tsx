@@ -74,6 +74,31 @@ describe("OrderSheetView", () => {
     expect(screen.queryByTestId("order-integrity-error")).toBeNull();
   });
 
+  it("shows the signed funding maximum and explains its margin (Y6, p1 B9)", async () => {
+    const funded: CanonicalOrder = {
+      ...order,
+      fundingCurrency: "KZT",
+      fundingAmountMinor: 149362202,
+      fundingRouteId: "kzt-mock-bank",
+      fundingMarkupBps: 55,
+    };
+    await render(
+      wrap(<OrderSheetView view={viewFor(funded)} onApprove={() => {}} onReject={() => {}} />)
+    );
+    expect(screen.getByTestId("order-funding")).toHaveTextContent(/KZT balance, at most/);
+    expect(screen.getByTestId("order-funding-note")).toHaveTextContent(
+      /up to 1% for exchange-rate moves/
+    );
+  });
+
+  it("no funding note without a funding binding", async () => {
+    await render(
+      wrap(<OrderSheetView view={viewFor(order)} onApprove={() => {}} onReject={() => {}} />)
+    );
+    expect(screen.queryByTestId("order-funding")).toBeNull();
+    expect(screen.queryByTestId("order-funding-note")).toBeNull();
+  });
+
   it("never renders agent prose, even if the server response carried it", async () => {
     const view = viewFor(order);
     // The shared schema strips unknown keys before the view ever sees them.

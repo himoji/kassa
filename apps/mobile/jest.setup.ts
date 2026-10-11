@@ -154,3 +154,10 @@ jest.mock("expo-secure-store", () => {
 // Mocks the UI components need under jest (native style engines, …).
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require("./src/components/ui/jest-setup");
+
+// expo installs `fetch` (and friends) as lazy globals (expo/src/winter/installGlobal.ts): the first read requires
+// expo's fetch module and its native-module shims. Jest's environment teardown walks the globals, so without this
+// the first read happened AFTER the tests, in teardown ("Cannot log after tests are done" from
+// ExpoModulesCoreJSLogger) and, under CPU load, kept workers past Jest's exit grace period ("A worker process
+// has failed to exit gracefully"). Resolve it here, while the module registry is live.
+void globalThis.fetch;

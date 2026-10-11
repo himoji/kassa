@@ -55,8 +55,8 @@ describe("categorize", () => {
 
   it("unknown merchant + Reader fallback returning a valid category → READER", async () => {
     const r = await categorize({
-      merchantNorm: "unknown clinic",
-      merchantRaw: "UNKNOWN CLINIC",
+      merchantNorm: "unknown vendor",
+      merchantRaw: "UNKNOWN VENDOR",
       readerFallback: async () => "health",
     });
     expect(r.category).toBe("health");
@@ -65,8 +65,8 @@ describe("categorize", () => {
 
   it("Reader fallback returning an unknown category → other (DEFAULT)", async () => {
     const r = await categorize({
-      merchantNorm: "unknown clinic",
-      merchantRaw: "UNKNOWN CLINIC",
+      merchantNorm: "unknown vendor",
+      merchantRaw: "UNKNOWN VENDOR",
       readerFallback: async () => "not-a-category",
     });
     expect(r.category).toBe("other");
@@ -75,8 +75,8 @@ describe("categorize", () => {
 
   it("Reader fallback rejecting → other (DEFAULT)", async () => {
     const r = await categorize({
-      merchantNorm: "unknown clinic",
-      merchantRaw: "UNKNOWN CLINIC",
+      merchantNorm: "unknown vendor",
+      merchantRaw: "UNKNOWN VENDOR",
       readerFallback: async () => {
         throw new Error("model unavailable");
       },
@@ -87,8 +87,8 @@ describe("categorize", () => {
 
   it("Reader fallback throwing synchronously → other (DEFAULT)", async () => {
     const r = await categorize({
-      merchantNorm: "unknown clinic",
-      merchantRaw: "UNKNOWN CLINIC",
+      merchantNorm: "unknown vendor",
+      merchantRaw: "UNKNOWN VENDOR",
       readerFallback: () => {
         throw new Error("model unavailable");
       },
@@ -98,7 +98,7 @@ describe("categorize", () => {
   });
 
   it("no fallback and no match → other (DEFAULT)", async () => {
-    const r = await categorize({ merchantNorm: "unknown clinic", merchantRaw: "UNKNOWN CLINIC" });
+    const r = await categorize({ merchantNorm: "unknown vendor", merchantRaw: "UNKNOWN VENDOR" });
     expect(r.category).toBe("other");
     expect(r.source).toBe("DEFAULT");
   });

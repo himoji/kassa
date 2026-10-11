@@ -22,7 +22,8 @@ type Out = { code: number; json: Record<string, unknown> };
 function sim(...args: string[]): Out {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
-  Object.assign(env, PORTS, { SIM_DIR: DIR, SIM_EVIDENCE_DIR: join(DIR, "evidence") });
+  // SIM_OWNER_PID: if this worker dies before afterAll (outer timeout, Ctrl-C), the daemon stops itself (Y7).
+  Object.assign(env, PORTS, { SIM_DIR: DIR, SIM_EVIDENCE_DIR: join(DIR, "evidence"), SIM_OWNER_PID: String(process.pid) });
   const r = spawnSync("bun", [CLI, ...args], { cwd: REPO, env, encoding: "utf8", timeout: 150_000 });
   let json: Record<string, unknown> = {};
   try {

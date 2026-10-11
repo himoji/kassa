@@ -1,6 +1,6 @@
 {
   "scenario": "cn-shanghai-handoff",
-  "description": "Hand-written recording (spec §9 replay) for D-CN1, Dana's Shanghai exchange semester with region CN: the planner checks the dorm bill, the KZT/USD routes into CNY and the coverage forecast, then drafts the CNY payment; rules decide HANDOFF (Kassa prepares, the user pays the QR in the QR Wallet (simulated)). Placeholders: the payee named in the user text becomes payee_1.",
+  "description": "Hand-written recording (spec §9 replay) for D-CN1, Dana's Shanghai exchange semester with region CN: the planner checks the dorm bill, the KZT/USD routes into CNY and the coverage forecast, then drafts the CNY payment; rules decide HANDOFF (Kassa prepares, the user pays the QR in the QR Wallet (simulated)). Placeholders: the payee named in the user text becomes payee_1. Precondition (PIPL Art. 38–39, Track Y3): with region CN the user has given the separate cross-border consent (POST /privacy/pipl-consent; sim: as <p> privacy pipl-consent); without it the agent answers 403 PIPL_CONSENT_REQUIRED and this recording never plays.",
   "recordedWith": "hand-written",
   "turns": [
     {

@@ -6,6 +6,12 @@
  * `personas: true` also inserts the extra demo personas (`seed.personas`, e.g. Li Wei for D-CN3). The seed
  * script, the sim daemon and POST /demo/reset pass it; unit tests that seed Dana alone do not, so their
  * single-user assumptions hold. Dana stays the demo user (demo_state.demo_user_id).
+ *
+ * AI consent (GDPR Art. 7, p2 B1): seeded users have NO AI consent. Whoever claims the account gives it
+ * deliberately (sign-up `aiConsent: true`, or POST /privacy/ai-consent). Tests that drive the agent on a seeded
+ * user without a sign-up opt in with `{ aiConsent: true }`.
+ * Ledger (p2 B2): one DEMO_SEEDED entry per seeded user, naming only that user, so a DSAR export
+ * (payload userId = subject) never contains another persona's identifiers.
  */
 import { PRESET_DEFAULTS } from "@kassa/shared";
 import { sql } from "drizzle-orm";
@@ -132,7 +138,7 @@ export async function truncateAll(db: Db): Promise<void> {
 }
 
 /** Insert one user and everything they own (inside the seed transaction). */
-async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], data: SeedUserData): Promise<void> {
+async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], data: SeedUserData, aiConsent: boolean): Promise<void> {
   const u = data.user;
   const minBalances = data.profile.reserveRules.minBalances ?? [];
   const reserveHome = minBalances.filter((b) => b.currency === u.homeCurrency).reduce((s, b) => s + b.amountMinor, 0);
@@ -143,8 +149,8 @@ async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0
     region: u.region,
     preset: u.preset,
     moneyMode: u.moneyMode,
-    // The seeded hero agreed to AI processing in the (recorded) onboarding; real users consent at sign-up.
-    aiConsentAt: new Date(u.createdAt),
+    // No consent unless the caller asks (tests); a claimed demo account consents at sign-up like any user.
+    aiConsentAt: aiConsent ? new Date(u.createdAt) : null,
     overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: PRESET_DEFAULTS[u.preset].moneyMode === u.moneyMode ? null : u.moneyMode },
     createdAt: new Date(u.createdAt),
   });
@@ -201,14 +207,22 @@ async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0
   }
 }
 
-/** Insert seed data; `reset` truncates first; `personas` adds `seed.personas`. Sets the demo clock to seed time. */
-export async function seedDatabase(db: Db, data: SeedData, opts: { reset: boolean; personas?: boolean }): Promise<{ userId: string; personaUserIds: string[] }> {
+/**
+ * Insert seed data; `reset` truncates first; `personas` adds `seed.personas`; `aiConsent` pre-grants AI consent to
+ * every seeded user (tests only; default false). Sets the demo clock to seed time.
+ */
+export async function seedDatabase(
+  db: Db,
+  data: SeedData,
+  opts: { reset: boolean; personas?: boolean; aiConsent?: boolean },
+): Promise<{ userId: string; personaUserIds: string[] }> {
   if (opts.reset) await truncateAll(db);
   const u = data.user;
   const personas = opts.personas ? (data.personas ?? []) : [];
   await db.transaction(async (tx) => {
-    await insertUserData(tx, data);
-    for (const p of personas) await insertUserData(tx, p);
+    const aiConsent = opts.aiConsent === true;
+    await insertUserData(tx, data, aiConsent);
+    for (const p of personas) await insertUserData(tx, p, aiConsent);
     // Seeded mandates are NOT inserted: they have no passkey signature yet. Dana signs the rent mandate
     // during onboarding (/onboarding/confirm/options suggests it; /mandates/options + /mandates create it).
     await tx
@@ -218,12 +232,14 @@ export async function seedDatabase(db: Db, data: SeedData, opts: { reset: boolea
   });
   const realNow = clock.nowMs() - clock.offsetMs();
   await clock.setOffset(Date.parse(data.seedNow) - realNow);
-  await ledger.append("DEMO_SEEDED", {
-    userId: u.id,
-    seedNow: data.seedNow,
-    payees: data.payees.length,
-    transactions: data.transactions.length,
-    ...(personas.length ? { personas: personas.map((p) => ({ persona: p.persona, userId: p.user.id })) } : {}),
-  });
+  // One entry per user (p2 B2): each payload names only its own user, so exports stay per subject.
+  for (const d of [data as SeedUserData, ...personas]) {
+    await ledger.append("DEMO_SEEDED", {
+      userId: d.user.id,
+      seedNow: data.seedNow,
+      payees: d.payees.length,
+      transactions: d.transactions.length,
+    });
+  }
   return { userId: u.id, personaUserIds: personas.map((p) => p.user.id) };
 }

@@ -87,9 +87,9 @@ describe("D-CN2 Alipay/WeChat Pay-style capture and KZT card settlement", () => 
     });
 
     const notif = captured[0]!.notification as { en: { body: string } };
-    expect(notif.en.body).toMatch(/CN¥32\.50 at Convenience Store \(sample\)\. Groceries: \d+% used/);
+    expect(notif.en.body).toMatch(/CN¥32\.50 \(≈ KZT\s2,397\.95\) at Convenience Store \(sample\)\. Groceries: \d+% used/);
     const notif2 = captured[1]!.notification as { en: { body: string } };
-    expect(notif2.en.body).toMatch(/CN¥45\.00 at Noodle House \(sample\)\. Eating out:/);
+    expect(notif2.en.body).toMatch(/CN¥45\.00 \(≈ KZT\s3,320\.24\) at Noodle House \(sample\)\. Eating out:/);
 
     const [alipayTx] = await getDb()
       .select()

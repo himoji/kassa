@@ -21,7 +21,7 @@ import { clock, isoDate } from "../clock/index.ts";
 import { normalizeMerchant } from "../capture/normalize.ts";
 import type { ReaderResult } from "../reader/index.ts";
 import type { AgentPorts, PayeeRow } from "./ports.ts";
-import type { Redactor } from "./redact.ts";
+import type { RedactContext, Redactor } from "./redact.ts";
 
 /*
  * The planner's 11 tools (spec §9). Every output is redacted (I11) before it can reach the model;
@@ -87,17 +87,22 @@ export function quickExpense(text: string): { merchant: string; amountText: stri
 export function buildTools(ctx: ToolContext): ToolSet {
   const { ports, redactor } = ctx;
   const ref = (payeeId: string) => redactor.placeholderFor("PAYEE", payeeId);
-  const out = <T>(v: T): T => redactor.redactValue(v);
+  const out = <T>(v: T, rc: RedactContext = {}): T => redactor.redactValue(v, rc);
   let payeeCache: PayeeRow[] | null = null;
   const allPayees = async () => (payeeCache ??= await ports.payees());
+  /** The payee an input's payeeRef names: its output text is redacted against that payee first (p3 B4). */
+  const aboutPayee = (input: { payeeRef?: string }): RedactContext => {
+    const e = input.payeeRef ? redactor.resolve(input.payeeRef) : undefined;
+    return e?.kind === "PAYEE" ? { payeeId: e.realRef } : {};
+  };
 
   const safe =
-    <I, O>(fn: (input: I) => Promise<O>) =>
+    <I, O>(fn: (input: I) => Promise<O>, context: (input: NoInfer<I>) => RedactContext = () => ({})) =>
     async (input: I) => {
       try {
-        return out(await fn(input));
+        return out(await fn(input), context(input));
       } catch (e) {
-        return out(errorOut(e));
+        return out(errorOut(e), context(input));
       }
     };
 
@@ -189,14 +194,25 @@ export function buildTools(ctx: ToolContext): ToolSet {
           pendingReplacement: replacement ? { payeeRef: ref(replacement.id), status: replacement.status, coolingUntil: replacement.coolingUntil } : null,
           paymentHistory: { count: await ports.paymentCount(p.id) },
         };
-      }),
+      }, aboutPayee),
     }),
 
     search_catalog: tool({
       description:
-        "Items with prices from a mock shop or supplier catalog (merchant id, e.g. 'pizza', 'supplier-a'). payeeRef is the merchant's payee placeholder for propose_order (null if the user has no payee for it); payeeStatus is its status or UNKNOWN.",
+        "Items with prices from a mock shop or supplier catalog (merchant id, e.g. 'pizza', 'supplier-a', or the merchant's payee placeholder payee_N). payeeRef is the merchant's payee placeholder for propose_order (null if the user has no payee for it); payeeStatus is its status or UNKNOWN.",
       inputSchema: SearchCatalogInput,
       execute: safe(async ({ merchant, query }) => {
+        // (Y5, p1 B8) The planner may name the merchant by the payee placeholder it saw (payee_N): resolve it to the
+        // payee, then to the catalog whose merchant name normalises to the payee's name.
+        if (/^payee_\d+$/.test(merchant.trim())) {
+          const e = redactor.resolve(merchant);
+          const p = e?.kind === "PAYEE" ? (await allPayees()).find((x) => x.id === e.realRef) : undefined;
+          if (!p) return { error: "UNKNOWN_PAYEE_REF", message: `${merchant} is not a known payee reference` };
+          const key = normalizeMerchant(p.name);
+          const entry = (await ports.catalogDirectory?.())?.find((d) => normalizeMerchant(d.name) === key);
+          if (!entry) return { error: "CATALOG_NOT_FOUND", merchant };
+          merchant = entry.id;
+        }
         const c = await ports.catalog(merchant, query);
         // The merchant's payee is matched by normalised name (same normaliser as capture); VERIFIED wins over other rows.
         const key = c.merchantName ? normalizeMerchant(c.merchantName) : "";
@@ -210,8 +226,12 @@ export function buildTools(ctx: ToolContext): ToolSet {
       inputSchema: GetRoutesInput,
       execute: safe(async ({ fromCurrency, toCurrency, amountMinor, dueDate }) => {
         let r = await ports.routes({ fromCurrency, toCurrency, amountMinor, ...(dueDate ? { dueDate } : {}) });
-        // A requested funding currency with no feasible route: show all funding options instead.
-        if (r.routes.length === 0 && fromCurrency) r = await ports.routes({ toCurrency, amountMinor, ...(dueDate ? { dueDate } : {}) });
+        // A requested funding currency with no feasible route (or only the direct route the balance cannot cover,
+        // p1 B10): also show every funding option that can pay it.
+        if (fromCurrency && r.routes.every((x) => x.balanceCovers === false)) {
+          const all = await ports.routes({ toCurrency, amountMinor, ...(dueDate ? { dueDate } : {}) });
+          r = { homeCurrency: all.homeCurrency, routes: [...r.routes, ...all.routes.filter((x) => !r.routes.some((y) => y.routeId === x.routeId))] };
+        }
         if (r.routes.length > 0) {
           ctx.emit({ type: "data-routes", data: { toCurrency, amountMinor, homeCurrency: r.homeCurrency, routes: r.routes } });
         }
@@ -282,15 +302,19 @@ export function buildTools(ctx: ToolContext): ToolSet {
         const today = isoDate(clock.now());
         const matching = (await ports.obligations(undefined, { includePast: true })).filter((o) => o.payeeId === payeeId && o.amountMinor === input.amountMinor && o.currency === input.currency);
         const obligation = matching.find((o) => o.dueDate >= today) ?? matching.filter((o) => o.dueDate < today).at(-1);
+        // The order is the user's (canonical order, notifications, approval sheet): placeholders written by the
+        // planner are re-hydrated here, so the user never reads "payee_4" (cn note 5). Tool output stays redacted.
+        const names = new Map((await allPayees()).map((p) => [p.id, p.name]));
+        const forUser = (s: string) => redactor.rehydrateForUser(s, names);
         const result = await ports.proposeOrder({
           userId: ports.userId,
           createdBy: "AGENT",
           payeeId,
           amountMinor: input.amountMinor,
           currency: input.currency,
-          purpose: input.purpose,
+          purpose: forUser(input.purpose),
           ...(input.rail ? { rail: input.rail } : {}),
-          ...(input.items ? { items: input.items } : {}),
+          ...(input.items ? { items: input.items.map((i) => ({ ...i, name: forUser(i.name) })) } : {}),
           ...(obligation ? { category: obligation.category, obligationId: obligation.id, dueDate: obligation.dueDate } : {}),
           ...(input.agentRequestedConfirm ? { agentRequestedConfirm: true } : {}),
           ...(readerChecks ? { readerChecks } : {}),
@@ -305,7 +329,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
         if (card.summary) ctx.emit({ type: "data-proposal", id: result.proposalId, data: card.summary });
         if (card.budgetImpact) ctx.emit({ type: "data-budget-impact", id: `impact-${result.proposalId}`, data: card.budgetImpact });
         return { ...result, readerChecks: readerChecks ?? null };
-      }),
+      }, aboutPayee),
     }),
 
     log_expense: tool({

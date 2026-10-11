@@ -10,7 +10,10 @@ import { env } from "../../env.ts";
  *  - IBAN: ISO 13616-1 shape (2-letter country, 2 check digits, BBAN), length checked against the
  *    SWIFT IBAN registry for the country; printed form may be grouped by 4 with spaces.
  *  - Card PAN: ISO/IEC 7812-1, 13–19 digits (optionally grouped by spaces/dashes) passing the Luhn
- *    check (ISO/IEC 7812-1 Annex B).
+ *    check (ISO/IEC 7812-1 Annex B), as a whole token: not glued to letters/digits/underscore and not part of
+ *    a hyphen-joined identifier ("ab-4111-…-cd").
+ *  - Identifiers are never redacted: no hit may overlap an RFC 9562 UUID (8-4-4-4-12 hex), so proposal or
+ *    payment ids reach the model intact (p3 B3: "588fc665-2092-4241-93b7-…" became "588fccard_4193b7-…").
  *  - Email: RFC 5322 §3.4.1 addr-spec, dot-atom local part (the practical subset; no quoted strings).
  *  - Phone: ITU-T E.164, "+" followed by 8–15 digits, separators allowed.
  *  - Personal names: the user's profile name and payee names known to the server, matched
@@ -19,7 +22,10 @@ import { env } from "../../env.ts";
  *    single first/last-name token of ≥ 3 letters.
  *  - Enum/code fields (ENUM_KEYS: kind, payeeKind, status, …) are never redacted in tool outputs.
  *
- * Every hit becomes a stable placeholder for the conversation (same value → same placeholder).
+ * Every hit becomes a stable placeholder for the conversation (same value → same placeholder). Payee
+ * placeholders are keyed by payee id, never by name: two payees with the same name (an account change creates a
+ * new payee, I7) get distinct placeholders. A name shared by several payees is resolved with the caller's
+ * context (`{ payeeId }`, e.g. the payee a tool output is about), else to the first payee in `names` order.
  * The mapping lives in `placeholder_maps` (server only); `propose_order` resolves `payee_N` refs.
  * Card numbers are never stored (PCI DSS v4.0 Req. 3.3/3.5.1): a CARD entry's realRef is
  * "pan:<HMAC-SHA256 digest>:<last4>" — a keyed hash (stable within the conversation) plus the last 4 digits
@@ -103,10 +109,20 @@ interface Hit {
   /** Normalised value used for the stable mapping. */
   value: string;
   ref?: string;
+  /** PAYEE name hits: every payee id that carries this exact name (length > 1 = ambiguous). */
+  refs?: string[];
+}
+
+/** Context for one redaction: the payee the text is about (disambiguates payees that share a name). */
+export interface RedactContext {
+  payeeId?: string | undefined;
 }
 
 const IBAN_CANDIDATE = /\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,32}/g;
-const PAN_CANDIDATE = /(?<![\d])(?:\d[ -]?){12,18}\d(?![\d])/g;
+// Whole token only: not preceded/followed by a letter, digit or underscore, nor hyphen-joined to one (identifiers).
+const PAN_CANDIDATE = /(?<![\p{L}\p{N}_]|[\p{L}\p{N}_]-)(?:\d[ -]?){12,18}\d(?![\p{L}\p{N}_]|-[\p{L}\p{N}_])/gu;
+// RFC 9562 §4 UUID text form (any version), case-insensitive.
+const UUID = /(?<![0-9A-Za-z])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9A-Za-z])/gi;
 // RFC 5322 dot-atom addr-spec subset.
 const EMAIL = /[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}/g;
 // E.164: "+" then up to 15 digits; allow spaces, dots, dashes, parentheses between digits.
@@ -164,22 +180,39 @@ function escapeRe(s: string): string {
 
 function nameHits(text: string, names: KnownName[]): Hit[] {
   const out: Hit[] = [];
-  const terms: Array<{ term: string; n: KnownName }> = [];
+  const terms: Array<{ term: string; n: KnownName; refs: string[] }> = [];
+  const byTerm = new Map<string, { term: string; n: KnownName; refs: string[] }>();
+  const add = (term: string, n: KnownName) => {
+    const k = `${n.kind}|${term.toLowerCase().replace(/\s+/g, " ")}`;
+    const t = byTerm.get(k);
+    if (t) {
+      if (n.kind === "PAYEE" && !t.refs.includes(n.ref)) t.refs.push(n.ref);
+      return;
+    }
+    const e = { term, n, refs: [n.ref] };
+    byTerm.set(k, e);
+    terms.push(e);
+  };
   for (const n of names) {
     const full = n.name.trim();
-    if (full.length >= 2) terms.push({ term: full, n });
+    if (full.length >= 2) add(full, n);
     const natural = n.kind === "PERSON" || NATURAL_PAYEE_KINDS.has(n.payeeKind ?? "");
-    if (natural && n.personal) for (const tok of full.split(/\s+/)) if (tok.length >= 3 && tok !== full) terms.push({ term: tok, n });
+    if (natural && n.personal) for (const tok of full.split(/\s+/)) if (tok.length >= 3 && tok !== full) add(tok, n);
   }
   // Longest first so "Dana Nurlanovna" wins over "Dana".
   terms.sort((a, b) => b.term.length - a.term.length);
-  for (const { term, n } of terms) {
+  for (const { term, n, refs } of terms) {
     const re = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRe(term).replace(/\s+/g, "\\s+")}(?![\\p{L}\\p{N}_])`, "giu");
     for (const m of text.matchAll(re)) {
-      out.push({ start: m.index!, end: m.index! + m[0].length, kind: n.kind, value: n.kind === "PAYEE" ? n.ref : n.name, ref: n.ref });
+      out.push({ start: m.index!, end: m.index! + m[0].length, kind: n.kind, value: n.kind === "PAYEE" ? n.ref : n.name, ref: n.ref, ...(n.kind === "PAYEE" ? { refs } : {}) });
     }
   }
   return out;
+}
+
+/** Spans of identifiers (UUIDs) that no detector may touch. */
+function identifierSpans(text: string): Array<[number, number]> {
+  return [...text.matchAll(UUID)].map((m) => [m.index!, m.index! + m[0].length]);
 }
 
 /** Non-overlapping hits, earliest first; on overlap the longer hit wins (ties: earlier detector order). */
@@ -198,7 +231,9 @@ function resolveOverlaps(hits: Hit[]): Hit[] {
 }
 
 export function detect(text: string, names: KnownName[] = []): Hit[] {
-  return resolveOverlaps([...ibanHits(text), ...panHits(text), ...regexHits(text, EMAIL, "EMAIL", (s) => s.toLowerCase()), ...phoneHits(text), ...nameHits(text, names)]);
+  const ids = identifierSpans(text);
+  const outsideIds = (h: Hit) => !ids.some(([s, e]) => h.start < e && h.end > s);
+  return resolveOverlaps([...ibanHits(text), ...panHits(text), ...regexHits(text, EMAIL, "EMAIL", (s) => s.toLowerCase()), ...phoneHits(text), ...nameHits(text, names)].filter(outsideIds));
 }
 
 // ---------- redactor ----------
@@ -274,23 +309,25 @@ export class Redactor {
     return placeholder;
   }
 
-  redactText(text: string): string {
+  redactText(text: string, ctx: RedactContext = {}): string {
     const hits = detect(text, this.names);
     if (hits.length === 0) return text;
     let out = "";
     let pos = 0;
     for (const h of hits) {
-      out += text.slice(pos, h.start) + this.placeholderFor(h.kind, h.value);
+      // Ambiguous payee name: the payee this text is about wins (keyed by id, p3 B4).
+      const value = h.refs && ctx.payeeId && h.refs.includes(ctx.payeeId) ? ctx.payeeId : h.value;
+      out += text.slice(pos, h.start) + this.placeholderFor(h.kind, value);
       pos = h.end;
     }
     return out + text.slice(pos);
   }
 
   /** Deep-redact every string in a JSON-like value (object keys are left alone; ENUM_KEYS values verbatim). */
-  redactValue<T>(value: T): T {
+  redactValue<T>(value: T, ctx: RedactContext = {}): T {
     const walk = (v: unknown, key?: string): unknown => {
       if (key !== undefined && ENUM_KEYS.has(key)) return v;
-      if (typeof v === "string") return this.redactText(v);
+      if (typeof v === "string") return this.redactText(v, ctx);
       if (Array.isArray(v)) return v.map((x) => walk(x));
       if (v && typeof v === "object" && !(v instanceof Date) && !(v instanceof Uint8Array)) {
         return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x, k)]));

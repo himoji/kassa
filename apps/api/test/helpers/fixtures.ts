@@ -7,13 +7,15 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "../../src/db/client.ts";
-import { mandates, payees, profiles, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
+import { mandates, obligations, payees, profiles, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { setBalanceProviderForTests } from "../../src/modules/rules/facts.ts";
 import { useFallbackFxForTests } from "../../src/modules/money/fx.ts";
 import { wireExecutor } from "../../src/modules/orders/wiring.ts";
 import { accountHash, encryptAccount, normalizeAccount } from "../../src/modules/payees/crypto.ts";
+import { requestHandoffQr } from "../../src/modules/rails/handoff.ts";
 import { setRailOverridesForTests, type Rail } from "../../src/modules/rails/index.ts";
+import { registerHandoffPreflight } from "../../src/modules/rules/index.ts";
 import { DEFAULT_CAPS, createUser } from "../../src/modules/users/service.ts";
 import { SoftAuthenticator } from "./webauthn.ts";
 
@@ -35,7 +37,25 @@ export function offlineEnvironment(): { railCalls: { rail: RailId; amountMinor: 
   });
   setRailOverridesForTests({ BANK_TRANSFER: stub("BANK_TRANSFER"), HANDOFF: stub("HANDOFF") });
   wireExecutor();
+  // X7: the stub handoff rail has no merchant QR; a stub preflight reports the verified payee's own QR (MATCH).
+  registerHandoffPreflight(async (order) => ({
+    qrPaymentId: `stub_qr_${randomUUID()}`,
+    qrPayeeName: order.payeeName,
+    verifiedPayeeName: order.payeeName,
+    nameSimilarity: 1,
+    check: "MATCH",
+    qrPayload: "stub",
+    walletUrl: null,
+    qrAmountMinor: order.amountMinor,
+    qrCurrency: order.currency,
+  }));
   return { railCalls };
+}
+
+/** Real handoff rail + real QR preflight (tests with the in-process mock world, e.g. A5, D-CN1). */
+export function useRealHandoff(): void {
+  setRailOverridesForTests({});
+  registerHandoffPreflight(requestHandoffQr);
 }
 
 export async function createUserWithPasskey(
@@ -151,6 +171,29 @@ export async function addActiveMandate(
       effectiveAt: new Date(now.getTime() - 1000),
     });
   return core;
+}
+
+/** An obligation (bill) of the user to a payee; default: monthly rent HUF 180,000 due in 2 days (inside the scheduler window). */
+export async function addObligation(
+  userId: string,
+  payeeId: string,
+  o: { amountMinor?: number; currency?: string; category?: string; dueDate?: string; recurrence?: "ONCE" | "MONTHLY" } = {},
+) {
+  const due = o.dueDate ?? new Date(clock.now().getTime() + 2 * 86_400_000).toISOString().slice(0, 10);
+  const rows = await getDb()
+    .insert(obligations)
+    .values({
+      userId,
+      payeeId,
+      amountMinor: o.amountMinor ?? 18_000_000,
+      currency: o.currency ?? "HUF",
+      dueDate: due,
+      recurrence: o.recurrence ?? "MONTHLY",
+      reference: null,
+      category: o.category ?? "rent",
+    })
+    .returning();
+  return rows[0]!;
 }
 
 export function resetOverrides(): void {

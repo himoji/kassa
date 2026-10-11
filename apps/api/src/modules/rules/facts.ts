@@ -6,7 +6,7 @@ import type { PayeeKind, Rail, Region } from "@kassa/shared";
 import { and, eq, gte, inArray, isNull, lte, notInArray, sql } from "drizzle-orm";
 
 import type { DbOrTx } from "../../db/client.ts";
-import { budgets, payments, proposals, transactions } from "../../db/schema.ts";
+import { approvals, budgets, payments, proposals, transactions } from "../../db/schema.ts";
 import { isoDate } from "../clock/index.ts";
 import { toHome } from "../money/fx.ts";
 import { normalizeName } from "../screening/normalize.ts";
@@ -67,6 +67,27 @@ export async function paidHomeSince(db: DbOrTx, userId: string, from: Date): Pro
     .from(payments)
     .where(and(eq(payments.userId, userId), notInArray(payments.status, ["FAILED", "CANCELED"]), gte(payments.createdAt, from)));
   return Number(rows[0]?.total ?? 0);
+}
+
+/**
+ * (X3) Today's small-auto usage: live payments executed under a T1 approval WITHOUT a mandate (the signed small-auto
+ * limit), count and home-currency total since `from`.
+ */
+export async function smallAutoUsedSince(db: DbOrTx, userId: string, from: Date): Promise<{ count: number; homeMinor: number }> {
+  const rows = await db
+    .select({ n: sql<string>`count(*)`, total: sql<string>`coalesce(sum(${payments.homeAmountMinor}), 0)` })
+    .from(payments)
+    .innerJoin(approvals, eq(approvals.id, payments.approvalId))
+    .where(
+      and(
+        eq(payments.userId, userId),
+        eq(approvals.tier, "T1"),
+        isNull(approvals.mandateId),
+        notInArray(payments.status, ["FAILED", "CANCELED"]),
+        gte(payments.createdAt, from),
+      ),
+    );
+  return { count: Number(rows[0]?.n ?? 0), homeMinor: Number(rows[0]?.total ?? 0) };
 }
 
 /** Remaining budget for a category in the period covering `now` (null = no budget). */

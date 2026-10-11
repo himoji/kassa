@@ -129,6 +129,10 @@ export const RouteDto = z.object({
   arrivalDate: IsoDate,
   costHomeMinor: AmountMinor,
   savingsVsWorstHomeMinor: AmountMinor,
+  /** (added 2026-10-12, Track Y4) funded from the bill's own currency: a direct payment, no conversion. */
+  noConversion: z.boolean().optional(),
+  /** (added 2026-10-12, Track Y4) false = the balance in fundingCurrency does not cover amount + fees today. */
+  balanceCovers: z.boolean().optional(),
 });
 export type RouteDto = z.infer<typeof RouteDto>;
 
@@ -211,6 +215,8 @@ export const CardFeesResponse = z.object({
       transactionId: Uuid,
       cardId: Uuid.nullable(),
       merchantNorm: z.string(),
+      /** (added 2026-10-12, Track Y6) display name of the merchant (never the normalised key). */
+      merchant: z.string().optional(),
       overMidBps: z.number().int(),
     }),
   ),
@@ -329,6 +335,17 @@ export const OrderView = z.object({
   decision: Decision,
   reasonCodes: z.array(ReasonCode),
   status: ProposalStatus,
+  /** (added 2026-10-12, X8) set when this request re-issued an expired order: the hash it replaced. Show "expired, review again". */
+  reissuedFromOrderHash: z.string().optional(),
+  /** (added 2026-10-12, X7) HANDOFF orders: the merchant's QR request, checked against the verified payee BEFORE signing. */
+  handoff: z
+    .object({
+      check: z.enum(["MATCH", "QR_PAYEE_MISMATCH"]),
+      qrPayeeName: z.string(),
+      verifiedPayeeName: z.string(),
+      nameSimilarity: z.number().min(0).max(1),
+    })
+    .optional(),
 });
 export type OrderView = z.infer<typeof OrderView>;
 

@@ -1,4 +1,9 @@
-import { Preset, PRESET_DEFAULTS } from "@kassa/shared";
+import {
+  Preset,
+  PRESET_DEFAULTS,
+  presetDerivedChanges,
+  type SettingsOverrides,
+} from "@kassa/shared";
 import { Pressable, View } from "react-native";
 
 import { StatusChip } from "@/components/kassa/status-chip";
@@ -11,23 +16,43 @@ const ICONS: Record<Preset, { sf: string; md: string }> = {
   AUTOPILOT: { sf: "airplane", md: "flight" },
 };
 
+/** "Money: Capped wallet → Pay in place" lines for the settings a preset switch changes implicitly (p2 B6). */
+export function useDerivedChangesText() {
+  const t = useKassaT();
+  return (from: Preset, to: Preset, overrides: SettingsOverrides): string =>
+    presetDerivedChanges(from, to, overrides)
+      .map((c) =>
+        t("settings:derivedChange", {
+          setting: t(`settings:derivedSetting.${c.setting}`),
+          from: t(`settings:${c.setting}.${c.from}`),
+          to: t(`settings:${c.setting}.${c.to}`),
+        })
+      )
+      .join("; ");
+}
+
 /** The three preset cards (spec §10, §16); a radio group for assistive tech (WAI-ARIA radio). */
 export function PresetCards({
   value,
   onChange,
   disabled,
+  overrides,
 }: {
   value: Preset;
   onChange: (preset: Preset) => void;
   disabled?: boolean;
+  /** The user's overrides: a card shows which of the user's effective settings choosing it would change. */
+  overrides?: SettingsOverrides;
 }) {
   const t = useKassaT();
+  const derivedText = useDerivedChangesText();
   const { colors } = useTheme();
   return (
     <View accessibilityRole="radiogroup" style={{ gap: 12 }}>
       {Preset.options.map((preset) => {
         const selected = preset === value;
         const d = PRESET_DEFAULTS[preset];
+        const changes = !selected && overrides ? derivedText(value, preset, overrides) : "";
         return (
           <Pressable
             key={preset}
@@ -68,6 +93,11 @@ export function PresetCards({
                 mode: t(`settings:moneyMode.${d.moneyMode}`),
               })}
             </Text>
+            {changes ? (
+              <Text variant="caption" weight="semibold" testID={`preset-${preset}-changes`}>
+                {t("settings:presetAlsoChanges", { changes })}
+              </Text>
+            ) : null}
           </Pressable>
         );
       })}

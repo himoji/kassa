@@ -135,10 +135,8 @@ const routes: FastifyPluginAsync = async (app) => {
       await getDb().update(payments).set({ details: { ...p.details, bankState: state }, updatedAt: clock.now() }).where(eq(payments.id, p.id));
       return { ok: true, matched: true };
     }
+    // X9: PAYMENT_SENT / PAYMENT_FAILED are sent by updatePaymentStatus (all rails, with payee and amounts).
     await updatePaymentStatus(p.id, status, { source: "webhook:mock-bank", details: { bankState: state } });
-    if (status === "SENT") {
-      await notify(p.userId, { kind: "PAYMENT_SENT", title: "Payment sent", body: "Your bank transfer was sent (simulated bank).", data: { paymentId: p.id } });
-    }
     return { ok: true, matched: true };
   });
 

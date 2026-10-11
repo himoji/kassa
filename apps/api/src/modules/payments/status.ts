@@ -11,6 +11,7 @@ import { releaseSettlement } from "../obligations/settlements.ts";
 import { normalizeName } from "../screening/normalize.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { notifyPaymentOutcome } from "./notify.ts";
 
 /** Rail callbacks (webhooks, scheduler): move a payment to a new status and log it. */
 export async function updatePaymentStatus(
@@ -60,6 +61,8 @@ export async function updatePaymentStatus(
     if (status === "FAILED" || status === "CANCELED") await releaseSettlement(tx, p.proposalId);
     await ledger.append("PAYMENT_STATUS", { userId: p.userId, proposalId: p.proposalId, paymentId, status, from: p.status, source: extra.source, reasonCodes: extra.reasonCodes ?? [] }, tx);
   });
+  // X9: one notice per final outcome, on the common transition (webhooks, polling, card capture, handoff).
+  if (status === "SENT" || status === "FAILED" || status === "CANCELED") await notifyPaymentOutcome(paymentId, status, extra.reasonCodes ?? []);
   return true;
 }
 

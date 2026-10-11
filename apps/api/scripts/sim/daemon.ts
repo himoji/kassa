@@ -132,6 +132,23 @@ async function shutdown(reason: string, code = 0): Promise<void> {
   process.exit(code);
 }
 
+// Owner watchdog (Y7): a sim started by a test (SIM_OWNER_PID = the test worker) stops itself when the owner is gone,
+// so a test run killed before its afterAll (outer command timeout, Ctrl-C) leaves no orphan daemon tree.
+const ownerPid = Number(process.env.SIM_OWNER_PID ?? "");
+if (Number.isSafeInteger(ownerPid) && ownerPid > 1) {
+  const ownerAlive = () => {
+    try {
+      process.kill(ownerPid, 0);
+      return true;
+    } catch (err) {
+      return (err as NodeJS.ErrnoException).code === "EPERM";
+    }
+  };
+  setInterval(() => {
+    if (!ownerAlive()) void shutdown(`owner ${ownerPid} gone`);
+  }, 1000).unref();
+}
+
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("uncaughtException", (err) => {
