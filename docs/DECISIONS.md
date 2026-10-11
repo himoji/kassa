@@ -519,3 +519,6 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
   currency.
 - Also in this pass (Y6 follow-up): rules' `summarize()` now uses `reasonsSentenceEn(codes)`; PATCH /settings returns
   `derivedChanges` and notifies `SETTINGS_DERIVED_CHANGE` (`{key:"settings.derived_change", params}` + English text).
+
+## 2026-10-12 — Ledgers created before migration 0004 (signed head)
+`ledger:verify` reports "head anchor missing" for a ledger written before the signed head existed (correct: it can't prove the tail wasn't truncated). Dev/demo databases are re-created (`db:migrate` + `seed`); there is no production data. A production upgrade would need a one-time, audited anchoring of the existing head.
