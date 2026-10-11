@@ -10,6 +10,9 @@
  * 3. Links `apps/api/.env` and `apps/mock-world/.env` to the root `.env` (bun loads `.env` from
  *    the cwd, and both services must share MOCK_HMAC_SECRET), and writes `apps/mobile/.env`.
  *
+ * `--rotate KEY[,KEY]` regenerates the named secrets (e.g. a leaked DEMO_ADMIN_TOKEN); rotating
+ * DEMO_ADMIN_TOKEN also updates EXPO_PUBLIC_DEMO_ADMIN_TOKEN in apps/mobile/.env. Restart services after.
+ *
  * Secret values are never printed; only key names are reported. `.env` files are gitignored.
  */
 import { createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes } from "node:crypto";
@@ -17,6 +20,8 @@ import { existsSync, lstatSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
+const rotateArg = process.argv.indexOf("--rotate");
+const ROTATE = new Set(rotateArg >= 0 ? (process.argv[rotateArg + 1] ?? "").split(",").filter(Boolean) : []);
 
 type Entry = { key: string; example: string; comment?: string };
 
@@ -182,7 +187,8 @@ function syncDotenv(path: string) {
   };
   const empty = (k: string) => !have.get(k);
 
-  for (const [k, gen] of Object.entries(SECRET_GENERATORS)) if (empty(k)) put(k, gen());
+  for (const k of ROTATE) if (!(k in SECRET_GENERATORS)) throw new Error(`--rotate: ${k} is not a rotatable secret`);
+  for (const [k, gen] of Object.entries(SECRET_GENERATORS)) if (empty(k) || ROTATE.has(k)) put(k, gen());
   if (empty("RULES_SIGNING_KEY")) {
     put("RULES_SIGNING_KEY", ed25519());
     put("RULES_PUBLIC_KEY", publicFrom(have.get("RULES_SIGNING_KEY")!));
@@ -215,7 +221,8 @@ function syncMobileEnv(demoToken: string) {
   const filled: string[] = [];
   const want: Record<string, string> = { EXPO_PUBLIC_API_URL: "http://localhost:4000", EXPO_PUBLIC_DEMO_ADMIN_TOKEN: demoToken };
   for (const [k, v] of Object.entries(want)) {
-    if (have.get(k)) continue;
+    const rotated = k === "EXPO_PUBLIC_DEMO_ADMIN_TOKEN" && ROTATE.has("DEMO_ADMIN_TOKEN");
+    if (have.get(k) && !rotated) continue;
     if (!setValue(lines, k, v)) lines.push(`${k}=${v}`);
     filled.push(k);
   }

@@ -118,3 +118,38 @@ bunx eas-cli submit --profile production --platform ios  # upload to the store
 ```
 
 Over-the-air fixes: `bunx eas-cli update --channel production --message "…"`.
+
+## Running on a physical iPhone
+
+The working path is the **web app in Safari** over one HTTPS origin. Passkeys work there through
+iCloud Keychain, and the demo runs end to end. Native passkeys need a paid Apple Developer team
+(the Associated Domains entitlement is not available to free personal teams), so they are not part
+of this path.
+
+Steps used (2026-10-11, iPhone 17 Pro; the phone was not visually verified by the agent):
+
+1. From the repo root: `bun run db:migrate && bun run seed`.
+2. Export the web app. `EXPO_PUBLIC_API_URL` must be the public origin the phone uses (the tunnel
+   host). Use `-c` whenever it changes: Metro caches the inlined value, and `.env` wins over an
+   inline empty string. Do not put a real admin token in the web export:
+   `EXPO_PUBLIC_API_URL=https://HOST EXPO_PUBLIC_DEMO_ADMIN_TOKEN=not-available-in-web-build bunx expo export -p web -c`
+   Check `apps/mobile/dist/_expo/static/js/web` for `localhost:4000` and the old token. Neither
+   should be there.
+3. Serve one origin on port 8080: `/api/*` to `127.0.0.1:4000`, `/mock/*` to `127.0.0.1:4001`,
+   everything else from `apps/mobile/dist` with an SPA fallback to `index.html`. `caddy` is not
+   installed here, so a small Bun proxy (`Bun.serve`, kept outside the repo) did this. The repo
+   `Caddyfile` does the same routing if you prefer Caddy.
+4. Tunnel the proxy: `cloudflared tunnel --url http://127.0.0.1:8080`. Read HOST from the
+   `trycloudflare.com` line in its log. The quick-tunnel URL changes on every restart.
+5. Start the API and mock-world directly, not through turbo (turbo filters inline env vars):
+   `cd apps/api && RP_ID=HOST PUBLIC_ORIGIN=https://HOST EXTRA_ORIGINS=https://HOST TRUST_PROXY=true DEMO_ENABLED=true AGENT_MODE=REPLAY bun src/index.ts`
+   and `cd apps/mock-world && bun src/index.ts`. `AGENT_MODE=REPLAY` is the snappy demo mode; use
+   `LIVE` only if you want real model calls.
+6. Check: `curl -s https://HOST/` is 200 HTML, `curl -s https://HOST/api/health` is `{"ok":true,...}`,
+   `curl -s https://HOST/api/auth/demo` is `{"enabled":true}`.
+7. On the phone, open `https://HOST` in Safari, tap **Try the demo (simulated)** and create the
+   passkey with Face ID.
+
+Native build (not done here, limits): with a free team, native passkeys
+cannot work because the Associated Domains entitlement is unavailable; the app should show "Passkeys need the app's domain".
+Set `links.domain` and `links.appleTeamId` in `readynative.config.ts` only with a paid team.
