@@ -25,7 +25,7 @@
 - Theme "AI as a Financial Participant"; Topic C. Scoring: task completion 40%, security & compliance 30%, innovation & interaction 30%.
 - Deadline Oct 20 2026 23:59 Beijing (15:59 UTC). English only.
 - Submission: technical documentation (architecture, core algorithm, security design); deck ≤10 min; demo video OPTIONAL ≤5 min; source code (README, GitHub link, deployment instructions, test cases); security self-assessment report (permission-tier implementation + known-risk list); execution evidence (simulated/sandbox operation logs).
-- Integrity: third-party code/data must be properly licensed (→ ReadyNative licence question is a real eligibility risk).
+- Integrity: third-party code/data must be properly licensed (→ ReadyNative licence resolved: the licensor is a Kassa author and permits publication in this repo; Kassa code is MIT, root `LICENSE`).
 
 ## Security & compliance hardening workstream (user request 2026-10-11: "GDPR, zero trust, etc")
 Code (Opus dev, security-critical):
