@@ -1,0 +1,313 @@
+{
+  "scenario": "dcn1",
+  "marker": {
+    "seq": 4,
+    "at": "2026-10-27T09:00:08.182Z",
+    "createdAt": "2026-10-11T10:29:16.151Z"
+  },
+  "generatedAt": "2026-10-27T09:01:11.023Z",
+  "since": {
+    "seq": 4,
+    "at": "2026-10-27T09:00:08.182Z"
+  },
+  "ledgerVerify": {
+    "ok": true,
+    "entries": 14,
+    "checkpoints": 0,
+    "headHash": "NeIIif8H76KHk1Qa8yIl0lSbC5LpTzj9L2yBbT8Sn9U",
+    "problems": []
+  },
+  "ledger": [
+    {
+      "seq": 5,
+      "ts": "2026-10-27T09:00:08.512Z",
+      "type": "RULES_TIGHTENED",
+      "payload": {
+        "after": {
+          "caps": {},
+          "settings": {
+            "region": "CN"
+          }
+        },
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "ruleChangeId": "eb820f9e-abf9-42c5-a004-7a1b0d0e5c7c"
+      },
+      "hash": "1r801Wc84PQDJMMV-MZJ8IX_ul4wqaU2SB8pxUOSHEI"
+    },
+    {
+      "seq": 6,
+      "ts": "2026-10-27T09:00:19.680Z",
+      "type": "PROPOSAL_CREATED",
+      "payload": {
+        "fx": {
+          "rate": "73.7831325301",
+          "source": "fx",
+          "rateDate": "2026-10-27"
+        },
+        "rail": "HANDOFF",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "payeeId": "92136838-87b2-5baf-9987-4f0f38b88a94",
+        "currency": "CNY",
+        "decision": "HANDOFF",
+        "createdBy": "AGENT",
+        "orderHash": "IVUhuP1Zu29SNX7i1M_8KBShVNTr7nF2Sy9FNBGe9ZU",
+        "riskScore": 0.3,
+        "obligation": {
+          "period": "2026-11-15",
+          "obligationId": "fcbf708c-9301-54d2-8aea-354a15317a6f"
+        },
+        "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+        "amountMinor": 180000,
+        "reasonCodes": [
+          "HANDOFF_REGION"
+        ]
+      },
+      "hash": "MujL37dTE6dTGHMpslyJrxFi-JF45neleflCfMPgdqg"
+    },
+    {
+      "seq": 7,
+      "ts": "2026-10-27T09:00:28.027Z",
+      "type": "APPROVAL_ISSUED",
+      "payload": {
+        "tier": "T2",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "orderHash": "IVUhuP1Zu29SNX7i1M_8KBShVNTr7nF2Sy9FNBGe9ZU",
+        "approvalId": "4fde5486-54fc-42f4-b236-f0566654c8d3",
+        "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+        "credentialId": "fj6VOAP-wkKBTMb-mh5w-A"
+      },
+      "hash": "vnOd_o_byJ39liSDTlZt1QQX7AR9kto91KFXhht3ba0"
+    },
+    {
+      "seq": 8,
+      "ts": "2026-10-27T09:00:28.051Z",
+      "type": "PAYMENT_CREATED",
+      "payload": {
+        "rail": "HANDOFF",
+        "tier": "T2",
+        "nonce": "2unrubiJu68H4gatf1rbAQ",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "currency": "CNY",
+        "orderHash": "IVUhuP1Zu29SNX7i1M_8KBShVNTr7nF2Sy9FNBGe9ZU",
+        "paymentId": "bb6b661a-c98c-4324-83b4-1861fbbd1d05",
+        "approvalId": "4fde5486-54fc-42f4-b236-f0566654c8d3",
+        "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+        "amountMinor": 180000
+      },
+      "hash": "eiYuqqcH8g-kWC4naU1ACWFeNyVDVxUB1x3_kwZ-u4w"
+    },
+    {
+      "seq": 9,
+      "ts": "2026-10-27T09:00:28.071Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "rail": "HANDOFF",
+        "status": "PROCESSING",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "paymentId": "bb6b661a-c98c-4324-83b4-1861fbbd1d05",
+        "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+        "reasonCodes": []
+      },
+      "hash": "bz8qi0lme3BXp3Sz-2lMXSzi267Gh4DJFnVQT2AIrNI"
+    },
+    {
+      "seq": 10,
+      "ts": "2026-10-27T09:00:32.878Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "from": "PROCESSING",
+        "source": "webhook:mock-qr",
+        "status": "SENT",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "paymentId": "bb6b661a-c98c-4324-83b4-1861fbbd1d05",
+        "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+        "reasonCodes": []
+      },
+      "hash": "lR8dfvsexRg-rC6_SkpssQYM98pajiYKwJMW3CVk5Aw"
+    },
+    {
+      "seq": 11,
+      "ts": "2026-10-27T09:00:44.899Z",
+      "type": "PROPOSAL_CREATED",
+      "payload": {
+        "fx": {
+          "rate": "73.7831325301",
+          "source": "fx",
+          "rateDate": "2026-10-27"
+        },
+        "rail": "HANDOFF",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "payeeId": "25b4c0ab-9ce4-5b5d-9209-b8af9fd8444c",
+        "currency": "CNY",
+        "decision": "HANDOFF",
+        "createdBy": "AGENT",
+        "orderHash": "hYth-Ei_Cs5Yn9-xMDaT9PSBdOTcww2DoEG6tMVoSmc",
+        "riskScore": 0.3,
+        "proposalId": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+        "amountMinor": 34900,
+        "reasonCodes": [
+          "HANDOFF_REGION"
+        ]
+      },
+      "hash": "dl2LIUljrNk8OmOp0LnS7jaWNJCzLN5ugPaKJCPg71s"
+    },
+    {
+      "seq": 12,
+      "ts": "2026-10-27T09:00:48.678Z",
+      "type": "APPROVAL_ISSUED",
+      "payload": {
+        "tier": "T2",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "orderHash": "hYth-Ei_Cs5Yn9-xMDaT9PSBdOTcww2DoEG6tMVoSmc",
+        "approvalId": "d45245f3-53c4-4246-a979-6f99ebba474a",
+        "proposalId": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+        "credentialId": "fj6VOAP-wkKBTMb-mh5w-A"
+      },
+      "hash": "LrEsE9-zJInl-KjRAyvzES67hjXoQvY5b-XvJi6WDWA"
+    },
+    {
+      "seq": 13,
+      "ts": "2026-10-27T09:00:48.699Z",
+      "type": "PAYMENT_CREATED",
+      "payload": {
+        "rail": "HANDOFF",
+        "tier": "T2",
+        "nonce": "gY1ZNrlVD5aS6eiMxF1v4Q",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "currency": "CNY",
+        "orderHash": "hYth-Ei_Cs5Yn9-xMDaT9PSBdOTcww2DoEG6tMVoSmc",
+        "paymentId": "f4448f0d-af23-4fc1-b461-730a24be4c38",
+        "approvalId": "d45245f3-53c4-4246-a979-6f99ebba474a",
+        "proposalId": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+        "amountMinor": 34900
+      },
+      "hash": "p9TfjXdYOOvzSBa3JhfGXqcWAas9J2FTg6QHhN8rMp4"
+    },
+    {
+      "seq": 14,
+      "ts": "2026-10-27T09:00:48.712Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "rail": "HANDOFF",
+        "status": "CANCELED",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "paymentId": "f4448f0d-af23-4fc1-b461-730a24be4c38",
+        "proposalId": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+        "reasonCodes": [
+          "QR_PAYEE_MISMATCH"
+        ]
+      },
+      "hash": "NeIIif8H76KHk1Qa8yIl0lSbC5LpTzj9L2yBbT8Sn9U"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "createdBy": "AGENT",
+      "decision": "HANDOFF",
+      "status": "EXECUTED",
+      "reasonCodes": [
+        "HANDOFF_REGION"
+      ],
+      "riskScore": 0.3,
+      "orderHash": "IVUhuP1Zu29SNX7i1M_8KBShVNTr7nF2Sy9FNBGe9ZU",
+      "canonicalOrder": {
+        "v": 1,
+        "rail": "HANDOFF",
+        "nonce": "2unrubiJu68H4gatf1rbAQ",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "payeeId": "92136838-87b2-5baf-9987-4f0f38b88a94",
+        "purpose": "Dorm fee November 2026",
+        "currency": "CNY",
+        "expiresAt": "2026-10-27T09:10:19.654Z",
+        "mandateId": null,
+        "payeeName": "Dorm Office in Shanghai",
+        "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+        "amountMinor": 180000,
+        "homeCurrency": "KZT",
+        "homeAmountMinor": 13280964,
+        "payeeAccountHash": "PDhpkjYWuKqpR7z5q2ivqAc3HZ7hzQKPC6PUX4-dumg"
+      }
+    },
+    {
+      "id": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "createdBy": "AGENT",
+      "decision": "HANDOFF",
+      "status": "FAILED",
+      "reasonCodes": [
+        "HANDOFF_REGION"
+      ],
+      "riskScore": 0.3,
+      "orderHash": "hYth-Ei_Cs5Yn9-xMDaT9PSBdOTcww2DoEG6tMVoSmc",
+      "canonicalOrder": {
+        "v": 1,
+        "rail": "HANDOFF",
+        "nonce": "gY1ZNrlVD5aS6eiMxF1v4Q",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "payeeId": "25b4c0ab-9ce4-5b5d-9209-b8af9fd8444c",
+        "purpose": "Bedding set",
+        "currency": "CNY",
+        "expiresAt": "2026-10-27T09:10:44.882Z",
+        "mandateId": null,
+        "payeeName": "Buy Everything Shop from China",
+        "proposalId": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+        "amountMinor": 34900,
+        "homeCurrency": "KZT",
+        "homeAmountMinor": 2575031,
+        "payeeAccountHash": "qkzJGL0CSYx-02dIKtmveWUR5QdkpUzYsFE7S6GIv_g"
+      }
+    }
+  ],
+  "payments": [
+    {
+      "id": "bb6b661a-c98c-4324-83b4-1861fbbd1d05",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "proposalId": "bf0ce451-f35a-4596-987d-a0027ee2585a",
+      "rail": "HANDOFF",
+      "status": "SENT",
+      "amountMinor": 180000,
+      "currency": "CNY",
+      "reasonCodes": []
+    },
+    {
+      "id": "f4448f0d-af23-4fc1-b461-730a24be4c38",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "proposalId": "893b0914-60b6-41d7-a11b-5bf7f4544171",
+      "rail": "HANDOFF",
+      "status": "CANCELED",
+      "amountMinor": 34900,
+      "currency": "CNY",
+      "reasonCodes": [
+        "QR_PAYEE_MISMATCH"
+      ]
+    }
+  ],
+  "notifications": [
+    {
+      "id": "1081a4a4-d1b3-4be4-9708-832c487b443b",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "ORDER_NEEDS_APPROVAL",
+      "title": "Review and sign",
+      "body": "Ready for you to pay yourself (handoff): CN¥1,800.00 to Dorm Office in Shanghai. Reasons: HANDOFF_REGION.",
+      "createdAt": "2026-10-27T09:00:19.686Z"
+    },
+    {
+      "id": "d579de7d-7cb3-4b1e-b466-0cf87930580e",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "ORDER_NEEDS_APPROVAL",
+      "title": "Review and sign",
+      "body": "Ready for you to pay yourself (handoff): CN¥349.00 to Buy Everything Shop from China. Reasons: HANDOFF_REGION.",
+      "createdAt": "2026-10-27T09:00:44.902Z"
+    },
+    {
+      "id": "6a04c617-d777-405c-9cbd-84de8b8863e9",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "PAYMENT_FAILED",
+      "title": "Payment not sent",
+      "body": "Payments refused or failed: QR_PAYEE_MISMATCH",
+      "createdAt": "2026-10-27T09:00:48.717Z"
+    }
+  ]
+}
