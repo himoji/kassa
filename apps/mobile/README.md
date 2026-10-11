@@ -74,6 +74,41 @@ Delete `examples/` (or any app inside it) once you no longer need the reference.
 - `assets/brand/icon.png` - your 1024px icon; `gen:assets` derives the app icon, adaptive icon,
   splash and favicon from it. `doctor` flags the placeholder until you replace it.
 
+## Passkeys on native (Kassa)
+
+Every sign-up, sign-in and approval is a WebAuthn passkey ceremony. On **web** this works against a
+local API (`RP_ID=localhost`, `PUBLIC_ORIGIN=http://localhost:8081`). The **native** app cannot use
+a local API for passkeys. Two OS rules decide this (checked on the iOS 26.5 simulator, 2026-10-11):
+
+1. **Biometrics enrolled.** `react-native-passkeys` refuses before any sheet unless Face ID / Touch ID
+   is enrolled (`ERR_BIOMETRIC`). A fresh simulator has none: Features > Face ID > Enrolled. The app
+   then says "Passkeys need Face ID or Touch ID set up".
+2. **App associated with the RP ID's domain.** iOS checks that the app holds
+   `webcredentials:<RP_ID>` and that `https://<RP_ID>/.well-known/apple-app-site-association` lists
+   `<TEAMID>.<bundle id>`. Otherwise it fails with ASAuthorizationError 1004 ("Application with
+   identifier … is not associated with domain localhost", visible only in the OS log). `localhost`
+   and IP addresses can never pass this check, so with such an RP ID the app stops before the OS
+   sheet and says "Passkeys need the app's domain".
+
+To run native passkeys for real, you need an HTTPS domain you control (a tunnel works) that serves
+the API and the AASA file:
+
+- `readynative.config.ts` `links.domain` = that domain and `links.appleTeamId` = your team. The app
+  config then adds `applinks:` and `webcredentials:` associated domains (rebuild:
+  `bunx expo run:ios`). `bun run gen:links` writes `public/.well-known/apple-app-site-association`
+  (with `webcredentials.apps`), which must be served from the domain root.
+- API env: `RP_ID=<domain>`, `PUBLIC_ORIGIN=https://<domain>`, and `EXPO_PUBLIC_API_URL=https://<domain>`
+  for the app. Use a signed development build, not Expo Go. iOS normally fetches the AASA through
+  Apple's CDN, so a new or private domain can take a while. During development,
+  `webcredentials:<domain>?mode=developer` makes the device fetch it directly. The app config
+  does not add this suffix.
+
+**Demo without a domain:** use the web build. When the API runs with `DEMO_ENABLED=true`, the welcome
+screen shows **Try the demo (simulated)** (`GET /api/auth/demo`). It runs the normal passkey
+registration with `demoClaim`, so the seeded demo account is bound to a new passkey and every
+payment still needs that passkey. Where passkeys cannot work (native + localhost), the same button
+shows the "Passkeys need the app's domain" message.
+
 ## Ship
 
 ```bash

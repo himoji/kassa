@@ -31,6 +31,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/auth/login/verify": "WebAuthn assertion over a single-use server challenge",
   "POST /api/auth/refresh": "authenticated by the rotating refresh token in the body (RFC 9700)",
   "POST /api/auth/logout": "only clears the cookie / revokes the presented refresh token",
+  "GET /api/auth/demo": "whether the welcome screen offers the demo account (DEMO_ENABLED flag only, no personal data)",
   "GET /api/public/verify/:id": "lender verification of a credit record by its 128-bit capability id",
   "GET /api/public/credit-record/:file": "credit record JSON/PDF by its 128-bit capability id",
   "GET /api/fx/rates": "published reference FX rates, no personal data (mock-world reads them)",
@@ -120,6 +121,7 @@ export async function registerSecurity(app: FastifyInstance): Promise<void> {
     origin: (origin, cb) => cb(null, origin === undefined || allowed.has(origin)),
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE"],
+    // Exactly what the clients send (apps/mobile/src/api/client.ts; preflight test in http-hardening.test.ts).
     allowedHeaders: ["content-type", "authorization", "x-kassa-demo-token"],
     maxAge: 600,
   });

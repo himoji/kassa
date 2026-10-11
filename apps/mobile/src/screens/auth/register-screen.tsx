@@ -19,7 +19,7 @@ export function RegisterScreen() {
   const submit = async () => {
     setError(null);
     try {
-      const session = await register.mutateAsync(name.trim());
+      const session = await register.mutateAsync({ displayName: name.trim() });
       haptics.success();
       router.replace(session.onboarded ? "/home" : "/onboarding/chat");
     } catch (err) {

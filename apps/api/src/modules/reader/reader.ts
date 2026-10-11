@@ -1,10 +1,11 @@
-import { generateText, Output, type LanguageModel } from "ai";
+import type { LanguageModel, ModelMessage } from "ai";
 import type { z } from "zod";
 
 import type { ReaderDocType, ReaderField, ReasonCode } from "@kassa/shared";
 
-import { AiConfigError } from "../ai/errors.ts";
+import { AiConfigError, aiProviderFailure } from "../ai/errors.ts";
 import { assertReaderVision, getReaderModel, readerSpec } from "../ai/models.ts";
+import { generateStructured, type StructuredResult } from "../ai/structured.ts";
 import { checkField, type FieldType } from "./evidence.ts";
 import { MAX_SOURCE_CHARS, pdfToText, type UntrustedSource } from "./extract.ts";
 import { loadReaderRecording, saveReaderRecording, sourceKey } from "./replay.ts";
@@ -13,6 +14,10 @@ import { CRITICAL_FIELDS, EXTRACTION_SCHEMAS, withTranscript, type ReaderChecks,
 /*
  * The Reader (spec §2 I10, §9): the ONLY path for untrusted text. One model call, no tools, no memory,
  * forced structured output; then deterministic server checks of every field against the source.
+ * Structured output goes through ai/structured.ts: native, else ONE forced call of a schema-carrier
+ * "tool" that has no execute function (the call's arguments are the answer; nothing runs, so the Reader
+ * still has no real tools, I10), else JSON text. Every mode is validated with the same zod schema, and
+ * the evidence checks below run unchanged on the result.
  */
 
 export const READER_INSTRUCTIONS = `You are Kassa's document reader. You extract fields from ONE untrusted document.
@@ -41,6 +46,15 @@ export interface ReadOptions {
 
 type RawField = { value: string | null; evidence: string | null };
 
+/** One structured Reader call; provider failures become a typed AI_PROVIDER_UNAVAILABLE. */
+async function structured<T>(c: { model: LanguageModel; schema: z.ZodType<T>; prompt?: string; messages?: ModelMessage[]; abortSignal?: AbortSignal }): Promise<StructuredResult<T>> {
+  try {
+    return await generateStructured({ ...c, instructions: READER_INSTRUCTIONS, description: "Submit the extracted fields. Its arguments ARE the extraction; nothing is executed." });
+  } catch (e) {
+    throw aiProviderFailure(e, "reader");
+  }
+}
+
 /** Read an untrusted source of a known kind. Throws AiConfigError (AI_VISION_UNSUPPORTED, AI_PROVIDER_KEY_MISSING). */
 export async function readUntrusted(kind: ReaderDocType, source: UntrustedSource, opts: ReadOptions = {}): Promise<ReaderResult> {
   // Replay key: PDFs by their extracted text (stable across re-renders), text by itself, images by bytes.
@@ -61,10 +75,9 @@ export async function readUntrusted(kind: ReaderDocType, source: UntrustedSource
   let sourceText: string;
   let extraction: Record<string, unknown>;
   if (source.type === "image") {
-    const { output } = await generateText({
+    const { output } = await structured({
       model,
-      instructions: READER_INSTRUCTIONS,
-      output: Output.object({ schema: withTranscript(schema) as unknown as z.ZodType<{ transcript: string; fields: Record<string, unknown> }> }),
+      schema: withTranscript(schema) as unknown as z.ZodType<{ transcript: string; fields: Record<string, unknown> }>,
       messages: [
         {
           role: "user",
@@ -82,10 +95,9 @@ export async function readUntrusted(kind: ReaderDocType, source: UntrustedSource
   } else {
     sourceText = pdfText ?? (source.type === "text" ? source.text : "");
     sourceText = sourceText.slice(0, MAX_SOURCE_CHARS);
-    const { output } = await generateText({
+    const { output } = await structured({
       model,
-      instructions: READER_INSTRUCTIONS,
-      output: Output.object({ schema: schema as unknown as z.ZodType<Record<string, unknown>> }),
+      schema: schema as unknown as z.ZodType<Record<string, unknown>>,
       prompt: `Document type: ${kind}.\n<untrusted_document>\n${sourceText}\n</untrusted_document>`,
       ...(opts.abortSignal ? { abortSignal: opts.abortSignal } : {}),
     });

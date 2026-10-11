@@ -1,6 +1,7 @@
 /** TanStack Query keys, one place so mutations invalidate exactly what they change. */
 export const keys = {
   me: ["me"] as const,
+  demoAvailability: ["auth", "demo"] as const,
   balances: ["balances"] as const,
   budgets: ["budgets"] as const,
   obligations: ["obligations"] as const,

@@ -1,6 +1,7 @@
 import type { LanguageModel } from "ai";
 
 import { AiConfigError } from "./errors.ts";
+import { aiMaxRetries, withRetries } from "./retry.ts";
 import { assertProviderKey, createRegistry, parseModelSpec, type Env, type KassaRegistry, type ModelSpec } from "./registry.ts";
 
 /** Spec §3 roles, defaults from docs/DECISIONS.md (provider-agnostic LLM). */
@@ -34,7 +35,8 @@ function resolve(spec: ModelSpec, env: Env): LanguageModel {
   // The registry's inferred id type is a union of literal ids; specs are validated by parseModelSpec.
   const registry = registryFor(env);
   const languageModel = registry.languageModel.bind(registry) as (id: string) => LanguageModel;
-  return languageModel(spec.id);
+  // 429 / 5xx retries with backoff + jitter (ai/retry.ts); call sites pass maxRetries: 0 to the SDK.
+  return withRetries(languageModel(spec.id), { maxRetries: aiMaxRetries(env) });
 }
 
 /** Planner (agent loop, onboarding). Throws AiConfigError if the provider key is missing. */

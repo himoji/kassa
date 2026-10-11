@@ -1,5 +1,7 @@
 /**
- * Active storage adapter: `expo-sqlite/kv-store` (storage/kv-store module).
+ * Active storage adapter: `expo-sqlite/kv-store` (storage/kv-store module), native only.
+ * Web resolves `./storage.web.ts` (browser localStorage) instead, so the SQLite web worker
+ * never enters the web bundle (see that file).
  *
  * The `StorageAdapter` interface lives in `@/lib/storage-adapter` (core);
  * this file only provides the implementation `bun setup` selected.
@@ -16,7 +18,8 @@ export type { StorageAdapter } from "@/lib/storage-adapter";
  *
  * The sync API is only exposed on native: on web, sync SQLite needs a
  * SharedArrayBuffer worker (COOP/COEP headers) and throws otherwise, so web
- * callers always go through the async path.
+ * callers always go through the async path. (The app's web build uses
+ * `./storage.web.ts`; this branch only matters if this factory is imported there.)
  */
 export function createKvStoreStorage(): StorageAdapter {
   const async: StorageAdapter = {

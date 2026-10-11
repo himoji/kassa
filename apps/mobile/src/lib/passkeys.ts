@@ -12,9 +12,28 @@ import type {
 } from "@kassa/shared";
 import * as Passkeys from "react-native-passkeys";
 
-import { PasskeyCancelledError, PasskeyUnsupportedError, toPasskeyError } from "./passkey-errors";
+import {
+  isUnassociableRpId,
+  PasskeyCancelledError,
+  PasskeyDomainError,
+  PasskeyUnsupportedError,
+  toPasskeyError,
+} from "./passkey-errors";
 
-export { PasskeyCancelledError, PasskeyUnsupportedError } from "./passkey-errors";
+export {
+  PasskeyBiometricsError,
+  PasskeyCancelledError,
+  PasskeyDomainError,
+  PasskeyUnsupportedError,
+} from "./passkey-errors";
+
+/**
+ * Fail before the OS sheet when the RP ID can never be associated with this app (a local API
+ * with RP_ID=localhost): iOS would only answer with an opaque ASAuthorizationError.
+ */
+function assertAssociableRpId(rpId: string | undefined): void {
+  if (isUnassociableRpId(rpId)) throw new PasskeyDomainError(rpId);
+}
 
 export function passkeysSupported(): boolean {
   try {
@@ -29,6 +48,7 @@ export async function signWithPasskey(
   options: PublicKeyCredentialRequestOptionsJSON
 ): Promise<AuthenticationResponseJSON> {
   if (!passkeysSupported()) throw new PasskeyUnsupportedError();
+  assertAssociableRpId(options.rpId);
   try {
     const result = await Passkeys.get({
       ...options,
@@ -37,7 +57,7 @@ export async function signWithPasskey(
     if (!result) throw new PasskeyCancelledError();
     return result as unknown as AuthenticationResponseJSON;
   } catch (err) {
-    throw toPasskeyError(err);
+    throw toPasskeyError(err, options.rpId);
   }
 }
 
@@ -46,11 +66,12 @@ export async function createPasskey(
   options: PublicKeyCredentialCreationOptionsJSON
 ): Promise<RegistrationResponseJSON> {
   if (!passkeysSupported()) throw new PasskeyUnsupportedError();
+  assertAssociableRpId(options.rp.id);
   try {
     const result = await Passkeys.create(options as Parameters<typeof Passkeys.create>[0]);
     if (!result) throw new PasskeyCancelledError();
     return result as unknown as RegistrationResponseJSON;
   } catch (err) {
-    throw toPasskeyError(err);
+    throw toPasskeyError(err, options.rp.id);
   }
 }

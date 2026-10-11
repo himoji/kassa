@@ -49,6 +49,14 @@ async function sessionBody(userId: string, tokens: Awaited<ReturnType<typeof sta
 }
 
 const routes: FastifyPluginAsyncZod = async (app) => {
+  // Lets the welcome screen offer "Try the demo" only where the demo-claim registration below works.
+  // Registration stays a passkey ceremony either way: this only reports the flag.
+  app.get(
+    "/auth/demo",
+    { schema: { response: { 200: z.object({ enabled: z.boolean() }) } } },
+    async () => ({ enabled: env().DEMO_ENABLED }),
+  );
+
   app.post(
     "/auth/register/options",
     {

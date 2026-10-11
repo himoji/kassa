@@ -3,7 +3,10 @@
  * or, for region CN, 403 PIPL_CONSENT_REQUIRED (separate cross-border consent, PIPL Art. 38–39). The AI SDK chat
  * transport throws an Error whose message is the raw response body, so the problem JSON is parsed from it.
  * Consent is never given silently: the chat shows the notice and an explicit "I agree" button.
+ * POST /onboarding/message refuses the same way; there the error is a parsed `KassaApiError`.
  */
+import { KassaApiError } from "@/api/errors";
+
 export type ConsentKind = "AI_CONSENT_REQUIRED" | "PIPL_CONSENT_REQUIRED";
 
 export interface ConsentNeeded {
@@ -22,10 +25,15 @@ const ENDPOINT: Record<ConsentKind, ConsentNeeded["endpoint"]> = {
 export function consentNeeded(error: unknown): ConsentNeeded | null {
   if (!(error instanceof Error)) return null;
   let body: unknown;
-  try {
-    body = JSON.parse(error.message);
-  } catch {
-    return null;
+  if (error instanceof KassaApiError) {
+    // api.request() refusals (e.g. POST /onboarding/message) arrive already parsed.
+    body = { code: error.code, details: error.details };
+  } else {
+    try {
+      body = JSON.parse(error.message);
+    } catch {
+      return null;
+    }
   }
   if (!body || typeof body !== "object") return null;
   const code = (body as { code?: unknown }).code;

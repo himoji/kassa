@@ -16,7 +16,12 @@ import {
 
 import { PasskeyCancelledError, PasskeyUnsupportedError, toPasskeyError } from "./passkey-errors";
 
-export { PasskeyCancelledError, PasskeyUnsupportedError } from "./passkey-errors";
+export {
+  PasskeyBiometricsError,
+  PasskeyCancelledError,
+  PasskeyDomainError,
+  PasskeyUnsupportedError,
+} from "./passkey-errors";
 
 export function passkeysSupported(): boolean {
   return browserSupportsWebAuthn();
@@ -34,7 +39,7 @@ export async function signWithPasskey(
     if (!result) throw new PasskeyCancelledError();
     return result as unknown as AuthenticationResponseJSON;
   } catch (err) {
-    throw toPasskeyError(err);
+    throw toPasskeyError(err, options.rpId);
   }
 }
 
@@ -49,6 +54,6 @@ export async function createPasskey(
     const result = await startRegistration({ optionsJSON });
     return result as unknown as RegistrationResponseJSON;
   } catch (err) {
-    throw toPasskeyError(err);
+    throw toPasskeyError(err, options.rp.id);
   }
 }

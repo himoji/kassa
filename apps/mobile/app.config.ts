@@ -126,7 +126,12 @@ function applyModulePatch(config: ExpoConfig, patch: Partial<ExpoConfig>): ExpoC
 // changing `links.domain` needs a rebuild; the matching AASA / assetlinks.json files come from
 // `bun run gen:links`. Absent (not empty arrays) when no domain is set.
 const linksDomain = config.links.domain.trim();
-const associatedDomains = linksDomain ? { associatedDomains: [`applinks:${linksDomain}`] } : {};
+// `webcredentials:` lets native passkeys use that domain as the WebAuthn RP ID (the API's RP_ID must
+// equal it; `gen:links` already lists the app under `webcredentials` in the AASA file). Without a
+// domain the native app cannot create passkeys at all (README "Passkeys on native").
+const associatedDomains = linksDomain
+  ? { associatedDomains: [`applinks:${linksDomain}`, `webcredentials:${linksDomain}`] }
+  : {};
 const intentFilters = linksDomain
   ? {
       intentFilters: [

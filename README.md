@@ -81,9 +81,12 @@ bun run dev            # Expo dev-client build for native devices
 | Replay (default in `env:setup`) | `AGENT_MODE=REPLAY` | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
 | Live | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider |
 
-- Models are `provider:model` strings. Providers: `anthropic`, `openai`, `google`, `local`. Bare ids are treated as Anthropic.
+- Models are `provider:model` strings. Providers: `anthropic`, `openai`, `google`, `openrouter`, `local`. Bare ids are treated as Anthropic.
 - Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`, `READER_MODEL=anthropic:claude-haiku-5-5`.
-- Keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`.
+- Keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`.
+- OpenRouter: `PLANNER_MODEL=openrouter:inclusionai/ling-3.1-flash` (any OpenRouter model id) with `OPENROUTER_API_KEY`; the base URL `https://openrouter.ai/api/v1` is built in.
+- Structured output works with any model: native structured output first; if the provider rejects it, one forced call of a schema-carrier tool that never executes; if tools are rejected too, JSON text. Every answer is validated with the same schema (one retry on invalid output). The working mode is detected once per model; `AI_STRUCTURED_MODE=native|tool|json` sets the first mode to try.
+- Rate limits: 429 and 5xx answers are retried `AI_MAX_RETRIES` times (default 5) with exponential backoff and jitter, honouring `Retry-After`.
 - Local: `local` is any OpenAI-compatible endpoint at `LOCAL_BASE_URL` (default `http://localhost:11434/v1`, Ollama). `LOCAL_API_KEY` is optional. Set `LOCAL_VISION=true` if the local model accepts images.
 - Chat, document upload and onboarding need the user's AI consent (`aiConsent` at registration, or `POST /api/privacy/ai-consent`). Seeded users, Dana included, have no consent until they give it. For region CN with a model outside Kassa's server, a separate cross-border consent is also needed (`POST /api/privacy/pipl-consent`, 403 `PIPL_CONSENT_REQUIRED` without it).
 - The cap `PAYMENTS_DAILY_CAP_HOME_MINOR` is a fixed amount in `PAYMENTS_DAILY_CAP_CURRENCY` (default `KZT`). Each user gets it converted to their home currency, rounded down.

@@ -60,14 +60,17 @@ function isExpiringSoon(tokens: SessionTokens, now: number): boolean {
   return Number.isNaN(exp) || exp - now <= REFRESH_SKEW_MS;
 }
 
-/** The pure header rule, exported for tests: bearer only for native with a token. */
+/**
+ * The pure header rule, exported for tests: bearer only for native with a token; web sends none
+ * (the cookie proves the session). No client-marker header: the API tells the clients apart by
+ * the credential they present (cookie vs bearer) and by `client` in the auth request bodies, and
+ * a custom header would only widen the CORS allow-list (ASVS V14.5.3) for nothing.
+ */
 export function sessionHeaders(
   kind: TokenStore["kind"],
   tokens: SessionTokens | null
 ): Record<string, string> {
-  const headers: Record<string, string> = { "x-kassa-client": kind };
-  if (kind === "native" && tokens) headers.authorization = `Bearer ${tokens.accessToken}`;
-  return headers;
+  return kind === "native" && tokens ? { authorization: `Bearer ${tokens.accessToken}` } : {};
 }
 
 function mergeHeaders(base: HeadersInit | undefined, extra: Record<string, string>): Headers {
@@ -104,7 +107,6 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         headers: {
           "content-type": "application/json",
           accept: "application/json",
-          "x-kassa-client": kind,
         },
         body: JSON.stringify({ refreshToken: current.refreshToken }),
       });
@@ -188,7 +190,6 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
         : await deps.fetch(url(path), {
             ...init,
             credentials: kind === "web" ? "include" : undefined,
-            headers: mergeHeaders(init.headers, { "x-kassa-client": kind }),
           });
     } catch (err) {
       if (options.signal?.aborted) throw err;

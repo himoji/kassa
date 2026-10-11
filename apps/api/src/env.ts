@@ -39,6 +39,12 @@ const EnvSchema = z.object({
   USER_KEK: z.string().optional(),
   MOCK_HMAC_SECRET: z.string().optional(),
   AGENT_MODE: z.enum(["LIVE", "REPLAY"]).default("LIVE"),
+  /** OpenRouter key for `openrouter:<model>` (ai/registry.ts). */
+  OPENROUTER_API_KEY: z.string().optional(),
+  /** Retries for 429 / 5xx model errors (ai/retry.ts: exponential backoff + jitter, honours Retry-After). */
+  AI_MAX_RETRIES: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().min(0).max(20).default(5)),
+  /** First structured-output mode to try (ai/structured.ts); unset = native, then auto fallback, cached per model. */
+  AI_STRUCTURED_MODE: z.preprocess((v) => (v === "" ? undefined : v), z.enum(["native", "tool", "json"]).optional()),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),

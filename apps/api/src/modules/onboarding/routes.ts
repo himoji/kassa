@@ -18,7 +18,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     try {
       return await onboardingTurn({ userId: userIdOf(req), ...req.body, mode: await currentAgentMode(), record: recordingEnabled() });
     } catch (e) {
-      if (isAiConfigError(e)) throw new HttpProblem(e.code === "AI_REPLAY_MISSING" ? 404 : 503, e.code, e.message);
+      if (isAiConfigError(e)) {
+        // Code + provider status / error class only (no prompt, draft or key material).
+        req.log.warn({ code: e.code, details: e.details }, "onboarding turn failed");
+        throw new HttpProblem(e.code === "AI_REPLAY_MISSING" ? 404 : 503, e.code, e.message);
+      }
       if ((e as { code?: string }).code === "CONVERSATION_FORBIDDEN") throw await ownedNotFound(userIdOf(req), "conversation", req.body.conversationId, async () => true);
       throw e;
     }

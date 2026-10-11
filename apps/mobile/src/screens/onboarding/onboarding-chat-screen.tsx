@@ -10,6 +10,8 @@ import { Box, Button, Card, Icon, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
+import { consentNeeded, type ConsentNeeded } from "@/screens/chat/consent";
+import { ConsentCard } from "@/screens/chat/consent-card";
 import { useChatStore } from "@/stores/chat";
 
 interface Turn {
@@ -70,14 +72,15 @@ export function OnboardingChatScreen() {
   const [draft, setDraft] = useState<OnboardingProfileDraft | null>(null);
   const [complete, setComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 403 AI_CONSENT_REQUIRED / PIPL_CONSENT_REQUIRED: the onboarding chat is the AI's first use, and
+  // Settings > Privacy is out of reach until onboarding ends, so the notice + "I agree" live here
+  // (as in the agent chat), and the refused message is re-sent once consent is recorded.
+  const [consent, setConsent] = useState<{ need: ConsentNeeded; text: string } | null>(null);
   const scroll = useRef<ScrollView>(null);
 
-  const submit = async () => {
-    const text = input.trim();
-    if (!text || send.isPending) return;
+  const ask = async (text: string) => {
     setError(null);
-    setInput("");
-    setTurns((prev) => [...prev, { id: prev.length, role: "user", text }]);
+    setConsent(null);
     try {
       const res = await send.mutateAsync({ conversationId, text });
       setTurns((prev) => [...prev, { id: prev.length, role: "assistant", text: res.reply }]);
@@ -85,9 +88,22 @@ export function OnboardingChatScreen() {
       setComplete(res.complete);
       if (res.complete) haptics.success();
     } catch (err) {
+      const need = consentNeeded(err);
+      if (need) {
+        setConsent({ need, text });
+        return;
+      }
       haptics.error();
       setError(errorText(t, err));
     }
+  };
+
+  const submit = async () => {
+    const text = input.trim();
+    if (!text || send.isPending) return;
+    setInput("");
+    setTurns((prev) => [...prev, { id: prev.length, role: "user", text }]);
+    await ask(text);
   };
 
   return (
@@ -122,6 +138,9 @@ export function OnboardingChatScreen() {
         ))}
         {send.isPending ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
         {error ? <Text color="destructive">{error}</Text> : null}
+        {consent ? (
+          <ConsentCard need={consent.need} onGiven={() => void ask(consent.text)} />
+        ) : null}
         {draft ? <DraftSummary draft={draft} /> : null}
         {complete ? (
           <Button size="lg" onPress={() => router.push("/onboarding/review")}>

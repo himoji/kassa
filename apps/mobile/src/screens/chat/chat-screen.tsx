@@ -5,7 +5,6 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
-import { api } from "@/api/client";
 import { useMe } from "@/api/hooks/me";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
@@ -16,43 +15,10 @@ import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { useChatStore } from "@/stores/chat";
 
-import { consentNeeded, type ConsentNeeded } from "./consent";
+import { consentNeeded } from "./consent";
+import { ConsentCard } from "./consent-card";
 
 const SUGGESTIONS = ["chat:suggest.tuition", "chat:suggest.budget", "chat:suggest.log"] as const;
-
-/** 403 AI_CONSENT_REQUIRED / PIPL_CONSENT_REQUIRED: the notice and an explicit "I agree" (never silent). */
-function ConsentCard({ need, onGiven }: { need: ConsentNeeded; onGiven: () => void }) {
-  const t = useKassaT();
-  const [saving, setSaving] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const pipl = need.code === "PIPL_CONSENT_REQUIRED";
-  const agree = async () => {
-    setSaving(true);
-    setFailed(false);
-    try {
-      await api.request(need.endpoint, { method: "POST", json: { consent: true } });
-      haptics.selection();
-      onGiven();
-    } catch {
-      setFailed(true);
-    } finally {
-      setSaving(false);
-    }
-  };
-  return (
-    <Card>
-      <Box gap={2}>
-        <Text variant="heading">{t(pipl ? "chat:consent.piplTitle" : "chat:consent.aiTitle")}</Text>
-        <Text>{t(pipl ? "chat:consent.piplBody" : "chat:consent.aiBody")}</Text>
-        {need.noticeText ? <Text variant="caption">{need.noticeText}</Text> : null}
-        {failed ? <Text color="destructive">{t("chat:consent.failed")}</Text> : null}
-        <Button onPress={() => void agree()} disabled={saving}>
-          {t("chat:consent.agree")}
-        </Button>
-      </Box>
-    </Card>
-  );
-}
 
 function MessageParts({ message }: { message: KassaUIMessage }) {
   const t = useKassaT();
