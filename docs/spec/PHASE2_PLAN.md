@@ -38,6 +38,10 @@ Sim scenarios added for: IDOR (user B reads/approves user A's order), DSAR expor
 ## Progress log
 - 2026-10-11: Phase 1 committed (2bb2292), 1,040 tests green. env:setup script added; Track A decisions resolved (DECISIONS.md). Onboarding replay recording added.
 - 2026-10-11: Phase 2 started in parallel: (a) Haiku rename of mock names, (b) Opus hardening (zero trust, GDPR, unfreeze, audit log), (c) Opus sim CLI + RUNBOOK (docs/evidence/sim/RUNBOOK.md). Next: Vitest attack suite A1–A8 + naive baseline; Haiku persona/attacker runs; docs (SECURITY/PRIVACY/COMPLIANCE/TESTS/README); final commit; cleanup + `pmset sleepnow`.
+- 2026-10-11: Fixed B1 (Reader checks persisted per docId apply across turns; `propose_order.docIds`), B2 (funding route
+  signed in the canonical order, `INSUFFICIENT_FUNDS`, `FUNDING_ABOVE_SIGNED_MAX`) and B4 (`obligation_settlements`,
+  migration 0002, `DUPLICATE_OBLIGATION_PAYMENT`). Details and the demo-story numbers: DECISIONS.md 2026-10-11 "Phase 2
+  bug fixes B1, B2, B4"; contract notes in PHASE1_COORDINATION.md.
 
 ## Known bugs to fix
 - **Reader checks lost across turns (I10).** `propose_order` builds `readerChecks` from `ctx.readDocs`, which holds

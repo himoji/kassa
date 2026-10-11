@@ -1,7 +1,8 @@
 /*
  * In-process scheduler (spec §15): every 15 s, driven by the Clock.
- *  - obligations due within 3 days → proposal (createdBy=SCHEDULER), once per (obligation, dueDate);
- *    a MONTHLY obligation rolls to next month once its proposal executed;
+ *  - obligations due within 3 days → proposal (createdBy=SCHEDULER), skipped when the period is already
+ *    pending or paid (obligation_settlements, B4) and tried once per (obligation, dueDate);
+ *    a MONTHLY obligation rolls to next month once its period is paid;
  *  - signed rule changes / mandates reaching effectiveAt → apply;
  *  - card expiry → cancel unused cards;
  *  - mock bank status progression → poll PROCESSING transfers (webhooks also push changes);
@@ -17,6 +18,7 @@ import { obligations, payments, proposals, users } from "../../db/schema.ts";
 import { addMs, clock, DAY_MS, isoDate } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { activateDueMandates } from "../mandates/service.ts";
+import { settlementFor } from "../obligations/settlements.ts";
 import { updatePaymentStatus } from "../payments/status.ts";
 import { expireCards } from "../rails/issuing.ts";
 import { getTransferStatus } from "../rails/mockBank.ts";
@@ -44,18 +46,23 @@ export async function proposeDueObligations(): Promise<number> {
   const due = await db.select().from(obligations).where(lte(obligations.dueDate, horizon));
   let created = 0;
   for (const o of due) {
-    const existing = await db
-      .select({ id: proposals.id, status: proposals.status })
-      .from(proposals)
-      .where(and(eq(proposals.obligationId, o.id), sql`${proposals.draft}->>'dueDate' = ${o.dueDate}`));
-    if (existing.length > 0) {
-      if (o.recurrence === "MONTHLY" && existing.some((p) => p.status === "EXECUTED")) {
+    // B4: one settlement per (obligation, period). Pending or paid (by the agent or by an earlier tick): skip;
+    // a MONTHLY obligation rolls to the next period once this one is paid.
+    const settled = await settlementFor(db, o.id, o.dueDate);
+    if (settled) {
+      if (settled.status === "PAID" && o.recurrence === "MONTHLY") {
         const next = addMonths(o.dueDate, 1);
         await db.update(obligations).set({ dueDate: next }).where(eq(obligations.id, o.id));
         await ledger.append("OBLIGATION_ROLLED", { userId: o.userId, obligationId: o.id, from: o.dueDate, to: next });
       }
       continue;
     }
+    // One scheduler attempt per period: a refused or rejected scheduler proposal is not re-proposed every tick.
+    const tried = await db
+      .select({ id: proposals.id })
+      .from(proposals)
+      .where(and(eq(proposals.obligationId, o.id), eq(proposals.createdBy, "SCHEDULER"), sql`${proposals.draft}->>'dueDate' = ${o.dueDate}`));
+    if (tried.length > 0) continue;
     await proposeOrder({
       userId: o.userId,
       createdBy: "SCHEDULER",

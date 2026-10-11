@@ -389,6 +389,8 @@ export type ProposalDraftJson = {
   obligationId?: string;
   dueDate?: string;
   riskFeatures?: Record<string, number>;
+  /** (added 2026-10-11, B1) documents whose persisted Reader checks were applied (I10). */
+  sourceDocIds?: string[];
 };
 
 export const proposals = pgTable(
@@ -414,6 +416,33 @@ export const proposals = pgTable(
     updatedAt: tstz("updated_at").notNull().defaultNow(),
   },
   (t) => [index("proposals_user_idx").on(t.userId), index("proposals_obligation_idx").on(t.obligationId)],
+);
+
+/**
+ * (added 2026-10-11, B4) Settlement record per obligation period: the one proposal that is paying it.
+ * PENDING = awaiting approval or execution; PAID = executed (payment created). A rejected order or a
+ * failed / canceled payment deletes its row, which releases the period. The primary key
+ * (obligation_id, period) is the idempotency key: a second live proposal for the same period cannot exist.
+ */
+export const obligationSettlements = pgTable(
+  "obligation_settlements",
+  {
+    obligationId: uuid("obligation_id")
+      .notNull()
+      .references(() => obligations.id, { onDelete: "cascade" }),
+    /** The obligation's due date for this period (ISO 8601). */
+    period: isoDate("period").notNull(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    proposalId: uuid("proposal_id")
+      .notNull()
+      .references(() => proposals.id, { onDelete: "cascade" }),
+    status: text("status").$type<"PENDING" | "PAID">().notNull(),
+    createdAt: tstz("created_at").notNull(),
+    updatedAt: tstz("updated_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.obligationId, t.period] }), uniqueIndex("obligation_settlements_proposal_uq").on(t.proposalId)],
 );
 
 export const approvals = pgTable(

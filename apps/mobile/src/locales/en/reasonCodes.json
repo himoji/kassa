@@ -190,5 +190,17 @@
   "RATE_LIMITED": {
     "label": "Too many attempts",
     "text": "Too many requests in a short time. Wait a minute and try again."
+  },
+  "INSUFFICIENT_FUNDS": {
+    "label": "Not enough money",
+    "text": "None of your balances can cover this payment and its fees in time, so nothing was sent. Add money or convert first, then try again."
+  },
+  "DUPLICATE_OBLIGATION_PAYMENT": {
+    "label": "Already being paid",
+    "text": "This bill for this period is already paid or waiting for your approval, so a second payment was refused."
+  },
+  "FUNDING_ABOVE_SIGNED_MAX": {
+    "label": "Price changed",
+    "text": "The bank asked for more than the maximum you signed, so nothing was sent. Review the new amount and sign again."
   }
 }

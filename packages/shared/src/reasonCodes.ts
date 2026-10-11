@@ -12,6 +12,10 @@ export const ReasonCode = z.enum([
   "REFUSE_SOURCE_MISMATCH",
   "REFUSE_SANCTIONS",
   "REFUSE_CAP",
+  // (added 2026-10-11, B2) no funding currency × rail covers the order incl. fees by its due date (spec §12)
+  "INSUFFICIENT_FUNDS",
+  // (added 2026-10-11, B4) the obligation period already has a pending or paid proposal
+  "DUPLICATE_OBLIGATION_PAYMENT",
   // Rules: handoff
   "HANDOFF_REGION",
   "HANDOFF_MODE",
@@ -54,6 +58,8 @@ export const ReasonCode = z.enum([
   "CURRENCY_MISMATCH",
   // (added by Track A) the rail (mock bank / Stripe / mock world) failed or was unreachable
   "RAIL_ERROR",
+  // (added 2026-10-11, B2) the bank quote's source amount exceeds the signed fundingAmountMinor: nothing sent
+  "FUNDING_ABOVE_SIGNED_MAX",
   // Rule changes (I8) and webhooks (I13)
   "LOOSEN_PENDING",
   "PASSKEY_REQUIRED",
@@ -77,4 +83,6 @@ export const HARD_REFUSE_CODES = [
   "REFUSE_SOURCE_MISMATCH",
   "REFUSE_SANCTIONS",
   "REFUSE_CAP",
+  "INSUFFICIENT_FUNDS",
+  "DUPLICATE_OBLIGATION_PAYMENT",
 ] as const satisfies readonly ReasonCode[];

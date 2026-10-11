@@ -16,7 +16,8 @@
  *  7 screening for bank transfers                      → REFUSE_SANCTIONS
  *  8 [tx, per-user advisory lock] nonce inserted into used_nonces (PK) → NONCE_USED;
  *    own daily cap per user & currency → PAYMENTS_DAILY_CAP (rolls the nonce back); payment row CREATED
- *  9 rail dispatch; status + ledger.
+ *  9 rail dispatch; status + ledger. The bank rail quotes from the signed funding currency and refuses a
+ *    quote whose source amount exceeds the signed fundingAmountMinor (FUNDING_ABOVE_SIGNED_MAX, B2).
  */
 import { CanonicalOrder, jcs, jcsHash, mandateHash, orderHash, type MandateCore, type PaymentStatus, type ReasonCode } from "@kassa/shared";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
@@ -149,7 +150,13 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     if (!parsed.success) refuse("ORDER_HASH_MISMATCH", "stored canonical order is invalid");
     const order = parsed.data;
     userId = order.userId;
-    if (orderHash(order) !== a.orderHash) refuse("ORDER_HASH_MISMATCH", "stored order does not hash to the signed orderHash");
+    let recomputed: string;
+    try {
+      recomputed = orderHash(order); // also rejects a partial funding binding (B2)
+    } catch {
+      refuse("ORDER_HASH_MISMATCH", "stored canonical order cannot be hashed");
+    }
+    if (recomputed !== a.orderHash) refuse("ORDER_HASH_MISMATCH", "stored order does not hash to the signed orderHash");
     if (order.proposalId !== a.proposalId) refuse("ORDER_HASH_MISMATCH", "approval/order proposal mismatch");
     if (a.issuedAt.getTime() > Date.parse(order.expiresAt)) refuse("ORDER_EXPIRED", "approval issued after the order expired");
     // 5

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { base64url, CanonicalOrder, jcs, orderHash, sha256Base64url } from "../src/index.ts";
+import { base64url, CanonicalOrder, jcs, orderFunding, orderHash, sha256Base64url } from "../src/index.ts";
 
 // Golden vector: change this object or the hash below only together with a CanonicalOrder `v` bump.
 const ORDER: CanonicalOrder = {
@@ -74,6 +74,53 @@ describe("orderHash", () => {
   it("hashes non-ASCII payee names as UTF-8", () => {
     const o = { ...ORDER, payeeName: "Қазақ Ұлттық Университеті 学校" };
     expect(orderHash(o)).toBe(nodeHash(jcs(CanonicalOrder.parse(o))));
+  });
+});
+
+// Golden vector 2 (2026-10-11, B2): the same order with the optional funding binding (spec §12). Adding the
+// optional fields kept `v: 1`: the vector above, without them, still hashes to ORDER_HASH.
+const FUNDED: CanonicalOrder = {
+  ...ORDER,
+  fundingCurrency: "KZT",
+  fundingAmountMinor: 149362200,
+  fundingRouteId: "kzt-mock-bank",
+  fundingMarkupBps: 55,
+};
+
+const FUNDED_JCS =
+  '{"amountMinor":240000,"currency":"EUR","expiresAt":"2026-10-31T10:10:00.000Z",' +
+  '"fundingAmountMinor":149362200,"fundingCurrency":"KZT","fundingMarkupBps":55,"fundingRouteId":"kzt-mock-bank",' +
+  '"homeAmountMinor":141600000,"homeCurrency":"KZT","mandateId":null,"nonce":"AAECAwQFBgcICQoLDA0ODw",' +
+  '"payeeAccountHash":"q0VZ3x1hR0bWm9v1qk8yJbG0f3l8bVt7S0m5yQwzX1A","payeeId":"c0ffee00-1234-4abc-8def-0123456789ab",' +
+  '"payeeName":"Budapest University (simulated)","proposalId":"8a6e0804-2bd0-4672-b79d-d97027f9071a",' +
+  '"purpose":"Tuition autumn term, ref STU-2026-0042","rail":"BANK_TRANSFER",' +
+  '"userId":"3f1b3c9e-5d2a-4e8f-9b7c-1a2b3c4d5e6f","v":1}';
+
+const FUNDED_HASH = "XhHyyISOdhs7y2RSLvpDzAesn98jc8o55Ogv_NOEEwA";
+
+describe("orderHash with a funding binding (v-compatible addition)", () => {
+  it("matches the committed funded golden vector", () => {
+    expect(jcs(CanonicalOrder.parse(FUNDED))).toBe(FUNDED_JCS);
+    expect(orderHash(FUNDED)).toBe(FUNDED_HASH);
+    expect(orderHash(FUNDED)).toBe(nodeHash(FUNDED_JCS));
+  });
+
+  it("an order without funding fields keeps its v1 hash", () => {
+    expect(orderHash(ORDER)).toBe(ORDER_HASH);
+    expect(orderFunding(ORDER)).toBeNull();
+  });
+
+  it("the funding maximum, currency and route are signed", () => {
+    expect(orderHash({ ...FUNDED, fundingAmountMinor: 149362201 })).not.toBe(FUNDED_HASH);
+    expect(orderHash({ ...FUNDED, fundingCurrency: "USD" })).not.toBe(FUNDED_HASH);
+    expect(orderHash({ ...FUNDED, fundingRouteId: "kzt-home-bank" })).not.toBe(FUNDED_HASH);
+    expect(orderFunding(FUNDED)).toEqual({ currency: "KZT", maxAmountMinor: 149362200, routeId: "kzt-mock-bank", markupBps: 55 });
+  });
+
+  it("refuses to hash a partial funding binding", () => {
+    const { fundingRouteId: _r, ...partial } = FUNDED;
+    expect(() => orderHash(partial as CanonicalOrder)).toThrow(/funding/);
+    expect(() => orderHash({ ...FUNDED, fundingAmountMinor: 0 })).toThrow();
   });
 });
 

@@ -359,3 +359,31 @@ describe("decide: invariant", () => {
     }
   });
 });
+
+describe("decide: step 1b duplicate obligation period (B4)", () => {
+  it("refuses with DUPLICATE_OBLIGATION_PAYMENT, even inside a mandate", () => {
+    const r = decide({ ...base(), duplicateObligation: true, mandate: { id: "m" } });
+    expect(r).toMatchObject({ decision: "REFUSE", reasonCodes: ["DUPLICATE_OBLIGATION_PAYMENT"] });
+  });
+
+  it("frozen still wins over a duplicate", () => {
+    expect(decide({ ...base(), frozen: true, duplicateObligation: true }).reasonCodes).toEqual(["REFUSE_FROZEN"]);
+  });
+});
+
+describe("decide: step 4b funding (B2)", () => {
+  it("bank transfer with no covering funding route → INSUFFICIENT_FUNDS before caps and mandate", () => {
+    const r = decide({ ...base(), fundingAvailable: false, mandate: { id: "m" }, caps: { ...base().caps, amountHomeMinor: 999_000_000 } });
+    expect(r).toMatchObject({ decision: "REFUSE", reasonCodes: ["INSUFFICIENT_FUNDS"] });
+  });
+
+  it("reader mismatch (step 3) and screening (step 4) come first", () => {
+    expect(decide({ ...base(), fundingAvailable: false, readerChecks: { amount: "UNVERIFIED" } }).reasonCodes).toContain("REFUSE_SOURCE_MISMATCH");
+    expect(decide({ ...base(), fundingAvailable: false, screeningHit: true }).reasonCodes).toEqual(["REFUSE_SANCTIONS"]);
+  });
+
+  it("unknown funding (null) and non-bank rails are not refused for funds", () => {
+    expect(decide({ ...base(), fundingAvailable: null }).decision).toBe("AUTO");
+    expect(decide({ ...base(), rail: "CARD_ISSUING", fundingAvailable: false }).decision).toBe("AUTO");
+  });
+});

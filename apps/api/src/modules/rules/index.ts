@@ -17,13 +17,14 @@ import { and, eq, gte, lte } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
-import { approvals, budgets, payees, proposals, type ProposalDraftJson } from "../../db/schema.ts";
+import { approvals, budgets, obligations, payees, proposals, type ProposalDraftJson } from "../../db/schema.ts";
 import { ownedNotFound } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { addMs, clock, MINUTE_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { findMatchingMandate } from "../mandates/scope.ts";
+import { claimSettlement, markSettlementPaid, releaseSettlement, settlementFor } from "../obligations/settlements.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
 import { screenName } from "../screening/index.ts";
@@ -42,6 +43,7 @@ import {
   reserveBreached,
   zoneFor,
 } from "./facts.ts";
+import { chooseFunding, type FundingChoice } from "./funding.ts";
 import { riskFeatures, riskScore } from "./risk.ts";
 import { APPROVAL_TTL_MS, signApproval } from "./signing.ts";
 import { assertionOptions, verifyRulesAssertion } from "./webauthn.ts";
@@ -62,6 +64,8 @@ export type ProposeOrderInput = {
   /** (added) scheduler link to the obligation being paid, and its due date (idempotency key). */
   obligationId?: string;
   dueDate?: string;
+  /** (added, B1) documents whose Reader checks produced `readerChecks` (audit; stored on the draft). */
+  sourceDocIds?: string[];
 };
 
 export type ProposeOrderResult = {
@@ -90,7 +94,12 @@ function newNonce(): string {
   return randomBytes(16).toString("base64url"); // 16 random bytes, base64url (spec §7)
 }
 
-function summarize(decision: Decision, codes: ReasonCode[], order: { amountMinor: number; currency: string; payeeName: string }, home?: { amountMinor: number; currency: string }): string {
+function summarize(
+  decision: Decision,
+  codes: ReasonCode[],
+  order: { amountMinor: number; currency: string; payeeName: string; fundingCurrency?: string | undefined; fundingAmountMinor?: number | undefined },
+  home?: { amountMinor: number; currency: string },
+): string {
   let money: string;
   try {
     money = formatMoney(order.amountMinor, order.currency);
@@ -104,7 +113,15 @@ function summarize(decision: Decision, codes: ReasonCode[], order: { amountMinor
     HANDOFF: "Ready for you to pay yourself (handoff)",
     REFUSE: "Refused",
   };
-  return `${verb[decision]}: ${money} to ${order.payeeName}. Reasons: ${codes.join(", ") || "none"}.`;
+  let funded = "";
+  if (order.fundingCurrency && order.fundingAmountMinor !== undefined && order.fundingCurrency !== order.currency) {
+    try {
+      funded = ` Paid from your ${order.fundingCurrency} balance, at most ${formatMoney(order.fundingAmountMinor, order.fundingCurrency)} incl. fees.`;
+    } catch {
+      funded = ` Paid from your ${order.fundingCurrency} balance, at most ${order.fundingAmountMinor} (minor units) incl. fees.`;
+    }
+  }
+  return `${verb[decision]}: ${money} to ${order.payeeName}.${funded} Reasons: ${codes.join(", ") || "none"}.`;
 }
 
 function statusFor(decision: Decision): "REFUSED" | "PENDING_APPROVAL" | "APPROVED" {
@@ -147,10 +164,15 @@ async function runExecutor(proposalId: string, userId: string, approvalId: strin
   const res = await executor(approvalId);
   const db = getDb();
   const ok = res.status !== null && res.status !== "FAILED" && res.status !== "CANCELED";
-  await db
-    .update(proposals)
-    .set({ status: ok ? "EXECUTED" : "FAILED", updatedAt: clock.now() })
-    .where(eq(proposals.id, proposalId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(proposals)
+      .set({ status: ok ? "EXECUTED" : "FAILED", updatedAt: clock.now() })
+      .where(eq(proposals.id, proposalId));
+    // B4: an executed proposal settles its obligation period; a failed one frees it for a new proposal.
+    if (ok) await markSettlementPaid(tx, proposalId);
+    else await releaseSettlement(tx, proposalId);
+  });
   if (!ok) {
     await notify(userId, {
       kind: "PAYMENT_FAILED",
@@ -164,7 +186,10 @@ async function runExecutor(proposalId: string, userId: string, approvalId: strin
 
 // ---------- proposeOrder ----------
 
-export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrderResult> {
+/** Thrown inside the proposal transaction when another proposal claimed the obligation period first (B4). */
+class SettlementTaken extends Error {}
+
+export async function proposeOrder(input: ProposeOrderInput, internal: { duplicateObligation?: boolean } = {}): Promise<ProposeOrderResult> {
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
     throw new HttpProblem(400, "BAD_AMOUNT", "amountMinor must be a positive integer (minor units)");
   }
@@ -177,6 +202,22 @@ export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrd
   const category = input.category ?? (payee ? defaultCategory(payee.kind) : "other");
   const rail = chooseRail(input.rail, effective.moneyMode, user.region, payee?.kind ?? "PERSON");
   const home = await toHome(input.amountMinor, input.currency, user.homeCurrency, now);
+
+  // B4: the obligation period this order pays (scheduler and agent alike) and whether it is already taken.
+  let period: string | null = null;
+  if (input.obligationId) {
+    const ob = (await db.select().from(obligations).where(and(eq(obligations.id, input.obligationId), eq(obligations.userId, user.id))))[0];
+    if (!ob || ob.payeeId !== input.payeeId) throw new HttpProblem(400, "BAD_OBLIGATION", "obligationId is not this user's obligation for this payee");
+    period = input.dueDate ?? ob.dueDate;
+  }
+  const duplicateObligation = internal.duplicateObligation === true || (period !== null && (await settlementFor(db, input.obligationId!, period)) !== null);
+
+  // B2: funding route for bank transfers (spec §12), bound into the signed order below.
+  let funding: FundingChoice | null = null;
+  if (rail === "BANK_TRANSFER" && payee && !duplicateObligation) {
+    funding = await chooseFunding({ userId: user.id, homeCurrency: user.homeCurrency, amountMinor: input.amountMinor, currency: input.currency, now, dueDate: period ?? input.dueDate });
+  }
+  const signedFunding = funding && funding.status !== "NONE" ? funding.funding : null;
 
   const screening = rail === "BANK_TRANSFER" && payee ? screenName(payee.name) : { hit: false as const, score: 0 };
   const [usedToday, usedMonth, reserve, mandate, history, remaining] = await Promise.all([
@@ -229,6 +270,8 @@ export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrd
     triggerOrigin,
     smallAutoLimitHomeMinor: caps.smallAutoMinor,
     baseRulesSigned: profile.baseRulesAssertion !== null && profile.baseRulesHash !== null,
+    duplicateObligation,
+    fundingAvailable: funding === null ? null : funding.status !== "NONE",
   });
 
   const proposalId = randomUUID();
@@ -246,6 +289,8 @@ export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrd
     obligationId: input.obligationId,
     dueDate: input.dueDate,
     riskFeatures: features,
+    ...(input.sourceDocIds?.length ? { sourceDocIds: input.sourceDocIds } : {}),
+    ...(input.obligationId && period ? { dueDate: period } : {}),
   };
   let order: CanonicalOrder | null = null;
   let hash: string | null = null;
@@ -266,58 +311,81 @@ export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrd
       mandateId: result.mandateId,
       nonce: newNonce(),
       expiresAt: addMs(now, ORDER_TTL_MS).toISOString(),
+      ...(result.decision !== "HANDOFF" && rail === "BANK_TRANSFER" && signedFunding
+        ? {
+            fundingCurrency: signedFunding.currency,
+            fundingAmountMinor: signedFunding.maxAmountMinor,
+            fundingRouteId: signedFunding.routeId,
+            fundingMarkupBps: signedFunding.markupBps,
+          }
+        : {}),
     };
     hash = computeOrderHash(order);
   }
 
   let approvalId: string | null = null;
-  await db.transaction(async (tx) => {
-    await tx.insert(proposals).values({
-      id: proposalId,
-      userId: user.id,
-      createdBy: input.createdBy,
-      draft,
-      decision: result.decision,
-      reasonCodes: result.reasonCodes,
-      riskScore: score,
-      canonicalOrder: order,
-      orderHash: hash,
-      status: statusFor(result.decision),
-      category,
-      obligationId: input.obligationId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await ledger.append(
-      "PROPOSAL_CREATED",
-      {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(proposals).values({
+        id: proposalId,
         userId: user.id,
-        proposalId,
         createdBy: input.createdBy,
+        draft,
         decision: result.decision,
         reasonCodes: result.reasonCodes,
         riskScore: score,
+        canonicalOrder: order,
         orderHash: hash,
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        payeeId: input.payeeId,
-        rail,
-        fx: { rate: home.rate, rateDate: home.rateDate, source: home.source },
-        screening: screening.hit ? { hit: true, entryId: screening.entryId, score: screening.score } : undefined,
-      },
-      tx,
-    );
-    if (result.decision === "AUTO" && order && hash) {
-      approvalId = await issueApproval(tx, { proposalId, orderHash: hash, tier: "T1", userAssertion: null, mandateId: result.mandateId });
-      await ledger.append("APPROVAL_ISSUED", { userId: user.id, proposalId, approvalId, tier: "T1", mandateId: result.mandateId, orderHash: hash }, tx);
-    }
-  });
+        status: statusFor(result.decision),
+        category,
+        obligationId: input.obligationId ?? null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ledger.append(
+        "PROPOSAL_CREATED",
+        {
+          userId: user.id,
+          proposalId,
+          createdBy: input.createdBy,
+          decision: result.decision,
+          reasonCodes: result.reasonCodes,
+          riskScore: score,
+          orderHash: hash,
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          payeeId: input.payeeId,
+          rail,
+          fx: { rate: home.rate, rateDate: home.rateDate, source: home.source },
+          funding: order?.fundingCurrency
+            ? { currency: order.fundingCurrency, maxAmountMinor: order.fundingAmountMinor, routeId: order.fundingRouteId, markupBps: order.fundingMarkupBps, estimatedAmountMinor: signedFunding?.estimatedAmountMinor, balancesKnown: funding?.status === "OK" }
+            : undefined,
+          obligation: period ? { obligationId: input.obligationId, period } : undefined,
+          screening: screening.hit ? { hit: true, entryId: screening.entryId, score: screening.score } : undefined,
+        },
+        tx,
+      );
+      // B4: claim the obligation period; the primary key makes a concurrent second claim lose.
+      if (period && result.decision !== "REFUSE") {
+        const claimed = await claimSettlement(tx, { userId: user.id, obligationId: input.obligationId!, period, proposalId });
+        if (!claimed) throw new SettlementTaken();
+      }
+      if (result.decision === "AUTO" && order && hash) {
+        approvalId = await issueApproval(tx, { proposalId, orderHash: hash, tier: "T1", userAssertion: null, mandateId: result.mandateId });
+        await ledger.append("APPROVAL_ISSUED", { userId: user.id, proposalId, approvalId, tier: "T1", mandateId: result.mandateId, orderHash: hash }, tx);
+      }
+    });
+  } catch (err) {
+    // Lost the race for the period: nothing was written; decide again as a duplicate (REFUSE).
+    if (err instanceof SettlementTaken && !internal.duplicateObligation) return proposeOrder(input, { duplicateObligation: true });
+    throw err;
+  }
 
   if (result.decision === "ASK" || result.decision === "HANDOFF") {
     await notify(user.id, {
       kind: "ORDER_NEEDS_APPROVAL",
       title: "Review and sign",
-      body: summarize(result.decision, result.reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "payee" }),
+      body: summarize(result.decision, result.reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "payee", fundingCurrency: order?.fundingCurrency, fundingAmountMinor: order?.fundingAmountMinor }),
       data: { proposalId, decision: result.decision, reasonCodes: result.reasonCodes },
     });
   }
@@ -343,7 +411,12 @@ export async function proposeOrder(input: ProposeOrderInput): Promise<ProposeOrd
     decision,
     reasonCodes,
     riskScore: score,
-    summary: summarize(decision, reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown payee" }, { amountMinor: home.amountMinor, currency: user.homeCurrency }),
+    summary: summarize(
+      decision,
+      reasonCodes,
+      { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown payee", fundingCurrency: order?.fundingCurrency, fundingAmountMinor: order?.fundingAmountMinor },
+      { amountMinor: home.amountMinor, currency: user.homeCurrency },
+    ),
   };
 }
 
@@ -490,6 +563,7 @@ export async function rejectOrder(userId: string, proposalId: string, reason?: s
       .update(proposals)
       .set({ status: "REJECTED", reasonCodes: [...p.reasonCodes, "USER_REJECTED"], updatedAt: clock.now() })
       .where(eq(proposals.id, proposalId));
+    await releaseSettlement(tx, proposalId);
     // The free-text reason is personal: sealed with the user's key (crypto-shredding on erasure).
     const sealed = reason ? await sealPii(userId, { reason }, tx) : {};
     await ledger.append("ORDER_REJECTED", { userId, proposalId, reasonCodes: ["USER_REJECTED"], ...sealed }, tx);

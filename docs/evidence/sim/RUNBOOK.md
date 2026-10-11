@@ -70,18 +70,27 @@ $S mark tuition
 $S tool get_obligations '{}' --as dana            # find the UNIVERSITY obligation: payeeRef, amountMinor, currency, reference
 $S tool get_routes '{"fromCurrency":"EUR","toCurrency":"EUR","amountMinor":<amt>,"dueDate":"<due>"}' --as dana
 $S tool get_balances '{}' --as dana               # funding check, see the note below
-$S mock remittance --amount 2500 --currency EUR   # only if the EUR balance is short (simulated money from home)
+$S tool propose_order '{"payeeRef":"<ref>","amountMinor":<amt>,"currency":"EUR","purpose":"Tuition <reference>"}' --as dana   # seed balances → REFUSE INSUFFICIENT_FUNDS
+$S demo trigger money-from-home                   # parents send ₸600,000 (simulated)
 $S tool propose_order '{"payeeRef":"<ref>","amountMinor":<amt>,"currency":"EUR","purpose":"Tuition <reference>"}' --as dana   # → ASK
-$S as dana order <proposalId>                     # check the canonical order, hashMatches=true
+$S as dana order <proposalId>                     # check the canonical order incl. funding*, hashMatches=true
 $S as dana approve <proposalId>                   # → paymentStatus PROCESSING
 $S demo clock +1h                                 # mock bank advances, signed webhook → SENT
 $S as dana payment <paymentId>; $S evidence tuition --since tuition; $S ledger-verify
 ```
-Note: the bank rail funds from the wallet balance **in the order currency** with no conversion step. A short
-balance makes the approved payment fail with `RAIL_ERROR`. Top up with `mock remittance` first.
+Note (funding, spec §12): at proposal time rules pick the cheapest bank route over all wallet currencies whose
+balance covers the converted amount + fees by the due date, and sign it in the canonical order
+(`fundingCurrency`, `fundingAmountMinor` = the most that may be debited, `fundingRouteId`, `fundingMarkupBps`).
+The mock bank then converts from that balance; a quote above the signed maximum fails with
+`FUNDING_ABOVE_SIGNED_MAX` and nothing is sent. If no balance can cover the bill the proposal is refused with
+`INSUFFICIENT_FUNDS` before anything is signed. With the seed balances (₸900,000 / $450 / HUF 120,000 / €300) no
+single balance covers tuition, so the story needs the parents' money first; rent is funded from KZT without a
+top-up. With live rates ₸600,000 covers tuition and rent; with the offline example rates (`FX_OFFLINE=1`) rent
+then needs ≈ ₸262,000 more (trigger money from home again). A second proposal for an obligation period that is
+pending or paid is refused with `DUPLICATE_OBLIGATION_PAYMENT`; the scheduler skips it.
 
 **Rent autopay after +3 days (T1 mandate):** after registration the rent mandate is `PENDING_EFFECTIVE`.
-Top up HUF if needed (`mock remittance --amount 200000 --currency HUF`), then `demo clock +3d`. Then
+No top-up is needed (rent is converted from the KZT balance); run `demo clock +3d`. Then
 `as dana mandates` (ACTIVE) and `as dana proposals` (a `SCHEDULER` proposal, decision `AUTO`, reason
 `MANDATE_MATCH`, status `EXECUTED`). There is no passkey prompt.
 
@@ -103,7 +112,7 @@ $S mock shop-recharge <cardId>                      # declined, reasonCode CARD_
 `as dana pay-qr <paymentId>` and then `as dana payment <paymentId>` (SENT). With `QR_PAYEE_MISMATCH` there
 is no Pay button: `pay-qr` refuses and nothing is paid. The swapped-QR case itself is a security test (S4 below).
 
-**Money from home:** `demo trigger money-from-home` (or `mock remittance --amount 300000 --currency KZT`),
+**Money from home:** `demo trigger money-from-home` (₸600,000; or `mock remittance --amount 600000 --currency KZT`),
 then `as dana notifications` (`MONEY_FROM_HOME`), `tool forecast_coverage '{}'` and `tool get_routes
 '{"fromCurrency":"KZT","toCurrency":"EUR","amountMinor":<amt>}'`. Explain the cheapest route. Nothing is paid
 until a proposal is approved.
@@ -183,5 +192,6 @@ Cross-cutting: IDOR / ownership in `test/core/orders-onboarding.test.ts` (other 
 - Planner tools go to the control port, which builds the **real** `agent/tools.ts` with the real `Redactor` and
   the per-conversation placeholder map, and stores the redacted messages like a real turn. The control port is
   **harness only**: it is never registered in `src/server.ts`. It only reaches `agent/` and `rules.proposeOrder`.
-- Differences from the live loop: no 8-round cap, and `stopRequested` is advisory. Reader results read through
-  the sim are kept per conversation for the daemon's lifetime (the live loop keeps them per turn).
+- Differences from the live loop: no 8-round cap, and `stopRequested` is advisory. Reader results are persisted per
+  document and apply to later proposals in any turn or conversation (live loop and sim alike); `propose_order`
+  also accepts `docIds` to cite the source document explicitly.

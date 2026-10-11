@@ -91,7 +91,9 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
       return { settled: true, result };
     }
     case "money-from-home":
-      return { mock: await mockWorld("POST", "/remittance/incoming", { userId, amountMinor: 30_000_000, currency: "KZT" }).catch((e: Error) => ({ error: e.message })) };
+      // The parents' monthly ₸600,000 (spec §18 incomes), sent early for tuition: the seeded wallet cannot fund
+      // €2,400 from any single balance (B2, docs/DECISIONS.md 2026-10-11 "demo story").
+      return { mock: await mockWorld("POST", "/remittance/incoming", { userId, amountMinor: 60_000_000, currency: "KZT" }).catch((e: Error) => ({ error: e.message })) };
     case "pos-low-dough":
       return { mock: await mockWorld("POST", "/pos/emit", { sku: "dough", level: "low" }).catch((e: Error) => ({ error: e.message })) };
     case "landlord-iban-email":

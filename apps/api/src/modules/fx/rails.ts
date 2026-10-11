@@ -27,15 +27,17 @@ export const RailProfile = z.object({
   settlementDays: z.number().int().nonnegative(),
   /** Per-transfer cap in funding-currency minor units. */
   maxAmountMinor: z.number().int().positive().optional(),
+  /** Who executes it (rails.json `provider`): only MOCK_BANK routes can be executed by the bank rail (B2). */
+  provider: z.string().optional(),
 });
 export type RailProfile = z.infer<typeof RailProfile>;
 
 /** Example values, labelled as such in the UI (spec §1 "everything mocked is labelled"). */
 export const DEFAULT_RAILS: RailProfile[] = [
-  { id: "wallet-convert", label: "Kassa wallet conversion (simulated)", rail: "BANK_TRANSFER", feeFixedMinor: 0, feeCurrency: "EUR", markupBps: 45, settlementDays: 1 },
-  { id: "kz-bank-swift", label: "Home bank international transfer (example)", rail: "BANK_TRANSFER", fundingCurrencies: ["KZT"], feeFixedMinor: 500000, feeCurrency: "KZT", markupBps: 150, settlementDays: 3 },
-  { id: "card-kzt", label: "KZT card payment (example)", rail: "CARD_ISSUING", fundingCurrencies: ["KZT"], feeFixedMinor: 0, feeCurrency: "KZT", markupBps: 400, settlementDays: 0 },
-  { id: "card-usd", label: "USD card payment (example)", rail: "CARD_ISSUING", fundingCurrencies: ["USD"], feeFixedMinor: 0, feeCurrency: "USD", markupBps: 250, settlementDays: 0 },
+  { id: "wallet-convert", label: "Kassa wallet conversion (simulated)", rail: "BANK_TRANSFER", provider: "MOCK_BANK", feeFixedMinor: 0, feeCurrency: "EUR", markupBps: 45, settlementDays: 1 },
+  { id: "kz-bank-swift", label: "Home bank international transfer (example)", rail: "BANK_TRANSFER", provider: "HOME_BANK", fundingCurrencies: ["KZT"], feeFixedMinor: 500000, feeCurrency: "KZT", markupBps: 150, settlementDays: 3 },
+  { id: "card-kzt", label: "KZT card payment (example)", rail: "CARD_ISSUING", provider: "CARD", fundingCurrencies: ["KZT"], feeFixedMinor: 0, feeCurrency: "KZT", markupBps: 400, settlementDays: 0 },
+  { id: "card-usd", label: "USD card payment (example)", rail: "CARD_ISSUING", provider: "CARD", fundingCurrencies: ["USD"], feeFixedMinor: 0, feeCurrency: "USD", markupBps: 250, settlementDays: 0 },
 ];
 
 /** Track D's fixture row. */
@@ -49,6 +51,7 @@ const FixtureRoute = z.object({
   markupBps: z.number().int().nonnegative(),
   settlementDays: z.number().int().nonnegative(),
   maxAmountMinor: z.number().int().positive().optional(),
+  provider: z.string().optional(),
 });
 
 function fromFixtureRoute(r: z.infer<typeof FixtureRoute>): RailProfile {
@@ -62,6 +65,7 @@ function fromFixtureRoute(r: z.infer<typeof FixtureRoute>): RailProfile {
     markupBps: r.markupBps,
     settlementDays: r.settlementDays,
     ...(r.maxAmountMinor !== undefined ? { maxAmountMinor: r.maxAmountMinor } : {}),
+    ...(r.provider !== undefined ? { provider: r.provider } : {}),
   };
 }
 
