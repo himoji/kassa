@@ -48,6 +48,9 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/demo/reset": "demo admin token, constant-time compare (DEMO_ENABLED only)",
   "POST /api/demo/agent-mode": "demo admin token, constant-time compare (DEMO_ENABLED only)",
   "POST /api/demo/trigger/:scenario": "demo admin token, constant-time compare (DEMO_ENABLED only)",
+  "POST /api/demo/stage/shortcut-token": "demo admin token, constant-time compare (DEMO_ENABLED only)",
+  "POST /api/demo/stage/settlement": "demo admin token, constant-time compare (DEMO_ENABLED only)",
+  "POST /api/demo/stage/document": "demo admin token, constant-time compare (DEMO_ENABLED only)",
 };
 
 type Tier = "auth" | "sensitive";
@@ -64,6 +67,9 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/demo/reset": "auth",
   "POST /api/demo/agent-mode": "auth",
   "POST /api/demo/trigger/:scenario": "auth",
+  "POST /api/demo/stage/shortcut-token": "auth",
+  "POST /api/demo/stage/settlement": "auth",
+  "POST /api/demo/stage/document": "auth",
   "POST /api/orders/:proposalId/approve": "sensitive",
   "POST /api/capture/shortcut": "sensitive",
   "POST /api/unfreeze": "sensitive",

@@ -109,6 +109,12 @@ export class QrWallet {
     return p;
   }
 
+  /** Newest first (Demo Stage wallet screen). */
+  list(): QrPayment[] {
+    // Map keeps insertion order: reverse first so codes created at the same demo instant stay newest first (stable sort).
+    return [...this.payments.values()].reverse().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
   get(paymentId: string): QrPayment | undefined {
     return this.payments.get(paymentId);
   }

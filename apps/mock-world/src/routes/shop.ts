@@ -52,7 +52,45 @@ function priceItems(items: { sku: string; quantity: number }[]): number {
   return total;
 }
 
-export function shopRoutes(app: FastifyInstance, deps: { issuer: Issuer; clock: Clock; log: ChargeLog }): void {
+export type ShopDeps = { issuer: Issuer; clock: Clock; log: ChargeLog };
+
+/** One terminal charge at the Pizza Shop (also used by the Demo Stage's tap-to-pay terminal). */
+export async function pizzaCheckout(deps: ShopDeps, body: z.infer<typeof CheckoutBody>) {
+  const amountMinor = body.items ? priceItems(body.items) : body.amountMinor!;
+  if (body.items && body.amountMinor !== undefined && body.amountMinor !== amountMinor) {
+    throw new HttpError(400, "AMOUNT_MISMATCH", "amountMinor does not match the items total");
+  }
+  const result = await deps.issuer.authorize({
+    cardId: body.cardId,
+    amountMinor,
+    currency: PIZZA_SHOP.currency,
+    merchant: {
+      name: PIZZA_SHOP.name,
+      mcc: PIZZA_SHOP.mcc,
+      stripeCategory: PIZZA_SHOP.stripeCategory,
+      city: PIZZA_SHOP.city,
+      country: PIZZA_SHOP.country,
+    },
+  });
+  const at = (await deps.clock.now()).toISOString();
+  deps.log.charges.push({ at, cardId: body.cardId, amountMinor, currency: PIZZA_SHOP.currency, result });
+  return {
+    httpStatus: result.approved ? 200 : result.reasonCode === "ISSUER_UNAVAILABLE" ? 502 : 402,
+    body: {
+      status: result.approved ? ("approved" as const) : ("declined" as const),
+      provider: result.provider,
+      authorizationId: result.authorizationId,
+      reasonCode: result.reasonCode,
+      amountMinor,
+      currency: PIZZA_SHOP.currency,
+      merchant: PIZZA_SHOP.name,
+      at,
+      simulated: true as const,
+    },
+  };
+}
+
+export function shopRoutes(app: FastifyInstance, deps: ShopDeps): void {
   app.get("/shop/pizza/menu", async () => ({
     merchant: { ...PIZZA_SHOP },
     currency: PIZZA_SHOP.currency,
@@ -61,37 +99,8 @@ export function shopRoutes(app: FastifyInstance, deps: { issuer: Issuer; clock: 
   }));
 
   app.post("/shop/pizza/checkout", async (req, reply) => {
-    const body = parseWith(CheckoutBody, req.body);
-    const amountMinor = body.items ? priceItems(body.items) : body.amountMinor!;
-    if (body.items && body.amountMinor !== undefined && body.amountMinor !== amountMinor) {
-      throw new HttpError(400, "AMOUNT_MISMATCH", "amountMinor does not match the items total");
-    }
-    const result = await deps.issuer.authorize({
-      cardId: body.cardId,
-      amountMinor,
-      currency: PIZZA_SHOP.currency,
-      merchant: {
-        name: PIZZA_SHOP.name,
-        mcc: PIZZA_SHOP.mcc,
-        stripeCategory: PIZZA_SHOP.stripeCategory,
-        city: PIZZA_SHOP.city,
-        country: PIZZA_SHOP.country,
-      },
-    });
-    const at = (await deps.clock.now()).toISOString();
-    deps.log.charges.push({ at, cardId: body.cardId, amountMinor, currency: PIZZA_SHOP.currency, result });
-    const status = result.approved ? 200 : result.reasonCode === "ISSUER_UNAVAILABLE" ? 502 : 402;
-    return reply.code(status).send({
-      status: result.approved ? "approved" : "declined",
-      provider: result.provider,
-      authorizationId: result.authorizationId,
-      reasonCode: result.reasonCode,
-      amountMinor,
-      currency: PIZZA_SHOP.currency,
-      merchant: PIZZA_SHOP.name,
-      at,
-      simulated: true,
-    });
+    const r = await pizzaCheckout(deps, parseWith(CheckoutBody, req.body));
+    return reply.code(r.httpStatus).send(r.body);
   });
 
   app.get("/shop/pizza/charges", async () => ({ charges: deps.log.charges, simulated: true }));
