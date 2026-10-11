@@ -3,7 +3,7 @@
 export type Args = { _: string[]; flags: Record<string, string | true> };
 
 /** Flags that never take a value (so `--sign <next positional>` is not swallowed). */
-const BOOLEAN_FLAGS = new Set(["fresh", "sign", "claim-demo", "no-onboard", "no-mandate", "no-ai-consent", "force", "scheduler", "withdraw"]);
+const BOOLEAN_FLAGS = new Set(["fresh", "sign", "claim-demo", "no-onboard", "no-mandate", "no-ai-consent", "force", "scheduler", "withdraw", "live-fx"]);
 
 export function parseArgs(argv: string[]): Args {
   const out: Args = { _: [], flags: {} };

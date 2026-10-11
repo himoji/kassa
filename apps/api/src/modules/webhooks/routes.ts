@@ -2,7 +2,11 @@
  * Webhooks (I13). Authenticated before any parsing is trusted:
  * - Stripe: `Stripe-Signature` via stripe.webhooks.constructEvent over the raw body.
  * - Mock world: X-Kassa-Timestamp + X-Kassa-Signature = hex(HMAC-SHA256(MOCK_HMAC_SECRET, `${ts}.${rawBody}`))
- *   (RFC 2104), 5-minute window against the demo Clock (@kassa/shared verifyMockWebhook).
+ *   (RFC 2104), 5-minute window against the demo Clock (@kassa/shared verifyMockWebhook), and single use inside
+ *   the window (seen-signature store, webhooks/replay.ts → 409 WEBHOOK_REPLAYED).
+ * - Mock bank status events are checked against what Kassa knows about the transfer (known Wise state, the
+ *   owner's bank profile, no backwards move, nothing past `processing` before the transfer was funded);
+ *   anything else is refused (409 WEBHOOK_REJECTED) and ledgered as WEBHOOK_REJECTED.
  * Triggers never approve (I6): POS / remittance events only log and notify.
  * The raw body is kept by a content-type parser scoped to this plugin.
  */
@@ -12,7 +16,7 @@ import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type Stripe from "stripe";
 
 import { getDb } from "../../db/client.ts";
-import { issuedCards, payments, profiles } from "../../db/schema.ts";
+import { issuedCards, payments, profiles, type PaymentDetailsJson } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
@@ -24,6 +28,7 @@ import { checkQrPayee } from "../rails/handoff.ts";
 import { authorizeCardUse, fakeCharge, settleCard, stripe } from "../rails/issuing.ts";
 import { mapWiseStatus } from "../rails/mockBank.ts";
 import { onIntentSucceeded } from "../rails/payInPlace.ts";
+import { rememberWebhookSignature } from "./replay.ts";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -31,8 +36,12 @@ declare module "fastify" {
   }
 }
 
-/** Verify a mock-world webhook; throws 401 problem on failure. Exported for reuse by other webhook routes. */
-export function assertMockWebhook(req: FastifyRequest): void {
+/**
+ * Verify a mock-world webhook: HMAC, 5-minute window, then single use (I13). Throws a 401 problem for a bad or
+ * stale signature and a 409 problem (ledgered) for a replay of an already accepted delivery.
+ * Exported for reuse by other webhook routes.
+ */
+export async function assertMockWebhook(req: FastifyRequest, kind: string): Promise<void> {
   const ts = req.headers[MOCK_WEBHOOK_TIMESTAMP_HEADER];
   const sig = req.headers[MOCK_WEBHOOK_SIGNATURE_HEADER];
   const r = verifyMockWebhook(
@@ -43,10 +52,50 @@ export function assertMockWebhook(req: FastifyRequest): void {
     Math.floor(clock.nowMs() / 1000),
   );
   if (!r.ok) throw new HttpProblem(401, r.code, "Webhook authentication failed", { reasonCodes: [r.code] });
+  // verifyMockWebhook only returns ok with both headers present as strings.
+  if (!(await rememberWebhookSignature(kind, ts as string, sig as string))) {
+    await ledger.append("WEBHOOK_REPLAY_REJECTED", { kind, timestamp: Number(ts), reasonCodes: ["WEBHOOK_REPLAYED"] });
+    throw new HttpProblem(409, "WEBHOOK_REPLAYED", "This signed webhook was already processed", { reasonCodes: ["WEBHOOK_REPLAYED"] });
+  }
 }
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v && typeof v === "object" ? (v as Obj) : {});
+
+/** Wise transfer states in the order a funded transfer moves through them (mock-world TRANSFER_STATES). */
+const BANK_FLOW = ["incoming_payment_waiting", "processing", "funds_converted", "outgoing_payment_sent"] as const;
+/** Wise end states for a transfer that did not complete (mapWiseStatus → CANCELED / FAILED). */
+const BANK_FAILURES = new Set(["cancelled", "funds_refunded", "bounced_back", "charged_back"]);
+const FUNDED_RANK = BANK_FLOW.indexOf("processing");
+
+export type BankEventRejection = "UNKNOWN_STATE" | "PROFILE_MISMATCH" | "PAYMENT_FINAL" | "STATUS_REGRESSION" | "NOT_FUNDED";
+
+/**
+ * Malicious or impossible mock-bank status events (RUNBOOK S9). The signed event is still only a claim: it
+ * must name a known state, the bank profile of the payment's owner, and move the transfer forward; nothing
+ * beyond `processing` is accepted before Kassa saw the transfer funded. Returns null when the event may apply.
+ */
+export function bankEventRejection(
+  p: { status: string; details: PaymentDetailsJson },
+  state: string,
+  eventProfileId: unknown,
+  ownerProfileId: number | null,
+): BankEventRejection | null {
+  const flowRank = (BANK_FLOW as readonly string[]).indexOf(state);
+  if (flowRank < 0 && !BANK_FAILURES.has(state)) return "UNKNOWN_STATE";
+  if (ownerProfileId === null || Number(eventProfileId) !== ownerProfileId) return "PROFILE_MISMATCH";
+  const known = (BANK_FLOW as readonly string[]).indexOf(String(p.details.bankState ?? ""));
+  if (p.status === "SENT" || p.status === "FAILED" || p.status === "CANCELED") {
+    // A final payment only accepts a repeat of its own end state (the scheduler poll may have finalised it first).
+    return mapWiseStatus(state) === p.status ? null : "PAYMENT_FINAL";
+  }
+  if (flowRank < 0) return null; // a failure state may end any open transfer
+  // Last known bank state; payments without one (rail results before this field existed) are funded iff PROCESSING.
+  const current = known >= 0 ? known : p.status === "PROCESSING" ? FUNDED_RANK : 0;
+  if (flowRank < current) return "STATUS_REGRESSION";
+  if (flowRank > FUNDED_RANK && current < FUNDED_RANK) return "NOT_FUNDED";
+  return null;
+}
 
 const routes: FastifyPluginAsync = async (app) => {
   app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
@@ -62,17 +111,30 @@ const routes: FastifyPluginAsync = async (app) => {
   // ---------- mock world ----------
 
   app.post("/webhooks/mock/bank", async (req) => {
-    assertMockWebhook(req);
+    await assertMockWebhook(req, "bank");
     const body = obj(req.body);
     const data = obj(body.data);
-    const transferId = String(obj(data.resource).id ?? "");
+    const resource = obj(data.resource);
+    const transferId = String(resource.id ?? "");
     const state = String(data.current_state ?? "");
     const p = (await getDb().select().from(payments).where(and(eq(payments.railRef, transferId), eq(payments.rail, "BANK_TRANSFER"))))[0];
     if (!p) {
       await ledger.append("WEBHOOK_UNMATCHED", { kind: "bank", transferId, state });
       return { ok: true, matched: false };
     }
+    const owner = (await getDb().select({ bankProfileId: profiles.bankProfileId }).from(profiles).where(eq(profiles.userId, p.userId)))[0];
+    const rejection = bankEventRejection(p, state, resource.profile_id, owner?.bankProfileId ?? null);
+    if (rejection) {
+      await ledger.append("WEBHOOK_REJECTED", { kind: "bank", userId: p.userId, paymentId: p.id, transferId, state, from: p.status, reason: rejection });
+      throw new HttpProblem(409, "WEBHOOK_REJECTED", `Bank status event refused: ${rejection}`, { details: { reason: rejection } });
+    }
     const status = mapWiseStatus(state);
+    if (status === p.status && (status === "SENT" || status === "FAILED" || status === "CANCELED")) return { ok: true, matched: true };
+    if (status === p.status) {
+      // Same PaymentStatus, later bank state (processing → funds_converted): remember it, nothing else moves.
+      await getDb().update(payments).set({ details: { ...p.details, bankState: state }, updatedAt: clock.now() }).where(eq(payments.id, p.id));
+      return { ok: true, matched: true };
+    }
     await updatePaymentStatus(p.id, status, { source: "webhook:mock-bank", details: { bankState: state } });
     if (status === "SENT") {
       await notify(p.userId, { kind: "PAYMENT_SENT", title: "Payment sent", body: "Your bank transfer was sent (simulated bank).", data: { paymentId: p.id } });
@@ -81,7 +143,7 @@ const routes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/webhooks/mock/qr", async (req) => {
-    assertMockWebhook(req);
+    await assertMockWebhook(req, "qr");
     const body = obj(req.body);
     const qrPaymentId = String(body.paymentId ?? "");
     const p = (await getDb().select().from(payments).where(and(eq(payments.railRef, qrPaymentId), eq(payments.rail, "HANDOFF"))))[0];
@@ -103,14 +165,14 @@ const routes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/webhooks/mock/pos", async (req) => {
-    assertMockWebhook(req);
+    await assertMockWebhook(req, "pos");
     // I6: a stock trigger can only log (and later create a draft through the agent/scheduler), never approve.
     await ledger.append("TRIGGER_POS", { event: req.body });
     return { ok: true };
   });
 
   app.post("/webhooks/mock/remittance", async (req) => {
-    assertMockWebhook(req);
+    await assertMockWebhook(req, "remittance");
     const body = obj(req.body);
     const profileId = Number(body.profileId);
     const owner = Number.isSafeInteger(profileId)
@@ -141,7 +203,7 @@ const routes: FastifyPluginAsync = async (app) => {
    * a second charge on a used card is declined (CARD_ALREADY_USED).
    */
   app.post("/rails/fake-issuing/authorize", async (req) => {
-    assertMockWebhook(req);
+    await assertMockWebhook(req, "fake-issuing");
     const b = obj(req.body);
     const cardId = String(b.cardId ?? "");
     const card = (await getDb().select().from(issuedCards).where(eq(issuedCards.stripeCardId, cardId)))[0];

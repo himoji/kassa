@@ -9,7 +9,7 @@
   - security: compromised agent (planner tries to pay directly, forge approvals, replay nonces, inject payees, exceed caps), compromised services (stolen rules signing key without passkey, forged/replayed mock webhooks, swapped QR, malicious supplier PDF / reader returning wrong amount, lookalike-IBAN email, tampered ledger row, demo token misuse), compromised trigger (fake POS 10x order, Shortcut token abuse).
   - Haiku is the "LLM": it reads tool outputs from the sim CLI and decides; no provider API keys.
   - Each run writes a report to docs/evidence/sim/<scenario>.md (steps, expected, actual, PASS/FAIL, ledger slice) and a summary table docs/evidence/sim/SUMMARY.md.
-- After ALL work is done: stop every server/background process started for this project, verify nothing is left (no bun/node servers on ports 4000/4001/8081, no caffeinate / keep-awake, no running Claude background tasks, no PGlite locks), then put the Mac to sleep with `pmset sleepnow`. If a session limit interrupts, the next session must finish the work and then do this.
+- After ALL work is done: stop every server/background process started for this project, verify nothing is left (no shells blocked on stdin e.g. `cat` children of zsh, no bun/node servers on ports 4000/4001/8081, no caffeinate / keep-awake, no running Claude background tasks, no PGlite locks), then put the Mac to sleep with `pmset sleepnow`. If a session limit interrupts, the next session must finish the work and then do this.
 
 ## Steps
 1. Wait for Phase 1 tracks A (core) and B (intelligence) to finish; run root typecheck/lint/test; commit.
@@ -42,6 +42,12 @@ Sim scenarios added for: IDOR (user B reads/approves user A's order), DSAR expor
   signed in the canonical order, `INSUFFICIENT_FUNDS`, `FUNDING_ABOVE_SIGNED_MAX`) and B4 (`obligation_settlements`,
   migration 0002, `DUPLICATE_OBLIGATION_PAYMENT`). Details and the demo-story numbers: DECISIONS.md 2026-10-11 "Phase 2
   bug fixes B1, B2, B4"; contract notes in PHASE1_COORDINATION.md.
+- 2026-10-11: Attack suite A1–A8 + naive baseline + invariant index + webhook hardening done (api 495 tests). Bugs found
+  and fixed by the new tests: (1) I1 transitive: `agent/ports → rules/facts → rails/mockBank` (wallet balances) — the
+  wallet reader is now registered in `orders/wiring.ts`; (2) A7: a trigger-originated REFUSE_CAP dropped the
+  `TRIGGER_ORIGIN` anomaly flag; (3) R5: webhook replay inside the window (seen-signature store, migration 0003);
+  (4) R6/S9: signed mock-bank status events were trusted as-is (unknown states mapped to PROCESSING; backwards moves,
+  other users' profiles and SENT-before-funding accepted). Evidence: guarded 0/8 paid, naive 8/8 paid.
 
 ## Known bugs to fix
 - **Reader checks lost across turns (I10).** `propose_order` builds `readerChecks` from `ctx.readDocs`, which holds
@@ -57,4 +63,20 @@ Sim scenarios added for: IDOR (user B reads/approves user A's order), DSAR expor
 - B3 agent/redact.ts redacts enum values: payeeKind "LANDLORD" became "payee_2" because the payee's name "Landlord in Budapest" contains the token. Names must be matched as whole names, never inside structured enum fields.
 - B4 Scheduler re-proposes an obligation already paid (second tuition proposal after +3d) → double-payment risk. Track obligation settlement (paid period) and skip; idempotency key per obligation+period.
 - B5 search_catalog returns items without a payee reference, so the planner can't propose a merchant order without a free-text hint. Return the merchant's payee placeholder.
-- Test gaps to close in the attack suite: A1 e2e, A5 e2e, A7 e2e, webhook replay inside the 5-minute window (needs a seen-signature/nonce cache), malicious mock-bank status sequence.
+- ~~Test gaps to close in the attack suite: A1 e2e, A5 e2e, A7 e2e, webhook replay inside the 5-minute window (needs a seen-signature/nonce cache), malicious mock-bank status sequence.~~
+  **Closed 2026-10-11.** `apps/api/test/attacks/A1..A8.test.ts` (one file per §19 attack; A1, A2, A5, A7 end to end with
+  the in-process mock world, scripted planner/Reader models, no real AI); webhook replay store
+  (`webhook_seen_signatures`, migration 0003, `webhooks/replay.ts`, 409 `WEBHOOK_REPLAYED`, purged by the scheduler) and
+  mock-bank status validation (`bankEventRejection` in `webhooks/routes.ts`: unknown state, other user's profile,
+  backwards move, move after final, SENT before funding → 409 `WEBHOOK_REJECTED` + ledger) in
+  `test/security/webhook-replay.test.ts`; naive baseline `test/naive/`; invariant index `test/invariants/I1-I13.test.ts`
+  (I1 = transitive import graph). `bun run evidence:attacks` writes `docs/evidence/attacks.json` and
+  `docs/evidence/naive-baseline.json`.
+
+## Chinese-context demos (user request 2026-10-11 — judges are Chinese)
+After the attack suite lands (it reads the seed), add a few demos with Chinese context, without new product features (fixtures, replay recordings, sim scenarios, demo triggers):
+- D-CN1 Shanghai exchange semester: Dana's region switch to CN → HANDOFF; buy from "Buy Everything Shop from China" and pay the "Dorm Office in Shanghai" via "QR Wallet (simulated)"; swapped-QR attack caught (A5); PIPL note.
+- D-CN2 Alipay/WeChat Pay spending capture (CN notification samples) → auto-logged in CNY, converted to KZT at the purchase-date rate, budget notification; fee x-ray on a CNY card charge (DCC flag).
+- D-CN3 Second seeded persona "Li Wei", a Chinese master's student in Budapest (home CNY; parents remit CNY monthly; HUF rent, EUR tuition) — shows the same engine for a Chinese user: CNY→EUR tuition route comparison, CNY coverage forecast. Also gives the BOLA/cross-user tests a realistic second user.
+- Agent recordings for each (REPLAY), RUNBOOK scenarios, and Haiku persona runs include them.
+- New Opus subagents get docs/spec/AGENT_BRIEFING.md first.

@@ -45,6 +45,7 @@ const ROOT_KEYS: Entry[] = [
   { key: "READER_MODEL", example: "anthropic:claude-haiku-5-5" },
   { key: "AGENT_MODE", example: "LIVE", comment: "or REPLAY (recorded tool calls, no API key needed)" },
   { key: "RECORD", example: "", comment: "1 = record live agent runs to fixtures/agent-recordings" },
+  { key: "FX_OFFLINE", example: "", comment: "1 = use fixtures/fx-rates.json example rates (no network)" },
   { key: "STRIPE_SECRET_KEY", example: "sk_test_..." },
   { key: "STRIPE_WEBHOOK_SECRET", example: "whsec_..." },
   { key: "STRIPE_PUBLISHABLE_KEY", example: "pk_test_..." },

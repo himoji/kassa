@@ -110,7 +110,8 @@ export function decide(f: DecideFacts): DecideResult {
     if (f.preset === "SMART" && within2x) {
       return withFlags({ decision: "ASK", reasonCodes: ["CAP_WITHIN_2X_ASK"], tier: "T2", mandateId: null }, f);
     }
-    return refuse("REFUSE_CAP");
+    // A7 (spec §19): a trigger-originated draft over the caps is refused WITH the anomaly flag.
+    return f.triggerOrigin ? refuse("REFUSE_CAP", "TRIGGER_ORIGIN") : refuse("REFUSE_CAP");
   }
 
   // 6

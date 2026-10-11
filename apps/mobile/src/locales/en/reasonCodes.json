@@ -167,6 +167,10 @@
     "label": "Old update ignored",
     "text": "A payment update arrived too late to trust, so Kassa ignored it."
   },
+  "WEBHOOK_REPLAYED": {
+    "label": "Repeated update ignored",
+    "text": "A payment update was sent a second time, so Kassa ignored the copy."
+  },
   "USER_REJECTED": {
     "label": "You rejected it",
     "text": "You rejected this order, so nothing was sent."

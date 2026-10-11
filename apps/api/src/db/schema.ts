@@ -471,6 +471,23 @@ export const usedNonces = pgTable("used_nonces", {
   usedAt: tstz("used_at").notNull(),
 });
 
+/**
+ * (added, I13) Mock-world webhook replay protection inside the 5-minute window: one row per accepted
+ * signed delivery. `sigHash` = hex SHA-256 of `${X-Kassa-Timestamp}.${X-Kassa-Signature}` (primary key, so a
+ * second delivery of the same signed request fails the insert). `signedAt` is the sender's timestamp; rows
+ * older than the window are purged by the scheduler (webhooks/replay.ts).
+ */
+export const webhookSeenSignatures = pgTable(
+  "webhook_seen_signatures",
+  {
+    sigHash: text("sig_hash").primaryKey(),
+    kind: text("kind").notNull(),
+    signedAt: tstz("signed_at").notNull(),
+    receivedAt: tstz("received_at").notNull(),
+  },
+  (t) => [index("webhook_seen_signatures_signed_at_idx").on(t.signedAt)],
+);
+
 export type PaymentDetailsJson = Record<string, unknown>;
 
 export const payments = pgTable(

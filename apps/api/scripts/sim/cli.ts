@@ -51,7 +51,7 @@ const TOOL_NAMES = [
 ];
 
 const USAGE = {
-  lifecycle: ["up [--fresh] [--scheduler]", "down", "status", "reset", "logs [--tail N]"],
+  lifecycle: ["up [--fresh] [--scheduler] [--live-fx]", "down", "status", "reset", "logs [--tail N]"],
   personas: ["register <persona> [--claim-demo] [--no-onboard] [--no-mandate] [--no-ai-consent] [--force]", "login <persona>", "onboard <persona> [--no-mandate]", "personas"],
   user: [
     "as <persona> me|balances|budgets [--category c]|obligations|forecast|cards|fees|transactions [--limit n --cursor c]|payees|mandates|caps|rule-changes|notifications|ledger [--limit n]|proposals [--status S]",
@@ -291,7 +291,7 @@ async function mockCmd(sub: string | undefined, rest: string[], args: Args) {
     }
     case "remittance":
       return mockPost("/remittance/incoming", {
-        amount: flagStr(args, "amount") ?? "600000",
+        amount: flagStr(args, "amount") ?? "1000000",
         currency: flagStr(args, "currency") ?? "KZT",
         ...(flagStr(args, "sender") ? { sender: flagStr(args, "sender") } : {}),
       });
@@ -333,7 +333,7 @@ async function main(argv: string[]): Promise<unknown> {
     case "help":
       return { usage: USAGE };
     case "up":
-      return up({ fresh: flagBool(args, "fresh"), scheduler: flagBool(args, "scheduler") });
+      return up({ fresh: flagBool(args, "fresh"), scheduler: flagBool(args, "scheduler"), liveFx: flagBool(args, "live-fx") });
     case "down":
       return down();
     case "status":

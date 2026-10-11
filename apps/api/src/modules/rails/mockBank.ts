@@ -107,7 +107,8 @@ export const mockBankRail: Rail = {
     return {
       status,
       railRef: String(transfer.id),
-      details: { quoteId: quote.id, recipientId: recipient.id, sourceCurrency, sourceAmountMinor: quote.sourceAmountMinor ?? null, ...(funding ? { signedMaxMinor: funding.maxAmountMinor } : {}) },
+      // bankState: last Wise state Kassa saw (webhooks/routes.ts refuses later states before funding, I13 / S9).
+      details: { quoteId: quote.id, recipientId: recipient.id, bankState: funded.status === "COMPLETED" ? "processing" : (transfer.status ?? "incoming_payment_waiting"), sourceCurrency, sourceAmountMinor: quote.sourceAmountMinor ?? null, ...(funding ? { signedMaxMinor: funding.maxAmountMinor } : {}) },
     };
   },
 };
