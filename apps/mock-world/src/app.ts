@@ -17,6 +17,8 @@ import { type DocumentCache, documentRoutes } from "./routes/documents.ts";
 import { eventRoutes } from "./routes/events.ts";
 import { qrRoutes } from "./routes/qr.ts";
 import { ChargeLog, shopRoutes } from "./routes/shop.ts";
+import { stageRoutes } from "./routes/stage.ts";
+import { StageApi } from "./stage/client.ts";
 import { FakeIssuerClient, type Issuer, StripeTestHelperClient } from "./shop/issuer.ts";
 import { type OutboxEntry, WebhookClient, type WebhookSink } from "./webhooks.ts";
 import { PAYEE_INVOICES, SUPPLIERS } from "./world/data.ts";
@@ -152,6 +154,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
           ["Inbox (JSON)", "/mock/inbox"],
           ["Mock bank transfers (JSON)", "/mock/bank/transfers"],
           ["Webhook outbox (JSON)", "/mock/outbox"],
+          ...(config.demoEnabled ? ([["Demo Stage (phone screens for the pitch)", "/mock/stage"]] as [string, string][]) : []),
         ];
         const items = links.map(([t, h]) => `<li><a href="${esc(h)}">${esc(t)}</a></li>`).join("");
         return reply
@@ -164,6 +167,28 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
       documentRoutes(r, { docs, publicUrl: config.publicUrl });
       qrRoutes(r, qr);
       eventRoutes(r, { clock, webhooks, bank, defaultProfileId: MOCK_BANK_PROFILE_ID });
+
+      // Demo Stage (/mock/stage/*): own encapsulation context so its DEMO_ENABLED gate covers only its routes.
+      await r.register(async (s) =>
+        stageRoutes(s, {
+          config,
+          api: new StageApi({ apiUrl: config.apiUrl, demoToken: config.demoAdminToken, ...(deps.fetch ? { fetch: deps.fetch } : {}) }),
+          bank,
+          qr,
+          docs,
+          shop: { issuer, clock, log: charges },
+          clock,
+          rates,
+          resetWorld: () => {
+            bank.reset();
+            qr.reset();
+            charges.reset();
+          },
+          syncClock: () => {
+            if (clock instanceof DemoClock) clock.invalidate();
+          },
+        }),
+      );
     },
     { prefix: "/mock" },
   );

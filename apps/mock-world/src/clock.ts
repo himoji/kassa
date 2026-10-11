@@ -59,6 +59,12 @@ export class DemoClock implements Clock {
     }
   }
 
+  /** Re-read the API's clock on the next now() (after this process asked the API to move it). */
+  invalidate(): void {
+    this.fetchedAt = -Infinity;
+    this.inflight = null;
+  }
+
   async now(): Promise<Date> {
     if (this.realNow() - this.fetchedAt >= (this.opts.refreshMs ?? 1000)) {
       this.inflight ??= this.refresh().finally(() => {

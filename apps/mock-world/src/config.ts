@@ -20,6 +20,10 @@ const Env = z.object({
   MOCK_BANK_STEP_SECONDS: z.coerce.number().int().min(1).max(86_400).default(20),
   /** Real-time interval at which the mock bank re-reads the demo clock and advances transfers. */
   MOCK_BANK_TICK_MS: z.coerce.number().int().min(200).max(60_000).default(2000),
+  /** Demo Stage (/mock/stage) and its server-side actions exist only when the demo is on (same flag as the API). */
+  DEMO_ENABLED: z.enum(["true", "false", "1", "0", ""]).default("false"),
+  /** Sent to the API's demo admin routes by the stage server. Never rendered into a page. */
+  DEMO_ADMIN_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   NODE_ENV: z.string().default("development"),
 });
@@ -36,6 +40,8 @@ export interface MockWorldConfig {
   bankStepMs: number;
   bankTickMs: number;
   logLevel: string;
+  demoEnabled: boolean;
+  demoAdminToken: string | null;
 }
 
 const DEV_SECRET = "dev-only-mock-hmac-secret-change-me";
@@ -65,6 +71,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): MockWorldConfi
     bankStepMs: e.MOCK_BANK_STEP_SECONDS * 1000,
     bankTickMs: e.MOCK_BANK_TICK_MS,
     logLevel: e.LOG_LEVEL,
+    demoEnabled: e.DEMO_ENABLED === "true" || e.DEMO_ENABLED === "1",
+    demoAdminToken: e.DEMO_ADMIN_TOKEN || null,
   };
 }
 

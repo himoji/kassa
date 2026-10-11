@@ -564,3 +564,28 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   verification".
 - **Not done:** there is no "add account details to this payee" flow yet (an account change is a new payee, I7, and the
   obligations would have to move to it). Seeded demo data (Dana) is unchanged: her payees all have accounts.
+
+## 2026-10-13 — Demo Stage (mock-world /mock/stage) and three demo-admin stage routes
+
+- **What:** phone-sized "outside world" screens for the live pitch under `/mock/stage/*` (director, Tap to Pay,
+  Super-App Wallet in Chinese, Mail, Bank App, Money from home, Supplier price list). Generic names only, "Simulated"
+  ribbon on every page, no CDN, one shared CSS/JS served by mock-world (`apps/mock-world/src/stage/`,
+  `src/routes/stage.ts`). The whole tree is 404 unless mock-world's `DEMO_ENABLED` is true (new config keys
+  `DEMO_ENABLED`, `DEMO_ADMIN_TOKEN`, read from the shared root `.env`; default off).
+- **Secrets stay server-side:** pages call `/mock/stage/api/<action>`; mock-world's `StageApi` holds the demo admin
+  token and a Shortcut device token in memory and never renders them (tests assert neither appears in any page/state).
+- **Why three new API routes (deviation from "existing routes only"):** the device-side actions the scenes need are
+  user-scoped and had no route reachable without a user session: minting an iOS Shortcut token (`POST /devices/shortcut`
+  needs a session; the app has no UI for it), a statement line with the merchant's local price for DCC (the
+  `settlement` trigger only settles foreign-currency charges at a fixed +4 % and never passes `localAmountMinor`), and
+  "Forward to Kassa" (`POST /agent/documents` needs a session; the app cannot upload). Added, demo-admin token only,
+  DEMO_ENABLED only, listed in `PUBLIC_ROUTES` + the `auth` rate-limit tier: `POST /api/demo/stage/shortcut-token`
+  (same code path as `/devices/shortcut`, ledgered `DEVICE_TOKEN_CREATED` with `via: "demo-stage"`),
+  `POST /api/demo/stage/settlement` (`SettlementEventRequest` → `reconcileSettlement` for the demo user),
+  `POST /api/demo/stage/document` (`storeDocument` + an `INBOX_NEW_EMAIL` notification with the docId). Like every
+  trigger they only log or store (I6). The coffee tap then goes through the real `POST /api/capture/shortcut` with
+  the bearer device token (I13). Tests: `apps/api/test/demos/stage.test.ts`, `apps/mock-world/test/stage.test.ts`.
+- **Forged bank message (S2 on stage):** mock-world posts a fake `outgoing_payment_sent` to `/api/webhooks/mock/bank`
+  once unsigned and once signed with a random key; the API answers 401 to both.
+- **Clock sync:** after the stage moves the demo clock, mock-world drops its cached offset (`DemoClock.invalidate`) so
+  the mock bank and the fake issuer do not sign with the pre-jump time (same race as Y7).

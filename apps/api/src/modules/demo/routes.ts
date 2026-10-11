@@ -6,23 +6,34 @@
  * admin calls are refused, except under NODE_ENV=test. GET /demo/clock is public so mock-world can follow
  * the demo clock (coordination doc).
  */
-import { DEMO_TOKEN_HEADER, DemoAgentModeRequest, DemoClockAdvanceRequest, DemoScenario, DemoStateResponse } from "@kassa/shared";
+import {
+  DEMO_TOKEN_HEADER,
+  DemoAgentModeRequest,
+  DemoClockAdvanceRequest,
+  DemoScenario,
+  DemoStateResponse,
+  ReaderDocType,
+  SettlementEventRequest,
+  SettlementEventResponse,
+  sha256Base64url,
+} from "@kassa/shared";
 import { and, asc, eq, inArray, ne } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { cards, demoState, transactions, users } from "../../db/schema.ts";
+import { cards, demoState, devices, transactions, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { notify } from "../notifications/service.ts";
 import { mockWorld } from "../rails/http.ts";
-import { ingestCapture } from "../capture/service.ts";
+import { ingestCapture, reconcileSettlement, SettlementError } from "../capture/service.ts";
+import { DocumentError, storeDocument } from "../reader/index.ts";
 import { tick } from "../scheduler/index.ts";
 import { loadSeedData, seedDatabase } from "./seed.ts";
 
@@ -137,6 +148,20 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
   }
 }
 
+/**
+ * Demo Stage (mock-world /mock/stage, docs/DECISIONS.md 2026-10-13 "Demo Stage"): the "outside world" acts for the
+ * demo user the way a device or a statement would. Same admin token as the triggers; each route reuses the user-facing
+ * code path (Shortcut device token, settlement reconcile, document store) and, like every trigger, only logs or
+ * stores: nothing here proposes, approves or pays (I6).
+ */
+const StageDocumentBody = z.object({
+  filename: z.string().min(1).max(120),
+  mediaType: z.enum(["application/pdf", "text/plain"]),
+  kind: ReaderDocType.optional(),
+  /** RFC 4648 §4 base64; stays under the 1 MiB JSON body limit. */
+  dataB64: z.string().min(4).max(900_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+});
+
 /** Admin check before body parsing/validation (no schema hints to callers without the token). */
 const admin = { onRequest: async (req: FastifyRequest) => assertAdmin(req) };
 
@@ -176,6 +201,65 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const result = await trigger(req.params.scenario);
       await ledger.append("DEMO_TRIGGER", { scenario: req.params.scenario });
       return { ...(await state()), result };
+    },
+  );
+
+  // Stage: an iOS Shortcut device token for the demo user (same shape as POST /devices/shortcut, I13: only the hash is stored).
+  app.post(
+    "/demo/stage/shortcut-token",
+    { ...admin, schema: { body: z.object({}).strict(), response: { 201: z.object({ deviceId: z.string().uuid(), token: z.string() }) } } },
+    async (_req, reply) => {
+      const userId = await demoUserId();
+      const token = `ksc_${randomBytes(32).toString("base64url")}`;
+      const rows = await getDb()
+        .insert(devices)
+        .values({ userId, kind: "IOS_SHORTCUT", tokenHash: sha256Base64url(token) })
+        .returning({ id: devices.id });
+      await ledger.append("DEVICE_TOKEN_CREATED", { userId, deviceId: rows[0]!.id, kind: "IOS_SHORTCUT", via: "demo-stage" });
+      return reply.status(201).send({ deviceId: rows[0]!.id, token });
+    },
+  );
+
+  // Stage: a card statement line for the demo user (as POST /capture/settlement; DCC receipts carry the local price).
+  app.post(
+    "/demo/stage/settlement",
+    { ...admin, schema: { body: SettlementEventRequest, response: { 200: SettlementEventResponse } } },
+    async (req) => {
+      try {
+        return await reconcileSettlement(await demoUserId(), req.body);
+      } catch (e) {
+        if (e instanceof SettlementError) throw new HttpProblem(e.code === "SETTLEMENT_NO_MATCH" ? 404 : 409, e.code, e.message);
+        throw e;
+      }
+    },
+  );
+
+  // Stage: "Forward to Kassa" from the simulated mail app. Stored like POST /agent/documents (untrusted data for the
+  // Reader, I10); the user is told about it and decides in the app.
+  app.post(
+    "/demo/stage/document",
+    { ...admin, schema: { body: StageDocumentBody, response: { 200: z.object({ docId: z.string().uuid() }) } } },
+    async (req) => {
+      const userId = await demoUserId();
+      let docId: string;
+      try {
+        docId = await storeDocument(userId, {
+          data: new Uint8Array(Buffer.from(req.body.dataB64, "base64")),
+          mediaType: req.body.mediaType,
+          filename: req.body.filename,
+          kind: req.body.kind ?? null,
+        });
+      } catch (e) {
+        if (e instanceof DocumentError) throw new HttpProblem(e.code === "DOC_TOO_LARGE" ? 413 : e.code === "DOC_UNSUPPORTED_TYPE" ? 415 : 400, e.code, e.message);
+        throw e;
+      }
+      await notify(userId, {
+        kind: "INBOX_NEW_EMAIL",
+        title: "Forwarded to Kassa",
+        body: `You forwarded "${req.body.filename}" (simulated mail). Ask Kassa to read it: document text is data, never instructions.`,
+        data: { docId, filename: req.body.filename, kind: req.body.kind ?? null, via: "demo-stage" },
+      });
+      return { docId };
     },
   );
 };
