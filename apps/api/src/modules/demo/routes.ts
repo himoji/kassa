@@ -1,13 +1,16 @@
 /*
- * Demo routes (spec §8, §15), only when DEMO_ENABLED=true. Admin calls need header x-kassa-demo-token
- * = DEMO_ADMIN_TOKEN (constant-time compare). GET /demo/clock is public so mock-world can follow the
- * demo clock (coordination doc).
+ * Demo routes (spec §8, §15), only when DEMO_ENABLED=true (server.ts does not even register them otherwise;
+ * production refuses to start with DEMO_ENABLED unless DEMO_ADMIN_TOKEN has ≥ 32 characters, env.ts).
+ * Admin calls need header x-kassa-demo-token = DEMO_ADMIN_TOKEN, compared in constant time over SHA-256
+ * digests (equal length, so neither content nor length leaks through timing). Without a configured token
+ * admin calls are refused, except under NODE_ENV=test. GET /demo/clock is public so mock-world can follow
+ * the demo clock (coordination doc).
  */
 import { DEMO_TOKEN_HEADER, DemoAgentModeRequest, DemoClockAdvanceRequest, DemoScenario, DemoStateResponse } from "@kassa/shared";
 import { and, asc, eq, ne } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
@@ -25,17 +28,21 @@ function assertDemoEnabled(): void {
   if (!env().DEMO_ENABLED) throw new HttpProblem(404, "NOT_FOUND", "Demo mode is disabled");
 }
 
+const digest = (s: string) => createHash("sha256").update(s, "utf8").digest();
+
+/** Constant-time token check (both sides hashed to 32 bytes first). */
+export function demoTokenMatches(got: unknown, expected: string): boolean {
+  return timingSafeEqual(digest(typeof got === "string" ? got : ""), digest(expected));
+}
+
 function assertAdmin(req: FastifyRequest): void {
   assertDemoEnabled();
   const expected = env().DEMO_ADMIN_TOKEN;
   if (!expected) {
-    if (env().NODE_ENV === "production") throw new HttpProblem(403, "FORBIDDEN", "DEMO_ADMIN_TOKEN not configured");
-    return; // local dev without a token
+    if (env().NODE_ENV === "test") return; // unit tests without a token
+    throw new HttpProblem(403, "FORBIDDEN", "DEMO_ADMIN_TOKEN not configured (bun run env:setup)");
   }
-  const got = req.headers[DEMO_TOKEN_HEADER];
-  const a = Buffer.from(typeof got === "string" ? got : "");
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) throw new HttpProblem(403, "FORBIDDEN", "Bad demo admin token");
+  if (!demoTokenMatches(req.headers[DEMO_TOKEN_HEADER], expected)) throw new HttpProblem(403, "FORBIDDEN", "Bad demo admin token");
 }
 
 async function state() {
@@ -98,30 +105,30 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
   }
 }
 
+/** Admin check before body parsing/validation (no schema hints to callers without the token). */
+const admin = { onRequest: async (req: FastifyRequest) => assertAdmin(req) };
+
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.get("/demo/clock", { schema: { response: { 200: DemoStateResponse } } }, async () => {
     assertDemoEnabled();
     return state();
   });
 
-  app.post("/demo/clock/advance", { schema: { body: DemoClockAdvanceRequest, response: { 200: DemoStateResponse } } }, async (req) => {
-    assertAdmin(req);
+  app.post("/demo/clock/advance", { ...admin, schema: { body: DemoClockAdvanceRequest, response: { 200: DemoStateResponse } } }, async (req) => {
     await clock.advanceHours(req.body.hours);
     await ledger.append("DEMO_CLOCK_ADVANCED", { hours: req.body.hours, now: clock.now().toISOString() });
     await tick((msg, err) => req.log.error({ err }, msg));
     return state();
   });
 
-  app.post("/demo/reset", { schema: { response: { 200: DemoStateResponse } } }, async (req) => {
-    assertAdmin(req);
+  app.post("/demo/reset", { ...admin, schema: { response: { 200: DemoStateResponse } } }, async (req) => {
     await seedDatabase(getDb(), await loadSeedData(), { reset: true });
     // Mock world keeps its own in-memory state (wallet, transfers, QR codes): reset it too (best effort).
     await mockWorld("POST", "/reset", {}).catch((err: Error) => req.log.warn({ err }, "mock-world reset failed"));
     return state();
   });
 
-  app.post("/demo/agent-mode", { schema: { body: DemoAgentModeRequest, response: { 200: DemoStateResponse } } }, async (req) => {
-    assertAdmin(req);
+  app.post("/demo/agent-mode", { ...admin, schema: { body: DemoAgentModeRequest, response: { 200: DemoStateResponse } } }, async (req) => {
     await getDb()
       .insert(demoState)
       .values({ id: 1, agentMode: req.body.mode })
@@ -132,9 +139,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     "/demo/trigger/:scenario",
-    { schema: { params: z.object({ scenario: DemoScenario }), response: { 200: DemoStateResponse.extend({ result: z.unknown() }) } } },
+    { ...admin, schema: { params: z.object({ scenario: DemoScenario }), response: { 200: DemoStateResponse.extend({ result: z.unknown() }) } } },
     async (req) => {
-      assertAdmin(req);
       const result = await trigger(req.params.scenario);
       await ledger.append("DEMO_TRIGGER", { scenario: req.params.scenario });
       return { ...(await state()), result };

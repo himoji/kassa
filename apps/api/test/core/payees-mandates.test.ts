@@ -28,7 +28,7 @@ describe("payees (I7)", () => {
       method: "POST",
       url: "/api/payees",
       headers: await bearer(userId),
-      payload: { name: "Hillside Flats Kft.", kind: "LANDLORD", account: "HU03 1620 0216 9011 7442 0000 0000", country: "HU", currency: "HUF" },
+      payload: { name: "Landlord in Budapest", kind: "LANDLORD", account: "HU03 1620 0216 9011 7442 0000 0000", country: "HU", currency: "HUF" },
     });
     expect(res.statusCode).toBe(201);
     const dto = res.json();
@@ -68,12 +68,12 @@ describe("payees (I7)", () => {
 
   it("A2-style account change creates a NEW cooling payee; the verified one is untouched", async () => {
     const { userId } = await createUserWithPasskey();
-    const landlord = await addPayee(userId, { name: "Hillside Flats Kft.", account: IBAN_LANDLORD });
+    const landlord = await addPayee(userId, { name: "Landlord in Budapest", account: IBAN_LANDLORD });
     const res = await app().inject({
       method: "POST",
       url: "/api/payees",
       headers: await bearer(userId),
-      payload: { name: "Hillside Flats Kft.", kind: "LANDLORD", account: IBAN_OTHER, country: "HU", currency: "HUF", replacesPayeeId: landlord.id },
+      payload: { name: "Landlord in Budapest", kind: "LANDLORD", account: IBAN_OTHER, country: "HU", currency: "HUF", replacesPayeeId: landlord.id },
     });
     expect(res.json()).toMatchObject({ status: "COOLING", replacesPayeeId: landlord.id });
     const old = (await getDb().select().from(payees).where(eq(payees.id, landlord.id)))[0]!;
@@ -91,7 +91,7 @@ describe("mandates (I8)", () => {
 
   it("create needs a passkey over mandateHash and becomes ACTIVE only after 24 h; revoke is instant", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const landlord = await addPayee(userId, { name: "Hillside Flats Kft." });
+    const landlord = await addPayee(userId, { name: "Landlord in Budapest" });
     await signBaseRules(userId, auth);
     const h = await bearer(userId);
     const opt = await app().inject({

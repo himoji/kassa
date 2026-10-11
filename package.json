@@ -18,6 +18,7 @@
     "db:migrate": "bun run --cwd apps/api db:migrate",
     "seed": "bun run --cwd apps/api seed",
     "ledger:verify": "bun run --cwd apps/api ledger:verify",
+    "sim": "bun apps/api/scripts/sim/cli.ts",
     "dev:all": "turbo run dev"
   },
   "devDependencies": {

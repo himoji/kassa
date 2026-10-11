@@ -5,7 +5,7 @@ import type { EventKind, ParsedEvent, TextParser } from "./types.ts";
 /*
  * Kazakh bank app push (generic format, Russian and Kazakh):
  *   Покупка: 4 760,00 HUF            | Сатып алу: 3 490,00 HUF       | Пополнение: 600 000,00 KZT
- *   FRESH MARKET HALL BP, BUDAPEST, HU
+ *   MARKET HALL IN BUDAPEST, BUDAPEST, HU
  *   Карта: *4821
  *   Доступно: 812 345,67 KZT         | Қолжетімді: ...
  *   26.10.2026 23:50                 (Asia/Almaty local time)

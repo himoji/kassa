@@ -29,6 +29,8 @@ services:
       DATABASE_URL: postgres://kassa:kassa@postgres:5432/kassa
       MOCK_WORLD_URL: http://mock-world:4001
       PORT: "4000"
+      # Behind Caddy (which overwrites X-Forwarded-For): rate limits see the real client IP.
+      TRUST_PROXY: "true"
     depends_on:
       postgres:
         condition: service_healthy

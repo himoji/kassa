@@ -17,6 +17,7 @@ import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
 import { updatePaymentStatus } from "../payments/status.ts";
 import { checkQrPayee } from "../rails/handoff.ts";
@@ -93,7 +94,7 @@ const routes: FastifyPluginAsync = async (app) => {
     const check = checkQrPayee(name, String(d.verifiedPayeeName ?? ""));
     if (!check.match || body.amountMinor !== p.amountMinor || body.currency !== p.currency || d.check !== "MATCH") {
       // The user paid someone else than the signed payee (e.g. a swapped QR): record, never mark SENT.
-      await ledger.append("HANDOFF_PAID_MISMATCH", { userId: p.userId, paymentId: p.id, qrPayeeName: name, reasonCodes: ["QR_PAYEE_MISMATCH"] });
+      await ledger.append("HANDOFF_PAID_MISMATCH", { userId: p.userId, paymentId: p.id, reasonCodes: ["QR_PAYEE_MISMATCH"], ...(await sealPii(p.userId, { qrPayeeName: name })) });
       await updatePaymentStatus(p.id, "FAILED", { source: "webhook:mock-qr", reasonCodes: ["QR_PAYEE_MISMATCH"] });
       return { ok: true, matched: true, reasonCodes: ["QR_PAYEE_MISMATCH"] };
     }
@@ -116,7 +117,13 @@ const routes: FastifyPluginAsync = async (app) => {
       ? (await getDb().select({ userId: profiles.userId }).from(profiles).where(eq(profiles.bankProfileId, profileId)))[0]
       : undefined;
     const userId = owner?.userId ?? null;
-    await ledger.append("TRIGGER_REMITTANCE", { userId, event: body });
+    // The event names the sender (a third person): sealed with the recipient's key; unmatched events keep no names.
+    await ledger.append(
+      "TRIGGER_REMITTANCE",
+      userId
+        ? { userId, eventId: body.eventId ?? null, ...(await sealPii(userId, { event: body })) }
+        : { userId: null, eventId: body.eventId ?? null, amountMinor: body.amountMinor ?? null, currency: body.currency ?? null },
+    );
     if (userId) {
       await notify(userId, {
         kind: "MONEY_FROM_HOME",

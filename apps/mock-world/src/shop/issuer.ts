@@ -5,7 +5,7 @@ import { mockWebhookHeaders } from "@kassa/shared";
 import type { Clock, FetchLike } from "../clock.ts";
 
 /*
- * How the Pizza Shop "charges" a one-time card (spec §11 steps 4 and 7):
+ * How the Pizza Shop in Budapest "charges" a one-time card (spec §11 steps 4 and 7):
  * - stripe: Stripe test helper POST /v1/test_helpers/issuing/authorizations (form-encoded; params
  *   card, amount, currency, merchant_data[...], per docs.stripe.com/api/issuing/authorizations/
  *   test_mode_create). Stripe then calls the API's issuing_authorization.request webhook, which

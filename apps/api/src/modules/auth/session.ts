@@ -7,9 +7,12 @@
  */
 import type {} from "@fastify/cookie"; // augments FastifyRequest.cookies / reply.setCookie
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { eq } from "drizzle-orm";
 import { decodeJwt, jwtVerify, SignJWT } from "jose";
 import { randomUUID } from "node:crypto";
 
+import { getDb } from "../../db/client.ts";
+import { users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
@@ -114,19 +117,48 @@ export function endSession(reply: FastifyReply): void {
   reply.clearCookie(SESSION_COOKIE, { path: "/api" });
 }
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * CSRF defence for the cookie session (OWASP CSRF Cheat Sheet, "Verifying Origin With Standard Headers"):
+ * a state-changing request authenticated by the cookie must not come from a foreign Origin. Browsers send
+ * Origin on every cross-origin and same-origin POST; non-browser clients use bearer tokens. SameSite=Lax
+ * alone does not cover same-site origins (e.g. another port on the same host).
+ */
+function assertCookieOrigin(req: FastifyRequest): void {
+  if (SAFE_METHODS.has(req.method)) return;
+  const origin = req.headers.origin;
+  if (origin === undefined) return;
+  if (!env().origins.some((o) => o.replace(/\/$/, "") === origin)) {
+    throw new HttpProblem(403, "CSRF_ORIGIN_MISMATCH", "Cross-origin request with a session cookie refused");
+  }
+}
+
 /** Resolve the caller: `Authorization: Bearer <access JWT>` first, then the session cookie. */
 export async function authenticate(req: FastifyRequest): Promise<string | null> {
   const auth = req.headers.authorization;
   if (auth?.startsWith("Bearer ")) return verifyToken(auth.slice(7).trim(), "access");
   const cookie = req.cookies?.[SESSION_COOKIE];
-  if (cookie) return verifyToken(cookie, "session");
+  if (cookie) {
+    const userId = await verifyToken(cookie, "session");
+    if (userId) assertCookieOrigin(req);
+    return userId;
+  }
   return null;
 }
 
-/** preHandler: 401 unless authenticated; sets request.userId. */
+/**
+ * Session check (zero trust: every request, no network trust). Installed on every non-public route by
+ * http/security.ts (deny by default); idempotent, so per-plugin hooks may still call it. Tokens of a user
+ * that no longer exists or was erased (GDPR Art. 17) are refused even before they expire.
+ */
 export async function requireUser(req: FastifyRequest): Promise<void> {
+  if (req.userId) return;
   const userId = await authenticate(req);
   if (!userId) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
+  const u = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, userId)))[0];
+  if (!u) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
+  if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
   req.userId = userId;
 }
 
@@ -138,4 +170,9 @@ export function userIdOf(req: FastifyRequest): string {
 /** Tests: an access token for a user. */
 export async function mintAccessTokenForTests(userId: string): Promise<string> {
   return (await mint(userId, "access", ACCESS_TTL_S)).token;
+}
+
+/** Tests: a web session cookie value for a user. */
+export async function mintSessionCookieForTests(userId: string): Promise<string> {
+  return (await mint(userId, "session", COOKIE_TTL_S)).token;
 }

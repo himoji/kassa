@@ -135,8 +135,8 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
 
       r.get("/", async (_req, reply) => {
         const links: [string, string][] = [
-          ["Pizza Shop", "/mock/shop/pizza"],
-          ["Pizza Shop menu (JSON)", "/mock/shop/pizza/menu"],
+          ["Pizza Shop in Budapest", "/mock/shop/pizza"],
+          ["Pizza Shop in Budapest menu (JSON)", "/mock/shop/pizza/menu"],
           ["Supplier A catalog", "/mock/suppliers/a/catalog"],
           ["Supplier B catalog", "/mock/suppliers/b/catalog"],
           ["Supplier A price list (PDF)", "/mock/suppliers/a/price-list.pdf"],

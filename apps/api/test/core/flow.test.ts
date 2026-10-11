@@ -18,7 +18,7 @@ describe("end-to-end money path", () => {
 
   it("T2: propose → ASK → passkey approve → payment", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Riverside University Budapest", kind: "UNIVERSITY", currency: "EUR" });
+    const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR" });
     const r = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 240_000, currency: "EUR", purpose: "Tuition" });
     expect(r.decision).toBe("ASK");
     const view = await getOrderView(userId, r.proposalId);
@@ -33,7 +33,7 @@ describe("end-to-end money path", () => {
 
   it("T1: mandate → AUTO → payment without passkey prompt", async () => {
     const { userId, auth } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Hillside Flats Kft." });
+    const payee = await addPayee(userId, { name: "Landlord in Budapest" });
     await signBaseRules(userId, auth);
     await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 20_000_000 });
     const r = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", category: "rent" });

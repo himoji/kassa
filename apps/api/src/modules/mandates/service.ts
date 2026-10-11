@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
 import { mandates, payees, ruleChanges } from "../../db/schema.ts";
+import { auditAssertionFailure, ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
@@ -87,7 +88,10 @@ export async function createMandate(userId: string, core: MandateCore, assertion
     throw conflict("MANDATE_EXISTS", "mandate id already used");
   }
   const check = await verifyRulesAssertion(db, { userId, assertion, expectedChallenge: hash, challengeReason: "ASSERTION_INVALID" });
-  if (!check.ok) throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
+  if (!check.ok) {
+    await auditAssertionFailure(userId, "mandate", check.reason);
+    throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
+  }
   const now = clock.now();
   const effectiveAt = addMs(now, LOOSEN_DELAY_MS);
   const row = await db.transaction(async (tx) => {
@@ -131,7 +135,7 @@ export async function createMandate(userId: string, core: MandateCore, assertion
 export async function revokeMandate(userId: string, mandateId: string) {
   const db = getDb();
   const m = (await db.select().from(mandates).where(and(eq(mandates.id, mandateId), eq(mandates.userId, userId))))[0];
-  if (!m) throw notFound("mandate");
+  if (!m) throw await ownedNotFound(userId, "mandate", mandateId, async () => (await db.select({ id: mandates.id }).from(mandates).where(eq(mandates.id, mandateId))).length > 0);
   if (m.status === "REVOKED") return m;
   const now = clock.now();
   return db.transaction(async (tx) => {

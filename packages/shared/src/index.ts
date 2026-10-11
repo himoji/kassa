@@ -14,3 +14,4 @@ export * from "./iban.ts";
 export * from "./fxMath.ts";
 export * from "./appDto.ts";
 export * from "./intelDto.ts";
+export * from "./privacyDto.ts";

@@ -9,7 +9,8 @@ import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
 import { payments } from "../../db/schema.ts";
-import { HttpProblem, notFound } from "../../http/problem.ts";
+import { ownedNotFound } from "../../http/audit.ts";
+import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { intentClientSecret, onIntentSucceeded } from "../rails/payInPlace.ts";
 
@@ -17,7 +18,7 @@ const Params = z.object({ paymentId: z.string().uuid() });
 
 async function ownPayment(userId: string, paymentId: string) {
   const p = (await getDb().select().from(payments).where(and(eq(payments.id, paymentId), eq(payments.userId, userId))))[0];
-  if (!p) throw notFound("payment");
+  if (!p) throw await ownedNotFound(userId, "payment", paymentId, async () => (await getDb().select({ id: payments.id }).from(payments).where(eq(payments.id, paymentId))).length > 0);
   return p;
 }
 

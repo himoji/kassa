@@ -61,6 +61,12 @@ export const ReasonCode = z.enum([
   "WEBHOOK_REPLAY_WINDOW",
   // User actions
   "USER_REJECTED",
+  // (added by Phase 2 security) GDPR / EU AI Act and abuse controls
+  "AI_CONSENT_REQUIRED",
+  "PROCESSING_RESTRICTED",
+  "ACCOUNT_ERASED",
+  "UNFREEZE_PENDING",
+  "RATE_LIMITED",
 ]);
 export type ReasonCode = z.infer<typeof ReasonCode>;
 

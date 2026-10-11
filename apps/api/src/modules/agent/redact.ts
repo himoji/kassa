@@ -1,4 +1,7 @@
 import { isValidIban } from "@kassa/shared";
+import { createHmac, hkdfSync } from "node:crypto";
+
+import { env } from "../../env.ts";
 
 /*
  * Personal-data reduction before every planner call (spec §2 I11, §9 "Redaction").
@@ -15,7 +18,24 @@ import { isValidIban } from "@kassa/shared";
  *
  * Every hit becomes a stable placeholder for the conversation (same value → same placeholder).
  * The mapping lives in `placeholder_maps` (server only); `propose_order` resolves `payee_N` refs.
+ * Card numbers are never stored (PCI DSS v4.0 Req. 3.3/3.5.1): a CARD entry's realRef is
+ * "pan:<HMAC-SHA256 digest>:<last4>" — a keyed hash (stable within the conversation) plus the last 4 digits
+ * that rehydration shows as "•••• 1234".
  */
+
+let panKey: { kek: string; key: Buffer } | null = null;
+/** Key for PAN digests, derived from USER_KEK with HKDF (RFC 5869) under its own label. */
+function panHmacKey(): Buffer {
+  const kek = env().USER_KEK;
+  if (!panKey || panKey.kek !== kek) panKey = { kek, key: Buffer.from(hkdfSync("sha256", Buffer.from(kek, "base64"), Buffer.alloc(0), "kassa:pan-ref:v1", 32)) };
+  return panKey.key;
+}
+
+/** Stored reference for a card number: keyed digest + last 4, never the PAN itself. */
+export function panRef(digits: string): string {
+  const d = createHmac("sha256", panHmacKey()).update(digits, "utf8").digest("base64url").slice(0, 22);
+  return `pan:${d}:${digits.slice(-4)}`;
+}
 
 export type PlaceholderKind = "PAYEE" | "PERSON" | "IBAN" | "CARD" | "EMAIL" | "PHONE";
 
@@ -211,7 +231,8 @@ export class Redactor {
   }
 
   /** Stable placeholder for (kind, value); creates one if new. */
-  placeholderFor(kind: PlaceholderKind, value: string): string {
+  placeholderFor(kind: PlaceholderKind, raw: string): string {
+    const value = kind === "CARD" && /^\d{12,19}$/.test(raw) ? panRef(raw) : raw;
     const k = this.key(kind, value);
     const hit = this.byKey.get(k);
     if (hit) return hit.placeholder;

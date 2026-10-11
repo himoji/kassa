@@ -114,12 +114,12 @@ describe("IBAN helpers", () => {
 
 describe("checkQrPayee and handoff threshold", () => {
   it("matches an identical payee name", () => {
-    const r = checkQrPayee("Pudong Student Dormitory Office", "Pudong Student Dormitory Office");
+    const r = checkQrPayee("Dorm Office in Shanghai", "Dorm Office in Shanghai");
     expect(r.match).toBe(true);
   });
 
   it("does not match an unrelated payee name", () => {
-    const r = checkQrPayee("Quick Pay Trading Ltd.", "Pudong Student Dormitory Office");
+    const r = checkQrPayee("Unknown Trading Company", "Dorm Office in Shanghai");
     expect(r.match).toBe(false);
   });
 

@@ -74,19 +74,19 @@ const DANA: InvoiceParty = { name: "Dana Seitkali", addressLines: ["Kerepesi ut 
 const DANA_KZ: InvoiceParty = { name: "Dana Seitkali", addressLines: ["Abay ave 50, apt 21", "050000 Almaty", "Kazakhstan"] };
 
 const RIVERSIDE = {
-  name: "Riverside University Budapest",
+  name: "University in Budapest",
   addressLines: ["Bursar's Office", "Folyopart utca 1", "1111 Budapest", "Hungary"],
   vatId: "HU99000001",
-  email: "bursar@riverside-university.example",
+  email: "bursar@university-in-budapest.example",
 };
-const HILLSIDE = { name: "Hillside Flats Kft.", addressLines: ["Hegyoldal utca 7", "1122 Budapest", "Hungary"], vatId: "HU99000002" };
+const HILLSIDE = { name: "Landlord in Budapest", addressLines: ["Hegyoldal utca 7", "1122 Budapest", "Hungary"], vatId: "HU99000002" };
 const MERIDIAN = {
-  name: "Meridian Student Insurance Zrt.",
-  addressLines: ["Meridian Tower, Vaci ut 99", "1138 Budapest", "Hungary"],
+  name: "Student Insurer in EU",
+  addressLines: ["Insurer Tower, Vaci ut 99", "1138 Budapest", "Hungary"],
   vatId: "HU99000003",
   phone: "+36 1 555 0103",
 };
-const DANUBE_UTIL = { name: "Danube Utilities Zrt.", addressLines: ["Ipar utca 20", "1095 Budapest", "Hungary"], vatId: "HU99000004" };
+const DANUBE_UTIL = { name: "Utility Company in Budapest", addressLines: ["Ipar utca 20", "1095 Budapest", "Hungary"], vatId: "HU99000004" };
 const ALMATY_HOUSING = { name: "Almaty Student Housing LLP", addressLines: ["Satpaev st 90", "050040 Almaty", "Kazakhstan"] };
 
 const IBAN = {
@@ -118,50 +118,50 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
     id: "inv-01", layout: "classic", language: "en", font: "helvetica",
     issuer: RIVERSIDE, billTo: DANA, invoiceNumber: "RUB-2026-F-04217", issueDate: "2026-10-01", dueDate: "2026-10-31", currency: "EUR",
     lines: [{ description: "Tuition fee, MSc Finance, autumn semester 2026", quantity: 1, unitPriceMinor: 240000 }],
-    payment: { payeeName: "Riverside University Budapest", iban: ACCOUNTS.university, bic: "RVUBHUHBXXX", reference: TUITION_REFERENCE, ibanStyle: "paper" },
+    payment: { payeeName: "University in Budapest", iban: ACCOUNTS.university, bic: "RVUBHUHBXXX", reference: TUITION_REFERENCE, ibanStyle: "paper" },
     amountStyle: "en-code", dateStyle: "long-en",
   },
   {
     id: "inv-02", layout: "hu", language: "hu", font: "helvetica",
     issuer: HILLSIDE, billTo: DANA, invoiceNumber: "HF-2026/0311", issueDate: "2026-10-20", dueDate: "2026-11-01", currency: "HUF",
     lines: [{ description: "Lakbér, 4B lakás, 2026. november", quantity: 1, unitPriceMinor: 18000000 }],
-    payment: { payeeName: "Hillside Flats Kft.", iban: ACCOUNTS.landlord, reference: "HF-APT4B-RENT", ibanStyle: "paper" },
+    payment: { payeeName: "Landlord in Budapest", iban: ACCOUNTS.landlord, reference: "HF-APT4B-RENT", ibanStyle: "paper" },
     amountStyle: "hu-ft", dateStyle: "hu",
   },
   {
     id: "inv-03", layout: "modern", language: "en", font: "helvetica",
     issuer: MERIDIAN, billTo: DANA, invoiceNumber: "MSI-Q4-778201", issueDate: "2026-10-15", dueDate: "2026-11-15", currency: "EUR",
     lines: [{ description: "Student health insurance, Q4 2026 premium", quantity: 1, unitPriceMinor: 9600 }],
-    payment: { payeeName: "Meridian Student Insurance Zrt.", iban: ACCOUNTS.insurer, bic: "MSINHUHBXXX", reference: "POL-778201-Q4", ibanStyle: "paper" },
+    payment: { payeeName: "Student Insurer in EU", iban: ACCOUNTS.insurer, bic: "MSINHUHBXXX", reference: "POL-778201-Q4", ibanStyle: "paper" },
     amountStyle: "en-symbol", dateStyle: "dmy-slash",
   },
   {
     id: "inv-04", layout: "de", language: "de", font: "helvetica",
-    issuer: { name: "Berlin Data Science Bootcamp GmbH", addressLines: ["Torstrasse 140", "10119 Berlin", "Deutschland"], vatId: "DE999000004" },
+    issuer: { name: "Data Bootcamp in Berlin", addressLines: ["Torstrasse 140", "10119 Berlin", "Deutschland"], vatId: "DE999000004" },
     billTo: DANA, invoiceNumber: "BDS-2026-0193", issueDate: "2026-10-30", dueDate: "2026-11-30", currency: "EUR",
     lines: [{ description: "Online-Bootcamp Data Science, Modul 1-4", quantity: 1, unitPriceMinor: 125000 }],
     vatBps: 1900,
-    payment: { payeeName: "Berlin Data Science Bootcamp GmbH", iban: IBAN.berlinBootcamp, bic: "BDSBDEBBXXX", reference: "BDS-2026-0193", ibanStyle: "paper" },
+    payment: { payeeName: "Data Bootcamp in Berlin", iban: IBAN.berlinBootcamp, bic: "BDSBDEBBXXX", reference: "BDS-2026-0193", ibanStyle: "paper" },
     amountStyle: "de-code", dateStyle: "dmy-dot",
   },
   {
     id: "inv-05", layout: "letter", language: "en", font: "times",
-    issuer: { name: "Lakeside Language School Kft.", addressLines: ["Tavpart utca 3", "1117 Budapest", "Hungary"], email: "office@lakeside-school.example" },
+    issuer: { name: "Language School in Budapest", addressLines: ["Tavpart utca 3", "1117 Budapest", "Hungary"], email: "office@language-school-in-budapest.example" },
     billTo: DANA, invoiceNumber: "LLS/2026/311", issueDate: "2026-10-22", dueDate: "2026-11-20", currency: "HUF",
     lines: [{ description: "Hungarian for beginners, evening course (10 weeks)", quantity: 1, unitPriceMinor: 14500000 }],
-    payment: { payeeName: "Lakeside Language School Kft.", iban: IBAN.lakeside, reference: "LLS/2026/311", ibanStyle: "electronic" },
+    payment: { payeeName: "Language School in Budapest", iban: IBAN.lakeside, reference: "LLS/2026/311", ibanStyle: "electronic" },
     amountStyle: "en-code", dateStyle: "iso",
   },
   {
     id: "inv-06", layout: "statement", language: "en", font: "helvetica",
-    issuer: { name: "Northgate Dormitory Services Kft.", addressLines: ["Eszaki kapu 5", "1134 Budapest", "Hungary"], vatId: "HU99000006" },
+    issuer: { name: "Dormitory Office in Budapest", addressLines: ["Eszaki kapu 5", "1134 Budapest", "Hungary"], vatId: "HU99000006" },
     billTo: DANA, invoiceNumber: "NDS-ST-2026-11", issueDate: "2026-10-25", dueDate: "2026-11-05", currency: "HUF",
     lines: [
       { description: "Room deposit (refundable)", quantity: 1, unitPriceMinor: 12000000 },
       { description: "Short-stay room, 2 weeks", quantity: 2, unitPriceMinor: 6000000 },
     ],
     alreadyPaidMinor: 12000000,
-    payment: { payeeName: "Northgate Dormitory Services Kft.", iban: IBAN.northgate, reference: "NDS-STU-5521", ibanStyle: "paper" },
+    payment: { payeeName: "Dormitory Office in Budapest", iban: IBAN.northgate, reference: "NDS-STU-5521", ibanStyle: "paper" },
     amountStyle: "en-code", dateStyle: "long-en",
   },
   {
@@ -174,11 +174,11 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
   },
   {
     id: "inv-08", layout: "receipt", language: "en", font: "courier",
-    issuer: { name: "MobileNet Hungary Zrt.", addressLines: ["Telekom ter 1", "1097 Budapest"], vatId: "HU99000008" },
+    issuer: { name: "Mobile Operator in Hungary", addressLines: ["Telekom ter 1", "1097 Budapest"], vatId: "HU99000008" },
     billTo: DANA, invoiceNumber: "MN-302918844", issueDate: "2026-10-27", dueDate: "2026-11-10", currency: "HUF",
     lines: [{ description: "Student plan, November 2026", quantity: 1, unitPriceMinor: 392913 }],
     vatBps: 2700,
-    payment: { payeeName: "MobileNet Hungary Zrt.", iban: IBAN.mobilenet, reference: "MN-302918844", ibanStyle: "electronic" },
+    payment: { payeeName: "Mobile Operator in Hungary", iban: IBAN.mobilenet, reference: "MN-302918844", ibanStyle: "electronic" },
     amountStyle: "hu-code", dateStyle: "iso",
   },
   {
@@ -198,13 +198,13 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
   },
   {
     id: "inv-11", layout: "modern", language: "en", font: "helvetica",
-    issuer: { name: "Vienna Summer Academy GmbH", addressLines: ["Ringstrasse 10", "1010 Wien", "Austria"], vatId: "ATU99000011" },
+    issuer: { name: "Summer Academy in Austria", addressLines: ["Ringstrasse 10", "1010 Wien", "Austria"], vatId: "ATU99000011" },
     billTo: DANA, invoiceNumber: "VSA-2027-S-0042", issueDate: "2026-11-02", dueDate: "2027-01-15", currency: "EUR",
     lines: [
       { description: "Summer school 2027, early-bird tuition", quantity: 1, unitPriceMinor: 59000 },
       { description: "Registration fee", quantity: 1, unitPriceMinor: 5000 },
     ],
-    payment: { payeeName: "Vienna Summer Academy GmbH", iban: IBAN.viennaAcademy, bic: "VSAGATWWXXX", reference: "VSA-2027-S-0042", ibanStyle: "paper" },
+    payment: { payeeName: "Summer Academy in Austria", iban: IBAN.viennaAcademy, bic: "VSAGATWWXXX", reference: "VSA-2027-S-0042", ibanStyle: "paper" },
     amountStyle: "at-symbol", dateStyle: "iso",
   },
   {
@@ -215,44 +215,44 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
       { description: "Víz és csatorna, 2026. október", quantity: 1, unitPriceMinor: 351181 },
     ],
     vatBps: 2700,
-    payment: { payeeName: "Danube Utilities Zrt.", iban: IBAN.danubeUtil, reference: "DU-0098812734", ibanStyle: "paper" },
+    payment: { payeeName: "Utility Company in Budapest", iban: IBAN.danubeUtil, reference: "DU-0098812734", ibanStyle: "paper" },
     amountStyle: "hu-ft", dateStyle: "hu-long",
   },
   {
     id: "inv-13", layout: "de", language: "de", font: "times",
-    issuer: { name: "Sprachkurs Online GmbH", addressLines: ["Marktplatz 4", "04109 Leipzig", "Deutschland"], vatId: "DE999000013" },
+    issuer: { name: "Online Language Course from Germany", addressLines: ["Marktplatz 4", "04109 Leipzig", "Deutschland"], vatId: "DE999000013" },
     billTo: DANA, invoiceNumber: "SKO-261101", issueDate: "2026-11-01", dueDate: "2026-12-01", currency: "EUR",
     lines: [{ description: "Deutschkurs A2, Online-Zugang 3 Monate", quantity: 1, unitPriceMinor: 8900 }],
     vatBps: 1900,
-    payment: { payeeName: "Sprachkurs Online GmbH", iban: IBAN.sprachkurs, bic: "SKOLDE8LXXX", reference: null, ibanStyle: "paper" },
+    payment: { payeeName: "Online Language Course from Germany", iban: IBAN.sprachkurs, bic: "SKOLDE8LXXX", reference: null, ibanStyle: "paper" },
     amountStyle: "de-symbol", dateStyle: "de-long",
   },
   {
     id: "inv-14", layout: "statement", language: "en", font: "courier",
-    issuer: { name: "Campus Print Shop Kft.", addressLines: ["Egyetem ter 2", "1053 Budapest", "Hungary"], vatId: "HU99000014" },
+    issuer: { name: "Print Shop in Budapest", addressLines: ["Egyetem ter 2", "1053 Budapest", "Hungary"], vatId: "HU99000014" },
     billTo: DANA, invoiceNumber: "CPS-11-0234", issueDate: "2026-11-01", dueDate: "2026-11-08", currency: "HUF",
     lines: [
       { description: "Thesis binding, hardcover", quantity: 2, unitPriceMinor: 180000 },
       { description: "Colour print A4", quantity: 120, unitPriceMinor: 5000 },
       { description: "Poster print A1", quantity: 1, unitPriceMinor: 230000 },
     ],
-    payment: { payeeName: "Campus Print Shop Kft.", iban: IBAN.campusPrint, reference: "CPS-11-0234", ibanStyle: "electronic" },
+    payment: { payeeName: "Print Shop in Budapest", iban: IBAN.campusPrint, reference: "CPS-11-0234", ibanStyle: "electronic" },
     amountStyle: "en-code", dateStyle: "iso",
   },
   {
     id: "inv-15", layout: "letter", language: "en", font: "times",
     issuer: RIVERSIDE, billTo: DANA, invoiceNumber: "LIB-2026-77120", issueDate: "2026-10-30", dueDate: "2026-11-20", currency: "EUR",
     lines: [{ description: "Library: overdue and damaged item replacement", quantity: 1, unitPriceMinor: 2500 }],
-    payment: { payeeName: "Riverside University Budapest", iban: ACCOUNTS.university, bic: "RVUBHUHBXXX", reference: "LIB-FINE-77120", ibanStyle: "paper" },
+    payment: { payeeName: "University in Budapest", iban: ACCOUNTS.university, bic: "RVUBHUHBXXX", reference: "LIB-FINE-77120", ibanStyle: "paper" },
     amountStyle: "en-symbol", dateStyle: "us-long",
   },
   {
     id: "inv-16", layout: "classic", language: "en", font: "helvetica",
-    issuer: { name: "City Gym Kft.", addressLines: ["Sport utca 8", "1146 Budapest", "Hungary"], vatId: "HU99000016" },
+    issuer: { name: "Gym in Budapest", addressLines: ["Sport utca 8", "1146 Budapest", "Hungary"], vatId: "HU99000016" },
     billTo: DANA, invoiceNumber: "CG-2026-11-0457", issueDate: "2026-10-27", dueDate: "2026-11-03", currency: "HUF",
     lines: [{ description: "Student membership, November 2026", quantity: 1, unitPriceMinor: 1015748 }],
     vatBps: 2700,
-    payment: { payeeName: "City Gym Kft.", iban: IBAN.cityGym, reference: "GYM-DANA-2026-11", ibanStyle: "paper" },
+    payment: { payeeName: "Gym in Budapest", iban: IBAN.cityGym, reference: "GYM-DANA-2026-11", ibanStyle: "paper" },
     amountStyle: "hu-ft", dateStyle: "iso",
   },
   {
@@ -275,22 +275,22 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
     id: "inv-19", layout: "modern", language: "en", font: "helvetica",
     issuer: MERIDIAN, billTo: DANA, invoiceNumber: "MSI-2027-778201", issueDate: "2026-11-15", dueDate: "2027-01-15", currency: "EUR",
     lines: [{ description: "Student health insurance, annual premium 2027", quantity: 1, unitPriceMinor: 38400 }],
-    payment: { payeeName: "Meridian Student Insurance Zrt.", iban: ACCOUNTS.insurer, bic: "MSINHUHBXXX", reference: "POL-778201-2027", ibanStyle: "paper" },
+    payment: { payeeName: "Student Insurer in EU", iban: ACCOUNTS.insurer, bic: "MSINHUHBXXX", reference: "POL-778201-2027", ibanStyle: "paper" },
     amountStyle: "en-code", dateStyle: "long-en",
   },
   {
     id: "inv-20", layout: "hu", language: "hu", font: "times",
     issuer: HILLSIDE, billTo: DANA, invoiceNumber: "HF-2026/0347", issueDate: "2026-11-20", dueDate: "2026-12-01", currency: "HUF",
     lines: [{ description: "Lakbér, 4B lakás, 2026. december", quantity: 1, unitPriceMinor: 18000000 }],
-    payment: { payeeName: "Hillside Flats Kft.", iban: ACCOUNTS.landlord, reference: "HF-APT4B-RENT", ibanStyle: "electronic" },
+    payment: { payeeName: "Landlord in Budapest", iban: ACCOUNTS.landlord, reference: "HF-APT4B-RENT", ibanStyle: "electronic" },
     amountStyle: "hu-code", dateStyle: "hu-long",
   },
   {
     id: "inv-21", layout: "de", language: "de", font: "helvetica",
-    issuer: { name: "Hamburg Exam Center GmbH", addressLines: ["Jungfernstieg 30", "20354 Hamburg", "Deutschland"], vatId: "DE999000021" },
+    issuer: { name: "Exam Center in Germany", addressLines: ["Jungfernstieg 30", "20354 Hamburg", "Deutschland"], vatId: "DE999000021" },
     billTo: DANA, invoiceNumber: "HEC-26-551", issueDate: "2026-10-26", dueDate: "2026-11-15", currency: "EUR",
     lines: [{ description: "Prüfungsgebühr Sprachzertifikat C1 (steuerfrei)", quantity: 1, unitPriceMinor: 17500 }],
-    payment: { payeeName: "Hamburg Exam Center GmbH", iban: IBAN.hamburgExam, bic: "HECGDEHHXXX", reference: "HEC-PRF-26-551", ibanStyle: "paper" },
+    payment: { payeeName: "Exam Center in Germany", iban: IBAN.hamburgExam, bic: "HECGDEHHXXX", reference: "HEC-PRF-26-551", ibanStyle: "paper" },
     amountStyle: "de-code", dateStyle: "dmy-dot",
   },
   {
@@ -322,23 +322,23 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
     issuer: DANUBE_UTIL, billTo: DANA, invoiceNumber: "DU-2026-11-91544", issueDate: "2026-11-28", dueDate: "2026-12-12", currency: "HUF",
     lines: [{ description: "Villamos energia és víz, 2026. november", quantity: 1, unitPriceMinor: 1700000 }],
     vatBps: 2700,
-    payment: { payeeName: "Danube Utilities Zrt.", iban: IBAN.danubeUtil, reference: "DU-0098815520", ibanStyle: "paper" },
+    payment: { payeeName: "Utility Company in Budapest", iban: IBAN.danubeUtil, reference: "DU-0098815520", ibanStyle: "paper" },
     amountStyle: "hu-ft", dateStyle: "hu",
   },
   {
     id: "inv-26", layout: "receipt", language: "en", font: "courier",
-    issuer: { name: "Green Line Coach Services Kft.", addressLines: ["Nepliget busz terminal", "1101 Budapest"], vatId: "HU99000026" },
+    issuer: { name: "Coach Company from EU", addressLines: ["Nepliget busz terminal", "1101 Budapest"], vatId: "HU99000026" },
     billTo: DANA, invoiceNumber: "GLC-7781", issueDate: "2026-10-27", dueDate: "2026-11-02", currency: "HUF",
     lines: [{ description: "Coach tickets Budapest-Vienna return, group booking", quantity: 2, unitPriceMinor: 490000 }],
-    payment: { payeeName: "Green Line Coach Services Kft.", iban: IBAN.greenLine, reference: "GLC-7781-HU", ibanStyle: "electronic" },
+    payment: { payeeName: "Coach Company from EU", iban: IBAN.greenLine, reference: "GLC-7781-HU", ibanStyle: "electronic" },
     amountStyle: "en-code", dateStyle: "dmy-dot",
   },
   {
     id: "inv-27", layout: "modern", language: "en", font: "helvetica",
-    issuer: { name: "Data Skills Academy GmbH", addressLines: ["Kaiserstrasse 12", "60311 Frankfurt am Main", "Germany"], vatId: "DE999000027" },
+    issuer: { name: "Data Skills Academy from EU", addressLines: ["Kaiserstrasse 12", "60311 Frankfurt am Main", "Germany"], vatId: "DE999000027" },
     billTo: DANA, invoiceNumber: "DSA-US-55102", issueDate: "2026-10-25", dueDate: "2026-11-25", currency: "USD",
     lines: [{ description: "Certificate exam voucher: Python for Finance", quantity: 1, unitPriceMinor: 4900 }],
-    payment: { payeeName: "Data Skills Academy GmbH", iban: IBAN.dataSkills, bic: "DSAGDEFFXXX", reference: "DSA-US-55102", ibanStyle: "paper" },
+    payment: { payeeName: "Data Skills Academy from EU", iban: IBAN.dataSkills, bic: "DSAGDEFFXXX", reference: "DSA-US-55102", ibanStyle: "paper" },
     amountStyle: "en-symbol", dateStyle: "long-en",
   },
   {
@@ -351,19 +351,19 @@ export const INVOICE_SPECS: InvoiceSpec[] = [
   },
   {
     id: "inv-29", layout: "de", language: "de", font: "times",
-    issuer: { name: "Munich Visa Service GmbH", addressLines: ["Leopoldstrasse 77", "80802 München", "Deutschland"], vatId: "DE999000029" },
+    issuer: { name: "Visa Service in Germany", addressLines: ["Leopoldstrasse 77", "80802 München", "Deutschland"], vatId: "DE999000029" },
     billTo: DANA, invoiceNumber: "MVS-26-3317", issueDate: "2026-10-17", dueDate: "2026-10-31", currency: "EUR",
     lines: [{ description: "Bearbeitungsgebühr Schengen-Termin", quantity: 1, unitPriceMinor: 6000 }],
     vatBps: 1900,
     // Distractor: the account holder is a payment processor, not the issuer.
-    payment: { payeeName: "MVS Payments GmbH", iban: IBAN.munichVisa, bic: "MVSPDEMMXXX", reference: "MVS-26-3317", ibanStyle: "paper" },
+    payment: { payeeName: "Payment Agent in EU", iban: IBAN.munichVisa, bic: "MVSPDEMMXXX", reference: "MVS-26-3317", ibanStyle: "paper" },
     amountStyle: "de-code", dateStyle: "dmy-dot",
   },
   {
     id: "inv-30", layout: "classic", language: "en", font: "helvetica",
     issuer: RIVERSIDE, billTo: DANA, invoiceNumber: "RUB-2027-S-04217", issueDate: "2026-12-01", dueDate: "2027-02-15", currency: "EUR",
     lines: [{ description: "Tuition fee, MSc Finance, spring semester 2027", quantity: 1, unitPriceMinor: 240000 }],
-    payment: { payeeName: "Riverside University Budapest", iban: ACCOUNTS.university, bic: "RVUBHUHBXXX", reference: buildRfReference("RUB2027S04217"), ibanStyle: "paper" },
+    payment: { payeeName: "University in Budapest", iban: ACCOUNTS.university, bic: "RVUBHUHBXXX", reference: buildRfReference("RUB2027S04217"), ibanStyle: "paper" },
     amountStyle: "en-code", dateStyle: "long-en",
   },
 ];

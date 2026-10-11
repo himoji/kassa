@@ -28,7 +28,7 @@ function signed(url: string, body: unknown, tsSeconds = Math.floor(clock.nowMs()
 /** SMART + capped wallet + signed base rules → a small merchant order is AUTO via a one-time card. */
 async function issuedCard() {
   const { userId, auth } = await createUserWithPasskey({ moneyMode: "CAPPED_WALLET" });
-  const shop = await addPayee(userId, { name: "Pizza Shop", kind: "MERCHANT", account: "pizza shop", currency: "HUF" });
+  const shop = await addPayee(userId, { name: "Pizza Shop in Budapest", kind: "MERCHANT", account: "pizza shop in", currency: "HUF" });
   await signBaseRules(userId, auth);
   const r = await proposeOrder({ userId, createdBy: "USER", payeeId: shop.id, amountMinor: 450_000, currency: "HUF", purpose: "Pizza" });
   expect(r.decision).toBe("AUTO");
@@ -94,7 +94,7 @@ describe("FakeIssuing one-time card", () => {
         cardId: card.stripeCardId,
         amountMinor: 450_000,
         currency: "HUF",
-        merchant: { name: "Pizza Shop", mcc: "5814", city: "Budapest", country: "HU" },
+        merchant: { name: "Pizza Shop in Budapest", mcc: "5814", city: "Budapest", country: "HU" },
         occurredAt: clock.now().toISOString(),
         ...over,
       });
@@ -112,14 +112,14 @@ describe("FakeIssuing one-time card", () => {
   it("declines an expired card (15 min, Clock)", async () => {
     const { card } = await issuedCard();
     clock.setOffsetInMemoryForTests(16 * 60_000);
-    const res = await signed("/api/rails/fake-issuing/authorize", { cardId: card.stripeCardId, amountMinor: 450_000, currency: "HUF", merchant: { name: "Pizza Shop" } });
+    const res = await signed("/api/rails/fake-issuing/authorize", { cardId: card.stripeCardId, amountMinor: 450_000, currency: "HUF", merchant: { name: "Pizza Shop in Budapest" } });
     expect(res.json()).toEqual({ approved: false, reasonCode: "CARD_EXPIRED" });
     clock.setOffsetInMemoryForTests(0);
   });
 
   it("the authorize endpoint itself requires the HMAC", async () => {
     const { card } = await issuedCard();
-    const res = await app().inject({ method: "POST", url: "/api/rails/fake-issuing/authorize", payload: { cardId: card.stripeCardId, amountMinor: 450_000, currency: "HUF", merchant: { name: "Pizza Shop" } } });
+    const res = await app().inject({ method: "POST", url: "/api/rails/fake-issuing/authorize", payload: { cardId: card.stripeCardId, amountMinor: 450_000, currency: "HUF", merchant: { name: "Pizza Shop in Budapest" } } });
     expect(res.statusCode).toBe(401);
   });
 });

@@ -4,6 +4,7 @@
  * Keys (scripts/keys-generate.ts format):
  * - Ed25519 private keys: base64 PKCS#8 DER; public keys: base64 SPKI DER (RFC 8410).
  * - ACCOUNT_ENC_KEY: 32 random bytes, base64 (AES-256-GCM, NIST SP 800-38D).
+ * - USER_KEK: 32 random bytes, base64 — key-encryption key wrapping each user's data key (privacy/keys.ts).
  * Outside production, missing keys are generated once and persisted to <repo>/.data/dev-secrets.json
  * (gitignored) so `bun run dev` works without a .env AND survives restarts (payee ciphertexts, ledger
  * checkpoints and sessions stay valid). Tests use ephemeral values. Production refuses to start without them.
@@ -34,6 +35,8 @@ const EnvSchema = z.object({
   LEDGER_CHECKPOINT_KEY: z.string().optional(),
   LEDGER_CHECKPOINT_PUBLIC_KEY: z.string().optional(),
   ACCOUNT_ENC_KEY: z.string().optional(),
+  /** KEK for per-user data keys (GDPR Art. 17 crypto-shredding). Rotating it needs a re-wrap of user_keys. */
+  USER_KEK: z.string().optional(),
   MOCK_HMAC_SECRET: z.string().optional(),
   AGENT_MODE: z.enum(["LIVE", "REPLAY"]).default("LIVE"),
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -52,6 +55,20 @@ const EnvSchema = z.object({
     .enum(["true", "false", "1", "0"])
     .optional()
     .transform((v) => v === undefined || v === "true" || v === "1"),
+  /**
+   * Fastify trustProxy: unset/false = use the socket address; "true" = trust X-Forwarded-For (only behind a
+   * proxy that overwrites it, e.g. Caddy in docker-compose); a number = hops; otherwise comma-separated IPs/CIDRs.
+   */
+  TRUST_PROXY: z.string().optional(),
+  /** Rate limits (requests per minute per client IP; @fastify/rate-limit, in memory). */
+  RATE_LIMIT_GLOBAL_PER_MIN: z.coerce.number().int().positive().default(600),
+  RATE_LIMIT_AUTH_PER_MIN: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_SENSITIVE_PER_MIN: z.coerce.number().int().positive().default(30),
+  /** Retention (days) for the purge job (GDPR Art. 5(1)(e) storage limitation); 0 = keep. */
+  RETENTION_DAYS_NOTIFICATIONS: z.coerce.number().int().min(0).default(90),
+  RETENTION_DAYS_PLACEHOLDER_MAPS: z.coerce.number().int().min(0).default(30),
+  RETENTION_DAYS_DOCUMENTS: z.coerce.number().int().min(0).default(30),
+  RETENTION_DAYS_CAPTURED_TEXT: z.coerce.number().int().min(0).default(90),
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
@@ -59,12 +76,15 @@ export type Env = z.infer<typeof EnvSchema> & {
   RULES_PUBLIC_KEY: string;
   LEDGER_CHECKPOINT_KEY: string;
   ACCOUNT_ENC_KEY: string;
+  USER_KEK: string;
   SESSION_SECRET: string;
   MOCK_HMAC_SECRET: string;
   ISSUING_PROVIDER: "stripe" | "fake";
   /** All origins accepted for WebAuthn (PUBLIC_ORIGIN + EXTRA_ORIGINS). */
   origins: string[];
   stripeEnabled: boolean;
+  /** Parsed TRUST_PROXY for Fastify. */
+  trustProxy: boolean | string[] | ((address: string, hop: number) => boolean);
 };
 
 let cached: Env | null = null;
@@ -80,7 +100,7 @@ function ed25519Pair(): { privateKey: string; publicKey: string } {
 
 export const DEV_MOCK_HMAC_SECRET = "dev-only-mock-hmac-secret-change-me";
 const DEV_SECRETS_FILE = fileURLToPath(new URL("../../../.data/dev-secrets.json", import.meta.url));
-const SECRET_KEYS = ["RULES_SIGNING_KEY", "RULES_PUBLIC_KEY", "LEDGER_CHECKPOINT_KEY", "ACCOUNT_ENC_KEY", "SESSION_SECRET", "MOCK_HMAC_SECRET"] as const;
+const SECRET_KEYS = ["RULES_SIGNING_KEY", "RULES_PUBLIC_KEY", "LEDGER_CHECKPOINT_KEY", "ACCOUNT_ENC_KEY", "USER_KEK", "SESSION_SECRET", "MOCK_HMAC_SECRET"] as const;
 
 /** Development only: fill missing secrets from (or into) .data/dev-secrets.json. */
 function devSecrets(raw: Record<string, string | undefined>): Record<string, string> {
@@ -101,11 +121,21 @@ function devSecrets(raw: Record<string, string | undefined>): Record<string, str
       LEDGER_CHECKPOINT_KEY: ledgerKey.privateKey,
       ACCOUNT_ENC_KEY: randomBytes(32).toString("base64"),
       SESSION_SECRET: randomBytes(48).toString("base64url"),
+      USER_KEK: randomBytes(32).toString("base64"),
     };
     try {
       mkdirSync(fileURLToPath(new URL("../../../.data/", import.meta.url)), { recursive: true });
       writeFileSync(DEV_SECRETS_FILE, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
       console.warn(`[env] generated development secrets in ${DEV_SECRETS_FILE} (not for production)`);
+    } catch (err) {
+      console.warn(`[env] could not persist dev secrets: ${(err as Error).message}`);
+    }
+  }
+  if (!stored.USER_KEK) {
+    // Older dev-secrets.json (before Phase 2): add the KEK once and persist it.
+    stored.USER_KEK = randomBytes(32).toString("base64");
+    try {
+      writeFileSync(DEV_SECRETS_FILE, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
     } catch (err) {
       console.warn(`[env] could not persist dev secrets: ${(err as Error).message}`);
     }
@@ -159,18 +189,35 @@ export function env(): Env {
     RULES_PUBLIC_KEY: rulesPublic ?? "",
     LEDGER_CHECKPOINT_KEY: ledgerKey,
     ACCOUNT_ENC_KEY: need("ACCOUNT_ENC_KEY", () => randomBytes(32).toString("base64")),
+    USER_KEK: need("USER_KEK", () => randomBytes(32).toString("base64")),
     SESSION_SECRET: need("SESSION_SECRET", () => randomBytes(48).toString("base64url")),
     MOCK_HMAC_SECRET: need("MOCK_HMAC_SECRET", () => (e.NODE_ENV === "test" ? "test-mock-hmac-secret" : randomBytes(32).toString("base64url"))),
     // Default to fake issuing when Stripe test keys are absent (spec §11 FakeIssuing fallback).
     ISSUING_PROVIDER: e.ISSUING_PROVIDER === "stripe" && stripeEnabled ? "stripe" : "fake",
     origins: [e.PUBLIC_ORIGIN, ...(e.EXTRA_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ?? [])],
     stripeEnabled,
+    trustProxy: parseTrustProxy(e.TRUST_PROXY),
   };
+  if (prod && e.DEMO_ENABLED && (e.DEMO_ADMIN_TOKEN ?? "").length < 32) {
+    // Demo admin routes move the clock and reset data: never open, never guessable in production.
+    throw new Error("DEMO_ENABLED in production requires DEMO_ADMIN_TOKEN of at least 32 characters (bun run env:setup)");
+  }
   if (missing.length > 0 && e.NODE_ENV !== "test") {
     console.warn(`[env] using ephemeral values for: ${missing.join(", ")} (not for production)`);
   }
   cached = result;
   return result;
+}
+
+function parseTrustProxy(v: string | undefined): Env["trustProxy"] {
+  const t = v?.trim();
+  if (!t || t === "false" || t === "0") return false;
+  if (t === "true") return true;
+  if (/^\d+$/.test(t)) {
+    const hops = Number(t);
+    return (_address: string, hop: number) => hop < hops; // trust the nearest N proxies
+  }
+  return t.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 /** Tests: override variables and drop the cache. */

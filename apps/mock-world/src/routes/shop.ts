@@ -9,7 +9,7 @@ import type { AuthorizationResult, Issuer } from "../shop/issuer.ts";
 import { PIZZA_MENU, PIZZA_SHOP } from "../world/data.ts";
 
 /*
- * Pizza Shop (spec §17): GET /shop/pizza/menu, POST /shop/pizza/checkout {cardId}. Checkout asks
+ * Pizza Shop in Budapest (spec §17): GET /shop/pizza/menu, POST /shop/pizza/checkout {cardId}. Checkout asks
  * the issuer to authorize (Stripe test helper or the API's fake issuing). The shop itself does not
  * block a second charge on the same card: the demo point is that the issuer (Kassa's webhook)
  * declines it. GET /shop/pizza is a small page to run that live.
@@ -127,6 +127,6 @@ async function charge() {
 }
 document.getElementById('pay').onclick = charge;
 document.getElementById('again').onclick = charge;`;
-    return reply.type("text/html; charset=utf-8").send(page("Pizza Shop", body, { script }));
+    return reply.type("text/html; charset=utf-8").send(page("Pizza Shop in Budapest", body, { script }));
   });
 }

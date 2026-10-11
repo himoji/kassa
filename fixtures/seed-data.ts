@@ -275,7 +275,7 @@ export const payees: SeedPayee[] = [
   {
     id: IDS.payees.landlord,
     userId: IDS.user,
-    name: "Hillside Flats Kft.",
+    name: "Landlord in Budapest",
     kind: "LANDLORD",
     account: ACCOUNTS.landlord,
     accountScheme: "IBAN",
@@ -290,7 +290,7 @@ export const payees: SeedPayee[] = [
   {
     id: IDS.payees.university,
     userId: IDS.user,
-    name: "Riverside University Budapest",
+    name: "University in Budapest",
     kind: "UNIVERSITY",
     account: ACCOUNTS.university,
     accountScheme: "IBAN",
@@ -305,7 +305,7 @@ export const payees: SeedPayee[] = [
   {
     id: IDS.payees.insurer,
     userId: IDS.user,
-    name: "Meridian Student Insurance Zrt.",
+    name: "Student Insurer in EU",
     kind: "INSURER",
     account: ACCOUNTS.insurer,
     accountScheme: "IBAN",
@@ -320,11 +320,11 @@ export const payees: SeedPayee[] = [
   {
     id: IDS.payees.pizzaShop,
     userId: IDS.user,
-    name: "Pizza Shop",
+    name: "Pizza Shop in Budapest",
     kind: "MERCHANT",
     // Card merchants have no IBAN: the "account" is the normalised merchant name that the issuing
     // authorization webhook compares against merchant_data.name (spec §11).
-    account: "pizza shop",
+    account: "pizza shop in",
     accountScheme: "MERCHANT_ID",
     bic: null,
     country: "HU",
@@ -374,7 +374,7 @@ export const obligations: SeedObligation[] = [
 
 export const mandates: SeedMandate[] = [
   {
-    label: "Rent to Hillside Flats Kft., up to HUF 200,000 per month",
+    label: "Rent to Landlord in Budapest, up to HUF 200,000 per month",
     core: {
       v: 1,
       mandateId: IDS.mandates.rent,
@@ -418,42 +418,42 @@ type Row = [
 
 const ROWS: Row[] = [
   [1, "2026-09-27T10:15:00Z", "NOTIF_SIM", "VALUE MART 0412 BUDAPEST", "value mart", "5411", "6890", "HUF", "local", "groceries"],
-  [2, "2026-09-28T19:40:00Z", "NOTIF_SIM", "NOODLE BAR BUDAPEST", "noodle bar", "5812", "3290", "HUF", "kzt", "eating_out"],
-  [3, "2026-09-30T13:10:00Z", "NOTIF_SIM", "CAMPUS CANTEEN BUDAPEST", "campus canteen", "5812", "1890", "HUF", "local", "eating_out"],
+  [2, "2026-09-28T19:40:00Z", "NOTIF_SIM", "NOODLE BAR IN BUDAPEST", "noodle bar in", "5812", "3290", "HUF", "kzt", "eating_out"],
+  [3, "2026-09-30T13:10:00Z", "NOTIF_SIM", "CANTEEN IN BUDAPEST", "canteen in", "5812", "1890", "HUF", "local", "eating_out"],
   [4, "2026-10-01T07:55:00Z", "SHORTCUT", "City Transit", "city transit", "4111", "3450", "HUF", "local", "transport"],
-  [5, "2026-10-01T09:00:00Z", "SETTLEMENT", "HILLSIDE FLATS KFT RENT OCT", "hillside flats", "6513", "180000", "HUF", null, "rent"],
-  [6, "2026-10-02T18:20:00Z", "NOTIF_SIM", "CORNER GROCERY BUDAPEST HU", "corner grocery", "5411", "4120", "HUF", "local", "groceries"],
-  [7, "2026-10-03T12:30:00Z", "TEXT", "lunch noodle bar 2990", "noodle bar", null, "2990", "HUF", "local", "eating_out"],
-  [8, "2026-10-04T11:00:00Z", "NOTIF_SIM", "FRESH MARKET HALL BP", "fresh market hall", "5499", "5340", "HUF", "kzt", "groceries"],
-  [9, "2026-10-05T20:15:00Z", "NOTIF_SIM", "RIVERSIDE CINEMA BUDAPEST", "riverside cinema", "7832", "2900", "HUF", "local", "entertainment"],
+  [5, "2026-10-01T09:00:00Z", "SETTLEMENT", "LANDLORD IN BUDAPEST RENT OCT", "landlord in budapest", "6513", "180000", "HUF", null, "rent"],
+  [6, "2026-10-02T18:20:00Z", "NOTIF_SIM", "GROCERY STORE IN BUDAPEST HU", "grocery store in", "5411", "4120", "HUF", "local", "groceries"],
+  [7, "2026-10-03T12:30:00Z", "TEXT", "lunch noodle bar in 2990", "noodle bar in", null, "2990", "HUF", "local", "eating_out"],
+  [8, "2026-10-04T11:00:00Z", "NOTIF_SIM", "MARKET HALL IN BUDAPEST", "market hall in", "5499", "5340", "HUF", "kzt", "groceries"],
+  [9, "2026-10-05T20:15:00Z", "NOTIF_SIM", "CINEMA IN BUDAPEST", "cinema in", "7832", "2900", "HUF", "local", "entertainment"],
   [10, "2026-10-06T08:40:00Z", "SHORTCUT", "Morning Bakery", "morning bakery", "5462", "1250", "HUF", "local", "groceries"],
-  [11, "2026-10-07T13:05:00Z", "NOTIF_SIM", "CAMPUS CANTEEN BUDAPEST", "campus canteen", "5812", "1990", "HUF", "local", "eating_out"],
+  [11, "2026-10-07T13:05:00Z", "NOTIF_SIM", "CANTEEN IN BUDAPEST", "canteen in", "5812", "1990", "HUF", "local", "eating_out"],
   [12, "2026-10-08T19:10:00Z", "VOICE", "kebab corner dinner two thousand eight hundred forint", "kebab corner", null, "2800", "HUF", "local", "eating_out"],
   [13, "2026-10-09T17:45:00Z", "NOTIF_SIM", "VALUE MART 0412 BUDAPEST", "value mart", "5411", "7460", "HUF", "local", "groceries"],
   [14, "2026-10-10T10:20:00Z", "NOTIF_SIM", "ONLINE BOOKSTORE EU", "online bookstore", "5942", "24.90", "EUR", "usd", "books"],
-  [15, "2026-10-11T14:00:00Z", "NOTIF_SIM", "BEAN THERE CAFE BUDAPEST", "bean there cafe", "5814", "1450", "HUF", "local", "eating_out"],
+  [15, "2026-10-11T14:00:00Z", "NOTIF_SIM", "COFFEE SHOP IN BUDAPEST", "coffee shop in", "5814", "1450", "HUF", "local", "eating_out"],
   [16, "2026-10-12T21:30:00Z", "NOTIF_SIM", "CITY TAXI BUDAPEST HU", "city taxi", "4121", "2680", "HUF", "kzt", "transport"],
-  [17, "2026-10-13T18:00:00Z", "SHORTCUT", "Corner Grocery", "corner grocery", "5411", "3870", "HUF", "local", "groceries"],
+  [17, "2026-10-13T18:00:00Z", "SHORTCUT", "Grocery Store in Budapest", "grocery store in", "5411", "3870", "HUF", "local", "groceries"],
   // Same purchase seen again by the notification simulator 4 minutes later: merged into #17 (spec §13 dedupe).
-  [18, "2026-10-13T18:04:00Z", "NOTIF_SIM", "CORNER GROCERY BUDAPEST HU", "corner grocery", "5411", "3870", "HUF", "local", "groceries", { mergedInto: 17 }],
-  [19, "2026-10-14T12:50:00Z", "NOTIF_SIM", "NOODLE BAR BUDAPEST", "noodle bar", "5812", "3190", "HUF", "local", "eating_out"],
+  [18, "2026-10-13T18:04:00Z", "NOTIF_SIM", "GROCERY STORE IN BUDAPEST HU", "grocery store in", "5411", "3870", "HUF", "local", "groceries", { mergedInto: 17 }],
+  [19, "2026-10-14T12:50:00Z", "NOTIF_SIM", "NOODLE BAR IN BUDAPEST", "noodle bar in", "5812", "3190", "HUF", "local", "eating_out"],
   [20, "2026-10-15T09:30:00Z", "NOTIF_SIM", "GREEN CROSS PHARMACY BP", "green cross pharmacy", "5912", "2340", "HUF", "local", "health"],
-  [21, "2026-10-16T19:20:00Z", "NOTIF_SIM", "PIZZA SHOP BUDAPEST HU", "pizza shop", "5814", "5980", "HUF", "local", "eating_out"],
-  [22, "2026-10-17T11:10:00Z", "SCREENSHOT", "Fresh Market Hall", "fresh market hall", "5499", "6150", "HUF", "local", "groceries"],
-  [23, "2026-10-18T13:15:00Z", "NOTIF_SIM", "CAMPUS CANTEEN BUDAPEST", "campus canteen", "5812", "1890", "HUF", "local", "eating_out"],
+  [21, "2026-10-16T19:20:00Z", "NOTIF_SIM", "PIZZA SHOP IN BUDAPEST HU", "pizza shop in", "5814", "5980", "HUF", "local", "eating_out"],
+  [22, "2026-10-17T11:10:00Z", "SCREENSHOT", "Market Hall in Budapest", "market hall in", "5499", "6150", "HUF", "local", "groceries"],
+  [23, "2026-10-18T13:15:00Z", "NOTIF_SIM", "CANTEEN IN BUDAPEST", "canteen in", "5812", "1890", "HUF", "local", "eating_out"],
   [24, "2026-10-19T16:40:00Z", "NOTIF_SIM", "CITY BIKES BP", "city bikes", "4789", "490", "HUF", "local", "transport"],
   [25, "2026-10-20T18:30:00Z", "NOTIF_SIM", "VALUE MART 0412 BUDAPEST", "value mart", "5411", "8230", "HUF", "kzt", "groceries"],
-  [26, "2026-10-21T20:00:00Z", "NOTIF_SIM", "MOBILENET HU", "mobilenet", "4814", "4990", "HUF", "local", "phone"],
-  [27, "2026-10-22T12:45:00Z", "TEXT", "coffee and cake 1650", "bean there cafe", null, "1650", "HUF", "local", "eating_out"],
+  [26, "2026-10-21T20:00:00Z", "NOTIF_SIM", "MOBILE OPERATOR IN HUNGARY", "mobile operator in hungary", "4814", "4990", "HUF", "local", "phone"],
+  [27, "2026-10-22T12:45:00Z", "TEXT", "coffee and cake 1650", "coffee shop in", null, "1650", "HUF", "local", "eating_out"],
   [28, "2026-10-23T19:15:00Z", "NOTIF_SIM", "KEBAB CORNER BP", "kebab corner", "5814", "2600", "HUF", "local", "eating_out"],
   [29, "2026-10-24T10:05:00Z", "NOTIF_SIM", "STREAMBOX.EXAMPLE", "streambox", "7922", "9.99", "EUR", "usd", "entertainment"],
-  [30, "2026-10-24T17:30:00Z", "NOTIF_SIM", "CORNER GROCERY BUDAPEST HU", "corner grocery", "5411", "5480", "HUF", "local", "groceries"],
-  [31, "2026-10-25T13:00:00Z", "NOTIF_SIM", "NOODLE BAR BUDAPEST", "noodle bar", "5812", "3490", "HUF", "local", "eating_out"],
+  [30, "2026-10-24T17:30:00Z", "NOTIF_SIM", "GROCERY STORE IN BUDAPEST HU", "grocery store in", "5411", "5480", "HUF", "local", "groceries"],
+  [31, "2026-10-25T13:00:00Z", "NOTIF_SIM", "NOODLE BAR IN BUDAPEST", "noodle bar in", "5812", "3490", "HUF", "local", "eating_out"],
   [32, "2026-10-25T20:10:00Z", "SHORTCUT", "Morning Bakery", "morning bakery", "5462", "980", "HUF", "local", "groceries"],
   // The two foreign charges awaiting settlement (spec §18): HUF and EUR on the home KZT card.
-  [33, "2026-10-26T18:50:00Z", "NOTIF_SIM", "FRESH MARKET HALL BP", "fresh market hall", "5499", "4760", "HUF", "kzt", "groceries", { pending: true }],
+  [33, "2026-10-26T18:50:00Z", "NOTIF_SIM", "MARKET HALL IN BUDAPEST", "market hall in", "5499", "4760", "HUF", "kzt", "groceries", { pending: true }],
   [34, "2026-10-26T21:05:00Z", "NOTIF_SIM", "ONLINE BOOKSTORE EU", "online bookstore", "5942", "18.50", "EUR", "kzt", "books", { pending: true }],
-  [35, "2026-10-27T08:15:00Z", "NOTIF_SIM", "BEAN THERE CAFE BUDAPEST", "bean there cafe", "5814", "1290", "HUF", "local", "eating_out"],
+  [35, "2026-10-27T08:15:00Z", "NOTIF_SIM", "COFFEE SHOP IN BUDAPEST", "coffee shop in", "5814", "1290", "HUF", "local", "eating_out"],
 ];
 
 const CARD_BILLING: Record<string, string> = Object.fromEntries(cards.map((c) => [c.id, c.billingCurrency]));

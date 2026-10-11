@@ -1,0 +1,210 @@
+{
+  "scenario": "tuition-e2e",
+  "marker": {
+    "seq": 4,
+    "at": "2026-10-27T09:00:01.779Z",
+    "createdAt": "2026-10-11T04:57:51.967Z"
+  },
+  "generatedAt": "2026-10-27T10:00:14.072Z",
+  "since": {
+    "seq": 4,
+    "at": "2026-10-27T09:00:01.779Z"
+  },
+  "ledgerVerify": {
+    "ok": true,
+    "entries": 12,
+    "checkpoints": 0,
+    "headHash": "vLaS1Zjdycw-r6ya-hDtagSft7s6h0HXr_QV0X0xZKQ",
+    "problems": []
+  },
+  "ledger": [
+    {
+      "seq": 5,
+      "ts": "2026-10-27T09:00:04.352Z",
+      "type": "TRIGGER_REMITTANCE",
+      "payload": {
+        "pii": "v1.CaXAaLXIytUnKBKi._FRpahM3aycUaU8ABFzIHMWUxKKwLUIWIHppIagdS29WVt6Sj24sEqfi9776AuNxN2Qaz1DVc7t4MBuAA2cA8BHTiYyAifMFDX_5cGSrEyySYVZ7dVxd_e3o7WZO0Tbnik680wburTHJd6JmJUlSYwhCpkALYobV0DXcIIspVNcePKHMaICxkGEZJ2yeoHzi0LP04sDZqxvxUh46foGvdAi2S0eXZTyOtbqwj84EzrE7HkYcs83fAr6liP8ReKxKlzSLTkDte2E_l-fJvBe6IGs66kdjfZgiTJUjSEhOcv23Pj5P6xgyL1eyrd6fsutlxldNIx430zRVqu4gaBIAzuo8emGSZSvlArYJuSfbWRE.SxWFsns5Fgm13ERN4Pcwdw",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "eventId": "75fb08f8-5f22-4a59-8315-13a8b40920d4"
+      },
+      "hash": "Gx_BspcY9tJHbrgf_2lYhSBVCiMmnmAwgw5buDpWWz4"
+    },
+    {
+      "seq": 6,
+      "ts": "2026-10-27T09:00:05.501Z",
+      "type": "PROPOSAL_CREATED",
+      "payload": {
+        "fx": {
+          "rate": "505.627868",
+          "source": "fx",
+          "rateDate": "2026-10-11"
+        },
+        "rail": "BANK_TRANSFER",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "payeeId": "05fc80e2-33ef-5d76-b50b-03068dcf3981",
+        "currency": "EUR",
+        "decision": "ASK",
+        "createdBy": "AGENT",
+        "orderHash": "o8QR268T8rRXDeAkyWI9UbnfBbLI_hmMrIFJKbl4lJQ",
+        "riskScore": 0.3,
+        "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+        "amountMinor": 240000,
+        "reasonCodes": [
+          "ABOVE_SMALL_AUTO_LIMIT"
+        ]
+      },
+      "hash": "pR8w6jOkxirUIztZDTjoiU4jzxIPLXVaU3nsVcsI7x4"
+    },
+    {
+      "seq": 7,
+      "ts": "2026-10-27T09:00:06.191Z",
+      "type": "APPROVAL_ISSUED",
+      "payload": {
+        "tier": "T2",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "orderHash": "o8QR268T8rRXDeAkyWI9UbnfBbLI_hmMrIFJKbl4lJQ",
+        "approvalId": "dd1c9f4c-71c9-4771-86a7-d4453c4e645e",
+        "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+        "credentialId": "iXmCQQuOtlp_cEO_ALNnbw"
+      },
+      "hash": "nCM2a9VlUqtoH1CXJbaQijub2bJNhMAGYSzOcC2jwzI"
+    },
+    {
+      "seq": 8,
+      "ts": "2026-10-27T09:00:06.199Z",
+      "type": "PAYMENT_CREATED",
+      "payload": {
+        "rail": "BANK_TRANSFER",
+        "tier": "T2",
+        "nonce": "6beZmwqefRsn0dqrQ5RqmQ",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "currency": "EUR",
+        "orderHash": "o8QR268T8rRXDeAkyWI9UbnfBbLI_hmMrIFJKbl4lJQ",
+        "paymentId": "4ec280fc-12e4-49b6-a074-676d6ec69d28",
+        "approvalId": "dd1c9f4c-71c9-4771-86a7-d4453c4e645e",
+        "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+        "amountMinor": 240000
+      },
+      "hash": "Zh9X_j55435ootpPm1IotLfQsfNbmmUtwKCeV7NtdHI"
+    },
+    {
+      "seq": 9,
+      "ts": "2026-10-27T09:00:06.780Z",
+      "type": "WEBHOOK_UNMATCHED",
+      "payload": {
+        "kind": "bank",
+        "state": "processing",
+        "transferId": "66946701"
+      },
+      "hash": "7wN8O9wp2x5p3D360XSnmUY3NmIkkGwpkQVPkdIsGRM"
+    },
+    {
+      "seq": 10,
+      "ts": "2026-10-27T09:00:06.784Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "rail": "BANK_TRANSFER",
+        "status": "PROCESSING",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "paymentId": "4ec280fc-12e4-49b6-a074-676d6ec69d28",
+        "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+        "reasonCodes": []
+      },
+      "hash": "pdB7j7_iFfoyNErQLIAWkR94sIpqck7sIy_-qXc3xlg"
+    },
+    {
+      "seq": 11,
+      "ts": "2026-10-27T10:00:07.147Z",
+      "type": "DEMO_CLOCK_ADVANCED",
+      "payload": {
+        "now": "2026-10-27T10:00:07.147Z",
+        "hours": 1
+      },
+      "hash": "FDXAGNku3gnh296vHYn_rhGgRjWJ-Cqi2Qp-RKfxsm4"
+    },
+    {
+      "seq": 12,
+      "ts": "2026-10-27T10:00:08.507Z",
+      "type": "PAYMENT_STATUS",
+      "payload": {
+        "from": "PROCESSING",
+        "source": "webhook:mock-bank",
+        "status": "SENT",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "paymentId": "4ec280fc-12e4-49b6-a074-676d6ec69d28",
+        "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+        "reasonCodes": []
+      },
+      "hash": "vLaS1Zjdycw-r6ya-hDtagSft7s6h0HXr_QV0X0xZKQ"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "createdBy": "AGENT",
+      "decision": "ASK",
+      "status": "EXECUTED",
+      "reasonCodes": [
+        "ABOVE_SMALL_AUTO_LIMIT"
+      ],
+      "riskScore": 0.3,
+      "orderHash": "o8QR268T8rRXDeAkyWI9UbnfBbLI_hmMrIFJKbl4lJQ",
+      "canonicalOrder": {
+        "v": 1,
+        "rail": "BANK_TRANSFER",
+        "nonce": "6beZmwqefRsn0dqrQ5RqmQ",
+        "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "payeeId": "05fc80e2-33ef-5d76-b50b-03068dcf3981",
+        "purpose": "Tuition RF39RUB2026F04217",
+        "currency": "EUR",
+        "expiresAt": "2026-10-27T09:10:04.653Z",
+        "mandateId": null,
+        "payeeName": "University in Budapest",
+        "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+        "amountMinor": 240000,
+        "homeCurrency": "KZT",
+        "homeAmountMinor": 121350688,
+        "payeeAccountHash": "7-5dNbFYmRRGD_FVeXxTJ1-MEcQKCtMu9P-TybQe96Y"
+      }
+    }
+  ],
+  "payments": [
+    {
+      "id": "4ec280fc-12e4-49b6-a074-676d6ec69d28",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "proposalId": "786c83f6-56b9-40fc-842c-4cf62e7e88b1",
+      "rail": "BANK_TRANSFER",
+      "status": "SENT",
+      "amountMinor": 240000,
+      "currency": "EUR",
+      "reasonCodes": []
+    }
+  ],
+  "notifications": [
+    {
+      "id": "a936d7c3-89a1-42e3-b505-1be8afbd0e1a",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "MONEY_FROM_HOME",
+      "title": "Money from home",
+      "body": "Incoming transfer (simulated). Ask Kassa for the cheapest way to convert it.",
+      "createdAt": "2026-10-27T09:00:04.353Z"
+    },
+    {
+      "id": "9b52bbf2-c5aa-4140-8b40-7b5af13314c6",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "ORDER_NEEDS_APPROVAL",
+      "title": "Review and sign",
+      "body": "Needs your passkey approval: €2,400.00 to University in Budapest. Reasons: ABOVE_SMALL_AUTO_LIMIT.",
+      "createdAt": "2026-10-27T09:00:05.505Z"
+    },
+    {
+      "id": "45c0ef89-e2fe-427c-92ce-7c3a8387bd63",
+      "userId": "c83d27e3-4e03-570f-8fea-87db32399c12",
+      "kind": "PAYMENT_SENT",
+      "title": "Payment sent",
+      "body": "Your bank transfer was sent (simulated bank).",
+      "createdAt": "2026-10-27T10:00:08.508Z"
+    }
+  ]
+}

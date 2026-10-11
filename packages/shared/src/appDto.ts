@@ -82,6 +82,8 @@ export const RegisterVerifyRequest = z.object({
   challengeId: z.string().min(1),
   response: RegistrationResponseJSON,
   client: ClientKind,
+  /** (added Phase 2) consent to AI processing given on the registration screen (GDPR Art. 6(1)(a), 7). */
+  aiConsent: z.boolean().optional(),
 });
 export type RegisterVerifyRequest = z.infer<typeof RegisterVerifyRequest>;
 

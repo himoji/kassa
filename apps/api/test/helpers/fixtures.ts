@@ -39,7 +39,14 @@ export function offlineEnvironment(): { railCalls: { rail: RailId; amountMinor: 
 }
 
 export async function createUserWithPasskey(
-  opts: { preset?: "ASK_ME" | "SMART" | "AUTOPILOT"; moneyMode?: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF" | null; region?: "EU" | "CN"; counter?: number } = {},
+  opts: {
+    preset?: "ASK_ME" | "SMART" | "AUTOPILOT";
+    moneyMode?: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF" | null;
+    region?: "EU" | "CN";
+    counter?: number;
+    /** Consent to AI processing (agent/onboarding routes refuse without it). Default true. */
+    aiConsent?: boolean;
+  } = {},
 ) {
   const db = getDb();
   const id = randomUUID();
@@ -52,6 +59,7 @@ export async function createUserWithPasskey(
         preset: opts.preset ?? "SMART",
         region: opts.region ?? "EU",
         overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: opts.moneyMode ?? null },
+        aiConsentAt: opts.aiConsent === false ? null : clock.now(),
       })
       .where(eq(users.id, id));
     const row = { userId: id, credentialId: auth.id, publicKey: auth.publicKeyB64u(), counter: auth.counter, transports: ["internal"] };

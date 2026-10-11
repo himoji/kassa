@@ -77,7 +77,7 @@ describe("onboarding chat in REPLAY (no API key)", () => {
       expect(await t.db().select().from(budgets).where(eq(budgets.userId, userId))).toHaveLength(3);
       expect(await t.db().select().from(cards).where(eq(cards.userId, userId))).toHaveLength(3);
 
-      // Another user cannot continue this conversation.
+      // Another user cannot continue this conversation; 404 (not 403) so the id's existence does not leak (OWASP API1).
       const other = await createUserWithPasskey();
       const res = await app.inject({
         method: "POST",
@@ -85,7 +85,7 @@ describe("onboarding chat in REPLAY (no API key)", () => {
         headers: { authorization: `Bearer ${await mintAccessTokenForTests(other.userId)}` },
         payload: { conversationId, text: "hi" },
       });
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(404);
     } finally {
       await app.close();
     }

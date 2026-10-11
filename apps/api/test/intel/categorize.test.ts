@@ -31,8 +31,8 @@ describe("categoryFromMcc", () => {
 describe("categorize", () => {
   it("user correction wins over everything (source USER)", async () => {
     const r = await categorize({
-      merchantNorm: "noodle bar",
-      merchantRaw: "NOODLE BAR BUDAPEST",
+      merchantNorm: "noodle bar in",
+      merchantRaw: "NOODLE BAR IN BUDAPEST",
       mcc: "5411",
       userCategory: "books",
     });
@@ -41,13 +41,13 @@ describe("categorize", () => {
   });
 
   it("MCC beats the merchant dictionary (source MCC)", async () => {
-    const r = await categorize({ merchantNorm: "noodle bar", merchantRaw: "NOODLE BAR BUDAPEST", mcc: "5411" });
+    const r = await categorize({ merchantNorm: "noodle bar in", merchantRaw: "NOODLE BAR IN BUDAPEST", mcc: "5411" });
     expect(r.category).toBe("groceries");
     expect(r.source).toBe("MCC");
   });
 
   it("no MCC: dictionary entry is used (source DICTIONARY) and its MCC is returned", async () => {
-    const r = await categorize({ merchantNorm: "noodle bar", merchantRaw: "NOODLE BAR BUDAPEST" });
+    const r = await categorize({ merchantNorm: "noodle bar in", merchantRaw: "NOODLE BAR IN BUDAPEST" });
     expect(r.category).toBe("eating_out");
     expect(r.source).toBe("DICTIONARY");
     expect(r.mcc).toBe("5812");

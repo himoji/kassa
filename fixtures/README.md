@@ -32,7 +32,7 @@ scheduler's 3-day window and the rent mandate pays it. The API should set the de
 - Swapped invoice: `GET /mock/payees/university/invoice.pdf?variant=swapped-account` (same tuition
   invoice, `ACCOUNTS.universitySwapped`).
 - A5: QR wallet `variant: "swapped"` or `POST /mock/qr/attack/swap {enabled:true}` names
-  "Quick Pay Trading Ltd." instead of the intended payee.
+  "Unknown Trading Company" instead of the intended payee.
 
 ## Regenerating invoices
 

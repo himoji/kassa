@@ -37,7 +37,7 @@ describe("A6: sanctions screening before bank transfers", () => {
 
   it("a normal payee is not a hit", async () => {
     const { userId } = await createUserWithPasskey();
-    const payee = await addPayee(userId, { name: "Hillside Flats Kft.", account: IBAN_OTHER });
+    const payee = await addPayee(userId, { name: "Landlord in Budapest", account: IBAN_OTHER });
     const r = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 1_000_000, currency: "HUF", purpose: "rent", rail: "BANK_TRANSFER" });
     expect(r.reasonCodes).not.toContain("REFUSE_SANCTIONS");
   });

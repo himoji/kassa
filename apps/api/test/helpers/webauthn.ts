@@ -4,7 +4,7 @@
  * exercise the actual signature, challenge, origin, RP ID, UV-flag and counter checks.
  */
 import { isoCBOR } from "@simplewebauthn/server/helpers";
-import { createHash, generateKeyPairSync, randomBytes, sign, type KeyObject } from "node:crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign, type KeyObject } from "node:crypto";
 
 export const TEST_ORIGIN = "http://localhost:8081";
 export const TEST_RP_ID = "localhost";
@@ -18,13 +18,25 @@ export class SoftAuthenticator {
   private readonly publicJwk: { x: string; y: string };
   counter: number;
 
-  constructor(opts: { counter?: number } = {}) {
-    const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-    this.privateKey = privateKey;
-    const jwk = publicKey.export({ format: "jwk" }) as { x: string; y: string };
+  /**
+   * `privateKeyPkcs8` (base64url PKCS#8 DER) + `credentialId` (base64url) restore a persisted authenticator
+   * (the sim CLI keeps one per persona); otherwise a fresh P-256 key pair and credential id are generated.
+   */
+  constructor(opts: { counter?: number; privateKeyPkcs8?: string; credentialId?: string } = {}) {
+    if (opts.privateKeyPkcs8) {
+      this.privateKey = createPrivateKey({ key: Buffer.from(opts.privateKeyPkcs8, "base64url"), format: "der", type: "pkcs8" });
+    } else {
+      this.privateKey = generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey;
+    }
+    const jwk = createPublicKey(this.privateKey).export({ format: "jwk" }) as { x: string; y: string };
     this.publicJwk = { x: jwk.x, y: jwk.y };
-    this.credentialId = randomBytes(16);
+    this.credentialId = opts.credentialId ? Buffer.from(opts.credentialId, "base64url") : randomBytes(16);
     this.counter = opts.counter ?? 0;
+  }
+
+  /** Persistable form (secret: the private key). Restore with `new SoftAuthenticator(exported)`. */
+  export(): { privateKeyPkcs8: string; credentialId: string; counter: number } {
+    return { privateKeyPkcs8: b64u(this.privateKey.export({ format: "der", type: "pkcs8" })), credentialId: this.id, counter: this.counter };
   }
 
   get id(): string {
