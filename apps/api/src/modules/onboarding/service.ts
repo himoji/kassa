@@ -5,7 +5,7 @@ import { z } from "zod";
 import { OnboardingProfileDraft, type AgentMode, type OnboardingMessageResponse } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
-import { budgets, cards, profiles, users, type IncomeJson } from "../../db/schema.ts";
+import { budgets, cards, obligations, payees, profiles, users, type IncomeJson } from "../../db/schema.ts";
 import { onboardingDrafts } from "../../db/schema.intel.ts";
 import { aiProviderFailure } from "../ai/errors.ts";
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
@@ -15,6 +15,9 @@ import { appendHistory, loadHistory, loadPlaceholders, savePlaceholders } from "
 import { redactionMiddleware } from "../agent/middleware.ts";
 import { Redactor, type PlaceholderEntry } from "../agent/redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "../agent/replay.ts";
+import { ledger } from "../ledger/index.ts";
+import { sealPii } from "../privacy/keys.ts";
+import { screenName } from "../screening/index.ts";
 
 /*
  * Onboarding chat (spec §8 POST /onboarding/message): one planner call per turn with structured output
@@ -129,13 +132,24 @@ export async function onboardingTurn(o: {
 }
 
 /**
+ * ISO 3166-1 alpha-2 "ZZ" (user-assigned range, conventionally "unknown"): the chat captures no payee country; it
+ * comes with the account details.
+ */
+const UNKNOWN_COUNTRY = "ZZ";
+
+/**
  * Called by Track A's POST /onboarding/confirm after the passkey-signed base rules are stored: writes
- * the non-rule parts of the draft (incomes, budgets for the current month, cards, display name).
- * Obligations need payees with verified accounts (I7) and are added through /payees, not here.
+ * the non-rule parts of the draft (incomes, budgets for the current month, cards, display name) and
+ * the bills (DECISIONS 2026-10-13). A bill's payee is re-used by name + kind, else created as a
+ * placeholder: COOLING, no account (accountEnc/accountHash NULL), no coolingUntil. Such a payee is never
+ * payable (rules: PAYEE_ACCOUNT_MISSING; approve/payments: account hash mismatch; verify callback: 409)
+ * until account details exist. Payee names are sanctions-screened like POST /payees (I9); a hit skips the
+ * bill. Bills without a due date are skipped (they cannot be placed on the calendar).
  */
 export async function applyOnboardingDraft(userId: string, draft: OnboardingProfileDraft): Promise<void> {
   const db = getDb();
-  const today = isoDate(clock.now());
+  const now = clock.now();
+  const today = isoDate(now);
   const [y, m] = today.split("-").map(Number) as [number, number];
   const periodStart = `${today.slice(0, 7)}-01`;
   const periodEnd = isoDate(new Date(Date.UTC(y, m, 0)));
@@ -154,6 +168,41 @@ export async function applyOnboardingDraft(userId: string, draft: OnboardingProf
     for (const c of draft.cards) {
       if (existingCards.some((e) => e.last4 === c.last4)) continue;
       await tx.insert(cards).values({ userId, label: c.label, last4: c.last4, billingCurrency: c.billingCurrency, kind: c.kind });
+    }
+
+    const userPayees = await tx.select({ id: payees.id, name: payees.name, kind: payees.kind }).from(payees).where(eq(payees.userId, userId));
+    const userBills = await tx
+      .select({ payeeId: obligations.payeeId, dueDate: obligations.dueDate, amountMinor: obligations.amountMinor, currency: obligations.currency })
+      .from(obligations)
+      .where(eq(obligations.userId, userId));
+    for (const o of draft.obligations) {
+      if (!o.dueDate) continue;
+      const name = o.payeeName.trim();
+      let payee = userPayees.find((p) => p.name === name && p.kind === o.payeeKind);
+      if (!payee) {
+        const screening = screenName(name);
+        if (screening.hit) {
+          await ledger.append(
+            "PAYEE_SCREENING_HIT",
+            { userId, reasonCodes: ["REFUSE_SANCTIONS"], entryId: screening.entryId, score: Math.round(screening.score * 10_000) / 10_000, source: "onboarding", ...(await sealPii(userId, { name }, tx)) },
+            tx,
+          );
+          continue;
+        }
+        const inserted = (
+          await tx
+            .insert(payees)
+            .values({ userId, name, kind: o.payeeKind, accountEnc: null, accountHash: null, country: UNKNOWN_COUNTRY, currency: o.currency, status: "COOLING", verifiedAt: null, coolingUntil: null, createdAt: now })
+            .returning({ id: payees.id, name: payees.name, kind: payees.kind })
+        )[0]!;
+        await ledger.append("PAYEE_CREATED", { userId, payeeId: inserted.id, status: "COOLING", coolingUntil: null, accountMissing: true, replacesPayeeId: null, source: "onboarding" }, tx);
+        userPayees.push(inserted);
+        payee = inserted;
+      }
+      const payeeId = payee.id;
+      if (userBills.some((b) => b.payeeId === payeeId && b.dueDate === o.dueDate && b.amountMinor === o.amountMinor && b.currency === o.currency)) continue;
+      await tx.insert(obligations).values({ userId, payeeId, amountMinor: o.amountMinor, currency: o.currency, dueDate: o.dueDate, recurrence: o.recurrence, reference: null, category: o.category });
+      userBills.push({ payeeId, dueDate: o.dueDate, amountMinor: o.amountMinor, currency: o.currency });
     }
   });
 }

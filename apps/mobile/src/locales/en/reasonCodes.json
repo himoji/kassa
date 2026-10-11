@@ -59,6 +59,10 @@
     "label": "Payee is cooling down",
     "text": "This payee is new or changed, so it cools down for 24 hours before it can be paid."
   },
+  "PAYEE_ACCOUNT_MISSING": {
+    "label": "Payee details needed",
+    "text": "Kassa does not have this payee's account details yet, so it cannot pay them. Add the payee's details first."
+  },
   "TRIGGER_ORIGIN": {
     "label": "Started from a message",
     "text": "This payment came from a message or notification, so it needs your approval before it goes ahead."

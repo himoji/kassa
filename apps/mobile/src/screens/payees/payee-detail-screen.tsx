@@ -36,6 +36,11 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
         <Box gap={2}>
           <Text variant="title">{payee.name}</Text>
           <PayeeStatusChip payee={payee} />
+          {payee.accountMissing ? (
+            <Text variant="caption" testID="payee-account-missing">
+              {t("payees:accountMissingBody")}
+            </Text>
+          ) : null}
           {payee.status === "COOLING" && payee.coolingUntil ? (
             <Box gap={1}>
               <Countdown until={payee.coolingUntil} prefixKey="payees:coolingEndsIn" />
@@ -52,7 +57,11 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
         />
         <Row
           title={t("payees:field.account")}
-          trailing={<Text selectable>{payee.accountMasked}</Text>}
+          trailing={
+            <Text selectable>
+              {payee.accountMissing ? t("payees:accountNotAdded") : payee.accountMasked}
+            </Text>
+          }
         />
         <Row title={t("payees:field.country")} trailing={<Text selectable>{payee.country}</Text>} />
         <Row
@@ -90,7 +99,8 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
         </Card>
       ) : null}
 
-      {payee.status === "COOLING" ? (
+      {/* Nothing to verify without account details (the server refuses: PAYEE_ACCOUNT_MISSING). */}
+      {payee.status === "COOLING" && !payee.accountMissing ? (
         <Box gap={3}>
           <Box row>
             <SimulatedBadge />

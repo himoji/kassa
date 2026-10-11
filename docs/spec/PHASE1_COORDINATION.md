@@ -111,3 +111,7 @@ Tracks: A = core money path (apps/api), B = intelligence (apps/api), C = mobile 
     `DEMO_SEEDED` is one ledger entry per seeded user. `budget.each` params gain optional `home` (home equivalent of a
     foreign spend). Agent-proposed orders carry re-hydrated purpose / item names (no `payee_N`).
 
+- 2026-10-13 (onboarding bills, apps/api + packages/shared + apps/mobile) — `CanonicalOrder.v` unchanged; required response fields added: `payees.account_enc` / `account_hash` nullable (migration `0006_payee_account_pending`;
+  NULL = placeholder payee from the onboarding chat, never payable). `PayeeDto.accountMissing`,
+  `ObligationDto.payeeAccountMissing`, `OnboardingConfirmResponse.suggestedMandate` + `suggestedMandatePayees` (required).
+  Reason code `PAYEE_ACCOUNT_MISSING`. `DecideFacts.payee.hasAccount` (required). See DECISIONS 2026-10-13.

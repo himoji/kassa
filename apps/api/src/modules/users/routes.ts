@@ -25,7 +25,7 @@ import {
   type MandateOptionsRequest,
   type OnboardingProfileDraft,
 } from "@kassa/shared";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
@@ -73,6 +73,37 @@ function emptyDraft(): OnboardingProfileDraft {
     obligations: [],
     budgets: [],
     cards: [],
+  };
+}
+
+/**
+ * The rent mandate onboarding offers (spec §18 seed: rent mandate): a landlord with a monthly bill. The payee may still
+ * be COOLING, also without account details (bills from the onboarding chat): the mandate is signed now, but the rules
+ * refuse every payment to that payee until it has a verified account (I7, PAYEE_ACCOUNT_MISSING). BLOCKED never.
+ */
+async function suggestRentMandate(userId: string): Promise<{ suggestedMandate: MandateOptionsRequest | null; suggestedMandatePayees: { id: string; name: string }[] }> {
+  const rent = (
+    await getDb()
+      .select({ o: obligations, p: payees })
+      .from(obligations)
+      .innerJoin(payees, eq(payees.id, obligations.payeeId))
+      .where(and(eq(obligations.userId, userId), eq(obligations.recurrence, "MONTHLY"), eq(payees.kind, "LANDLORD"), ne(payees.status, "BLOCKED")))
+      .orderBy(desc(sql`${payees.status} = 'VERIFIED'`), asc(obligations.dueDate))
+  )[0];
+  if (!rent) return { suggestedMandate: null, suggestedMandatePayees: [] };
+  // Headroom of ~11% over the bill, rounded up to a whole major unit (e.g. HUF 180,000 → 200,000).
+  const cap = Math.ceil((rent.o.amountMinor * 10) / 9 / 1_000_000) * 1_000_000;
+  return {
+    suggestedMandate: {
+      payeeIds: [rent.p.id],
+      categories: [rent.o.category],
+      currency: rent.o.currency,
+      maxPerPaymentMinor: cap,
+      maxPerPeriodMinor: cap,
+      period: "MONTH",
+      validUntil: null,
+    },
+    suggestedMandatePayees: [{ id: rent.p.id, name: rent.p.name }],
   };
 }
 
@@ -230,30 +261,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const rulesHash = jcsHash(core);
       const challengeId = putGated({ userId, purpose: "base-rules", hash: rulesHash, payload: { core, draft } });
 
-      // Suggest a rent mandate: a verified landlord with a monthly bill (spec §18 seed: rent mandate).
-      let suggestedMandate: MandateOptionsRequest | null = null;
-      const suggestedMandatePayees: { id: string; name: string }[] = [];
-      const rent = (
-        await db
-          .select({ o: obligations, p: payees })
-          .from(obligations)
-          .innerJoin(payees, eq(payees.id, obligations.payeeId))
-          .where(and(eq(obligations.userId, userId), eq(obligations.recurrence, "MONTHLY"), eq(payees.kind, "LANDLORD"), eq(payees.status, "VERIFIED")))
-      )[0];
-      if (rent) {
-        // Headroom of ~11% over the bill, rounded up to a whole major unit (e.g. HUF 180,000 → 200,000).
-        const cap = Math.ceil((rent.o.amountMinor * 10) / 9 / 1_000_000) * 1_000_000;
-        suggestedMandate = {
-          payeeIds: [rent.p.id],
-          categories: [rent.o.category],
-          currency: rent.o.currency,
-          maxPerPaymentMinor: cap,
-          maxPerPeriodMinor: cap,
-          period: "MONTH",
-          validUntil: null,
-        };
-        suggestedMandatePayees.push({ id: rent.p.id, name: rent.p.name });
-      }
+      const { suggestedMandate, suggestedMandatePayees } = await suggestRentMandate(userId);
       return {
         core,
         rulesHash,
@@ -314,7 +322,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       });
       const ob = await onboardingModule();
       if (ob.applyOnboardingDraft) await ob.applyOnboardingDraft(userId, pending.draft);
-      return { onboarded: true as const };
+      // Step 2 of onboarding (rent mandate): computed now, because a new user's rent bill only exists once the
+      // draft is applied above.
+      return { onboarded: true as const, ...(await suggestRentMandate(userId)) };
     },
   );
 };

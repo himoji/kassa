@@ -1,7 +1,9 @@
 /**
  * Onboarding review (spec §16): renders ONLY the server-built `BaseRulesCore` (+ the server's
  * draft for context) and signs it with a passkey; the hash of exactly this core is recomputed
- * locally before signing. Step 2 offers the rent mandate, signed separately over its mandateHash.
+ * locally before signing. Step 2 offers the rent mandate, signed separately over its mandateHash. The
+ * mandate comes from the confirm response: a new user's rent bill only exists once the signed draft is
+ * applied, so the review (built before) usually has none. Rules → mandate (sign or skip) → home.
  */
 import { effectiveSettings } from "@kassa/shared";
 import { router } from "expo-router";
@@ -21,6 +23,8 @@ import { useKassaT } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useChatStore } from "@/stores/chat";
 
+import { mandateOfferAfterRules, type MandateOffer } from "./mandate-offer";
+
 export function OnboardingReviewScreen() {
   const t = useKassaT();
   const f = useFormat();
@@ -28,10 +32,66 @@ export function OnboardingReviewScreen() {
   const review = useOnboardingReview(conversationId);
   const confirmRules = useConfirmOnboarding(conversationId);
   const createMandate = useCreateMandate();
-  const [step, setStep] = useState<"rules" | "mandate">("rules");
+  // Set once the rules are signed and the server offers a mandate: step 2. Rendered without the review
+  // query, so a refetch of the (now signed) review cannot take the user back to step 1.
+  const [offer, setOffer] = useState<MandateOffer | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const finish = () => router.replace("/home");
+
+  const signMandate = async (mandate: MandateOffer["mandate"]) => {
+    setError(null);
+    try {
+      await createMandate.mutateAsync(mandate);
+      haptics.success();
+      finish();
+    } catch (err) {
+      if (err instanceof PasskeyCancelledError) return;
+      haptics.error();
+      setError(errorText(t, err));
+    }
+  };
+
+  if (offer) {
+    const { mandate, payees } = offer;
+    return (
+      <ScrollScreen testID="onboarding-mandate-step">
+        <Box gap={5}>
+          <StatusChip tone="positive" label={t("onboarding:rulesSigned")} />
+          <Text variant="heading">{t("onboarding:mandateTitle")}</Text>
+          <Text>{t("onboarding:mandateBody")}</Text>
+          <RowGroup>
+            <Row
+              title={t("onboarding:mandatePayee")}
+              trailing={<Text>{payees.map((p) => p.name).join(", ")}</Text>}
+            />
+            <Row
+              title={t("onboarding:mandatePerPayment")}
+              trailing={<Text>{f.money(mandate.maxPerPaymentMinor, mandate.currency)}</Text>}
+            />
+            <Row
+              title={t("onboarding:mandatePerPeriod", {
+                period: t(`settings:mandates.period.${mandate.period}`),
+              })}
+              trailing={<Text>{f.money(mandate.maxPerPeriodMinor, mandate.currency)}</Text>}
+            />
+          </RowGroup>
+          <Text variant="caption">{t("onboarding:mandateDelay")}</Text>
+          {error ? <Text color="destructive">{error}</Text> : null}
+          <Button
+            size="lg"
+            onPress={() => void signMandate(mandate)}
+            loading={createMandate.isPending}
+          >
+            {t("onboarding:signMandate")}
+          </Button>
+          <Button variant="ghost" onPress={finish}>
+            {t("onboarding:skipMandate")}
+          </Button>
+        </Box>
+      </ScrollScreen>
+    );
+  }
 
   return (
     <ScrollScreen>
@@ -40,14 +100,14 @@ export function OnboardingReviewScreen() {
           const s = r.core.settings;
           const eff = effectiveSettings(s.preset, s.overrides);
           const caps = r.core.caps;
-          const mandate = r.suggestedMandate;
 
           const signRules = async () => {
             setError(null);
             try {
-              await confirmRules.mutateAsync(r);
+              const confirmed = await confirmRules.mutateAsync(r);
               haptics.success();
-              if (mandate) setStep("mandate");
+              const next = mandateOfferAfterRules(confirmed, r);
+              if (next) setOffer(next);
               else finish();
             } catch (err) {
               if (err instanceof PasskeyCancelledError) return;
@@ -55,58 +115,6 @@ export function OnboardingReviewScreen() {
               setError(errorText(t, err));
             }
           };
-
-          const signMandate = async () => {
-            if (!mandate) return;
-            setError(null);
-            try {
-              await createMandate.mutateAsync(mandate);
-              haptics.success();
-              finish();
-            } catch (err) {
-              if (err instanceof PasskeyCancelledError) return;
-              haptics.error();
-              setError(errorText(t, err));
-            }
-          };
-
-          if (step === "mandate" && mandate) {
-            return (
-              <Box gap={5}>
-                <StatusChip tone="positive" label={t("onboarding:rulesSigned")} />
-                <Text variant="heading">{t("onboarding:mandateTitle")}</Text>
-                <Text>{t("onboarding:mandateBody")}</Text>
-                <RowGroup>
-                  <Row
-                    title={t("onboarding:mandatePayee")}
-                    trailing={<Text>{r.suggestedMandatePayees.map((p) => p.name).join(", ")}</Text>}
-                  />
-                  <Row
-                    title={t("onboarding:mandatePerPayment")}
-                    trailing={<Text>{f.money(mandate.maxPerPaymentMinor, mandate.currency)}</Text>}
-                  />
-                  <Row
-                    title={t("onboarding:mandatePerPeriod", {
-                      period: t(`settings:mandates.period.${mandate.period}`),
-                    })}
-                    trailing={<Text>{f.money(mandate.maxPerPeriodMinor, mandate.currency)}</Text>}
-                  />
-                </RowGroup>
-                <Text variant="caption">{t("onboarding:mandateDelay")}</Text>
-                {error ? <Text color="destructive">{error}</Text> : null}
-                <Button
-                  size="lg"
-                  onPress={() => void signMandate()}
-                  loading={createMandate.isPending}
-                >
-                  {t("onboarding:signMandate")}
-                </Button>
-                <Button variant="ghost" onPress={finish}>
-                  {t("onboarding:skipMandate")}
-                </Button>
-              </Box>
-            );
-          }
 
           return (
             <Box gap={5}>

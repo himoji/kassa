@@ -9,7 +9,7 @@ function base(): DecideFacts {
   return {
     now: NOW,
     frozen: false,
-    payee: { status: "VERIFIED", coolingUntil: null },
+    payee: { status: "VERIFIED", coolingUntil: null, hasAccount: true },
     readerChecks: undefined,
     rail: "BANK_TRANSFER",
     screeningHit: false,
@@ -68,26 +68,38 @@ describe("decide: step 2 payee", () => {
   });
 
   it("BLOCKED payee refuses as unverified", () => {
-    const r = decide({ ...base(), payee: { status: "BLOCKED", coolingUntil: null } });
+    const r = decide({ ...base(), payee: { status: "BLOCKED", coolingUntil: null, hasAccount: true } });
     expect(r.decision).toBe("REFUSE");
     expect(r.reasonCodes).toContain("REFUSE_UNVERIFIED_PAYEE");
   });
 
   it("COOLING payee still inside its cooling window refuses with PAYEE_COOLING", () => {
-    const r = decide({ ...base(), payee: { status: "COOLING", coolingUntil: new Date(NOW.getTime() + HOUR) } });
+    const r = decide({ ...base(), payee: { status: "COOLING", coolingUntil: new Date(NOW.getTime() + HOUR), hasAccount: true } });
     expect(r.decision).toBe("REFUSE");
     expect(r.reasonCodes).toContain("REFUSE_UNVERIFIED_PAYEE");
     expect(r.reasonCodes).toContain("PAYEE_COOLING");
   });
 
   it("COOLING payee with coolingUntil null refuses", () => {
-    const r = decide({ ...base(), payee: { status: "COOLING", coolingUntil: null } });
+    const r = decide({ ...base(), payee: { status: "COOLING", coolingUntil: null, hasAccount: true } });
     expect(r.decision).toBe("REFUSE");
     expect(r.reasonCodes).toContain("REFUSE_UNVERIFIED_PAYEE");
   });
 
+  it("payee without account details refuses with PAYEE_ACCOUNT_MISSING, whatever its status", () => {
+    for (const payee of [
+      { status: "COOLING" as const, coolingUntil: null, hasAccount: false },
+      { status: "COOLING" as const, coolingUntil: new Date(NOW.getTime() - HOUR), hasAccount: false },
+      { status: "VERIFIED" as const, coolingUntil: null, hasAccount: false },
+    ]) {
+      const r = decide({ ...base(), payee, mandate: { id: "m1" }, preset: "AUTOPILOT" });
+      expect(r.decision).toBe("REFUSE");
+      expect(r.reasonCodes).toEqual(["REFUSE_UNVERIFIED_PAYEE", "PAYEE_ACCOUNT_MISSING"]);
+    }
+  });
+
   it("COOLING payee after coolingUntil is usable but forces ASK with PAYEE_COOLING", () => {
-    const r = decide({ ...base(), payee: { status: "COOLING", coolingUntil: new Date(NOW.getTime() - HOUR) } });
+    const r = decide({ ...base(), payee: { status: "COOLING", coolingUntil: new Date(NOW.getTime() - HOUR), hasAccount: true } });
     expect(r.decision).toBe("ASK");
     expect(r.reasonCodes).toContain("PAYEE_COOLING");
     expect(r.tier).toBe("T2");
@@ -96,7 +108,7 @@ describe("decide: step 2 payee", () => {
   it("COOLING payee after coolingUntil stays ASK even with a matching mandate", () => {
     const r = decide({
       ...base(),
-      payee: { status: "COOLING", coolingUntil: new Date(NOW.getTime() - HOUR) },
+      payee: { status: "COOLING", coolingUntil: new Date(NOW.getTime() - HOUR), hasAccount: true },
       mandate: { id: "m1" },
     });
     expect(r.decision).toBe("ASK");
@@ -349,7 +361,7 @@ describe("decide: invariant", () => {
             const r = decide({
               ...base(),
               preset,
-              payee: { status: payee.status, coolingUntil: payee.coolingUntil },
+              payee: { status: payee.status, coolingUntil: payee.coolingUntil, hasAccount: true },
               mandate: mandate ? { id: mandate.id } : null,
               caps: { ...base().caps, amountHomeMinor },
               agentRequestedConfirm: true,

@@ -143,6 +143,8 @@ export const ObligationDto = z.object({
   payeeId: Uuid,
   payeeName: z.string(),
   payeeStatus: PayeeStatus,
+  /** (added 2026-10-13) The payee has no account details yet (bill captured in onboarding): unpayable until added. */
+  payeeAccountMissing: z.boolean(),
   amountMinor: PositiveAmountMinor,
   currency: CurrencyCode,
   homeAmountMinor: AmountMinor,
@@ -262,8 +264,10 @@ export const PayeeDto = z.object({
   id: Uuid,
   name: z.string(),
   kind: PayeeKind,
-  /** Masked account (e.g. last 4); the full account never leaves the server. */
+  /** Masked account (e.g. last 4); the full account never leaves the server. "" when `accountMissing`. */
   accountMasked: z.string(),
+  /** (added 2026-10-13) No account details yet (payee captured in onboarding): COOLING and never payable until added. */
+  accountMissing: z.boolean(),
   country: z.string().length(2),
   currency: CurrencyCode,
   status: PayeeStatus,

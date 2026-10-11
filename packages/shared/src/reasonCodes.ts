@@ -33,6 +33,8 @@ export const ReasonCode = z.enum([
   "PRESET_ASK_ME",
   "CAP_WITHIN_2X_ASK",
   "PAYEE_COOLING",
+  // (added 2026-10-13) the payee has no account details yet (created from the onboarding chat): never payable
+  "PAYEE_ACCOUNT_MISSING",
   "TRIGGER_ORIGIN",
   // (added 2026-10-12) a trigger/scheduler draft outside a mandate never auto-pays via the small-auto limit
   "TRIGGER_NEEDS_MANDATE",

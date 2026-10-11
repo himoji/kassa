@@ -1,4 +1,7 @@
 {
+  "accountMissing": "Account details needed",
+  "accountMissingBody": "This payee came from your setup chat without account details. Kassa will not pay it until its account details are added and verified.",
+  "accountNotAdded": "Not added yet",
   "add": {
     "account": "Account number or IBAN",
     "coolingNote": "A new or changed payee cools down for 24 hours before you can pay it.",

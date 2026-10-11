@@ -36,8 +36,8 @@ describe("payees (I7)", () => {
     expect(dto.accountMasked).toBe("•••• 0000");
     const row = (await getDb().select().from(payees).where(eq(payees.id, dto.id)))[0]!;
     expect(row.accountEnc).not.toContain("HU03");
-    expect(decryptAccount(userId, row.accountEnc)).toBe(IBAN_OTHER);
-    expect(() => decryptAccount("00000000-0000-4000-8000-000000000000", row.accountEnc)).toThrow(); // AAD binds the user
+    expect(decryptAccount(userId, row.accountEnc!)).toBe(IBAN_OTHER);
+    expect(() => decryptAccount("00000000-0000-4000-8000-000000000000", row.accountEnc!)).toThrow(); // AAD binds the user
 
     const early = await proposeOrder({ userId, createdBy: "AGENT", payeeId: dto.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent" });
     expect(early.decision).toBe("REFUSE");

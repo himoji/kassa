@@ -1,5 +1,6 @@
 import type { ObligationDto } from "@kassa/shared";
-import { View } from "react-native";
+import { router } from "expo-router";
+import { Pressable, View } from "react-native";
 
 import { Box, Text } from "@/components/ui";
 import { useFormat } from "@/lib/format";
@@ -18,8 +19,8 @@ export function ObligationRow({
   const t = useKassaT();
   const f = useFormat();
   const o = obligation;
-  return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 6, minHeight: 44 }}>
+  const body = (
+    <>
       <Box row justify="between" gap={3}>
         <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
           {o.payeeName}
@@ -48,7 +49,13 @@ export function ObligationRow({
           tone={o.coverage === "COVERED" ? "positive" : "critical"}
           label={t(`bills:coverage.${o.coverage}`)}
         />
-        {o.payeeStatus !== "VERIFIED" ? (
+        {o.payeeAccountMissing ? (
+          <StatusChip
+            tone="warning"
+            label={t("bills:needsPayeeDetails")}
+            icon={{ sf: "person.crop.circle.badge.exclamationmark", md: "person_alert" }}
+          />
+        ) : o.payeeStatus !== "VERIFIED" ? (
           <StatusChip
             tone={o.payeeStatus === "COOLING" ? "warning" : "critical"}
             label={t(`payees:status.${o.payeeStatus}`)}
@@ -62,6 +69,26 @@ export function ObligationRow({
           />
         ) : null}
       </Box>
-    </View>
+      {o.payeeAccountMissing ? (
+        <Text variant="caption">{t("bills:needsPayeeDetailsBody", { payee: o.payeeName })}</Text>
+      ) : null}
+    </>
   );
+  const style = { paddingHorizontal: 16, paddingVertical: 12, gap: 6, minHeight: 44 };
+  // A bill whose payee has no account details (from the setup chat) links to the payee: that is where the
+  // details are needed. Nothing can pay it until then (rules: PAYEE_ACCOUNT_MISSING).
+  if (o.payeeAccountMissing) {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityHint={t("bills:needsPayeeDetails")}
+        testID={`obligation-needs-details-${o.id}`}
+        onPress={() => router.push(`/payees/${o.payeeId}`)}
+        style={style}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+  return <View style={style}>{body}</View>;
 }

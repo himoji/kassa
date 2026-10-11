@@ -31,7 +31,7 @@ export async function forgeSignedApproval(
     userId: payee.userId,
     payeeId: payee.id,
     payeeName: payee.name,
-    payeeAccountHash: payee.accountHash,
+    payeeAccountHash: payee.accountHash!,
     rail: "BANK_TRANSFER",
     purpose: "forged by a rules bug",
     homeCurrency: "KZT",
