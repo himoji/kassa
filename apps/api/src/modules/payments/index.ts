@@ -77,24 +77,37 @@ function verifyApprovalSig(a: typeof approvals.$inferSelect): boolean {
  * order and the day's payments itself for its own cap (I5) and the small-auto limit, instead of trusting the
  * homeAmountMinor rules put into the order. Unwired or failing → fail closed (refused).
  */
-export type HomeConverter = (amountMinor: number, currency: string, homeCurrency: string, at: Date) => Promise<number>;
+export type HomeConverter = (amountMinor: number, currency: string, homeCurrency: string, at: Date, rounding?: "nearest" | "down") => Promise<number>;
 let homeConverter: HomeConverter | null = null;
 
 export function registerHomeConverter(fn: HomeConverter | null): void {
   homeConverter = fn;
 }
 
-async function ownHome(amountMinor: number, currency: string, homeCurrency: string, at: Date, reason: ReasonCode): Promise<number> {
+async function ownHome(
+  amountMinor: number,
+  currency: string,
+  homeCurrency: string,
+  at: Date,
+  reason: ReasonCode,
+  rounding: "nearest" | "down" = "nearest",
+): Promise<number> {
   if (currency === homeCurrency) return amountMinor;
   if (!homeConverter) refuse(reason, "no fx port: cannot convert to the home currency");
   try {
-    const v = await homeConverter(amountMinor, currency, homeCurrency, at);
+    const v = await homeConverter(amountMinor, currency, homeCurrency, at, rounding);
     if (!Number.isSafeInteger(v) || v < 0) throw new RangeError(`bad conversion ${v}`);
     return v;
   } catch (err) {
     if (err instanceof Refusal) throw err;
     refuse(reason, `cannot convert ${currency} to ${homeCurrency}: ${(err as Error).message}`);
   }
+}
+
+/** (cap currency) PAYMENTS_DAILY_CAP_HOME_MINOR is a fixed amount in PAYMENTS_DAILY_CAP_CURRENCY; this user gets it in their home currency, rounded down. Unconvertible means refused (fail closed). */
+async function capInHome(homeCurrency: string, at: Date): Promise<number> {
+  const e = env();
+  return ownHome(e.PAYMENTS_DAILY_CAP_HOME_MINOR, e.PAYMENTS_DAILY_CAP_CURRENCY, homeCurrency, at, "PAYMENTS_DAILY_CAP", "down");
 }
 
 function utcDayStart(d: Date): Date {
@@ -227,7 +240,7 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
       if (s.hit) refuse("REFUSE_SANCTIONS", `screening hit ${s.entryId} (${s.score.toFixed(3)})`);
     }
     // 8
-    const cap = env().PAYMENTS_DAILY_CAP_HOME_MINOR;
+    const cap = await capInHome(u.homeCurrency, now);
     // X2: the order in the user's home currency, by payments' own conversion (not the order's homeAmountMinor).
     const orderHome = await ownHome(order.amountMinor, order.currency, u.homeCurrency, now, "PAYMENTS_DAILY_CAP");
     const paymentId = await db.transaction(async (tx) => {

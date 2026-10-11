@@ -7,6 +7,7 @@
 import {
   formatMoney,
   orderHash as computeOrderHash,
+  reasonsSentenceEn,
   type CanonicalOrder,
   type Decision,
   type PaymentStatus,
@@ -144,6 +145,18 @@ function newNonce(): string {
   return randomBytes(16).toString("base64url"); // 16 random bytes, base64url (spec §7)
 }
 
+/** (cap currency) The payments daily cap pre-checked in the user's home currency (PAYMENTS_DAILY_CAP_CURRENCY converted, rounded down, mirrors payments). Unconvertible → 0: every payment is refused before signing (fail closed). */
+async function paymentsCapInHome(homeCurrency: string, at: Date): Promise<number> {
+  const e = env();
+  if (e.PAYMENTS_DAILY_CAP_CURRENCY === homeCurrency) return e.PAYMENTS_DAILY_CAP_HOME_MINOR;
+  try {
+    const v = (await toHome(e.PAYMENTS_DAILY_CAP_HOME_MINOR, e.PAYMENTS_DAILY_CAP_CURRENCY, homeCurrency, at, "down")).amountMinor;
+    return Number.isSafeInteger(v) && v >= 0 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
 function summarize(
   decision: Decision,
   codes: ReasonCode[],
@@ -171,7 +184,7 @@ function summarize(
       funded = ` Paid from your ${order.fundingCurrency} balance, at most ${order.fundingAmountMinor} (minor units) incl. fees.`;
     }
   }
-  return `${verb[decision]}: ${money} to ${order.payeeName}.${funded} Reasons: ${codes.join(", ") || "none"}.`;
+  return `${verb[decision]}: ${money} to ${order.payeeName}.${funded} ${reasonsSentenceEn(codes)}`;
 }
 
 function statusFor(decision: Decision): "REFUSED" | "PENDING_APPROVAL" | "APPROVED" {
@@ -300,6 +313,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   });
   const score = riskScore(features);
 
+  const paymentsCapHome = await paymentsCapInHome(user.homeCurrency, now);
   const result: DecideResult = decide({
     now,
     frozen: user.frozenAt !== null,
@@ -315,7 +329,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
       usedTodayHomeMinor: usedToday,
       usedThisMonthHomeMinor: usedMonth,
       reserveBreached: reserve,
-      paymentsDailyHomeMinor: env().PAYMENTS_DAILY_CAP_HOME_MINOR,
+      paymentsDailyHomeMinor: paymentsCapHome,
     },
     preset: user.preset,
     effective,

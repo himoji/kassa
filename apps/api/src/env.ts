@@ -48,6 +48,9 @@ const EnvSchema = z.object({
   // Spec §20 example is ₸500,000, but the hero tuition (€2,400 ≈ ₸1.3–1.4M) would then always be refused
   // by payments (I5). Default ₸2,000,000; see docs/DECISIONS.md 2026-10-11.
   PAYMENTS_DAILY_CAP_HOME_MINOR: z.coerce.number().int().positive().default(200_000_000),
+  // (cap currency) PAYMENTS_DAILY_CAP_HOME_MINOR is a fixed amount in this reference currency; each user gets it converted to
+  // their home currency, rounded down, fail-closed. See docs/DECISIONS.md 2026-10-12.
+  PAYMENTS_DAILY_CAP_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("KZT"),
   // (X3, security review F2) Per-day small-auto budget (T1 without a mandate): at most this many payments per UTC
   // day, and at most MULTIPLE × the signed small-auto limit in total. Beyond it: ASK SMALL_AUTO_BUDGET_EXHAUSTED.
   SMALL_AUTO_DAILY_MAX_COUNT: z.coerce.number().int().min(0).default(3),

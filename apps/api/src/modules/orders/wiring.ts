@@ -16,5 +16,5 @@ export function wireExecutor(): void {
   registerHandoffPreflight(requestHandoffQr);
   registerWalletReader(getWalletBalances);
   // X2: payments converts amounts for its own daily cap through this port (it imports no fx/rules code itself).
-  registerHomeConverter(async (amountMinor, currency, homeCurrency, at) => (await toHome(amountMinor, currency, homeCurrency, at)).amountMinor);
+  registerHomeConverter(async (amountMinor, currency, homeCurrency, at, rounding) => (await toHome(amountMinor, currency, homeCurrency, at, rounding)).amountMinor);
 }

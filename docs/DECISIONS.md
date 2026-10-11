@@ -487,9 +487,8 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
   and `settings patch` (`derivedChanges`) outputs, and in the app: the order sheet shows "Paid from … at most …" with
   the margin explained, preset cards say what else a switch changes and the toast repeats it, notifications render
   `{key, params}` (payment.sent/failed, budget.each, fees.settled) through i18n with the English text as fallback and
-  list reason codes in plain language. Not done here (Track X's files, left for the coordinator): rules'
-  `summarize()` still prints "Reasons: CODE" (one-line change: `reasonsSentenceEn(codes)`), and PATCH /settings does
-  not return/notify the derived money mode server-side (`presetDerivedChanges` is ready for it).
+  list reason codes in plain language. Follow-up done 2026-10-12 (see the entry below): rules' `summarize()` uses
+  `reasonsSentenceEn(codes)`, and PATCH /settings returns and notifies `derivedChanges`.
 - **Y7 Sim.** `recategorise` command; `demo clock|tick|trigger` wait until mock-world's cached clock (refreshMs 1 s)
   reached the new time, tick the mock bank and wait for its outbox to drain (output `webhooks`), so a following read
   sees SENT (p1 B11; the old race was mock-world ticking at the stale time). `approve` stops on a re-issued order
@@ -505,3 +504,18 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
   ExpoModulesCoreJSLogger); under CPU load that kept workers past Jest's exit grace period. `jest.setup.ts` resolves
   `globalThis.fetch` during setup. Verified causally under the same load: without the line 2/2 runs warn, with it 0/2
   (no `forceExit`).
+
+## 2026-10-12 — Payments daily cap is defined in PAYMENTS_DAILY_CAP_CURRENCY (default KZT) and converted (rounded down, fail-closed) to each user's home currency.
+
+- `PAYMENTS_DAILY_CAP_HOME_MINOR` is now a fixed amount in the reference currency `PAYMENTS_DAILY_CAP_CURRENCY`
+  (default `KZT`, ₸2,000,000 by default). Before, the number was read in each user's own home currency, so for a CNY
+  user it meant ¥2,000,000 (about ₸280M). Each user gets the cap converted to their home currency through the same fx
+  conversion (`money/fx` `toHome`), rounded down (`"down"`: truncation, not nearest). At the offline example rates
+  (fixtures/fx-rates.json) the CNY user's cap is about ¥27,106.
+- Payments converts through the injected port (`registerHomeConverter`, wired in `orders/wiring.ts`). Rules pre-check the
+  same converted cap through money/fx. Failure to convert is fail closed: payments refuses `PAYMENTS_DAILY_CAP`, and
+  rules treat the cap as 0 so the user is refused before signing (`REFUSE_CAP` + `PAYMENTS_DAILY_CAP`).
+- Test: `test/core/payments-cap-currency.test.ts`. This supersedes the X2 note that the cap is read in each user's home
+  currency.
+- Also in this pass (Y6 follow-up): rules' `summarize()` now uses `reasonsSentenceEn(codes)`; PATCH /settings returns
+  `derivedChanges` and notifies `SETTINGS_DERIVED_CHANGE` (`{key:"settings.derived_change", params}` + English text).

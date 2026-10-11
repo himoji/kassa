@@ -1,6 +1,6 @@
 # Kassa test catalogue
 
-Counts from the 2026-10-12 review run (before the final fix pass; see "Changelog" at the end for later additions).
+Counts from the final root run `bun run test` (2026-10-12, after the final fix pass; see "Changelog" at the end).
 
 ## How to run
 - Everything: `bun run typecheck && bun run lint && bun run test` (turbo; all workspaces incl. mobile jest).
@@ -12,10 +12,10 @@ Counts from the 2026-10-12 review run (before the final fix pass; see "Changelog
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 52 | 519 | all pass |
+| apps/api | 72 | 633 | all pass |
 | apps/mock-world | 6 | 279 | all pass |
 | packages/shared | 4 | 34 | all pass |
-| apps/mobile (jest) | 46 | 395 | all pass |
+| apps/mobile (jest) | 46 | 410 | all pass |
 
 Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of 8 paid**.
 
@@ -26,9 +26,9 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | A2.test.ts | "Landlord new IBAN" email | new COOLING payee; rent stays on verified account | 2 passed | A2; I7, I10 |
 | A3.test.ts | Payment without approval, forged approval, replay | NO_APPROVAL, BAD_SIGNATURE, NONCE_USED; no money; ledgered | 4 passed | A3; I2, I4 |
 | A4.test.ts | Loosen caps without passkey / before 24 h | passkey required; REFUSE_CAP until effective; tightening instant | 8 passed | A4; I8 |
-| A5.test.ts | Swapped QR | QR_PAYEE_MISMATCH; CANCELED; no pay action | 3 passed | A5; I2, I3 |
+| A5.test.ts | Swapped QR (checked when shown, X7) | QR_PAYEE_MISMATCH up front; approve refused; no pay action | 3 passed | A5; I2, I3 |
 | A6.test.ts | Sanctions (Cyrillic, transliterated, fuzzy) | REFUSE_SANCTIONS | 6 passed | A6; I9 |
-| A7.test.ts | Fake POS trigger 10× | logged only; ASK TRIGGER_ORIGIN; REFUSE_CAP | 4 passed | A7; I6 |
+| A7.test.ts | Fake POS trigger 10× (end to end) | logged only; ASK TRIGGER_ORIGIN; REFUSE_CAP | 4 passed | A7; I6 |
 | A8.test.ts | Lying confirmation; tampered order | canonical values shown; ORDER_HASH_MISMATCH | 3 passed | A8; I3 |
 
 ## Invariants (`apps/api/test/invariants/`)
@@ -45,6 +45,11 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | privacy.test.ts | GDPR export/rectify/erase/restrict/consent | crypto-shred erasure; ledger still verifies | 9 passed | GDPR Art. 15–20 |
 | unfreeze-retention.test.ts | Unfreeze as loosening; retention purge | 24 h + passkey; purge job | 6 passed | I8 |
 | webhook-replay.test.ts | Replay + malicious bank sequences | WEBHOOK_REPLAYED; STATUS_REGRESSION, PAYMENT_FINAL, NOT_FUNDED, … | 12 passed | I13 |
+| erase-refresh.test.ts | Refresh after erasure (X5) | every refresh token of an erased user → 401 ACCOUNT_ERASED; normal refresh still works | 3 passed | GDPR Art. 17; I2 |
+| payee-verify.test.ts | Payee verification needs a passkey (X3a) | 428 PASSKEY_REQUIRED; challenge bound to the payee; single use | 5 passed | AAL2 re-authentication; I7 |
+| pipl-consent.test.ts | Separate cross-border consent, region CN (Y3) | 403 PIPL_CONSENT_REQUIRED; POST /privacy/pipl-consent gives and withdraws; erasure clears | 6 passed | PIPL Art. 38–39 |
+| seed-privacy.test.ts | Seeded users have no implicit consent (Y2) | no AI consent by default; opt-in only via `{ aiConsent: true }`; no cross-persona data | 3 passed | GDPR Art. 7 |
+| x10-triggers.test.ts | Device tokens, bank notification text, base-rules tampering (X10) | 401 for bad or revoked tokens; tampered base rules → BAD_SIGNATURE; injected text creates nothing | 12 passed | I2, I6 |
 
 ## Core (`apps/api/test/core/`)
 | File | Flow | Actual | Maps to |
@@ -53,20 +58,30 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | flow.test.ts | end-to-end T2 (ask) and T1 (mandate) money paths | 2 passed | tiers |
 | funding.test.ts | funding route bound into the signed order; INSUFFICIENT_FUNDS before signing | 5 passed | I2, I3 |
 | ledger.test.ts | hash chain, checkpoints, tamper, forgery, concurrency | 7 passed | I12 |
+| ledger-head.test.ts | signed ledger head: tail truncation, re-hashed tail, deleted head (X6) | 6 passed | I12 |
 | obligation-settlement.test.ts | no double payment per obligation period | 8 passed | idempotency |
+| order-expiry.test.ts | expired orders are re-issued, never re-signed; 410 ORDER_EXPIRED (X8) | 3 passed | I3, I4 |
 | orders-onboarding.test.ts | canonical order over HTTP; expiry; BOLA | 5 passed | I3 |
 | payees-mandates.test.ts | COOLING payees; IBAN validation; mandate passkey + 24 h | 4 passed | I7, I8 |
+| payment-notifications.test.ts | PAYMENT_SENT / PAYMENT_FAILED for every rail, once per outcome (X9) | 5 passed | UX; I9 |
 | payments.test.ts | independent verification in the payments module | 15 passed | I2–I5, I9 |
+| payments-cap.test.ts | cross-currency daily cap in the home currency; pre-check; fail closed (X2) | 4 passed | I5 |
+| payments-cap-currency.test.ts | cap in PAYMENTS_DAILY_CAP_CURRENCY (KZT) converted to CNY, rounded down, fail closed | 3 passed | I5 |
 | scheduler-demo.test.ts | scheduler, demo clock, rent autopay idempotent | 3 passed | I8 |
+| settings-derived.test.ts | PATCH /settings returns `derivedChanges` and notifies SETTINGS_DERIVED_CHANGE | 2 passed | Y6 |
+| summary-reasons.test.ts | order summary ends with reasonsSentenceEn(codes); reasonCodes stay structured | 1 passed | Y6 |
 | webhooks.test.ts | HMAC webhooks; one-time card (second charge declined) | 7 passed | I13 |
 
 ## Rules, screening
 | File | Flow | Actual | Maps to |
 |---|---|---|---|
-| rules/decide.test.ts | §10 evaluation order steps 1–9 | 44 passed | I6–I9 |
+| rules/decide.test.ts | §10 evaluation order steps 1–9 | 49 passed | I6–I9 |
 | rules/risk.test.ts | risk features, weights, score | 16 passed | risk score |
 | rules/trigger-auto.test.ts | trigger drafts AUTO only inside a mandate | 3 passed | I6 |
+| rules/mandate-scope.test.ts | mandate scope bound to the obligation: payee, category, period, amount ≤ bill (X1) | 10 passed | I2; PSD2 RTS Art. 5 |
+| rules/small-auto-budget.test.ts | small-auto per-day budget, enforced in rules and payments (X3b) | 4 passed | I2 |
 | screening/screening.test.ts | sanctions fuzzy + transliteration; IBAN; QR threshold | 32 passed | I9 |
+| screening/every-rail.test.ts | sanctions screening on every rail, and at payee creation (X4) | 8 passed | I9 |
 
 ## Intelligence (`apps/api/test/intel/`)
 | File | Flow | Actual |
@@ -74,8 +89,12 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | agent-loop.test.ts | 11 tools, propose_order only write; REFUSE stops loop; replay | 10 passed |
 | reader.test.ts / reader-cross-turn.test.ts | evidence checks; mismatches carried across turns | 11 / 5 passed |
 | redact.test.ts / redact-enum.test.ts | IBAN, PAN (Luhn), email, phone, names; enum passthrough | 11 / 7 passed |
+| redact-ids.test.ts | UUIDs are never redacted; 5,000 random UUIDs; same-name payees (Y1) | 8 passed |
 | parsers.test.ts, normalize-dedupe.test.ts, categorize.test.ts | capture parsing, dedupe, categorisation | 37 / 61 / 18 passed |
+| y5-log-expense-catalog.test.ts | log_expense keywords; catalog placeholders (Y5) | 13 passed |
+| y6-user-text.test.ts | plain-language reasons, merchant names, derived settings, placeholders (Y6) | 7 passed |
 | fx-rates.test.ts, fx-routes.test.ts, forecast-fees.test.ts | rates, route optimizer, coverage forecast, fee x-ray | 18 / 9 / 18 passed |
+| forecast-routes-y4.test.ts | top-up suggestion covers the first shortfall; same-currency routes (Y4) | 4 passed |
 | budget-pace.test.ts, integration.test.ts, onboarding-replay.test.ts, record.test.ts, registry.test.ts, search-catalog-ref.test.ts, cn-recordings.test.ts | budgets, cross-module flows, replay, provider registry | 7 / 3 / 2 / 2 / 6 / 3 / 5 passed |
 
 ## Demos, baseline, sim
@@ -86,6 +105,7 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | demos/cn3-li-wei.test.ts | second persona, CNY→EUR tuition; BOLA 404 | 8 passed |
 | naive/naive-baseline.test.ts | raw agent intent without rules: 8 of 8 attacks pay | 10 passed |
 | sim/sim-smoke.test.ts | sim CLI end to end on ports 4190–4192 | 1 passed |
+| sim/sim-down.test.ts | `sim down` kills the whole daemon tree; a test sim stops when its owner dies (Y7) | 2 passed |
 
 ## Persona and attacker runs (Haiku 5.5 acting as user + planner, no real LLM)
 - `docs/evidence/sim/p1/REPORT.md` — average user
@@ -96,4 +116,4 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 - `docs/evidence/sim/SUMMARY.md` — summary
 
 ## Changelog
-- 2026-10-12: catalogue created from the review run.
+- 2026-10-12: catalogue created from the review run. Final fix pass: counts refreshed from the final `bun run test` (api 72 files / 633 tests, mock-world 6 / 279, shared 4 / 34, mobile 46 / 410) and rows added for the new and changed test files (X1–X10, Y1–Y7, cap currency, settings derived changes).

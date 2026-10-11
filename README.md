@@ -19,7 +19,8 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 | [docs/SECURITY.md](docs/SECURITY.md) | Security self-assessment: permission tiers, invariants I1 to I13, threat model, known risks |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | GDPR record of processing, data map, data subject rights, retention, DPIA summary |
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned) |
-| [docs/TESTS.md](docs/TESTS.md) | Test catalogue and results (produced in a separate step) |
+| [docs/TESTS.md](docs/TESTS.md) | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence |
+| [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Dated log of every deviation from the technical spec |
 | [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md) | Technical specification (source of truth for how) |
 | [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference |
@@ -87,7 +88,8 @@ bun run dev            # Expo dev-client build for native devices
 - Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`, `READER_MODEL=anthropic:claude-haiku-5-5`.
 - Keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`.
 - Local: `local` is any OpenAI-compatible endpoint at `LOCAL_BASE_URL` (default `http://localhost:11434/v1`, Ollama). `LOCAL_API_KEY` is optional. Set `LOCAL_VISION=true` if the local model accepts images.
-- Chat, document upload and onboarding need the user's AI consent (`aiConsent` at registration, or `POST /api/privacy/ai-consent`). The seeded Dana has consent.
+- Chat, document upload and onboarding need the user's AI consent (`aiConsent` at registration, or `POST /api/privacy/ai-consent`). Seeded users, Dana included, have no consent until they give it. For region CN with a model outside Kassa's server, a separate cross-border consent is also needed (`POST /api/privacy/pipl-consent`, 403 `PIPL_CONSENT_REQUIRED` without it).
+- The cap `PAYMENTS_DAILY_CAP_HOME_MINOR` is a fixed amount in `PAYMENTS_DAILY_CAP_CURRENCY` (default `KZT`). Each user gets it converted to their home currency, rounded down.
 
 ## Simulation
 
@@ -101,6 +103,8 @@ bun run sim down         # stops everything it started and reports the ports
 
 Do not run `bun run dev` at the same time: both use ports 4000 and 4001. The runbook is in [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md). It lists every command, the personas (average user, careful user, bad-actor user), and the security scenarios with the test files that cover them.
 
+Persona and attacker runs (Haiku 5.5 acting as user and planner, no real AI calls) have their reports in `docs/evidence/sim/`: `p1/` (average user), `p2/` (careful user), `p3/` (bad actor), `cn/` (Chinese-context demos and a compromised planner), and `security/` (scenario review). [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) has the results and the fix status of every finding.
+
 ## Tests and checks
 
 ```bash
@@ -110,9 +114,9 @@ bun run test           # Vitest suites (api, mock-world, shared) and the mobile 
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
 ```
 
-- The API suite contains unit, invariant, attack, security and integration tests. Each test file and what it asserts is listed in [docs/SECURITY.md](docs/SECURITY.md) and [docs/TESTS.md](docs/TESTS.md).
+- Counts from the final `bun run test`: API 633 tests in 72 files (unit, invariant, attack, security and integration), mock world 279, shared 34, mobile Jest 410. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
-- There is no GitHub Actions workflow in this repository yet, so there is no CI badge.
+- CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`). The badge at the top still has the `OWNER` placeholder to replace.
 
 ## Docker Compose (optional deployment path)
 

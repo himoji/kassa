@@ -181,7 +181,7 @@ The retention period for payment records is not configured in code. The code cit
 - That the AI can only propose payments; every payment is checked by fixed rules and needs the user's passkey or a mandate.
 - How to withdraw consent.
 
-**Consent gate.** Chat, document upload and onboarding chat answer 403 `AI_CONSENT_REQUIRED` without consent. Consent is given at registration (`aiConsent: true` on `POST /api/auth/register/verify`) or with `POST /api/privacy/ai-consent`. Consent is recorded with a time (`users.ai_consent_at`). The seeded user has consent.
+**Consent gate.** Chat, document upload and onboarding chat answer 403 `AI_CONSENT_REQUIRED` without consent. Consent is given at registration (`aiConsent: true` on `POST /api/auth/register/verify`) or with `POST /api/privacy/ai-consent`. Consent is recorded with a time (`users.ai_consent_at`). The seed has no implicit consent: seeded users, including the demo personas, have neither AI consent nor PIPL consent until the person gives it (`apps/api/src/modules/demo/seed.ts`; tests opt in with `{ aiConsent: true }`). The sim CLI does not give consent on a 403; the persona decides.
 
 **Restriction.** A restricted account (Art. 18) answers 403 `PROCESSING_RESTRICTED` on AI routes.
 
@@ -211,14 +211,14 @@ Tests: `apps/api/test/security/privacy.test.ts` ("AI routes need consent; consen
 
 The region switch to `CN` makes all payments HANDOFF (`rules/decide.ts`, step 6). Kassa does not charge or move money in that mode, and the user pays in their own app.
 
-PIPL (Personal Information Protection Law of the People's Republic of China) is not implemented in this build:
+PIPL (Personal Information Protection Law of the People's Republic of China) is partly implemented in this build:
 
-- No PIPL-specific consent flow exists. The AI consent in section 11 is the GDPR-style consent.
+- **Separate cross-border consent (implemented).** For region CN, when the planner or the Reader runs outside Kassa's server, AI processing needs a separate consent for the cross-border transfer (PIPL Art. 38–39), on top of the AI consent in section 11. `POST /privacy/pipl-consent {consent}` gives or withdraws it (withdrawal under Art. 15), and each change is audited. Without it the AI routes answer 403 `PIPL_CONSENT_REQUIRED` with the notice. The timestamp is `users.pipl_consent_at` (migration 0005). The consent is in the export and cleared by erasure. Test: `apps/api/test/security/pipl-consent.test.ts`.
 - No data localisation in China and no security assessment for cross-border transfer are implemented.
 - If a China-facing deployment sends personal information out of China (for example to an external AI provider), PIPL Chapter III (transfer conditions, separate consent, and the localisation rules for large operators) needs a legal assessment by counsel.
 - The local model option keeps the planner and Reader on infrastructure the operator chooses. This is the technical measure available in the build.
 
-Status: **Planned** (see [COMPLIANCE.md](COMPLIANCE.md)).
+Status: **Partly implemented**: the separate cross-border consent is built and tested. Localisation and the cross-border assessment are not (see [COMPLIANCE.md](COMPLIANCE.md)).
 
 ## 14. PCI DSS scope reduction
 
