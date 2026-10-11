@@ -65,6 +65,8 @@ export const ReasonCode = z.enum([
   "PASSKEY_REQUIRED",
   "WEBHOOK_SIGNATURE_INVALID",
   "WEBHOOK_REPLAY_WINDOW",
+  // (added 2026-10-11) a valid signed webhook delivered a second time inside the window (seen-signature store)
+  "WEBHOOK_REPLAYED",
   // User actions
   "USER_REJECTED",
   // (added by Phase 2 security) GDPR / EU AI Act and abuse controls

@@ -8,6 +8,7 @@ import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { loadSanctions, setSanctionsListForTests } from "../../src/modules/screening/index.ts";
 import { addPayee, createUserWithPasskey, IBAN_OTHER, offlineEnvironment } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
+import { moneyMoved, recordGuarded } from "../helpers/attacks.ts";
 
 const t = useTestDb();
 
@@ -24,7 +25,7 @@ describe("A6: sanctions screening before bank transfers", () => {
     ["transliteration variant", "Svyatoslav Kassov"],
     ["fuzzy + word order", "Kasov Sviatoslav"],
     ["entity with legal suffix", "Northwind Arms Trading OOO"],
-  ])("%s → REFUSE_SANCTIONS", async (_label, name) => {
+  ])("%s → REFUSE_SANCTIONS", async (label, name) => {
     const { userId } = await createUserWithPasskey();
     const payee = await addPayee(userId, { name, kind: "PERSON", account: IBAN_OTHER });
     const r = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 1_000_000, currency: "HUF", purpose: "transfer", rail: "BANK_TRANSFER" });
@@ -33,6 +34,8 @@ describe("A6: sanctions screening before bank transfers", () => {
     expect(await getDb().select().from(payments)).toHaveLength(0);
     const entry = (await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "PROPOSAL_CREATED")))[0]!;
     expect((entry.payload as { reasonCodes: string[] }).reasonCodes).toEqual(["REFUSE_SANCTIONS"]);
+    expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
+    recordGuarded("A6", { case: label, outcome: "BLOCKED", decision: "REFUSE", reasonCodes: ["REFUSE_SANCTIONS"], ledger: ["PROPOSAL_CREATED"] });
   });
 
   it("a normal payee is not a hit", async () => {

@@ -9,7 +9,6 @@ import type { DbOrTx } from "../../db/client.ts";
 import { budgets, payments, proposals, transactions } from "../../db/schema.ts";
 import { isoDate } from "../clock/index.ts";
 import { toHome } from "../money/fx.ts";
-import { getWalletBalances, type WalletBalances } from "../rails/mockBank.ts";
 import { normalizeName } from "../screening/normalize.ts";
 
 /** Default budget category by payee kind when neither the caller nor an obligation gives one. */
@@ -136,11 +135,24 @@ export async function payeeHistory(db: DbOrTx, userId: string, payeeId: string) 
   return { count: rows.length, priceHistory, qtyHistory };
 }
 
+/** Capped-wallet balances per currency (same shape as rails/mockBank `WalletBalances`). */
+export type WalletBalances = { currency: string; amountMinor: number }[];
 type BalanceProvider = (userId: string) => Promise<WalletBalances | null>;
 
+/*
+ * The wallet reader is registered at startup (orders/wiring.ts → rails/mockBank.getWalletBalances), not
+ * imported: agent → rules/facts must never reach rails/** at runtime (I1, transitive import graph).
+ */
+let walletReader: ((userId: string) => Promise<WalletBalances>) | null = null;
+
+export function registerWalletReader(fn: ((userId: string) => Promise<WalletBalances>) | null): void {
+  walletReader = fn;
+}
+
 const defaultBalanceProvider: BalanceProvider = async (userId) => {
+  if (!walletReader) return null; // not wired (unit tests): balances unknown
   try {
-    return await getWalletBalances(userId);
+    return await walletReader(userId);
   } catch {
     return null; // unknown balance: reserve rule cannot be evaluated → not breached (logged by caller)
   }

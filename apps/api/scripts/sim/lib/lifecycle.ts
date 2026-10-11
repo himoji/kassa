@@ -64,7 +64,7 @@ export async function status() {
   return { running, daemonPid: pid, mockPid: state?.mockPid ?? null, mockAlive: alive(state?.mockPid), ready: Boolean(state), ports: PORTS, listening: ports, simDir: SIM_DIR, scheduler: state?.scheduler ?? null, clock };
 }
 
-export async function up(opts: { fresh: boolean; scheduler: boolean }) {
+export async function up(opts: { fresh: boolean; scheduler: boolean; liveFx: boolean }) {
   const pid = daemonPid();
   if (alive(pid)) {
     if (opts.fresh) fail("SIM_RUNNING", "sim is running; run `sim down` before `sim up --fresh`");
@@ -110,7 +110,8 @@ export async function up(opts: { fresh: boolean; scheduler: boolean }) {
     TRUST_PROXY: "true",
     RECORD: "",
   });
-  const child = spawn(process.execPath, [DAEMON_ENTRY, ...(opts.scheduler ? ["--scheduler"] : [])], {
+  const daemonArgs = [...(opts.scheduler ? ["--scheduler"] : []), ...(opts.liveFx ? ["--live-fx"] : [])];
+  const child = spawn(process.execPath, [DAEMON_ENTRY, ...daemonArgs], {
     cwd: API_DIR,
     detached: true,
     stdio: ["ignore", out, out],

@@ -24,6 +24,7 @@ suites listed below. You run them and judge their output; you do not improvise a
 
 ```bash
 bun run sim up --fresh          # new sim DB (.data/sim/pglite), seed, API :4000, mock-world :4001, control :4099
+# Sim sets FX_OFFLINE=1 by default (example FX rates, deterministic); `sim up --live-fx` uses live ECB/NBK rates.
 bun run sim status              # pids, listening ports, demo clock
 bun run sim reset               # demo reset (seed + clock = seed time); clears personas: register again
 bun run sim logs --tail 50
@@ -71,7 +72,7 @@ $S tool get_obligations '{}' --as dana            # find the UNIVERSITY obligati
 $S tool get_routes '{"fromCurrency":"EUR","toCurrency":"EUR","amountMinor":<amt>,"dueDate":"<due>"}' --as dana
 $S tool get_balances '{}' --as dana               # funding check, see the note below
 $S tool propose_order '{"payeeRef":"<ref>","amountMinor":<amt>,"currency":"EUR","purpose":"Tuition <reference>"}' --as dana   # seed balances → REFUSE INSUFFICIENT_FUNDS
-$S demo trigger money-from-home                   # parents send ₸600,000 (simulated)
+$S demo trigger money-from-home                   # parents send ₸1,000,000 (simulated)
 $S tool propose_order '{"payeeRef":"<ref>","amountMinor":<amt>,"currency":"EUR","purpose":"Tuition <reference>"}' --as dana   # → ASK
 $S as dana order <proposalId>                     # check the canonical order incl. funding*, hashMatches=true
 $S as dana approve <proposalId>                   # → paymentStatus PROCESSING
@@ -85,8 +86,8 @@ The mock bank then converts from that balance; a quote above the signed maximum 
 `FUNDING_ABOVE_SIGNED_MAX` and nothing is sent. If no balance can cover the bill the proposal is refused with
 `INSUFFICIENT_FUNDS` before anything is signed. With the seed balances (₸900,000 / $450 / HUF 120,000 / €300) no
 single balance covers tuition, so the story needs the parents' money first; rent is funded from KZT without a
-top-up. With live rates ₸600,000 covers tuition and rent; with the offline example rates (`FX_OFFLINE=1`) rent
-then needs ≈ ₸262,000 more (trigger money from home again). A second proposal for an obligation period that is
+top-up. With the default offline example rates the ₸1,000,000 money-from-home trigger covers tuition and rent
+(under live rates too); a second trigger is only needed for a different scenario. A second proposal for an obligation period that is
 pending or paid is refused with `DUPLICATE_OBLIGATION_PAYMENT`; the scheduler skips it.
 
 **Rent autopay after +3 days (T1 mandate):** after registration the rent mandate is `PENDING_EFFECTIVE`.
@@ -112,7 +113,7 @@ $S mock shop-recharge <cardId>                      # declined, reasonCode CARD_
 `as dana pay-qr <paymentId>` and then `as dana payment <paymentId>` (SENT). With `QR_PAYEE_MISMATCH` there
 is no Pay button: `pay-qr` refuses and nothing is paid. The swapped-QR case itself is a security test (S4 below).
 
-**Money from home:** `demo trigger money-from-home` (₸600,000; or `mock remittance --amount 600000 --currency KZT`),
+**Money from home:** `demo trigger money-from-home` (₸1,000,000; or `mock remittance --amount 1000000 --currency KZT`),
 then `as dana notifications` (`MONEY_FROM_HOME`), `tool forecast_coverage '{}'` and `tool get_routes
 '{"fromCurrency":"KZT","toCurrency":"EUR","amountMinor":<amt>}'`. Explain the cheapest route. Nothing is paid
 until a proposal is approved.

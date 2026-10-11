@@ -8,7 +8,8 @@
  *  - mock bank status progression → poll PROCESSING transfers (webhooks also push changes);
  *  - digest → Track B budget.sendDigestIfDue(userId) when exported;
  *  - signed unfreezes reaching effectiveAt → lift the freeze (I8);
- *  - retention purge (GDPR Art. 5(1)(e), RETENTION_DAYS_*), at most hourly on the clock.
+ *  - retention purge (GDPR Art. 5(1)(e), RETENTION_DAYS_*), at most hourly on the clock;
+ *  - webhook seen-signature purge (I13 replay store): entries whose timestamp is outside the window.
  * Each job is isolated: one failing job never stops the others.
  */
 import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
@@ -26,6 +27,7 @@ import { proposeOrder } from "../rules/index.ts";
 import { purgeIfDue } from "../privacy/service.ts";
 import { applyDueRuleChanges } from "../users/settings.ts";
 import { applyDueUnfreezes } from "../users/unfreeze.ts";
+import { purgeSeenWebhookSignatures } from "../webhooks/replay.ts";
 
 export const TICK_MS = 15_000;
 export const DUE_WINDOW_DAYS = 3;
@@ -121,6 +123,7 @@ const JOBS: [string, () => Promise<unknown>][] = [
   ["bankPoll", pollBankTransfers],
   ["digest", sendDigests],
   ["retention", purgeIfDue],
+  ["webhookReplayPurge", () => purgeSeenWebhookSignatures()],
 ];
 
 let running = false;

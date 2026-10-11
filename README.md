@@ -1,5 +1,8 @@
 # Kassa
 
+<!-- replace OWNER with the GitHub org/user -->
+![CI](https://github.com/OWNER/kassa/actions/workflows/ci.yml/badge.svg)
+
 **The agent can prepare anything, but only your signature can move your money.**
 
 Kassa is a student finance assistant for cross-border payments, built for the WeBank FinTechathon 2026, Topic C (Cross-border and Student Finance Assistant). It logs spending in every currency, exposes hidden card fees, plans bills against the forecast, and pays by the cheapest route. The AI agent only drafts. Deterministic rules decide what is allowed. Money moves only with a passkey signature over the exact order, or inside a mandate the user signed with a passkey earlier.

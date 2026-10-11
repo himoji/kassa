@@ -8,12 +8,14 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
-import { ledgerEntries, profiles, ruleChanges, users } from "../../src/db/schema.ts";
+import { ledgerEntries, payments, profiles, ruleChanges, users } from "../../src/db/schema.ts";
 import { clock } from "../../src/modules/clock/index.ts";
+import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { applyDueRuleChanges } from "../../src/modules/users/settings.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
-import { createUserWithPasskey } from "../helpers/fixtures.ts";
+import { addPayee, createUserWithPasskey, offlineEnvironment } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
+import { ledgerOf, ledgerWithReason, moneyMoved, recordGuarded } from "../helpers/attacks.ts";
 
 const t = useTestDb();
 const app = useTestApp();
@@ -51,6 +53,9 @@ describe("A4: loosening is slow, tightening is instant", () => {
     });
     expect(forged.statusCode).toBe(403);
     expect(await caps(userId)).toEqual(before);
+    expect(await ledgerOf("AUTH_ASSERTION_FAILED")).toHaveLength(1);
+    expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
+    recordGuarded("A4", { case: "cap raise without passkey (428) and with a forged assertion (403)", outcome: "BLOCKED", decision: null, reasonCodes: ["PASSKEY_REQUIRED"], ledger: ["AUTH_ASSERTION_FAILED"] });
   });
 
   it("with a passkey: pending for 24 h, then applied", async () => {
@@ -68,6 +73,7 @@ describe("A4: loosening is slow, tightening is instant", () => {
     expect(signed.statusCode).toBe(200);
     const pending = signed.json().pending;
     expect(pending).toHaveLength(1);
+    expect(await ledgerOf("RULES_LOOSEN_PENDING")).toHaveLength(1);
     expect(Date.parse(pending[0].effectiveAt) - clock.nowMs()).toBeGreaterThan(23.9 * 3_600_000);
     expect(await caps(userId)).toEqual(before); // not yet
 
@@ -127,6 +133,43 @@ describe("A4: loosening is slow, tightening is instant", () => {
       payload: { overrides: { paymentPolicy: "NEVER_ASK", moneyMode: "HANDOFF" } },
     });
     expect(res.statusCode).toBe(422);
+  });
+
+  it("with a passkey: a loosened per-payment cap is not effective before 24 h; the same order is refused, then allowed", async () => {
+    offlineEnvironment();
+    const { userId, auth } = await createUserWithPasskey();
+    const payee = await addPayee(userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "KZT" });
+    const before = await caps(userId);
+    const body = { caps: { perPaymentMinor: before.perPaymentMinor * 10 } };
+    const first = await app().inject({ method: "PATCH", url: "/api/settings", headers: await bearer(userId), payload: body });
+    const { challengeId, webauthnOptions } = first.json().details;
+    const signed = await app().inject({
+      method: "PATCH",
+      url: "/api/settings",
+      headers: await bearer(userId),
+      payload: { ...body, challengeId, assertion: auth.assert(webauthnOptions.challenge) },
+    });
+    expect(signed.statusCode).toBe(200);
+    expect(await caps(userId)).toEqual(before);
+
+    // 2.5x the old per-payment cap: above 2x it is refused outright (SMART asks only within 2x). It stays
+    // inside 2x of the daily cap, so after the loosening only the per-payment check changes.
+    const amountMinor = (before.perPaymentMinor * 5) / 2;
+    const early = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "KZT", purpose: "rent" });
+    expect(early.decision).toBe("REFUSE");
+    expect(early.reasonCodes).toEqual(["REFUSE_CAP"]);
+    expect(await ledgerWithReason("PROPOSAL_CREATED", "REFUSE_CAP")).toHaveLength(1);
+    expect(await getDb().select().from(payments)).toHaveLength(0);
+    expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
+    recordGuarded("A4", { case: "loosened cap not yet effective (before 24 h): order still refused", outcome: "BLOCKED", decision: "REFUSE", reasonCodes: ["REFUSE_CAP"], ledger: ["PROPOSAL_CREATED"] });
+
+    clock.setOffsetInMemoryForTests(24 * 3_600_000 + 1000);
+    expect(await applyDueRuleChanges()).toBe(1);
+    expect((await caps(userId)).perPaymentMinor).toBe(before.perPaymentMinor * 10);
+    const late = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "KZT", purpose: "rent" });
+    expect(late.reasonCodes).not.toContain("REFUSE_CAP");
+    expect(late.decision).toBe("ASK");
+    expect(late.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
   });
 
   it("freeze is instant and refuses new orders", async () => {

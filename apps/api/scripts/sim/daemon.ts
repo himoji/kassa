@@ -31,6 +31,9 @@ if (!token) {
   process.exit(2);
 }
 const withScheduler = process.argv.includes("--scheduler");
+// Offline example FX rates by default (fixtures/fx-rates.json) so demo numbers are deterministic; `sim up --live-fx` opts in.
+if (process.argv.includes("--live-fx")) delete process.env.FX_OFFLINE;
+else process.env.FX_OFFLINE = "1";
 
 await migrateDatabaseUrl();
 const seeded = (await getDb().select().from(demoState).where(eq(demoState.id, 1)))[0];

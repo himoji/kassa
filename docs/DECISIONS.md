@@ -334,3 +334,7 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
   money from home twice). The Build Plan's "convert ₸400,000" / "Parents send ₸400,000" lines predate this check and
   cannot fund tuition with the spec balances. Rules' protected reserve is still checked on the total wallet in KZT,
   not per currency (`reserveRules.minBalances` KZT 50,000 is not enforced per currency; unchanged).
+
+## 2026-10-11 — Demo determinism
+
+Demo determinism: money-from-home trigger = ₸1,000,000 (covers tuition + rent under both live and offline example rates); sim uses offline example rates by default (--live-fx to opt in).
