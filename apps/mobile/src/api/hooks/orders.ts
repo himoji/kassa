@@ -16,12 +16,25 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { signWithPasskey } from "@/lib/passkeys";
 
 import { api } from "../client";
+import { KassaApiError } from "../errors";
 import { keys, moneyKeys } from "../keys";
 
 export class OrderIntegrityError extends Error {
   constructor() {
     super("The order hash does not match the canonical order");
     this.name = "OrderIntegrityError";
+  }
+}
+
+/**
+ * The order expired before the approval reached the server (410 ORDER_EXPIRED, X8). The server re-issued it
+ * (`reissued`) and discarded the signature: nothing is paid until the user reviews the new order and approves
+ * again. Never re-signed automatically.
+ */
+export class OrderReissuedError extends Error {
+  constructor(readonly reissued: OrderView | null) {
+    super("The order expired and was prepared again; review it before approving");
+    this.name = "OrderReissuedError";
   }
 }
 
@@ -55,14 +68,27 @@ export function useApproveOrder(proposalId: string) {
     mutationFn: async (view: OrderView) => {
       if (!view.webauthnOptions || !verifyOrderIntegrity(view)) throw new OrderIntegrityError();
       const assertion: AuthenticationResponseJSON = await signWithPasskey(view.webauthnOptions);
-      return api.request(`/orders/${encodeURIComponent(proposalId)}/approve`, {
-        json: { assertion },
-        schema: ApproveOrderResponse,
-      });
+      try {
+        return await api.request(`/orders/${encodeURIComponent(proposalId)}/approve`, {
+          json: { assertion },
+          schema: ApproveOrderResponse,
+        });
+      } catch (err) {
+        if (err instanceof KassaApiError && err.status === 410 && err.code === "ORDER_EXPIRED") {
+          const parsed = OrderView.safeParse(err.details);
+          // Show the re-issued order in the sheet; the user approves it again explicitly.
+          if (parsed.success) qc.setQueryData(keys.order(proposalId), parsed.data);
+          throw new OrderReissuedError(parsed.success ? parsed.data : null);
+        }
+        throw err;
+      }
     },
-    onSettled: () =>
+    onSettled: (_data, err) =>
       Promise.all(
-        [keys.order(proposalId), ...moneyKeys].map((queryKey) => qc.invalidateQueries({ queryKey }))
+        // After a re-issue the sheet keeps the new order from the 410 (a refetch would show the same one).
+        [...(err instanceof OrderReissuedError ? [] : [keys.order(proposalId)]), ...moneyKeys].map(
+          (queryKey) => qc.invalidateQueries({ queryKey })
+        )
       ),
   });
 }

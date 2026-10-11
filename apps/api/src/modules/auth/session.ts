@@ -95,11 +95,19 @@ export async function startSession(reply: FastifyReply, userId: string, client: 
   return null;
 }
 
-/** Rotate: the presented refresh token is spent; a second use is rejected. */
+/**
+ * Rotate: the presented refresh token is spent; a second use is rejected.
+ * (X5, p3 B2) Refresh applies the same account checks as login: the user must exist and not be erased. Erasure
+ * (GDPR Art. 17) therefore revokes every outstanding refresh token of the user at once, durably (users.erased_at,
+ * not the in-memory spent list), and no new access token is ever minted for an erased account.
+ */
 export async function refreshSession(refreshToken: string): Promise<SessionTokens | null> {
   const v = await verify(refreshToken, "refresh");
   if (!v || !v.jti || spentRefresh.has(v.jti)) return null;
   spentRefresh.add(v.jti);
+  const u = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, v.sub)))[0];
+  if (!u) return null;
+  if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
   return nativeTokens(v.sub);
 }
 

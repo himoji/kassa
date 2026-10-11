@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "../../src/db/client.ts";
 import { payments, proposals } from "../../src/db/schema.ts";
 import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
-import { addActiveMandate, addPayee, createUserWithPasskey, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { addActiveMandate, addObligation, addPayee, createUserWithPasskey, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
 
 const t = useTestDb();
@@ -36,7 +36,8 @@ describe("end-to-end money path", () => {
     const payee = await addPayee(userId, { name: "Landlord in Budapest" });
     await signBaseRules(userId, auth);
     await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 20_000_000 });
-    const r = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
+    const rent = await addObligation(userId, payee.id); // X1: a mandate pays the bill it covers
+    const r = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: rent.id });
     expect(r.decision).toBe("AUTO");
     expect(r.reasonCodes).toContain("MANDATE_MATCH");
     const rows = await getDb().select().from(payments).where(eq(payments.proposalId, r.proposalId));

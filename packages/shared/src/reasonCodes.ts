@@ -22,7 +22,12 @@ export const ReasonCode = z.enum([
   // Rules: why AUTO / ASK
   "MANDATE_MATCH",
   "MANDATE_OUT_OF_SCOPE",
+  // (added 2026-10-12, X1) the payee is in a mandate but the draft is not linked server-side to an obligation in
+  // the mandate's scope (payee, category, amount ≤ the bill, period not settled) → ASK, never AUTO
+  "MANDATE_SCOPE_MISMATCH",
   "SMALL_AUTO",
+  // (added 2026-10-12, X3) the per-day small-auto budget (count / amount) is used up → ASK
+  "SMALL_AUTO_BUDGET_EXHAUSTED",
   "RISK_HIGH",
   "AGENT_REQUESTED_CONFIRM",
   "PRESET_ASK_ME",
@@ -73,6 +78,8 @@ export const ReasonCode = z.enum([
   "USER_REJECTED",
   // (added by Phase 2 security) GDPR / EU AI Act and abuse controls
   "AI_CONSENT_REQUIRED",
+  // (added 2026-10-12, Track Y3) region CN: separate cross-border consent for AI processing (PIPL Art. 38–39)
+  "PIPL_CONSENT_REQUIRED",
   "PROCESSING_RESTRICTED",
   "ACCOUNT_ERASED",
   "UNFREEZE_PENDING",

@@ -378,3 +378,130 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
   CNY-denominated, so the fee x-ray shows a hidden card markup (4 %), not a DCC flag. `dccWarnings` stays empty.
 - **Mock QR wallet:** a code created by payee name for a known QR merchant now carries that merchant's city and
   country in the EMV payload (Shanghai, CN) instead of the Budapest default (mock-world only).
+
+## 2026-10-12 — Final fix pass, Track X (money path and security; sim reports p1/p2/p3/cn/security)
+
+- **X1 mandate scope (cn B5a).** A mandate authorises the bills it was signed for, not any payment to the payee.
+  AUTO under a mandate now needs a draft linked server-side to an obligation: payee in `payeeIds`, the OBLIGATION's
+  category (never the caller's `category`) in `categories`, same currency, current period (the obligation's due
+  date), amount ≤ the bill, period not settled. Anything else to a mandate payee → ASK `MANDATE_SCOPE_MISMATCH`; an
+  in-scope bill over a mandate cap → ASK `MANDATE_OUT_OF_SCOPE`. Both now also block small-auto (before: an
+  out-of-scope order below ₸10,000 to the landlord auto-paid via step 9). The link is signed into the canonical
+  order (`obligationId`, `obligationPeriod`; PSD2 RTS Art. 5 dynamic linking) and payments re-checks it with its own
+  queries (I2), including that the period's settlement row belongs to this proposal. Choice "amount ≤ bill" follows
+  the brief; partial payments of a bill stay possible but claim its period.
+- **X2 payments cap (F3, p3 O1).** Payments sums every live payment of the UTC day in the user's home currency,
+  converting each itself through an injected port (`registerHomeConverter`, wired in `orders/wiring.ts` to
+  money/fx), and no longer trusts the order's `homeAmountMinor` (also for the signed small-auto limit, compared in
+  the limit's own currency). No port / failed conversion → refused (fail closed). Rules pre-check today's usage
+  against `PAYMENTS_DAILY_CAP_HOME_MINOR` after their own hard refusals: REFUSE `REFUSE_CAP` + `PAYMENTS_DAILY_CAP`
+  instead of "ASK within 2×" then refused after the passkey. The env cap is still one number interpreted in each
+  user's home currency (unchanged; for a CNY user it means ¥ — noted, not changed).
+- **X3 payee verification + small-auto budget (F1, F2).** `verify-callback` uses the same 428 round trip as unfreeze:
+  challenge = JCS hash of `{v, kind:"PAYEE_VERIFY", userId, payeeId, payeeName, accountHash, nonce}`, single use,
+  bound to the payee (NIST SP 800-63B AAL2 re-authentication for a security-relevant change). Small-auto (T1
+  without mandate) gets a per-UTC-day budget: `SMALL_AUTO_DAILY_MAX_COUNT` (default 3) payments and
+  `SMALL_AUTO_DAILY_AMOUNT_MULTIPLE` (default 3) × the signed small-auto limit in total; a multiple of the signed
+  limit keeps the budget in the user's own currency. Beyond it: ASK `SMALL_AUTO_BUDGET_EXHAUSTED`; payments
+  enforces the same budget inside its per-user lock.
+- **X4 screening (F6, p3 B1).** Every rail at decide (step 4) and at payment (step 7, the signed and the current
+  payee name), and at payee creation: a hit is refused 422 `REFUSE_SANCTIONS` and not stored (a payee that can never
+  be paid is useless); the hit is ledgered `PAYEE_SCREENING_HIT` with the name sealed under the user's key. Payees
+  created before a list update are still caught at decide/payment.
+- **X5 refresh after erasure (p3 B2).** `/auth/refresh` applies login's account checks (user exists, not erased);
+  erased → 401 `ACCOUNT_ERASED`. Revocation is anchored on `users.erased_at` (durable), not on the in-memory
+  rotation list, so it survives a restart. Restricted (Art. 18) users can still log in and refresh (they must be
+  able to lift the restriction); only erased accounts are refused, as at login.
+- **X6 ledger head anchor (F5).** Table `ledger_head` (one row), rewritten in the append transaction with an Ed25519
+  signature (checkpoint key) over JCS `{domain:"kassa:ledger-head:v1", seq, headHash, ts, keyId}` — domain-separated
+  so a checkpoint signature cannot pose as a head. `ledger:verify` requires a valid anchor naming the last entry:
+  tail truncation and tail re-hashing after the last checkpoint are detected. Honest limit: someone with DB write
+  access who kept an older signed head row can roll back to exactly that head; closing it needs the head published
+  outside the DB (transparency log / RFC 3161), out of scope. Migration 0004 (journal `when` after 0005, see
+  PHASE1_COORDINATION).
+- **X7 handoff QR before signing (cn note 1).** The QR request is fetched and checked (fuzzy name ≥ 0.92, amount,
+  currency) when a pending HANDOFF order is first shown or approved, through a port (`registerHandoffPreflight`, so
+  rules never imports rails, I1). Stored on the draft (`handoffQr`); a mismatch refuses the proposal up front
+  (`QR_PAYEE_MISMATCH`, ledger `HANDOFF_MISMATCH`, period released). The handoff rail pays exactly the checked QR and
+  re-checks it; the webhook's post-payment check is kept. Mock world unreachable → 502 `RAIL_ERROR` (nothing to
+  sign).
+- **X8 expired approve (p2 B3).** Approve on an expired order re-issues it and answers 410 `ORDER_EXPIRED` with the
+  re-issued `OrderView` in `details`; nothing is signed or executed in that call. A GET that re-issues returns
+  `reissuedFromOrderHash`. The sim's "approve" (GET then sign) is the part that signed silently — Track Y.
+- **X9 payment notices (p1 B3, B5).** `PAYMENT_SENT` / `PAYMENT_FAILED` are emitted from the common status
+  transition (`payments/status.ts`) and for rail failures in `executeApproval`, once per outcome, for all rails:
+  `{key:"payment.sent"|"payment.failed", params:{payee, amount, home, rail, mandate, reasonCodes}}` + English text
+  ("… under your signed mandate 1a2b3c4d for rent"). The mobile app does not render notification templates
+  (no `{key, params}` rendering exists for budget notices either), so no mobile strings were added.
+- **X10 tests.** Shortcut wrong/revoked/session token → 401; injected instructions in a captured notification →
+  logged only; payments-level small-auto without (or with tampered) base-rules signature → `NO_APPROVAL` /
+  `BAD_SIGNATURE`; revoked rent mandate under SMART → scheduler draft not AUTO.
+
+## 2026-10-12 — Final fix pass, Track Y (agent, data, UX, sim)
+
+- **Y1 Redactor vs identifiers (p3 B3).** A card number must be a whole token: not glued to a letter, digit or
+  underscore, and not part of a hyphen-joined identifier; still 13–19 digits passing Luhn (ISO/IEC 7812-1). No hit may
+  overlap an RFC 9562 UUID (8-4-4-4-12 hex), for every detector (a payee named "Cafe" never matches inside a UUID).
+  Tested with 5,000 random UUIDs, mixed hex and digit-only (`test/intel/redact-ids.test.ts`).
+- **Y1 Same-name payees (p3 B4).** Placeholders were already keyed by payee id; text redaction picked the first
+  payee with the name. A name shared by several payees now resolves with the caller's context: tool outputs about a
+  payee (`propose_order`, `get_payee_facts`) redact against that payee (`RedactContext {payeeId}`). Free text without
+  context picks the VERIFIED payee (`knownNames` orders VERIFIED first). Deviation: free chat text naming a shared
+  name is inherently ambiguous; the verified payee is the safe default (the cooling one is refused anyway).
+- **Y2 Seed consent and ledger (p2 B1, B2).** `seedDatabase` grants no AI consent unless `{ aiConsent: true }` (tests
+  only). Claiming the demo account consents at sign-up like any user (`sim register` gives it unless
+  `--no-ai-consent`). The sim CLI no longer gives consent automatically on 403 (that hid p2 B1 and would hide PIPL
+  consent); the persona decides (`as <p> privacy consent | pipl-consent`). `DEMO_SEEDED` is one entry per seeded
+  user, naming only that user, so a DSAR export (ledger rows with `payload.userId` = subject) never names another
+  persona.
+- **Y3 PIPL separate consent (cn note 2).** New `users.pipl_consent_at` (migration 0005). For region CN with a
+  planner or Reader outside Kassa's server (`crossBorderConsentRequired`), AI processing (agent chat, documents,
+  onboarding chat, the sim planner, and capture's Reader fallbacks) needs the separate cross-border consent
+  (PIPL Art. 38–39; Art. 15 withdrawal) on top of the AI consent: 403 `PIPL_CONSENT_REQUIRED` with the notice.
+  `POST /privacy/pipl-consent {consent}` gives/withdraws it (audited `PIPL_CONSENT_GIVEN/WITHDRAWN`); it is in the
+  export, cleared by erasure, and listed in the Art. 15 processing info. One gate for all callers
+  (`assertAiProcessingAllowed`, `aiProcessingAllowedFor`). Capture's Reader fallbacks now also respect the AI consent
+  (previously they ran without it): without consent the deterministic parsers still log, unparseable text stays
+  UNPARSED. The mobile chat shows the notice with an explicit "I agree" for either 403 (never silent).
+- **Y4 Forecast top-up (p1 B2, cn D-CN3).** The suggestion is the first shortfall: reserve − balance on the first
+  day below the reserve, by that date. The horizon-wide worst deficit over-converted early; later shortfalls appear
+  in a later forecast. For small top-ups the optimizer may now pick a card route (no fixed fee), e.g. Li Wei's HUF.
+- **Y4 Same-currency routes (p1 B10).** `getRoutes` (user level) marks same-currency routes `noConversion`; asked
+  for `fromCurrency = toCurrency` with a short balance it still returns the direct route with `balanceCovers: false`
+  (rules' funding choice is unchanged: it uses the optimizer with the balance cap). The planner tool then also
+  lists the other funding options.
+- **Y5 log_expense (p1 B6).** log_expense already went through capture's `categorize`; the gap was free text
+  ("coffee") that matches no dictionary merchant. The dictionary fixture gained `keywords` per category, matched as
+  whole words after the MCC map and merchant entries (reported as DICTIONARY, no new CategorySource).
+- **Y5 search_catalog placeholders (p1 B8).** `merchant` may be the payee placeholder; it resolves to the payee, then
+  to the catalog whose merchant name normalises to the payee's name (`catalogDirectory` port: pizza menu +
+  `/mock/suppliers`). Unknown placeholder → `UNKNOWN_PAYEE_REF`; payee without a catalog → `CATALOG_NOT_FOUND`.
+- **Y6 User-facing text.** Merchant display = dictionary name, else the user's payee with the same normalised name,
+  else the raw text title-cased if printed in capitals; never `merchantNorm`. Foreign spend notices show the home
+  equivalent ("CN¥32.50 (≈ KZT 2,397.95) at …"). Fee x-ray `exampleValues` is true whenever rates come from the
+  labelled offline example table; DCC warnings carry `merchant`. `propose_order` re-hydrates placeholders in purpose
+  and item names before rules, so the canonical order, notifications and the approval sheet name real payees
+  (tool output to the model stays redacted). Shared, additive: `REASON_TEXT_EN` / `reasonTextEn` /
+  `reasonsSentenceEn` (texts = the app's locale), `presetDerivedChanges`, `FUNDING_FX_TOLERANCE_BPS` (pinned to
+  rules' `FX_TOLERANCE_BPS` by a test) and `fundingMarginNoteEn`. Used by the sim `order` (`reasons`, `fundingNote`)
+  and `settings patch` (`derivedChanges`) outputs, and in the app: the order sheet shows "Paid from … at most …" with
+  the margin explained, preset cards say what else a switch changes and the toast repeats it, notifications render
+  `{key, params}` (payment.sent/failed, budget.each, fees.settled) through i18n with the English text as fallback and
+  list reason codes in plain language. Not done here (Track X's files, left for the coordinator): rules'
+  `summarize()` still prints "Reasons: CODE" (one-line change: `reasonsSentenceEn(codes)`), and PATCH /settings does
+  not return/notify the derived money mode server-side (`presetDerivedChanges` is ready for it).
+- **Y7 Sim.** `recategorise` command; `demo clock|tick|trigger` wait until mock-world's cached clock (refreshMs 1 s)
+  reached the new time, tick the mock bank and wait for its outbox to drain (output `webhooks`), so a following read
+  sees SENT (p1 B11; the old race was mock-world ticking at the stale time). `approve` stops on a re-issued order
+  (`ORDER_REISSUED`) or 410 `ORDER_EXPIRED` and shows the new order; `verify-payee --sign` does the passkey round trip.
+- **Y7 Orphan daemons (security report).** Cause, reproduced in `test/sim/sim-down.test.ts`: (1) a test run killed
+  before `afterAll` (outer command timeout) leaves the detached daemon running by design; (2) `sim down` signalled only
+  known pids, so with a hung daemon and no `state.json` the mock-world child survived. Fix: `down` signals the
+  daemon's process group (detached → group leader), escalating to SIGKILL; `SIM_OWNER_PID` (set by the sim tests)
+  makes the daemon stop itself when its owner dies.
+- **Y7 Mobile jest "worker failed to exit gracefully".** Not a test timer: per-file resource dumps showed none left.
+  Jest's environment teardown walks the globals and so first resolved expo's lazy `fetch` global there, loading
+  expo's fetch and native-module shims after the tests ("Cannot log after tests are done" from
+  ExpoModulesCoreJSLogger); under CPU load that kept workers past Jest's exit grace period. `jest.setup.ts` resolves
+  `globalThis.fetch` during setup. Verified causally under the same load: without the line 2/2 runs warn, with it 0/2
+  (no `forceExit`).

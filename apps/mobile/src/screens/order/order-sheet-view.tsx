@@ -7,7 +7,12 @@
  * takes the `OrderView` as parsed by the shared zod schema (unknown keys stripped). If the order,
  * its hash and the passkey challenge disagree, Approve is disabled.
  */
-import type { OrderView, PayeeStatus } from "@kassa/shared";
+import {
+  FUNDING_FX_TOLERANCE_BPS,
+  orderFunding,
+  type OrderView,
+  type PayeeStatus,
+} from "@kassa/shared";
 import { View } from "react-native";
 
 import { verifyOrderIntegrity } from "@/api/hooks/orders";
@@ -58,6 +63,13 @@ export function OrderSheetView({
   const f = useFormat();
   const order = view.canonicalOrder;
   const intact = verifyOrderIntegrity(view);
+  let funding: ReturnType<typeof orderFunding> = null;
+  try {
+    funding = orderFunding(order);
+  } catch {
+    funding = null; // a partial binding never verifies; the integrity check disables Approve
+  }
+  const converts = funding !== null && funding.currency !== order.currency;
   const pending = view.status === "PENDING_APPROVAL";
   const canApprove =
     pending && intact && view.webauthnOptions !== null && view.payeeStatus !== "BLOCKED";
@@ -78,6 +90,13 @@ export function OrderSheetView({
         />
       </Box>
 
+      {view.reissuedFromOrderHash ? (
+        <Box row gap={2} align="center" testID="order-reissued">
+          <Icon name="clock.arrow.circlepath" fallback="history" size={18} color="brandAccent" />
+          <Text style={{ flexShrink: 1 }}>{t("order:reissued")}</Text>
+        </Box>
+      ) : null}
+
       <Box gap={1} style={{ alignItems: "center" }}>
         <Text
           variant="title"
@@ -96,6 +115,23 @@ export function OrderSheetView({
       <Box gap={2}>
         <Field label={t("order:rail")} value={t(`common:rail.${order.rail}`)} testID="order-rail" />
         <Field label={t("order:purpose")} value={order.purpose} testID="order-purpose" />
+        {funding ? (
+          <Box gap={1}>
+            <Field
+              label={t("order:fundedFrom")}
+              value={t("order:fundedFromValue", {
+                currency: funding.currency,
+                max: f.money(funding.maxAmountMinor, funding.currency),
+              })}
+              testID="order-funding"
+            />
+            {converts ? (
+              <Text variant="caption" testID="order-funding-note">
+                {t("order:fundingMarginNote", { pct: FUNDING_FX_TOLERANCE_BPS / 100 })}
+              </Text>
+            ) : null}
+          </Box>
+        ) : null}
         {order.mandateId ? (
           <Field label={t("order:mandate")} value={t("order:withinMandate")} />
         ) : null}

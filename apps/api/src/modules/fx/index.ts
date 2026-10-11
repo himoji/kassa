@@ -10,7 +10,7 @@ import { addDays, isoDate } from "./dates.ts";
 import { computeForecast, type Flow } from "./forecast.ts";
 import { convertMinor } from "./rational.ts";
 import { rates } from "./rates.ts";
-import { getRoutes as rankRoutes, type RankedRoute } from "./routes.ts";
+import { directRoute, getRoutes as rankRoutes, type RankedRoute } from "./routes.ts";
 
 /*
  * Public fx API (PHASE1_COORDINATION "B exports from src/modules/fx/index.ts").
@@ -60,16 +60,15 @@ export async function getRoutes(a: GetRoutesArgs): Promise<{ homeCurrency: strin
   const u = (await getDb().select({ homeCurrency: users.homeCurrency }).from(users).where(eq(users.id, a.userId)))[0];
   if (!u) throw new Error("user not found");
   const balances = a.balances ?? (await getBalances(a.userId));
-  const routes = await rankRoutes({
-    amountMinor: a.amountMinor,
-    toCurrency: a.toCurrency,
-    homeCurrency: u.homeCurrency,
-    today: isoDate(clock.now()),
-    dueDate: a.dueDate,
-    balances,
-    fundingCurrencies: a.fromCurrency ? [a.fromCurrency] : undefined,
-    ...(a.top ? { top: a.top } : {}),
-  });
+  const req = { amountMinor: a.amountMinor, toCurrency: a.toCurrency, homeCurrency: u.homeCurrency, today: isoDate(clock.now()), dueDate: a.dueDate, balances };
+  const ranked = await rankRoutes({ ...req, fundingCurrencies: a.fromCurrency ? [a.fromCurrency] : undefined, ...(a.top ? { top: a.top } : {}) });
+  // Same-currency routes are direct payments (no conversion), marked as such (p1 B10).
+  const routes: RankedRoute[] = ranked.map((r) => (r.fundingCurrency === a.toCurrency ? { ...r, noConversion: true, balanceCovers: true } : r));
+  // Asked for the bill's own currency but the balance is short: still show the direct route, marked uncovered.
+  if (a.fromCurrency === a.toCurrency && routes.length === 0) {
+    const direct = await directRoute(req);
+    if (direct) routes.push(direct);
+  }
   return { homeCurrency: u.homeCurrency, routes };
 }
 

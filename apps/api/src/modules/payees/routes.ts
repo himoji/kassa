@@ -1,4 +1,4 @@
-import { CreatePayeeRequest, PayeeDto, PayeesResponse } from "@kassa/shared";
+import { CreatePayeeRequest, PasskeyGatedRequest, PayeeDto, PayeesResponse } from "@kassa/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 
@@ -20,8 +20,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     "/payees/:id/verify-callback",
-    { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: PayeeDto } } },
-    async (req) => toPayeeDto(await verifyCallback(userIdOf(req), req.params.id)),
+    // X3: passkey-gated (428 PASSKEY_REQUIRED round trip, body PasskeyGatedRequest).
+    { schema: { params: z.object({ id: z.string().uuid() }), body: PasskeyGatedRequest.nullish(), response: { 200: PayeeDto } } },
+    async (req) => toPayeeDto(await verifyCallback(userIdOf(req), req.params.id, req.body ?? {})),
   );
 };
 

@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
 import { ledgerEntries, payments, profiles, ruleChanges, users } from "../../src/db/schema.ts";
+import { setEnvForTests } from "../../src/env.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { applyDueRuleChanges } from "../../src/modules/users/settings.ts";
@@ -166,10 +167,17 @@ describe("A4: loosening is slow, tightening is instant", () => {
     clock.setOffsetInMemoryForTests(24 * 3_600_000 + 1000);
     expect(await applyDueRuleChanges()).toBe(1);
     expect((await caps(userId)).perPaymentMinor).toBe(before.perPaymentMinor * 10);
-    const late = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "KZT", purpose: "rent" });
-    expect(late.reasonCodes).not.toContain("REFUSE_CAP");
-    expect(late.decision).toBe("ASK");
-    expect(late.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
+    // X2: ₸3.75M is above payments' own daily cap (₸2M), so rules now refuse it before signing; raise that
+    // independent cap for this step, which is only about the rules cap loosening (I8).
+    setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "1000000000" });
+    try {
+      const late = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "KZT", purpose: "rent" });
+      expect(late.reasonCodes).not.toContain("REFUSE_CAP");
+      expect(late.decision).toBe("ASK");
+      expect(late.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
+    } finally {
+      setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000" });
+    }
   });
 
   it("freeze is instant and refuses new orders", async () => {

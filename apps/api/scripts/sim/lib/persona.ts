@@ -154,17 +154,10 @@ async function refresh(p: PersonaFile): Promise<boolean> {
   return true;
 }
 
-/** Give AI-processing consent (POST /privacy/ai-consent; GDPR Art. 6(1)(a)). */
-export async function giveAiConsent(p: PersonaFile): Promise<HttpResult> {
-  return personaRequest(p, "POST", "/privacy/ai-consent", { body: { consent: true }, consentRetry: false });
-}
-
 export type PersonaRequestOpts = {
   body?: unknown;
   form?: FormData;
   headers?: Record<string, string>;
-  /** Default true: on 403 AI_CONSENT_REQUIRED give consent once and retry. */
-  consentRetry?: boolean;
   /** Default true: retry 429 with Retry-After. */
   rateLimitRetry?: boolean;
 };
@@ -182,10 +175,8 @@ export async function personaRequest(p: PersonaFile, method: string, path: strin
     if (!(await refresh(p))) await loginPersona(p);
     r = await go();
   }
-  if (r.status === 403 && codeOf(r) === "AI_CONSENT_REQUIRED" && opts.consentRetry !== false) {
-    const c = await giveAiConsent(p);
-    if (c.status < 300) r = await go();
-  }
+  // No automatic consent (GDPR Art. 7, PIPL Art. 39; p2 B1): a 403 AI_CONSENT_REQUIRED / PIPL_CONSENT_REQUIRED is
+  // returned as is; the persona decides (`as <p> privacy consent` / `privacy pipl-consent`).
   if (r.status === 429) fail("RATE_LIMITED", `${method} ${path} still rate limited after retries`, { httpStatus: 429, body: r.body });
   return r;
 }

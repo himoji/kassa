@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { CaptureEventResponse, SettlementEventRequest, SettlementEventResponse, TransactionSource } from "@kassa/shared";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
-import { cardFeeProfiles, cards, transactions, users } from "../../db/schema.ts";
+import { cardFeeProfiles, cards, payees, transactions, users } from "../../db/schema.ts";
 import { merchantCategoryMemory } from "../../db/schema.intel.ts";
 import { getReaderModel } from "../ai/models.ts";
 import { currentAgentMode } from "../ai/mode.ts";
@@ -17,6 +17,7 @@ import { toHome } from "../fx/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { notify } from "../notifications/service.ts";
 import { sealPii } from "../privacy/keys.ts";
+import { aiProcessingAllowedFor } from "../privacy/notice.ts";
 import { readUntrusted } from "../reader/index.ts";
 import { categorize, lookupMerchant } from "./categorize.ts";
 import { dedupeCandidates, dedupeKey } from "./dedupe.ts";
@@ -47,8 +48,11 @@ const UNPARSED: CaptureEventResponse = {
   notification: null,
 };
 
-/** Spec §13 steps 1–2: deterministic parser first, then the Reader (only VERIFIED fields are used). */
-async function parse(input: CaptureInput, homeCurrency: string): Promise<{ ev: ParsedEvent; parsedBy: string; mcc: string | null } | null> {
+/**
+ * Spec §13 steps 1–2: deterministic parser first, then the Reader (only VERIFIED fields are used). The Reader is an
+ * AI step: only with the user's AI consent (and, region CN, the PIPL cross-border consent); else the event stays unparsed.
+ */
+async function parse(input: CaptureInput, homeCurrency: string, aiAllowed: boolean): Promise<{ ev: ParsedEvent; parsedBy: string; mcc: string | null } | null> {
   if ("fields" in input) {
     const f = input.fields;
     return {
@@ -71,6 +75,7 @@ async function parse(input: CaptureInput, homeCurrency: string): Promise<{ ev: P
   }
   const ev = parseNotificationText(input.rawText);
   if (ev) return { ev, parsedBy: `PARSER:${ev.format}`, mcc: null };
+  if (!aiAllowed) return null;
   // Reader fallback (I10): untrusted text → schema output → server evidence checks.
   try {
     const r = await readUntrusted("notification", input.rawText);
@@ -92,6 +97,33 @@ async function parse(input: CaptureInput, homeCurrency: string): Promise<{ ev: P
   } catch {
     return null; // no model (no key / replay without recording): the event stays unparsed
   }
+}
+
+const SMALL_WORDS = new Set(["a", "an", "and", "at", "for", "from", "in", "of", "on", "the", "to"]);
+
+/** "BUY EVERYTHING SHOP FROM CHINA" → "Buy Everything Shop from China"; mixed-case text is left as written. */
+function prettyRaw(raw: string): string {
+  const t = raw.trim();
+  if (/\p{Ll}/u.test(t) || !/\p{Lu}/u.test(t)) return t;
+  return t
+    .toLowerCase()
+    .split(/(\s+)/)
+    .map((w, i) => (i > 0 && SMALL_WORDS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join("");
+}
+
+/**
+ * The merchant name shown to the user (Y6, cn note 4): the dictionary display name, else the user's payee with
+ * the same normalised name, else the raw text (title-cased if it was printed in capitals). Never `merchantNorm`,
+ * which is a matching key ("coffee shop in"), not a name.
+ */
+export async function merchantDisplayName(userId: string, merchantNorm: string, merchantRaw: string, db: DbOrTx = getDb()): Promise<string> {
+  const entry = lookupMerchant(merchantNorm);
+  if (entry) return entry.displayName;
+  const own = await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId));
+  const payee = own.find((p) => normalizeMerchant(p.name) === merchantNorm);
+  if (payee) return payee.name;
+  return prettyRaw(merchantRaw);
 }
 
 async function matchCard(db: DbOrTx, userId: string, hint: string | null) {
@@ -150,7 +182,8 @@ export async function setTransactionCategory(userId: string, transactionId: stri
 export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb()): Promise<CaptureEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
-  const parsed = await parse(input, u.homeCurrency);
+  const aiAllowed = aiProcessingAllowedFor(u);
+  const parsed = await parse(input, u.homeCurrency, aiAllowed);
   if (!parsed) {
     await ledger.append("CAPTURE_UNPARSED", { userId, source: input.source });
     return UNPARSED;
@@ -182,7 +215,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   const remembered = await rememberedCategory(db, userId, merchantNorm);
   const cat = first
     ? { category: first.category ?? "other", source: "DICTIONARY" as const, mcc: first.mcc }
-    : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, readerFallback: readerCategory });
+    : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, ...(aiAllowed ? { readerFallback: readerCategory } : {}) });
 
   const foreign = card ? card.billingCurrency !== ev.currency : ev.currency !== u.homeCurrency;
   const row = (
@@ -227,13 +260,15 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   if (first) {
     return { ...base, status: "MERGED", transactionId: row.id, mergedIntoId: first.id, merchantNorm, homeAmountMinor: home.amountMinor, category: cat.category, categorySource: cat.source, notification: null };
   }
-  const display = lookupMerchant(merchantNorm)?.displayName ?? merchantRaw;
+  const display = await merchantDisplayName(userId, merchantNorm, merchantRaw, db);
   const msg = await onSpendLogged(userId, {
     transactionId: row.id,
     category: cat.category,
     homeAmountMinor: home.amountMinor,
     merchantDisplay: display,
     amount: { amountMinor: ev.amountMinor, currency: ev.currency },
+    // Foreign spend: the home-currency equivalent is shown next to it (cn note 3).
+    ...(ev.currency !== u.homeCurrency ? { home: { amountMinor: home.amountMinor, currency: u.homeCurrency } } : {}),
   }, db);
   return {
     ...base,
@@ -336,7 +371,7 @@ export async function reconcileSettlement(userId: string, ev: SettlementEventReq
     cardProfile = { cardId: tx.cardId, fromCurrency: tx.currency, toCurrency: ev.settledCurrency, medianMarkupBps: median, samples: bps.length };
   }
 
-  const display = lookupMerchant(tx.merchantNorm)?.displayName ?? tx.merchantRaw;
+  const display = await merchantDisplayName(userId, tx.merchantNorm, tx.merchantRaw, db);
   if (fee.feeHomeMinor > 0) {
     const msg = { key: "fees.settled" as const, params: { merchant: display, fee: { amountMinor: fee.feeHomeMinor, currency: u.homeCurrency }, markupBps: fee.markupBps } };
     const en = renderEn(msg);

@@ -48,6 +48,10 @@ const EnvSchema = z.object({
   // Spec §20 example is ₸500,000, but the hero tuition (€2,400 ≈ ₸1.3–1.4M) would then always be refused
   // by payments (I5). Default ₸2,000,000; see docs/DECISIONS.md 2026-10-11.
   PAYMENTS_DAILY_CAP_HOME_MINOR: z.coerce.number().int().positive().default(200_000_000),
+  // (X3, security review F2) Per-day small-auto budget (T1 without a mandate): at most this many payments per UTC
+  // day, and at most MULTIPLE × the signed small-auto limit in total. Beyond it: ASK SMALL_AUTO_BUDGET_EXHAUSTED.
+  SMALL_AUTO_DAILY_MAX_COUNT: z.coerce.number().int().min(0).default(3),
+  SMALL_AUTO_DAILY_AMOUNT_MULTIPLE: z.coerce.number().int().min(0).default(3),
   DEMO_ENABLED: bool,
   DEMO_ADMIN_TOKEN: z.string().optional(),
   MOCK_WORLD_URL: z.string().url().default("http://localhost:4001"),

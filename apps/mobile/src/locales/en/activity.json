@@ -5,6 +5,18 @@
   "entryMeta": "{{time}} · event {{seq}} · {{hash}}",
   "hiddenFee": "Includes a {{amount}} fee",
   "new": "New",
+  "notify": {
+    "amountWithHome": "{{amount}} (about {{home}})",
+    "underMandate": " under your signed mandate",
+    "sentTitle": "Payment sent to {{payee}}",
+    "sentBody": "{{amount}} to {{payee}} by {{rail}}{{mandate}} (simulated).",
+    "failedTitle": "Payment to {{payee}} not sent",
+    "failedBody": "{{amount}} to {{payee}} by {{rail}}{{mandate}} was not sent. No money left your account.",
+    "budgetTitle": "{{category}} budget",
+    "budgetEachBody": "{{amount}} at {{merchant}}. {{category}}: {{used}}% used, {{left}}% left for {{days}} days.",
+    "feeTitle": "Card fee found",
+    "feeBody": "{{merchant}}: {{fee}} in conversion fees ({{pct}}% over mid)."
+  },
   "segment": {
     "inbox": "Inbox",
     "spending": "Spending",

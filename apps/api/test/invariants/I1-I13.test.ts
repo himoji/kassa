@@ -118,17 +118,19 @@ describe("I5 Independent cap", () => {
     offlineEnvironment();
   });
 
-  // Deeper: test/core/payments.test.ts ("enforces its own daily cap per user and currency (I5)").
-  it("payments refuses a second order over its own daily cap (PAYMENTS_DAILY_CAP) although rules allowed it", async () => {
-    setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "150000000" }); // ₸1.5M; €2,400 ≈ ₸1.344M
+  // Deeper: test/core/payments.test.ts ("enforces its own daily cap … across currencies (I5, X2)"), test/core/payments-cap.test.ts.
+  it("payments refuses an order over its own daily cap (PAYMENTS_DAILY_CAP) in the home currency across currencies, although rules allowed it", async () => {
+    setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "150000000" }); // ₸1.5M; €2,400 ≈ ₸1.344M; HUF 180,000 ≈ ₸259,200
     try {
       const { userId, auth } = await createUserWithPasskey();
-      const payee = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
-      const first = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 240_000, currency: "EUR", purpose: "Tuition" });
+      const university = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
+      const landlord = await addPayee(userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "HUF" });
+      // Both proposed and signed before anything is paid: rules see no usage and allow both.
+      const first = await proposeOrder({ userId, createdBy: "AGENT", payeeId: university.id, amountMinor: 240_000, currency: "EUR", purpose: "Tuition" });
+      const second = await proposeOrder({ userId, createdBy: "AGENT", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent" });
       const v1 = await getOrderView(userId, first.proposalId);
-      expect((await approveOrder(userId, first.proposalId, auth.assert(v1.orderHash))).paymentStatus).toBe("PROCESSING");
-      const second = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 50_000, currency: "EUR", purpose: "Fees" });
       const v2 = await getOrderView(userId, second.proposalId);
+      expect((await approveOrder(userId, first.proposalId, auth.assert(v1.orderHash))).paymentStatus).toBe("PROCESSING");
       expect((await approveOrder(userId, second.proposalId, auth.assert(v2.orderHash))).reasonCodes).toEqual(["PAYMENTS_DAILY_CAP"]);
     } finally {
       setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000" });

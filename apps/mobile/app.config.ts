@@ -203,6 +203,7 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
       },
     ],
     "expo-dev-client",
+    "expo-sqlite",
     // Session tokens in the Keychain / Keystore (spec §8 native bearer + refresh).
     "expo-secure-store",
     // Pay in place (spec §11): PaymentSheet. Apple Pay is out of scope (spec §22).

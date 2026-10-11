@@ -182,18 +182,7 @@
         "paid": false,
         "cases": [
           {
-            "case": "swapped QR at handoff: order canceled, no pay button",
-            "outcome": "BLOCKED",
-            "decision": "HANDOFF",
-            "reasonCodes": [
-              "QR_PAYEE_MISMATCH"
-            ],
-            "ledger": [
-              "PAYMENT_STATUS"
-            ]
-          },
-          {
-            "case": "swapped QR paid anyway in the wallet: webhook recorded as mismatch, never SENT",
+            "case": "QR swapped after it was shown and paid anyway: webhook recorded as mismatch, never SENT",
             "outcome": "BLOCKED",
             "decision": "HANDOFF",
             "reasonCodes": [
@@ -202,6 +191,17 @@
             "ledger": [
               "HANDOFF_PAID_MISMATCH",
               "PAYMENT_STATUS"
+            ]
+          },
+          {
+            "case": "swapped QR caught when the order is shown: no passkey prompt, approve refused",
+            "outcome": "BLOCKED",
+            "decision": "HANDOFF",
+            "reasonCodes": [
+              "QR_PAYEE_MISMATCH"
+            ],
+            "ledger": [
+              "HANDOFF_MISMATCH"
             ]
           }
         ]

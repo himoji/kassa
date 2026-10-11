@@ -15,7 +15,11 @@ import { PasskeyCancelledError } from "@/lib/passkey-errors";
 export function useApplySettings() {
   const t = useKassaT();
   const mutation = useUpdateSettings();
-  const apply = async (update: SettingsUpdate): Promise<SettingsPatchResponse | null> => {
+  /** `derived`: settings the change switches implicitly (preset → money mode), told to the user explicitly. */
+  const apply = async (
+    update: SettingsUpdate,
+    derived?: string
+  ): Promise<SettingsPatchResponse | null> => {
     try {
       const result = await mutation.mutateAsync(update);
       if (result.pending.length > 0) {
@@ -26,7 +30,11 @@ export function useApplySettings() {
         });
       } else {
         haptics.selection();
-        toast.show({ title: t("settings:appliedToast"), kind: "success" });
+        toast.show({
+          title: t("settings:appliedToast"),
+          ...(derived ? { description: t("settings:derivedToast", { changes: derived }) } : {}),
+          kind: "success",
+        });
       }
       return result;
     } catch (err) {

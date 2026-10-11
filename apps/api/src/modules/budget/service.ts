@@ -108,6 +108,8 @@ export interface LoggedSpend {
   homeAmountMinor: number;
   merchantDisplay: string;
   amount: MoneyParam;
+  /** Home-currency equivalent of a foreign spend (shown next to the amount). */
+  home?: MoneyParam;
 }
 
 /**
@@ -126,7 +128,7 @@ export async function onSpendLogged(userId: string, s: LoggedSpend, db: DbOrTx =
   if (mode === "EACH") {
     const msg: BudgetMessage = {
       key: "budget.each",
-      params: { amount: s.amount, merchant: s.merchantDisplay, category: s.category, usedPct: after.usedPct, leftPct: after.leftPct, days: after.daysLeft, pace: after.pace },
+      params: { amount: s.amount, ...(s.home ? { home: s.home } : {}), merchant: s.merchantDisplay, category: s.category, usedPct: after.usedPct, leftPct: after.leftPct, days: after.daysLeft, pace: after.pace },
     };
     await send(db, userId, "BUDGET_EACH", msg, { transactionId: s.transactionId, budgetId: b.id });
     return msg;

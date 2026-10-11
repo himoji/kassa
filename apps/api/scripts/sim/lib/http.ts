@@ -3,7 +3,7 @@
  * Persona calls handle the hardened API's statuses:
  *  - 401 → rotate the refresh token, else sign in again with the persona's soft passkey; retry once.
  *  - 429 → honour Retry-After (≤ 10 s), up to 3 retries; then RATE_LIMITED.
- *  - 403 AI_CONSENT_REQUIRED → give AI-processing consent through the API, retry once.
+ *  - 403 AI_CONSENT_REQUIRED / PIPL_CONSENT_REQUIRED → returned as is: consent is never given automatically.
  */
 import { API_BASE, CONTROL_BASE, FILES, MOCK_BASE, readText, SIM_TOKEN_HEADER } from "./config.ts";
 import { fail } from "./out.ts";

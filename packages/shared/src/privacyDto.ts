@@ -37,6 +37,11 @@ export const AiNotice = z.object({
   /** The AI only proposes; payments need rules + passkey (I1). */
   canPay: z.literal(false),
   consentRequired: z.literal(true),
+  /**
+   * (added 2026-10-12, Track Y3) region CN with a model outside Kassa's server: the AI step is a cross-border
+   * transfer that needs a separate consent (PIPL Art. 38–39; POST /privacy/pipl-consent). Absent/false otherwise.
+   */
+  crossBorderConsentRequired: z.boolean().optional(),
 });
 export type AiNotice = z.infer<typeof AiNotice>;
 
@@ -45,6 +50,15 @@ export const AiConsentRequest = z.object({ consent: z.boolean() });
 export type AiConsentRequest = z.infer<typeof AiConsentRequest>;
 export const AiConsentResponse = z.object({ aiConsentAt: IsoDateTime.nullable() });
 export type AiConsentResponse = z.infer<typeof AiConsentResponse>;
+
+/**
+ * (added 2026-10-12, Track Y3) POST /privacy/pipl-consent — give (true) or withdraw (false) the separate consent to
+ * the cross-border transfer of personal information for AI processing (PIPL Art. 38–39; region CN).
+ */
+export const PiplConsentRequest = z.object({ consent: z.boolean() });
+export type PiplConsentRequest = z.infer<typeof PiplConsentRequest>;
+export const PiplConsentResponse = z.object({ piplConsentAt: IsoDateTime.nullable() });
+export type PiplConsentResponse = z.infer<typeof PiplConsentResponse>;
 
 /** PATCH /me — GDPR Art. 16 rectification of the profile. */
 export const UpdateMeRequest = z.object({ displayName: z.string().trim().min(1).max(80) });

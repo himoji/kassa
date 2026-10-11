@@ -210,5 +210,17 @@
   "FUNDING_ABOVE_SIGNED_MAX": {
     "label": "Price changed",
     "text": "The bank asked for more than the maximum you signed, so nothing was sent. Review the new amount and sign again."
+  },
+  "MANDATE_SCOPE_MISMATCH": {
+    "label": "Not covered by your autopay",
+    "text": "This payee is in one of your autopay mandates, but this payment is not the bill you signed the mandate for (or it is a different amount), so it needs your passkey."
+  },
+  "SMALL_AUTO_BUDGET_EXHAUSTED": {
+    "label": "Daily auto-pay limit used",
+    "text": "Kassa already paid the most small amounts it may pay on its own today, so this one needs your passkey."
+  },
+  "PIPL_CONSENT_REQUIRED": {
+    "label": "Cross-border consent needed",
+    "text": "You are in region CN and Kassa's AI runs outside mainland China. Under China's PIPL this needs your separate consent: give it in Settings > Privacy > Cross-border AI processing before using the assistant."
   }
 }

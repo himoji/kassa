@@ -13,17 +13,18 @@ import {
   type Rail,
   type ReasonCode,
 } from "@kassa/shared";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { approvals, budgets, obligations, payees, proposals, type ProposalDraftJson } from "../../db/schema.ts";
 import { ownedNotFound } from "../../http/audit.ts";
+import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { addMs, clock, MINUTE_MS } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
-import { findMatchingMandate } from "../mandates/scope.ts";
+import { findMatchingMandate, type LinkedObligation } from "../mandates/scope.ts";
 import { claimSettlement, markSettlementPaid, releaseSettlement, settlementFor } from "../obligations/settlements.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
@@ -41,6 +42,7 @@ import {
   paidHomeSince,
   payeeHistory,
   reserveBreached,
+  smallAutoUsedSince,
   zoneFor,
 } from "./facts.ts";
 import { chooseFunding, type FundingChoice } from "./funding.ts";
@@ -86,6 +88,54 @@ let executor: Executor | null = null;
 
 export function registerExecutor(fn: Executor | null): void {
   executor = fn;
+}
+
+// ---------- handoff QR preflight (X7; injected like the executor, so rules never imports rails) ----------
+
+type HandoffQrCheck = NonNullable<ProposalDraftJson["handoffQr"]>;
+type HandoffPreflight = (order: CanonicalOrder) => Promise<Omit<HandoffQrCheck, "checkedAt">>;
+let handoffPreflight: HandoffPreflight | null = null;
+
+export function registerHandoffPreflight(fn: HandoffPreflight | null): void {
+  handoffPreflight = fn;
+}
+
+/**
+ * (X7, cn report note 1) A pending HANDOFF order gets the merchant's QR request and its payee-name check when it is
+ * first shown, before the passkey prompt. A mismatch refuses the order up front (QR_PAYEE_MISMATCH, nothing to
+ * sign) and frees its obligation period. Stored on the draft; the handoff rail later pays exactly this QR.
+ */
+async function ensureHandoffCheck(db: DbOrTx, p: typeof proposals.$inferSelect): Promise<typeof proposals.$inferSelect> {
+  if (p.status !== "PENDING_APPROVAL" || p.canonicalOrder?.rail !== "HANDOFF" || p.draft.handoffQr || !handoffPreflight) return p;
+  let qr: Omit<HandoffQrCheck, "checkedAt">;
+  try {
+    qr = await handoffPreflight(p.canonicalOrder);
+  } catch (err) {
+    throw new HttpProblem(502, "RAIL_ERROR", `Could not get the merchant's QR request: ${(err as Error).message}`, { reasonCodes: ["RAIL_ERROR"] });
+  }
+  const handoffQr: HandoffQrCheck = { ...qr, checkedAt: clock.now().toISOString() };
+  const mismatch = qr.check !== "MATCH";
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(proposals)
+      .set({
+        draft: { ...p.draft, handoffQr },
+        ...(mismatch ? { status: "REFUSED" as const, reasonCodes: [...p.reasonCodes, "QR_PAYEE_MISMATCH" as const] } : {}),
+        updatedAt: clock.now(),
+      })
+      .where(and(eq(proposals.id, p.id), eq(proposals.status, "PENDING_APPROVAL"), sql`${proposals.draft}->'handoffQr' is null`))
+      .returning();
+    // A concurrent request stored its check first: use that one.
+    if (rows.length === 0) return (await tx.select().from(proposals).where(eq(proposals.id, p.id)))[0]!;
+    const sealed = await sealPii(p.userId, { qrPayeeName: qr.qrPayeeName }, tx);
+    if (mismatch) {
+      await releaseSettlement(tx, p.id);
+      await ledger.append("HANDOFF_MISMATCH", { userId: p.userId, proposalId: p.id, qrPaymentId: qr.qrPaymentId, nameSimilarity: qr.nameSimilarity, reasonCodes: ["QR_PAYEE_MISMATCH"], stage: "before-signing", ...sealed }, tx);
+    } else {
+      await ledger.append("HANDOFF_QR_CHECKED", { userId: p.userId, proposalId: p.id, qrPaymentId: qr.qrPaymentId, nameSimilarity: qr.nameSimilarity, check: "MATCH" }, tx);
+    }
+    return rows[0]!;
+  });
 }
 
 // ---------- helpers ----------
@@ -173,7 +223,8 @@ async function runExecutor(proposalId: string, userId: string, approvalId: strin
     if (ok) await markSettlementPaid(tx, proposalId);
     else await releaseSettlement(tx, proposalId);
   });
-  if (!ok) {
+  // Refused by payments before a payment row existed; outcomes of created payments are notified by payments (X9).
+  if (!ok && res.paymentId === null) {
     await notify(userId, {
       kind: "PAYMENT_FAILED",
       title: "Payment not sent",
@@ -199,17 +250,20 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const { user, profile, caps } = await loadUser(db, input.userId);
   const effective = effectiveOf(user);
   const payee = (await db.select().from(payees).where(and(eq(payees.id, input.payeeId), eq(payees.userId, input.userId))))[0] ?? null;
-  const category = input.category ?? (payee ? defaultCategory(payee.kind) : "other");
   const rail = chooseRail(input.rail, effective.moneyMode, user.region, payee?.kind ?? "PERSON");
   const home = await toHome(input.amountMinor, input.currency, user.homeCurrency, now);
 
   // B4: the obligation period this order pays (scheduler and agent alike) and whether it is already taken.
   let period: string | null = null;
+  let linked: LinkedObligation | null = null;
   if (input.obligationId) {
     const ob = (await db.select().from(obligations).where(and(eq(obligations.id, input.obligationId), eq(obligations.userId, user.id))))[0];
     if (!ob || ob.payeeId !== input.payeeId) throw new HttpProblem(400, "BAD_OBLIGATION", "obligationId is not this user's obligation for this payee");
     period = input.dueDate ?? ob.dueDate;
+    linked = { id: ob.id, category: ob.category, amountMinor: ob.amountMinor, currency: ob.currency, dueDate: ob.dueDate, period };
   }
+  // X1: a linked bill's category comes from the obligation (server side), never from the caller's input.
+  const category = linked?.category ?? input.category ?? (payee ? defaultCategory(payee.kind) : "other");
   const duplicateObligation = internal.duplicateObligation === true || (period !== null && (await settlementFor(db, input.obligationId!, period)) !== null);
 
   // B2: funding route for bank transfers (spec §12), bound into the signed order below.
@@ -219,16 +273,18 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   }
   const signedFunding = funding && funding.status !== "NONE" ? funding.funding : null;
 
-  const screening = rail === "BANK_TRANSFER" && payee ? screenName(payee.name) : { hit: false as const, score: 0 };
-  const [usedToday, usedMonth, reserve, mandate, history, remaining] = await Promise.all([
+  // I9 / X4: screen the payee on every rail (card, handoff, pay-in-place, bank).
+  const screening = payee ? screenName(payee.name) : { hit: false as const, score: 0 };
+  const [usedToday, usedMonth, reserve, mandate, history, remaining, smallAutoToday] = await Promise.all([
     paidHomeSince(db, user.id, dayStartUtc(now)),
     paidHomeSince(db, user.id, monthStartUtc(now)),
     reserveBreached(user.id, user.homeCurrency, caps.reserveMinor, home.amountMinor, now),
     payee
-      ? findMatchingMandate(db, { userId: user.id, payeeId: payee.id, category, currency: input.currency, amountMinor: input.amountMinor, now })
-      : Promise.resolve({ match: null, outOfScope: false }),
+      ? findMatchingMandate(db, { userId: user.id, payeeId: payee.id, currency: input.currency, amountMinor: input.amountMinor, now, obligation: linked })
+      : Promise.resolve({ match: null, outOfScope: false, scopeMismatch: false }),
     payee ? payeeHistory(db, user.id, payee.id) : Promise.resolve({ count: 0, priceHistory: {}, qtyHistory: {} }),
     categoryRemaining(db, user.id, category, now),
+    smallAutoUsedSince(db, user.id, dayStartUtc(now)),
   ]);
   const triggerOrigin = input.createdBy === "SCHEDULER" || input.triggerOrigin === true;
   const features = riskFeatures({
@@ -259,16 +315,24 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
       usedTodayHomeMinor: usedToday,
       usedThisMonthHomeMinor: usedMonth,
       reserveBreached: reserve,
+      paymentsDailyHomeMinor: env().PAYMENTS_DAILY_CAP_HOME_MINOR,
     },
     preset: user.preset,
     effective,
     region: user.region,
     mandate: mandate.match ? { id: mandate.match.id } : null,
     mandateOutOfScope: mandate.outOfScope,
+    mandateScopeMismatch: mandate.scopeMismatch,
     riskScore: score,
     agentRequestedConfirm: input.agentRequestedConfirm === true,
     triggerOrigin,
     smallAutoLimitHomeMinor: caps.smallAutoMinor,
+    smallAutoBudget: {
+      usedCount: smallAutoToday.count,
+      usedHomeMinor: smallAutoToday.homeMinor,
+      maxCount: env().SMALL_AUTO_DAILY_MAX_COUNT,
+      maxHomeMinor: env().SMALL_AUTO_DAILY_AMOUNT_MULTIPLE * caps.smallAutoMinor,
+    },
     baseRulesSigned: profile.baseRulesAssertion !== null && profile.baseRulesHash !== null,
     duplicateObligation,
     fundingAvailable: funding === null ? null : funding.status !== "NONE",
@@ -319,6 +383,8 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
             fundingMarkupBps: signedFunding.markupBps,
           }
         : {}),
+      // X1: the bill this order pays is signed with it (payments re-checks it for mandate payments).
+      ...(linked ? { obligationId: linked.id, obligationPeriod: linked.period } : {}),
     };
     hash = computeOrderHash(order);
   }
@@ -450,7 +516,15 @@ async function refreshIfExpired(db: DbOrTx, p: typeof proposals.$inferSelect) {
 
 export async function getOrderView(userId: string, proposalId: string) {
   const db = getDb();
-  const p = await refreshIfExpired(db, await loadOwnProposal(db, userId, proposalId));
+  const loaded = await loadOwnProposal(db, userId, proposalId);
+  const refreshed = await refreshIfExpired(db, loaded);
+  const p = await ensureHandoffCheck(db, refreshed);
+  // X8: tell the client this request replaced an expired order, so it shows "expired, review again".
+  const reissuedFrom = refreshed !== loaded && loaded.orderHash ? loaded.orderHash : null;
+  return buildOrderView(db, userId, p, reissuedFrom);
+}
+
+async function buildOrderView(db: DbOrTx, userId: string, p: typeof proposals.$inferSelect, reissuedFrom: string | null) {
   if (!p.canonicalOrder || !p.orderHash) {
     throw new HttpProblem(409, p.reasonCodes[0] ?? "REFUSED", "This order was refused and has nothing to sign", { reasonCodes: p.reasonCodes });
   }
@@ -489,6 +563,17 @@ export async function getOrderView(userId: string, proposalId: string) {
     decision: p.decision,
     reasonCodes: p.reasonCodes,
     status: p.status,
+    ...(reissuedFrom ? { reissuedFromOrderHash: reissuedFrom } : {}),
+    ...(p.draft.handoffQr
+      ? {
+          handoff: {
+            check: p.draft.handoffQr.check,
+            qrPayeeName: p.draft.handoffQr.qrPayeeName,
+            verifiedPayeeName: p.draft.handoffQr.verifiedPayeeName,
+            nameSimilarity: p.draft.handoffQr.nameSimilarity,
+          },
+        }
+      : {}),
   };
 }
 
@@ -503,7 +588,12 @@ export type ApproveResult = {
 /** POST /orders/:id/approve — rules verification (spec §7) then signed approval → executor. */
 export async function approveOrder(userId: string, proposalId: string, assertion: unknown): Promise<ApproveResult> {
   const db = getDb();
-  const p = await loadOwnProposal(db, userId, proposalId);
+  let p = await loadOwnProposal(db, userId, proposalId);
+  // X7: a handoff order is checked before signing (also when the client skipped GET /orders/:id).
+  if (p.status === "PENDING_APPROVAL" && Date.parse(p.canonicalOrder?.expiresAt ?? "") > clock.nowMs()) p = await ensureHandoffCheck(db, p);
+  if (p.reasonCodes.includes("QR_PAYEE_MISMATCH") || p.draft.handoffQr?.check === "QR_PAYEE_MISMATCH") {
+    throw new HttpProblem(409, "QR_PAYEE_MISMATCH", "The merchant's QR names someone else than the verified payee; this order cannot be approved", { reasonCodes: ["QR_PAYEE_MISMATCH"] });
+  }
   if (p.status !== "PENDING_APPROVAL" || !p.canonicalOrder || !p.orderHash) {
     throw new HttpProblem(409, "NOT_PENDING", `Order is ${p.status}`, { reasonCodes: p.reasonCodes });
   }
@@ -514,7 +604,11 @@ export async function approveOrder(userId: string, proposalId: string, assertion
     throw new HttpProblem(409, "ORDER_HASH_MISMATCH", "Stored order does not match its hash", { reasonCodes: ["ORDER_HASH_MISMATCH"] });
   }
   if (Date.parse(p.canonicalOrder.expiresAt) <= clock.nowMs()) {
-    throw new HttpProblem(410, "ORDER_EXPIRED", "Order expired; reopen it to get a fresh one", { reasonCodes: ["ORDER_EXPIRED"] });
+    // X8 (p2 B3): never sign or execute a re-issued order in this call. Re-issue it (new nonce/expiry/hash) and
+    // return it for review; the assertion the client sent is over the OLD hash and is discarded.
+    const refreshed = await refreshIfExpired(db, p);
+    const view = await buildOrderView(db, userId, await ensureHandoffCheck(db, refreshed), p.orderHash);
+    throw new HttpProblem(410, "ORDER_EXPIRED", "This order expired. Review the re-issued order and sign it again.", { reasonCodes: ["ORDER_EXPIRED"], details: view });
   }
   // Payee state may have changed since the draft (blocked, or replaced): re-check.
   const payee = (await db.select().from(payees).where(eq(payees.id, p.canonicalOrder.payeeId)))[0];

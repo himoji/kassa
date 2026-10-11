@@ -2,13 +2,16 @@
  * Payments' OWN mandate scope check (spec §7 T1): active + effective + validity window, order inside
  * scope (payee, category, currency, per-payment cap) and period usage. Deliberately independent of
  * mandates/scope.ts used by rules (I2: a logic bug in one must not be shared by the other).
+ * (X1) The order must carry a signed obligation link (obligationId + period) to a bill of this user and payee,
+ * in the order's currency, for its current period, amount ≤ the bill, category (the obligation's, read here) in
+ * the mandate, and the period settled by THIS proposal only (obligation_settlements).
  * Period (UTC): WEEK = ISO 8601 week from Monday; MONTH = calendar month.
  */
-import type { CanonicalOrder, ReasonCode } from "@kassa/shared";
+import { orderObligation, type CanonicalOrder, type ReasonCode } from "@kassa/shared";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
 
 import type { DbOrTx } from "../../db/client.ts";
-import { approvals, payments } from "../../db/schema.ts";
+import { approvals, obligationSettlements, obligations, payments } from "../../db/schema.ts";
 import type { mandates } from "../../db/schema.ts";
 
 function periodStartUtc(period: "WEEK" | "MONTH", now: Date): Date {
@@ -23,7 +26,6 @@ export async function checkMandateScope(
   db: DbOrTx,
   m: typeof mandates.$inferSelect,
   order: CanonicalOrder,
-  category: string,
   now: Date,
 ): Promise<{ ok: true } | { ok: false; reason: ReasonCode; detail: string }> {
   const t = now.getTime();
@@ -33,7 +35,32 @@ export async function checkMandateScope(
     return { ok: false, reason: "MANDATE_INACTIVE", detail: "outside mandate validity" };
   }
   if (!m.payeeIds.includes(order.payeeId)) return { ok: false, reason: "MANDATE_OUT_OF_SCOPE", detail: "payee not in mandate" };
-  if (!m.categories.includes(category)) return { ok: false, reason: "MANDATE_OUT_OF_SCOPE", detail: "category not in mandate" };
+  // X1: the bill this payment is for, read from payments' own query of the obligation (category included).
+  let link: ReturnType<typeof orderObligation>;
+  try {
+    link = orderObligation(order);
+  } catch {
+    link = null;
+  }
+  if (!link) return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "mandate payment not linked to an obligation" };
+  const ob = (await db.select().from(obligations).where(eq(obligations.id, link.obligationId)))[0];
+  if (!ob || ob.userId !== order.userId || ob.payeeId !== order.payeeId) {
+    return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "obligation is not this user's bill for this payee" };
+  }
+  if (ob.currency !== order.currency || order.amountMinor > ob.amountMinor) {
+    return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "amount above the bill or currency differs" };
+  }
+  if (link.period !== ob.dueDate) return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "not the obligation's current period" };
+  if (!m.categories.includes(ob.category)) return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "obligation category not in mandate" };
+  const settlement = (
+    await db
+      .select()
+      .from(obligationSettlements)
+      .where(and(eq(obligationSettlements.obligationId, ob.id), eq(obligationSettlements.period, link.period)))
+  )[0];
+  if (!settlement || settlement.proposalId !== order.proposalId) {
+    return { ok: false, reason: "DUPLICATE_OBLIGATION_PAYMENT", detail: "period not claimed by this order (already settled or released)" };
+  }
   if (m.currency !== order.currency) return { ok: false, reason: "MANDATE_OUT_OF_SCOPE", detail: "currency differs" };
   if (order.amountMinor > m.maxPerPaymentMinor) return { ok: false, reason: "MANDATE_OUT_OF_SCOPE", detail: "above per-payment max" };
   const used = await db

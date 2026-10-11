@@ -25,6 +25,9 @@ export type AuditType =
   | "PROFILE_RECTIFIED"
   | "AI_CONSENT_GIVEN"
   | "AI_CONSENT_WITHDRAWN"
+  // (added 2026-10-12, Track Y3) PIPL Art. 38–39 separate cross-border consent (region CN)
+  | "PIPL_CONSENT_GIVEN"
+  | "PIPL_CONSENT_WITHDRAWN"
   | "RETENTION_PURGED";
 
 export async function audit(type: AuditType, payload: Record<string, unknown>, tx?: DbOrTx): Promise<void> {

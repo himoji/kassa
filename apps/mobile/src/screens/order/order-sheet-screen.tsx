@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ScrollView } from "react-native";
 
-import { useApproveOrder, useOrder, useRejectOrder } from "@/api/hooks/orders";
+import { OrderReissuedError, useApproveOrder, useOrder, useRejectOrder } from "@/api/hooks/orders";
 import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
 import { StatusChip } from "@/components/kassa/status-chip";
@@ -48,6 +48,12 @@ export function OrderSheetScreen() {
     } catch (err) {
       if (err instanceof PasskeyCancelledError) {
         haptics.warning();
+        return;
+      }
+      if (err instanceof OrderReissuedError) {
+        // The sheet now shows the re-issued order (reissued banner); approving it is a new, explicit tap.
+        haptics.warning();
+        setError(t("order:reissuedError"));
         return;
       }
       haptics.error();

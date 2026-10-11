@@ -4,13 +4,19 @@
  * Entry hash: hash = base64url(sha256(utf8(prevHash + JCS({seq, ts, type, payload})))), with
  * prevHash of the first entry = GENESIS_HASH (base64url of 32 zero bytes). Every 20th entry gets a
  * checkpoint signed with LEDGER_CHECKPOINT_KEY over JCS({seq, headHash, ts, keyId}).
+ * (X6) Every append also rewrites the signed head anchor (ledger_head, one row) in the same transaction, over
+ * JCS({domain: HEAD_DOMAIN, seq, headHash, ts, keyId}) — domain-separated, so a checkpoint signature can never pose
+ * as a head. verifyChain requires the anchor to be validly signed and to name the actual last entry: truncating or
+ * re-hashing the tail after the last checkpoint is detected. Honest limit: an attacker with DB write access who kept
+ * an OLDER signed head row can roll the ledger back to exactly that head; detecting that needs the head published
+ * outside the database (e.g. a transparency log / RFC 3161 timestamp), which this prototype does not do.
  */
 import { jcs, sha256Base64url } from "@kassa/shared";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import type { KeyObject } from "node:crypto";
 
 import type { Db, DbOrTx } from "../../db/client.ts";
-import { ledgerCheckpoints, ledgerEntries } from "../../db/schema.ts";
+import { ledgerCheckpoints, ledgerEntries, ledgerHead } from "../../db/schema.ts";
 import { keyIdOf, publicFromPrivate, signText, verifyText } from "./keys.ts";
 
 export const GENESIS_HASH = "A".repeat(43); // base64url(32 zero bytes) without padding
@@ -24,6 +30,12 @@ export function entryHash(prevHash: string, seq: number, ts: string, type: strin
 
 export function checkpointMessage(seq: number, headHash: string, ts: string, keyId: string): string {
   return jcs({ seq, headHash, ts, keyId });
+}
+
+export const HEAD_DOMAIN = "kassa:ledger-head:v1";
+
+export function headMessage(seq: number, headHash: string, ts: string, keyId: string): string {
+  return jcs({ domain: HEAD_DOMAIN, seq, headHash, ts, keyId });
 }
 
 /** JSON round trip: drops undefined, turns Dates into ISO strings — exactly what jsonb will store. */
@@ -52,11 +64,14 @@ export async function appendInTx(
   const value = toJsonValue(payload);
   const hash = entryHash(prevHash, seq, ts, type, value);
   await tx.insert(ledgerEntries).values({ seq, ts: now, type, payload: value, prevHash, hash });
+  const keyId = keyIdOf(publicFromPrivate(checkpointKey));
   if (seq % CHECKPOINT_EVERY === 0) {
-    const keyId = keyIdOf(publicFromPrivate(checkpointKey));
     const sig = signText(checkpointKey, checkpointMessage(seq, hash, ts, keyId));
     await tx.insert(ledgerCheckpoints).values({ seq, headHash: hash, sig, keyId, ts: now });
   }
+  // X6: signed head anchor, same transaction (the advisory lock above serialises it with the append).
+  const head = { seq, headHash: hash, sig: signText(checkpointKey, headMessage(seq, hash, ts, keyId)), keyId, ts: now };
+  await tx.insert(ledgerHead).values({ id: 1, ...head }).onConflictDoUpdate({ target: ledgerHead.id, set: head });
   return { seq, ts, type, payload: value, prevHash, hash };
 }
 
@@ -66,6 +81,8 @@ export type VerifyReport = {
   entries: number;
   checkpoints: number;
   headHash: string;
+  /** (X6) seq named by the signed head anchor (null = no anchor). */
+  headAnchorSeq: number | null;
   problems: VerifyProblem[];
 };
 
@@ -96,11 +113,24 @@ export async function verifyChain(db: Db, publicKey: KeyObject): Promise<VerifyR
       problems.push({ seq: c.seq, problem: "checkpoint signature invalid" });
     }
   }
+  // X6: the signed head anchor must name the actual last entry (tail truncation / re-hash after the last checkpoint).
+  const head = (await db.select().from(ledgerHead).where(eq(ledgerHead.id, 1)))[0];
+  const lastSeq = entries.at(-1)?.seq ?? 0;
+  if (!head) {
+    if (entries.length > 0) problems.push({ seq: lastSeq, problem: "head anchor missing" });
+  } else {
+    if (head.keyId !== keyId) problems.push({ seq: head.seq, problem: `head anchor keyId ${head.keyId} is not the configured key` });
+    else if (!verifyText(publicKey, headMessage(head.seq, head.headHash, head.ts.toISOString(), head.keyId), head.sig)) {
+      problems.push({ seq: head.seq, problem: "head anchor signature invalid" });
+    }
+    if (head.seq !== lastSeq) problems.push({ seq: head.seq, problem: `head anchor names seq ${head.seq} but the last entry is ${lastSeq} (truncated or appended without the key)` });
+    else if (head.headHash !== prev) problems.push({ seq: head.seq, problem: "head anchor hash differs from the last entry (tail altered and re-hashed)" });
+  }
   const expectedCheckpoints = Math.floor(entries.length / CHECKPOINT_EVERY);
   if (cps.length < expectedCheckpoints) {
     problems.push({ seq: 0, problem: `expected ${expectedCheckpoints} checkpoints, found ${cps.length}` });
   }
-  return { ok: problems.length === 0, entries: entries.length, checkpoints: cps.length, headHash: prev, problems };
+  return { ok: problems.length === 0, entries: entries.length, checkpoints: cps.length, headHash: prev, headAnchorSeq: head?.seq ?? null, problems };
 }
 
 export async function entryBySeq(db: Db, seq: number) {

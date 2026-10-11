@@ -1,4 +1,9 @@
-import type { LedgerEntryDto, NotificationDto, TransactionDto } from "@kassa/shared";
+import {
+  ReasonCode,
+  type LedgerEntryDto,
+  type NotificationDto,
+  type TransactionDto,
+} from "@kassa/shared";
 import { router } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
@@ -24,6 +29,7 @@ import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
 import { ledgerDisplay } from "./ledger-entry";
+import { notificationReasonCodes, notificationText } from "./notification-text";
 
 type Segment = "timeline" | "spending" | "inbox";
 
@@ -123,20 +129,28 @@ function NotificationRow({ n }: { n: NotificationDto }) {
   const f = useFormat();
   const markRead = useMarkNotificationRead();
   const unread = n.readAt === null;
+  // {key, params} notifications through i18n (English fallback = the server's text); reason codes in plain
+  // language next to the text (Y6).
+  const text = notificationText(n, t, f.money);
+  const codes = notificationReasonCodes(n).flatMap((c) => {
+    const r = ReasonCode.safeParse(c);
+    return r.success ? [r.data] : [];
+  });
   return (
     <Pressable
       onPress={() => unread && markRead.mutate(n.id)}
       accessibilityRole="button"
-      accessibilityLabel={unread ? t("activity:unreadA11y", { title: n.title }) : n.title}
+      accessibilityLabel={unread ? t("activity:unreadA11y", { title: text.title }) : text.title}
       style={{ paddingVertical: 12, gap: 4, minHeight: 44 }}
     >
       <Box row gap={2} align="center">
         {unread ? <StatusChip tone="info" label={t("activity:new")} /> : null}
         <Text weight={unread ? "semibold" : undefined} style={{ flexShrink: 1 }}>
-          {n.title}
+          {text.title}
         </Text>
       </Box>
-      <Text variant="caption">{n.body}</Text>
+      <Text variant="caption">{text.body}</Text>
+      {codes.length > 0 ? <ReasonCodeList codes={codes} /> : null}
       <Text variant="caption">{f.dateTime(n.createdAt)}</Text>
     </Pressable>
   );

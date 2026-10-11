@@ -12,6 +12,9 @@ suites listed below. You run them and judge their output; you do not improvise a
 - Never assume names, ids or amounts. Read them from outputs (`mock payees`, `as <p> payees`, `get_obligations`, …).
   Mock company names can change; scenarios refer to roles ("the university payee"), never to names.
 - Money is integer **minor units** with an ISO 4217 code (`240000` EUR = €2,400.00; HUF also has 2 decimals).
+- Consent is never given for you. A claimed demo account starts without AI consent: `register` gives it at sign-up
+  (omit with `--no-ai-consent`). A `403 AI_CONSENT_REQUIRED` or `403 PIPL_CONSENT_REQUIRED` is returned as is; the
+  persona decides (`as <p> privacy consent`, `as <p> privacy pipl-consent`).
 - The demo clock starts at the seed time. Only `demo clock` moves it. The 15 s scheduler is **off** in the sim;
   each `demo clock +…` runs one scheduler tick, and `demo tick` runs one without moving time.
 - Planner role: you see only placeholders (`payee_1`, `iban_1`, `person_1`). Never ask for or invent real
@@ -40,19 +43,29 @@ Only one sim runs at a time. Parallel agents share it. Each agent uses its **own
 | --- | --- |
 | Personas | `register <p> [--claim-demo [li-wei]] [--no-onboard] [--no-mandate] [--no-ai-consent]`, `login <p>`, `onboard <p> [--no-mandate]`, `personas` (`--claim-demo` = Dana; `--claim-demo li-wei` = the second seeded persona Li Wei) |
 | Read | `as <p> me \| balances \| budgets \| obligations \| forecast \| cards \| fees \| transactions \| payees \| mandates \| caps \| rule-changes \| notifications \| ledger \| proposals [--status PENDING_APPROVAL]` |
-| Write | `as <p> add-payee '<json>'`, `verify-payee <id>`, `create-mandate '<json>'`, `revoke-mandate <id>`, `settings get`, `settings patch '<json>' [--sign]`, `freeze`, `unfreeze [--sign]`, `capture-event '<json>'`, `upload <file> [--kind invoice\|notification\|email_change_request]` |
-| Orders | `as <p> order <proposalId>`, `approve <proposalId>`, `reject <proposalId> [--reason …]` |
+| Write | `as <p> add-payee '<json>'`, `verify-payee <id> [--sign]` (passkey-gated: 428, then `--sign`), `create-mandate '<json>'`, `revoke-mandate <id>`, `settings get`, `settings patch '<json>' [--sign]`, `freeze`, `unfreeze [--sign]`, `capture-event '<json>'`, `upload <file> [--kind invoice\|notification\|email_change_request]`, `recategorise <transactionId> <category>` |
+| Orders | `as <p> order <proposalId>`, `as <p> approve <proposalId>`, `as <p> reject <proposalId> [--reason …]` |
 | Payments | `as <p> payment <paymentId>` or `payment --proposal <proposalId>` (status + one-time card id), `handoff <paymentId>`, `pay-qr <paymentId>` |
-| Privacy | `as <p> privacy notice \| export [--out f] \| consent [--withdraw] \| restrict \| erase [--sign]`, `update-me '<json>'` |
+| Privacy | `as <p> privacy notice \| export [--out f] \| consent [--withdraw] \| pipl-consent [--withdraw] \| restrict \| erase [--sign]`, `update-me '<json>'` |
 | Planner | `as <p> say '<chat text>' [--conversation id\|new]` = your chat message as the planner receives it (known payee names become `payee_N`) |
 | Planner tools | `tool <name> '<json>' --as <p> [--conversation id\|new] [--reader-output '<json>'\|@file]` for `get_profile_summary, get_balances, get_budget, get_obligations, get_payee_facts, search_catalog, get_routes, forecast_coverage, read_document, propose_order, log_expense` |
-| Demo | `demo status`, `demo clock +1h\|+1d\|+3d\|+Nh\|+Nd`, `demo trigger settlement\|money-from-home\|landlord-iban-email\|pos-low-dough\|cn-spending-day`, `demo agent-mode LIVE\|REPLAY`, `demo tick` |
+| Demo | `demo status`, `demo clock +1h\|+1d\|+3d\|+Nh\|+Nd` (waits until the mock bank's webhooks for the new time have landed; output `webhooks`), `demo trigger settlement\|money-from-home\|landlord-iban-email\|pos-low-dough\|cn-spending-day`, `demo agent-mode LIVE\|REPLAY`, `demo tick` |
 | Mock world | `mock payees`, `invoice <payeeId> [--variant swapped-account]` (saves the PDF and prints its text), `suppliers`, `catalog <id>`, `price-list <id>`, `inbox [msgId]`, `shop-menu`, `shop-checkout <cardId>`, `shop-recharge <cardId>`, `charges`, `qr <qrPaymentId>`, `qr-swap on\|off` (A5 switch: new QR codes name another payee), `pos-emit [--sku --level --qty]`, `remittance [--amount 2500 --currency EUR] [--profile li-wei]`, `transfers`, `outbox` |
 | Evidence | `mark <name>`, `evidence <scenario> [--since <marker>]`, `ledger-verify`, `report <scenario> --result PASS\|FAIL --notes '<text>'\|@file` |
+| Other | `recategorise <p> <transactionId> <category>` (same as `as <p> recategorise …`; the correction is remembered for that merchant) |
 
 Tool calls keep one placeholder map per conversation (default: the persona's own conversation). `--conversation new`
 starts a fresh one. The `tool` output has `output` (exactly what the model would see) and `sim` (harness notes,
 for example `stopRequested` after a REFUSE / COOLING; the live planner would then get no more tools that turn).
+
+Outputs that help you read results: `order` adds `reasons` (each code with plain-language text) and, for an order
+that converts, `fundingNote` (why the signed maximum is above the estimate: fees plus up to 1% for rate moves).
+`settings patch` adds `derivedChanges` when a preset switch also changes another setting (for example SMART →
+ASK_ME switches money mode CAPPED_WALLET → PAY_IN_PLACE). `approve` never signs a re-issued order: if the order
+had expired it stops with `ORDER_REISSUED` (or `ORDER_EXPIRED`, HTTP 410) and shows the new order; review it and run
+`approve` again. `get_routes` with `fromCurrency` = `toCurrency` returns the direct route (`noConversion: true`;
+`balanceCovers: false` when that balance is short, then the other funding options follow). `search_catalog`
+accepts the merchant's payee placeholder (`payee_N`) as `merchant`.
 
 **You as the Reader.** `read_document` normally needs an LLM. Instead, pass your own extraction with
 `--reader-output`: one object per field, `{"value": …, "evidence": "<exact substring of the document>"}`. Fields:
@@ -119,8 +132,9 @@ then `as dana notifications` (`MONEY_FROM_HOME`), `tool forecast_coverage '{}'` 
 until a proposal is approved.
 
 **Average spending capture:** `tool log_expense '{"text":"coffee 1200 HUF"}' --as dana` and
-`as dana capture-event '{"source":"NOTIFICATION","rawText":"<bank notification text>"}'`, then `as dana budgets`
-and `as dana transactions --limit 5`. Capture only logs (I6): no proposal and no payment.
+`as dana capture-event '{"source":"NOTIF_SIM","rawText":"<bank notification text>"}'`, then `as dana budgets`
+and `as dana transactions --limit 5`. Capture only logs (I6): no proposal and no payment. To correct a category:
+`as dana recategorise <transactionId> <category>`.
 
 **Recording a run:** `mark <id>` at the start. At the end: `evidence <id> --since <id>`, `ledger-verify`.
 Write `docs/evidence/sim/<id>.md` (steps, expected, actual, PASS/FAIL, ledger slice), then run
@@ -147,16 +161,18 @@ no IBAN: QR merchants) and a ¥1,800 monthly dorm fee due 2026-11-15. The sim al
 
 | ID | Persona | Goal | Expected outcome | Invariants / attacks |
 | --- | --- | --- | --- | --- |
-| D-CN1 | Dana, Shanghai exchange semester (region CN) | Pay the dorm fee and a shop purchase in CNY; see how the CNY need is funded; read the AI notice | Every proposal `HANDOFF` / `HANDOFF_REGION`, canonical order `rail: HANDOFF`, CNY. Dorm fee QR `MATCH` → `pay-qr` → `SENT`. With `mock qr-swap on` the shop order is `CANCELED` `QR_PAYEE_MISMATCH`, no wallet URL, `pay-qr` refuses. Routes into CNY come from KZT/USD; forecast shows a CNY shortfall funded from KZT. `privacy notice` mentions PIPL cross-border processing | I2, I3; A5 |
+| D-CN1 | Dana, Shanghai exchange semester (region CN) | Pay the dorm fee and a shop purchase in CNY; see how the CNY need is funded; read the AI notice | Every proposal `HANDOFF` / `HANDOFF_REGION`, canonical order `rail: HANDOFF`, CNY. Dorm fee QR `MATCH` → `pay-qr` → `SENT`. With `mock qr-swap on` the shop order is caught when shown (`order`), before the passkey: `REFUSED` `QR_PAYEE_MISMATCH`, nothing to sign, no payment row. Routes into CNY come from KZT/USD; forecast shows a CNY shortfall funded from KZT. `privacy notice` asks for the separate PIPL consent; the agent answers `403 PIPL_CONSENT_REQUIRED` until `privacy pipl-consent` | I2, I3; A5 |
 | D-CN2 | Dana, Alipay/WeChat Pay capture | Log a day of Chinese spending; see the card's hidden fee | Three captures `LOGGED` in CNY with KZT amounts; two `BUDGET_EACH` notifications; the CNY charge on the KZT card settles with a 4 % markup (`FEES_SETTLED`, fee x-ray profile CNY→KZT 400 bps). No proposal or payment (I6). No DCC flag (CNY-denominated charges are not DCC) | I6 |
-| D-CN3 | Li Wei, Chinese master's student in Budapest (home CNY) | Pay EUR tuition from CNY; see coverage; receive money from home | Three CNY → EUR routes, cheapest first; coverage funds EUR and HUF needs from CNY; tuition `ASK`, funded from CNY via `cny-mock-bank`, approved → `SENT`; Dana and Li cannot read each other's orders (404) | I3, I8; A4-style BOLA |
+| D-CN3 | Li Wei, Chinese master's student in Budapest (home CNY) | Pay EUR tuition from CNY; see coverage; receive money from home | Three CNY → EUR routes, cheapest first; coverage funds EUR and HUF needs from CNY, each top-up sized to its first shortfall; tuition `ASK`, funded from CNY via `cny-mock-bank`, approved → `SENT`; Dana and Li cannot read each other's orders (404) | I3, I8; A4-style BOLA |
 
 **D-CN1 (Shanghai handoff):**
 ```bash
 $S up --fresh && $S register dana --claim-demo
 $S mark dcn1
 $S as dana settings patch '{"region":"CN"}'          # tightening → instant: settings.region "CN", pending []
-$S as dana privacy notice                            # text ends with "Region CN (PIPL): … cross-border transfer … separate consent …"
+$S as dana privacy notice                            # crossBorderConsentRequired true; text ends "Region CN (PIPL): … asks for your separate consent …"
+$S tool get_obligations '{}' --as dana               # 403 PIPL_CONSENT_REQUIRED: no AI processing before the separate consent
+$S as dana privacy pipl-consent                      # the user gives the PIPL Art. 38–39 consent explicitly → piplConsentAt
 $S tool get_obligations '{}' --as dana               # dorm fee: payeeRef payee_4, 180000 CNY, homeAmountMinor 13280964 (₸132,809.64), due 2026-11-15
 $S tool get_routes '{"fromCurrency":"KZT","toCurrency":"CNY","amountMinor":180000,"dueDate":"2026-11-15"}' --as dana
 #   kzt-mock-bank ₸1,720.45 < kzt-card ₸5,312.39 < kzt-home-bank ₸9,890.57 (costHomeMinor 172045 / 531239 / 989057)
@@ -173,9 +189,9 @@ $S as dana pay-qr <paymentId>; $S as dana payment <paymentId>    # paid → stat
 $S mock qr-swap on
 $S as dana say "Buy a bedding set from Buy Everything Shop from China for ¥349"   # plannerSees "… from payee_N …"
 $S tool propose_order '{"payeeRef":"<shop payeeRef>","amountMinor":34900,"currency":"CNY","purpose":"Bedding set"}' --as dana   # HANDOFF
-$S as dana approve <proposalId>                      # paymentStatus CANCELED, reasonCodes [QR_PAYEE_MISMATCH]
-$S as dana handoff <paymentId>                       # qrPayeeName "Unknown Trading Company" vs verified shop, similarity ≈ 0.63, walletUrl null
-$S as dana pay-qr <paymentId>                        # ok:false, "no Pay button"; payment stays CANCELED; balances unchanged
+$S as dana order <proposalId>                        # caught BEFORE signing: status REFUSED, reasonCodes [HANDOFF_REGION, QR_PAYEE_MISMATCH],
+                                                     #   webauthnOptions null, handoff {check QR_PAYEE_MISMATCH, qrPayeeName "Unknown Trading Company", nameSimilarity 0.6284}
+$S as dana approve <proposalId>                      # NOT_PENDING: nothing to sign; no payment row; balances unchanged
 $S mock qr-swap off
 $S evidence dcn1 --since dcn1; $S ledger-verify
 ```
@@ -204,7 +220,8 @@ $S as li balances                                    # homeCurrency CNY: ¥60,00
 $S tool get_obligations '{}' --as li                 # rent HUF 165,000 due 2026-11-05 (payee_1), tuition €3,200 due 2026-11-10 (payee_2), RF32RUB2026L03318
 $S tool get_routes '{"fromCurrency":"CNY","toCurrency":"EUR","amountMinor":320000,"dueDate":"2026-11-10"}' --as li
 #   cny-mock-bank ¥162.80 < cny-card ¥398.40 < cny-home-bank ¥548.40 (costHomeMinor 16280 / 39840 / 54840)
-$S tool forecast_coverage '{}' --as li               # EUR shortfall {2026-11-10, 275000}, HUF {2026-11-05, 7000000}; both funded from CNY via cny-mock-bank
+$S tool forecast_coverage '{}' --as li               # EUR shortfall {2026-11-10, 275000} → CNY via cny-mock-bank; HUF {2026-11-05, 7000000} → top-up
+                                                     #   7000000 (the first shortfall, not the horizon end) via cny-card (no fixed fee: cheapest for a small amount)
 $S tool propose_order '{"payeeRef":"payee_2","amountMinor":320000,"currency":"EUR","purpose":"Tuition RF32RUB2026L03318"}' --as li
 #   ASK [ABOVE_SMALL_AUTO_LIMIT]; "€3,200.00 (≈ CN¥26,560.00) … at most CN¥26,990.03"
 $S as li order <proposalId>                          # fundingCurrency CNY, fundingRouteId cny-mock-bank, fundingAmountMinor 2699003, markup 50 bps
@@ -229,7 +246,7 @@ passes **and** the tests listed actually assert the expected outcome. Read the t
 | C2 | Forged approval | `BAD_SIGNATURE`, no payment | `test/attacks/A3.test.ts` (forged row), `test/core/payments.test.ts` (tampered signature, tier upgrade) | I2; A3 |
 | C3 | Replay of an approval / assertion | `NONCE_USED`; re-approve → `NOT_PENDING` | `test/attacks/A3.test.ts` (replay, replayed assertion), `test/core/payments.test.ts` (exactly once) | I4; A3 |
 | C4 | Tamper with the order after signing / lying confirmation | `ORDER_HASH_MISMATCH` | `test/core/payments.test.ts` (tampered stored order), `test/core/orders-onboarding.test.ts` (A8-style assertion over a different order) | I3; A8 |
-| C5 | Prompt injection: hidden instruction in a supplier PDF (C5a); lookalike "new IBAN" email (C5b) | Document text is data; Reader-verified fields only; account change → new COOLING payee, rent unaffected | `test/intel/reader.test.ts` (evidence checks, injected text ignored), `test/intel/agent-loop.test.ts` (reader mismatches → rules; REFUSE/COOLING stop), `test/core/payees-mandates.test.ts` (A2-style). **Gap:** no end-to-end A1 test | I7, I10; A1, A2 |
+| C5 | Prompt injection: hidden instruction in a supplier PDF (C5a); lookalike "new IBAN" email (C5b) | Document text is data; Reader-verified fields only; account change → new COOLING payee, rent unaffected | `test/intel/reader.test.ts` (evidence checks, injected text ignored), `test/intel/agent-loop.test.ts` (reader mismatches → rules; REFUSE/COOLING stop), `test/core/payees-mandates.test.ts` (A2-style). `test/attacks/A1.test.ts` (end to end: hidden PDF instruction, hijacked Reader, obeying planner → no payment) | I7, I10; A1, A2 |
 | C6 | Inject a new payee (C6a); exfiltrate PII through tool outputs (C6b) | Unknown refs never reach rules; outputs only carry placeholders | `test/intel/agent-loop.test.ts` (unknown / non-payee reference), `test/core/payees-mandates.test.ts` (COOLING), `test/intel/redact.test.ts` (detectors, deep redaction, middleware). Persona check: P1 tool outputs show only `payee_N` / `iban_N` | I7, I11; A2 |
 
 **Compromised services**
@@ -238,19 +255,19 @@ passes **and** the tests listed actually assert the expected outcome. Read the t
 | --- | --- | --- | --- | --- |
 | S1 | Stolen rules signing key (no user passkey) | Payments verify the passkey against their own credential store (T2) or the signed mandate / base rules (T1) | `test/core/payments.test.ts` (own credential store; T1 mandate scope + stored assertion; widened mandate; small-auto needs signed base rules). Honest limit: small-auto orders under the signed limit rely on the base-rules signature (spec §2 one-process limit) | I2, I5 |
 | S2 | Forged mock webhooks | 401 for missing / bad signature or an altered body | `test/core/webhooks.test.ts` (HMAC) | I13 |
-| S3 | Replayed / stale webhooks | Outside 5 min → refused. **Gap:** no test for a replay inside the window (no event-id dedupe) | `test/core/webhooks.test.ts` (5-minute window on the demo clock) | I13 |
-| S4 | Swapped QR | `QR_PAYEE_MISMATCH`, no Pay button, never SENT | `test/screening/screening.test.ts` (checkQrPayee, 0.92 threshold). **Gap:** no end-to-end A5 test | A5 |
+| S3 | Replayed / stale webhooks | Outside 5 min → refused; a replay inside the window → 409 `WEBHOOK_REPLAYED` (seen-signature store) | `test/core/webhooks.test.ts` (5-minute window on the demo clock), `test/security/webhook-replay.test.ts` | I13 |
+| S4 | Swapped QR | `QR_PAYEE_MISMATCH` before the passkey prompt, nothing to sign, never SENT | `test/screening/screening.test.ts` (checkQrPayee, 0.92 threshold), `test/attacks/A5.test.ts` (end to end: QR checked when the order is shown, `REFUSED`, no payment row) | A5 |
 | S5 | Malicious Reader output / document with a wrong amount | Field `UNVERIFIED` → `READER_SOURCE_MISMATCH` → refuse | `test/intel/reader.test.ts`, `test/intel/agent-loop.test.ts` (readerChecks → rules) | I10 |
 | S6 | Tampered ledger row | Verification fails at that seq | `test/core/ledger.test.ts` (altered payload, deleted entry, re-hashed forgery, forged checkpoint) | I12 |
 | S7 | Stolen / guessed demo admin token | Constant-time check; routes absent when demo is off; production refuses weak tokens; rate limited | `test/security/http-hardening.test.ts` (demo admin hardening, rate limits) | I13 |
 | S8 | Fake issuing authorization abuse (second charge, wrong merchant / amount, unsigned) | Declined; authorize endpoint needs HMAC | `test/core/webhooks.test.ts` (FakeIssuing one-time card). Persona check: P1 pizza second charge | I2 |
-| S9 | Malicious mock bank status | **Gap:** no test; a signed status update is trusted as-is (honest limit) | none | I13 |
+| S9 | Malicious mock bank status | Unknown states, another user's profile, backwards moves, moves after final, SENT before funding → never change a payment; ledgered | `test/security/webhook-replay.test.ts` | I13 |
 
 **Compromised triggers**
 
 | ID | Threat | Expected | Test files | Inv. / attack |
 | --- | --- | --- | --- | --- |
-| T1 | Fake POS event asking for 10× stock | Trigger only logs / drafts; risk `TRIGGER_ORIGIN`, never approves | `test/rules/decide.test.ts` (triggerOrigin → ASK + TRIGGER_ORIGIN). **Gap:** no end-to-end A7 test | I6; A7 |
+| T1 | Fake POS event asking for 10× stock | Trigger only logs / drafts; risk `TRIGGER_ORIGIN`, never approves | `test/rules/decide.test.ts` (triggerOrigin → ASK + TRIGGER_ORIGIN), `test/attacks/A7.test.ts` (end to end: fake POS 10× order → ASK/REFUSE_CAP with TRIGGER_ORIGIN) | I6; A7 |
 | T2 | Shortcut token abuse | Unknown token → 401; capture only logs; sensitive rate limit | `test/security/http-hardening.test.ts` (public routes with own auth; Shortcut capture budget), `test/intel/parsers.test.ts` (Shortcut payloads) | I6, I13 |
 | T3 | Notification injection ("pay X to IBAN …" inside a notification) | Parsed as a spend or ignored; never a proposal | `test/intel/agent-loop.test.ts` (log_expense only logs), `test/intel/integration.test.ts` (capture pipeline) | I6, I10 |
 
@@ -265,11 +282,15 @@ Cross-cutting: IDOR / ownership in `test/core/orders-onboarding.test.ts` (other 
   port (127.0.0.1:4099, random token in `.data/sim/token`), and it starts mock-world as a child process (:4001,
   same HMAC secret). Env overrides are passed explicitly; `.env` files are neither read by the CLI nor edited.
 - User actions go over HTTP to the real API, like the app. Personas keep a software passkey (ES256, the test
-  `SoftAuthenticator`) in `.data/sim/personas/<name>.json`. The CLI handles 401 (refresh or passkey re-login),
-  429 (Retry-After) and 403 `AI_CONSENT_REQUIRED` (`POST /privacy/ai-consent`, then retry).
+  `SoftAuthenticator`) in `.data/sim/personas/<name>.json`. The CLI handles 401 (refresh or passkey re-login) and 429 (Retry-After); a 403 consent error is returned as is (consent is never given automatically).
 - Planner tools go to the control port, which builds the **real** `agent/tools.ts` with the real `Redactor` and
   the per-conversation placeholder map, and stores the redacted messages like a real turn. The control port is
   **harness only**: it is never registered in `src/server.ts`. It only reaches `agent/` and `rules.proposeOrder`.
 - Differences from the live loop: no 8-round cap, and `stopRequested` is advisory. Reader results are persisted per
   document and apply to later proposals in any turn or conversation (live loop and sim alike); `propose_order`
   also accepts `docIds` to cite the source document explicitly.
+- `sim down` stops the daemon gracefully, then signals its whole process group (the daemon is spawned detached and
+  leads its group; mock-world is a member), so nothing survives even if the daemon hung or never wrote `state.json`.
+  A test can set `SIM_OWNER_PID`: the daemon stops itself when that process is gone (a test run killed before its
+  `afterAll` leaves no orphan daemon). `demo clock` / `demo tick` / `demo trigger` wait for mock-world's clock to reach
+  the new demo time, tick the mock bank and wait until its webhooks are delivered (`webhooks` in the output).

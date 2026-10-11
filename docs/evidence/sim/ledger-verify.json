@@ -1,8 +1,9 @@
 {
   "ok": true,
-  "entries": 32,
+  "entries": 38,
   "checkpoints": 1,
-  "headHash": "ESGuGz0xpNaGxPj8oJJRqSnQDYNzHGuHuaL5BxT3sdU",
+  "headHash": "gxacC49XgHfKSnEmhJH10fRI4Av15lDDgrmFbC49edc",
+  "headAnchorSeq": 38,
   "problems": [],
-  "verifiedAt": "2026-10-27T10:00:38.008Z"
+  "verifiedAt": "2026-10-30T11:02:46.632Z"
 }

@@ -45,6 +45,8 @@ import { verifyToken } from "../../src/modules/auth/session.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { ledger } from "../../src/modules/ledger/index.ts";
 import { readDocument, type ReaderResult } from "../../src/modules/reader/index.ts";
+import { assertAiProcessingAllowed } from "../../src/modules/privacy/notice.ts";
+import { HttpProblem } from "../../src/http/problem.ts";
 import { tick } from "../../src/modules/scheduler/index.ts";
 import { SIM_TOKEN_HEADER } from "./lib/config.ts";
 
@@ -104,13 +106,17 @@ function callerReaderModel(extraction: unknown) {
   });
 }
 
-/** Mirrors privacy/notice.ts requireAiConsent (preHandler of the /agent routes), plus the session's erased-user refusal. */
+/** The product's AI gate (privacy/notice.ts: restriction, AI consent, PIPL consent for CN), plus the session's erased-user refusal. */
 async function assertAiAllowed(userId: string): Promise<void> {
-  const row = (await getDb().select().from(users).where(eq(users.id, userId)))[0] as Record<string, unknown> | undefined;
+  const row = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, userId)))[0];
   if (!row) throw new ControlError(401, "UNAUTHENTICATED", "user not found");
-  if ("erasedAt" in row && row.erasedAt) throw new ControlError(401, "UNAUTHENTICATED", "user erased");
-  if ("restrictedAt" in row && row.restrictedAt) throw new ControlError(403, "PROCESSING_RESTRICTED", "You restricted processing of your data (GDPR Art. 18)");
-  if ("aiConsentAt" in row && !row.aiConsentAt) throw new ControlError(403, "AI_CONSENT_REQUIRED", "consent to AI processing is required");
+  if (row.erasedAt) throw new ControlError(401, "UNAUTHENTICATED", "user erased");
+  try {
+    await assertAiProcessingAllowed(userId);
+  } catch (e) {
+    if (e instanceof HttpProblem) throw new ControlError(e.status, e.code, e.message);
+    throw e;
+  }
 }
 
 async function runTool(body: Json, userId: string): Promise<unknown> {

@@ -9,16 +9,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
 import { payments, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
-import { setRailOverridesForTests } from "../../src/modules/rails/index.ts";
 import { setBalanceProviderForTests } from "../../src/modules/rules/facts.ts";
 import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
 import { forecastCoverage, getRoutes } from "../../src/modules/fx/index.ts";
 import { loadSeedData, seedDatabase } from "../../src/modules/demo/seed.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
-import { offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { offlineEnvironment, signBaseRules, useRealHandoff } from "../helpers/fixtures.ts";
 import { deliverWebhooks, startMockWorld, type TestMockWorld } from "../helpers/mockWorld.ts";
 import { SoftAuthenticator } from "../helpers/webauthn.ts";
+import { ensureIntelTables } from "../intel/intelTables.ts";
 import { IDS } from "../../../../fixtures/seed-data.ts";
 
 const t = useTestDb();
@@ -59,7 +59,7 @@ describe("D-CN1 Shanghai exchange semester: handoff in CNY, QR checks, CNY cover
     await t.reset();
     offlineEnvironment();
     // The real handoff rail talks to the mock world; real mock-bank balances (as A5 and funding.test).
-    setRailOverridesForTests({});
+    useRealHandoff(); // X7: real handoff rail + real QR preflight against the in-process mock world
     setBalanceProviderForTests(null);
     await setSwap(false);
   });
@@ -89,6 +89,21 @@ describe("D-CN1 Shanghai exchange semester: handoff in CNY, QR checks, CNY cover
     const anonEu = await app().inject({ method: "GET", url: "/api/privacy/ai-notice" });
     expect(anonEu.statusCode).toBe(200);
     expect(anonEu.json().text).not.toContain("PIPL");
+
+    // Y3: the CN notice asks for the separate consent; the agent refuses until Dana gives it, then works.
+    expect(after.json().crossBorderConsentRequired).toBe(true);
+    const h = await bearer(userId);
+    await app().inject({ method: "POST", url: "/api/privacy/ai-consent", headers: h, payload: { consent: true } });
+    const chat = { conversationId: "00000000-0000-4000-8000-00000000c0c1", text: "Pay the Dorm Office in Shanghai my November dorm fee" };
+    const refused = await app().inject({ method: "POST", url: "/api/agent/message", headers: h, payload: chat });
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().code).toBe("PIPL_CONSENT_REQUIRED");
+    const given = await app().inject({ method: "POST", url: "/api/privacy/pipl-consent", headers: h, payload: { consent: true } });
+    expect(given.statusCode, given.body).toBe(200);
+    expect(given.json().piplConsentAt).toBeTruthy();
+    await ensureIntelTables(t.db());
+    const ok = await app().inject({ method: "POST", url: "/api/agent/message", headers: h, payload: chat });
+    expect(ok.statusCode).toBe(200);
   });
 
   it("dorm fee ¥1,800: HANDOFF in CNY, QR MATCH, paid in the QR wallet → SENT", async () => {
@@ -147,7 +162,7 @@ describe("D-CN1 Shanghai exchange semester: handoff in CNY, QR checks, CNY cover
     expect(after!.status).toBe("SENT");
   });
 
-  it("bedding set ¥349 with a swapped QR: QR_PAYEE_MISMATCH, canceled, no Pay button, nothing paid", async () => {
+  it("bedding set ¥349 with a swapped QR: QR_PAYEE_MISMATCH before signing, no passkey prompt, nothing paid", async () => {
     const { userId, auth } = await seededDana();
     await switchToCn(userId);
     await setSwap(true);
@@ -162,19 +177,17 @@ describe("D-CN1 Shanghai exchange semester: handoff in CNY, QR checks, CNY cover
     });
     expect(p.decision).toBe("HANDOFF");
 
+    // X7: the QR is checked when the order is shown, before the passkey prompt — nothing to sign, approve refused.
     const view = await getOrderView(userId, p.proposalId);
-    const res = await approveOrder(userId, p.proposalId, auth.assert(view.orderHash));
-    expect(res.paymentStatus).toBe("CANCELED");
-    expect(res.reasonCodes).toEqual(["QR_PAYEE_MISMATCH"]);
-
-    const handoff = await app().inject({ method: "GET", url: `/api/handoff/${res.paymentId}`, headers: await bearer(userId) });
-    expect(handoff.statusCode).toBe(200);
-    expect(handoff.json()).toMatchObject({
+    expect(view.webauthnOptions).toBeNull();
+    expect(view.reasonCodes).toContain("QR_PAYEE_MISMATCH");
+    expect(view.handoff).toMatchObject({
       check: "QR_PAYEE_MISMATCH",
-      walletUrl: null,
       qrPayeeName: "Unknown Trading Company",
       verifiedPayeeName: "Buy Everything Shop from China",
     });
+    await expect(approveOrder(userId, p.proposalId, auth.assert(view.orderHash))).rejects.toMatchObject({ status: 409, code: "QR_PAYEE_MISMATCH" });
+    expect(await getDb().select().from(payments).where(eq(payments.userId, userId))).toHaveLength(0);
 
     const sent = await getDb()
       .select()

@@ -92,6 +92,7 @@ function processingInfo() {
     purposes: [
       { purpose: "personal finance assistant: budgets, bills, payment proposals", basis: "GDPR Art. 6(1)(b) contract" },
       { purpose: "AI chat and document reading", basis: "GDPR Art. 6(1)(a) consent (withdrawable: POST /privacy/ai-consent)" },
+      { purpose: "region CN: AI processing outside mainland China (cross-border transfer)", basis: "PIPL Art. 38–39 separate consent (withdrawable: POST /privacy/pipl-consent)" },
       { purpose: "fraud prevention, sanctions screening, audit ledger", basis: "GDPR Art. 6(1)(c) legal obligation / 6(1)(f) legitimate interest" },
     ],
     recipients: [
@@ -112,7 +113,7 @@ function processingInfo() {
       logic: "fixed rules decide AUTO / ASK / HANDOFF / REFUSE for each proposed payment (caps, payee verification, sanctions screening, risk score); the AI cannot approve",
       safeguard: "GDPR Art. 22(3): every refusal has reason codes; you can reject, change your rules, or contact us",
     },
-    rights: ["access/portability: GET /privacy/export", "rectification: PATCH /me", "erasure: POST /privacy/erase", "restriction: POST /privacy/restrict", "withdraw AI consent: POST /privacy/ai-consent {consent:false}"],
+    rights: ["access/portability: GET /privacy/export", "rectification: PATCH /me", "erasure: POST /privacy/erase", "restriction: POST /privacy/restrict", "withdraw AI consent: POST /privacy/ai-consent {consent:false}", "withdraw the PIPL cross-border consent (region CN): POST /privacy/pipl-consent {consent:false}"],
   };
 }
 
@@ -131,7 +132,7 @@ export async function exportUserData(userId: string) {
   const ledgerRows = await db.select().from(ledgerEntries).where(sql`${ledgerEntries.payload}->>'userId' = ${userId}`).orderBy(ledgerEntries.seq);
 
   const data = {
-    user: { id: u.id, displayName: u.displayName, homeCurrency: u.homeCurrency, region: u.region, preset: u.preset, moneyMode: u.moneyMode, overrides: u.overrides, frozenAt: u.frozenAt, createdAt: u.createdAt, aiConsentAt: u.aiConsentAt, restrictedAt: u.restrictedAt, erasedAt: u.erasedAt },
+    user: { id: u.id, displayName: u.displayName, homeCurrency: u.homeCurrency, region: u.region, preset: u.preset, moneyMode: u.moneyMode, overrides: u.overrides, frozenAt: u.frozenAt, createdAt: u.createdAt, aiConsentAt: u.aiConsentAt, piplConsentAt: u.piplConsentAt, restrictedAt: u.restrictedAt, erasedAt: u.erasedAt },
     profile: (await db.select().from(profiles).where(eq(profiles.userId, userId)))[0] ?? null,
     passkeys: (await db.select({ credentialId: webauthnCredentialsRules.credentialId, transports: webauthnCredentialsRules.transports, createdAt: webauthnCredentialsRules.createdAt }).from(webauthnCredentialsRules).where(own(webauthnCredentialsRules))),
     devices: await db.select({ id: devices.id, kind: devices.kind, platform: devices.platform, createdAt: devices.createdAt, revokedAt: devices.revokedAt }).from(devices).where(own(devices)),
@@ -205,6 +206,19 @@ export async function setAiConsent(userId: string, consent: boolean, db: DbOrTx 
   const value = consent ? now : null;
   await db.update(users).set({ aiConsentAt: value }).where(eq(users.id, userId));
   await audit(consent ? "AI_CONSENT_GIVEN" : "AI_CONSENT_WITHDRAWN", { userId, noticeVersion: aiNotice().noticeVersion }, db);
+  return value;
+}
+
+/** Give or withdraw the separate PIPL cross-border consent for AI processing (Art. 39; withdrawable like Art. 15 PIPL). */
+export async function setPiplConsent(userId: string, consent: boolean, db: DbOrTx = getDb()): Promise<Date | null> {
+  const now = clock.now();
+  const u = (await db.select({ piplConsentAt: users.piplConsentAt, region: users.region }).from(users).where(eq(users.id, userId)))[0];
+  if (!u) throw new HttpProblem(404, "NOT_FOUND", "user not found");
+  if (consent && u.piplConsentAt) return u.piplConsentAt;
+  if (!consent && !u.piplConsentAt) return null;
+  const value = consent ? now : null;
+  await db.update(users).set({ piplConsentAt: value }).where(eq(users.id, userId));
+  await audit(consent ? "PIPL_CONSENT_GIVEN" : "PIPL_CONSENT_WITHDRAWN", { userId, noticeVersion: aiNotice(u.region).noticeVersion }, db);
   return value;
 }
 
@@ -288,7 +302,7 @@ export async function eraseUser(userId: string): Promise<{ erasedAt: Date }> {
       .where(eq(profiles.userId, userId));
     await tx
       .update(users)
-      .set({ displayName: ERASED_MARK, erasedAt: now, frozenAt: u.frozenAt ?? now, restrictedAt: u.restrictedAt ?? now, aiConsentAt: null })
+      .set({ displayName: ERASED_MARK, erasedAt: now, frozenAt: u.frozenAt ?? now, restrictedAt: u.restrictedAt ?? now, aiConsentAt: null, piplConsentAt: null })
       .where(eq(users.id, userId));
     await audit("PRIVACY_ERASED", { userId, erased: ERASED.length, retained: RETAINED.map((r) => r.category) }, tx);
   });

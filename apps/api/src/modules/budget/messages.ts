@@ -12,7 +12,7 @@ export type MoneyParam = { amountMinor: number; currency: string };
 export type BudgetMessage =
   | {
       key: "budget.each";
-      params: { amount: MoneyParam; merchant: string; category: string; usedPct: number; leftPct: number; days: number; pace: BudgetPace };
+      params: { amount: MoneyParam; home?: MoneyParam; merchant: string; category: string; usedPct: number; leftPct: number; days: number; pace: BudgetPace };
     }
   | {
       key: "budget.threshold";
@@ -56,14 +56,14 @@ const cat = (c: string) => CATEGORY_EN[c] ?? c;
 const money = (m: MoneyParam) => formatMoney(m.amountMinor, m.currency, "en");
 const paceEn = (p: BudgetPace) => (p === "ON_TRACK" ? "on track" : p === "AHEAD_OF_PACE" ? "ahead of pace" : "over budget");
 
-/** English rendering. `budget.each` follows the spec §13 template verbatim. */
+/** English rendering. `budget.each` follows the spec §13 template, plus "(≈ home)" for a foreign spend (Y6). */
 export function renderEn(m: BudgetMessage): { title: string; body: string } {
   switch (m.key) {
     case "budget.each": {
       const p = m.params;
       return {
         title: `${cat(p.category)} budget`,
-        body: `${money(p.amount)} at ${p.merchant}. ${cat(p.category)}: ${p.usedPct}% used, ${p.leftPct}% left for ${p.days} days, ${paceEn(p.pace)}.`,
+        body: `${money(p.amount)}${p.home && p.home.currency !== p.amount.currency ? ` (≈ ${money(p.home)})` : ""} at ${p.merchant}. ${cat(p.category)}: ${p.usedPct}% used, ${p.leftPct}% left for ${p.days} days, ${paceEn(p.pace)}.`,
       };
     }
     case "budget.threshold": {

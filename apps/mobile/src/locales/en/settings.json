@@ -21,6 +21,13 @@
   "currencyOption": "{{code}} · {{name}}",
   "customise": "Customise",
   "customiseHint": "Override individual settings instead of following the preset.",
+  "derivedChange": "{{setting}}: {{from}} → {{to}}",
+  "derivedSetting": {
+    "agentAutonomy": "Agent",
+    "paymentPolicy": "Payments",
+    "moneyMode": "Money mode"
+  },
+  "derivedToast": "This preset also changed {{changes}}.",
   "direction": {
     "LOOSEN": "Loosening",
     "TIGHTEN": "Tightening"
@@ -104,6 +111,7 @@
       "body": "Bills inside your signed mandates pay themselves."
     }
   },
+  "presetAlsoChanges": "Choosing this also changes {{changes}}.",
   "presetDefaults": "Agent: {{agent}}. Payments: {{payments}}. Money: {{mode}}.",
   "presetTitle": "Preset",
   "region": {

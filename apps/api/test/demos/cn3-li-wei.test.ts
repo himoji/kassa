@@ -206,10 +206,14 @@ describe("second persona Li Wei (D-CN3)", () => {
     expect(f.suggestions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ fromCurrency: "CNY", toCurrency: "EUR", amountMinor: 275_000 }),
-        expect.objectContaining({ fromCurrency: "CNY", toCurrency: "HUF" }),
+        // Y4 (cn D-CN3): sized to the first shortfall (to the reserve), not the horizon end.
+        expect.objectContaining({ fromCurrency: "CNY", toCurrency: "HUF", amountMinor: 7_000_000, byDate: "2026-11-05" }),
       ]),
     );
-    for (const s of f.suggestions) expect(s.route?.routeId).toBe("cny-mock-bank:CNY");
+    // Cheapest route per top-up: the large EUR one by the mock bank (fixed fee, low markup), the small HUF one by
+    // the CNY card (no fixed fee).
+    expect(f.suggestions.find((s) => s.toCurrency === "EUR")?.route?.routeId).toBe("cny-mock-bank:CNY");
+    expect(f.suggestions.find((s) => s.toCurrency === "HUF")?.route?.routeId).toBe("cny-card:CNY");
   });
 
   it("tuition EUR 3,200 is funded from CNY via the mock bank: ASK, signed max, bank debit", async () => {

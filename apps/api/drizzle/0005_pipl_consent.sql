@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "pipl_consent_at" timestamp with time zone;

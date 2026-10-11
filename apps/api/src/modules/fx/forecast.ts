@@ -9,8 +9,8 @@ import { rates, type RatesService } from "./rates.ts";
  * Coverage forecast (spec §12):
  *   B_k(t) = B_k(0) + incomes_k(≤t) − obligations_k(≤t) − burn_k·t,   t = 0..45 days
  *   burn_k = median daily spend in k over the last 30 days (days without spend count as 0)
- *   shortfall = first day B_k < reserve_k; suggest a conversion from the surplus currency via the
- *   route optimizer.
+ *   shortfall = first day B_k < reserve_k; suggest a conversion of (reserve_k − B_k) on that day from the surplus
+ *   currency via the route optimizer (sized to the first shortfall, not the horizon's worst deficit).
  */
 
 export const HORIZON_DAYS = 45;
@@ -146,14 +146,17 @@ export async function computeForecast(input: ForecastInput, svc: RatesService = 
   }
   surplusHome.sort((a, b) => b.home - a.home);
   for (const p of proj) {
-    if (!p.shortfall || p.maxDeficitMinor <= 0) continue;
+    if (!p.shortfall || p.shortfall.amountMinor <= 0) continue;
+    // Sized to the FIRST shortfall: what brings the balance back to the reserve on that date (p1 B2). Later
+    // shortfalls show up again in the next forecast; the horizon-wide worst deficit over-converts early.
+    const topUpMinor = p.shortfall.amountMinor;
     for (const s of surplusHome) {
       if (s.currency === p.currency) continue;
-      const need = (await svc.convert(p.maxDeficitMinor, p.currency, s.currency, input.today)).amountMinor;
+      const need = (await svc.convert(topUpMinor, p.currency, s.currency, input.today)).amountMinor;
       if (need > s.surplusMinor) continue;
       const routes = await getRoutes(
         {
-          amountMinor: p.maxDeficitMinor,
+          amountMinor: topUpMinor,
           toCurrency: p.currency,
           homeCurrency: input.homeCurrency,
           today: input.today,
@@ -167,7 +170,7 @@ export async function computeForecast(input: ForecastInput, svc: RatesService = 
       suggestions.push({
         fromCurrency: s.currency,
         toCurrency: p.currency,
-        amountMinor: p.maxDeficitMinor,
+        amountMinor: topUpMinor,
         byDate: p.shortfall.date,
         route: best
           ? (({ amountInFundingMinor: _a, totalDebitFundingMinor: _t, ...dto }) => dto)(best)

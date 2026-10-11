@@ -9,7 +9,7 @@ import { activateDueMandates } from "../../src/modules/mandates/service.ts";
 import { decryptAccount } from "../../src/modules/payees/crypto.ts";
 import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
-import { addPayee, createUserWithPasskey, IBAN_LANDLORD, IBAN_OTHER, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { addObligation, addPayee, createUserWithPasskey, IBAN_LANDLORD, IBAN_OTHER, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
 
 const t = useTestDb();
@@ -111,19 +111,21 @@ describe("mandates (I8)", () => {
     expect(created.statusCode).toBe(201);
     expect(created.json().status).toBe("PENDING_EFFECTIVE");
 
-    const before = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
+    // X1: mandate payments are linked to a bill (one obligation per step, so each has its own unsettled period).
+    const [billBefore, billAfter, billRevoked] = [await addObligation(userId, landlord.id), await addObligation(userId, landlord.id), await addObligation(userId, landlord.id, { amountMinor: 1_000_000 })];
+    const before = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: billBefore.id });
     expect(before.decision).not.toBe("AUTO");
 
     clock.setOffsetInMemoryForTests(24 * 3_600_000 + 1000);
     expect(await activateDueMandates()).toBe(1);
-    const after = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
+    const after = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: billAfter.id });
     expect(after.decision).toBe("AUTO");
 
     // Access tokens are 15 min on the (advanced) Clock: mint a fresh one.
     const rev = await app().inject({ method: "POST", url: `/api/mandates/${core.mandateId}/revoke`, headers: await bearer(userId) });
     expect(rev.json().status).toBe("REVOKED");
     expect((await getDb().select().from(mandates).where(eq(mandates.id, core.mandateId)))[0]!.revokedAt).not.toBeNull();
-    const revoked = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: landlord.id, amountMinor: 1_000_000, currency: "HUF", purpose: "Rent", category: "rent" });
+    const revoked = await proposeOrder({ userId, createdBy: "SCHEDULER", payeeId: landlord.id, amountMinor: 1_000_000, currency: "HUF", purpose: "Rent", obligationId: billRevoked.id });
     expect(revoked.reasonCodes).not.toContain("MANDATE_MATCH");
   });
 });
