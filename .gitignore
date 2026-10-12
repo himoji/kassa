@@ -30,3 +30,6 @@ npm-debug.*
 
 # local PGlite database (bun run dev without Docker)
 .data/
+
+# demo videos (bun run demo:video)
+docs/demo/*.mp4

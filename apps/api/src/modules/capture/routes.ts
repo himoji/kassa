@@ -2,11 +2,13 @@ import { CaptureEventRequest, CaptureEventResponse, SettlementEventRequest, Sett
 import { and, eq, isNull } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
+import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
 import { devices } from "../../db/schema.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
+import { captureNudge } from "./nudge.ts";
 import { ShortcutPayload } from "./parsers/index.ts";
 import { ingestCapture, reconcileSettlement, SettlementError } from "./service.ts";
 
@@ -30,6 +32,9 @@ async function shortcutDeviceUser(req: FastifyRequest): Promise<string> {
   return row.userId;
 }
 
+/** The Shortcut shows `nudge` as its notification (docs/SHORTCUT_SETUP.md); the rest is the usual capture result. */
+const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string() });
+
 /** Device-token owner per request (set in onRequest, read by the handler). */
 const shortcutUsers = new WeakMap<FastifyRequest, string>();
 
@@ -41,12 +46,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       onRequest: async (req) => {
         shortcutUsers.set(req, await shortcutDeviceUser(req));
       },
-      schema: { body: ShortcutPayload, response: { 200: CaptureEventResponse } },
+      schema: { body: ShortcutPayload, response: { 200: ShortcutCaptureResponse } },
     },
     async (req) => {
       const userId = shortcutUsers.get(req);
       if (!userId) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
-      return ingestCapture(userId, { source: "SHORTCUT", shortcut: req.body });
+      const result = await ingestCapture(userId, { source: "SHORTCUT", shortcut: req.body });
+      return { ...result, nudge: await captureNudge(userId, result) };
     },
   );
 

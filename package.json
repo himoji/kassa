@@ -21,6 +21,8 @@
     "ledger:verify": "bun run --cwd apps/api ledger:verify",
     "evidence:attacks": "rm -f docs/evidence/attacks.json docs/evidence/naive-baseline.json && WRITE_EVIDENCE=1 bun run --cwd apps/api vitest run test/attacks test/naive",
     "sim": "bun apps/api/scripts/sim/cli.ts",
+    "phone": "bun scripts/phone.ts",
+    "demo:video": "bun scripts/demo-video/record.ts",
     "dev:all": "turbo run dev"
   },
   "devDependencies": {
@@ -28,6 +30,7 @@
     "@types/bun": "^1.4.2",
     "eslint": "^9",
     "globals": "^17.13.0",
+    "playwright": "^1.64.0",
     "turbo": "^2.11.7",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.1"

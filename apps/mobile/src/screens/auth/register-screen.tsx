@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { type Href, router } from "expo-router";
 import { useState } from "react";
 
 import { useRegister } from "@/api/hooks/auth";
@@ -8,6 +8,7 @@ import { Box, Button, Input, Text } from "@/components/ui";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
+import { peekReturnPath } from "@/lib/return-path";
 
 /** Sign-up = create a passkey (spec §8); no password exists anywhere. */
 export function RegisterScreen() {
@@ -21,7 +22,9 @@ export function RegisterScreen() {
     try {
       const session = await register.mutateAsync({ displayName: name.trim() });
       haptics.success();
-      router.replace(session.onboarded ? "/home" : "/onboarding/chat");
+      router.replace(
+        session.onboarded ? ((peekReturnPath() ?? "/home") as Href) : "/onboarding/chat"
+      );
     } catch (err) {
       if (err instanceof PasskeyCancelledError) return;
       haptics.error();

@@ -5,7 +5,9 @@
  * rules import path never reaches payments (I1).
  */
 import {
+  Fulfillment,
   formatMoney,
+  itemsHash as computeItemsHash,
   orderHash as computeOrderHash,
   reasonsSentenceEn,
   type CanonicalOrder,
@@ -18,7 +20,7 @@ import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
-import { approvals, budgets, obligations, payees, proposals, type ProposalDraftJson } from "../../db/schema.ts";
+import { approvals, budgets, merchants, obligations, payees, proposals, purchaseOrders, type ProposalDraftJson } from "../../db/schema.ts";
 import { ownedNotFound } from "../../http/audit.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
@@ -69,6 +71,16 @@ export type ProposeOrderInput = {
   dueDate?: string;
   /** (added, B1) documents whose Reader checks produced `readerChecks` (audit; stored on the draft). */
   sourceDocIds?: string[];
+  /**
+   * (added 2026-10-14, Business M2) The merchant order this payment buys (delivery order or till bill). Its items must
+   * total exactly amountMinor; the order signs itemsHash(items), and the commerce hook fulfils exactly these items.
+   */
+  fulfillment?: Fulfillment;
+  /**
+   * (added 2026-10-15, Business M5) The passkey-signed supplier purchase order this payment settles (invoice three-way
+   * match, business/invoices.ts). Signed into the CanonicalOrder; payments re-verifies the PO signature. Never AUTO.
+   */
+  purchaseOrderId?: string;
 };
 
 export type ProposeOrderResult = {
@@ -258,6 +270,15 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     throw new HttpProblem(400, "BAD_AMOUNT", "amountMinor must be a positive integer (minor units)");
   }
   if (!/^[A-Z]{3}$/.test(input.currency)) throw new HttpProblem(400, "BAD_CURRENCY", "currency must be ISO 4217");
+  let fulfillment: Fulfillment | null = null;
+  if (input.fulfillment) {
+    const f = Fulfillment.safeParse(input.fulfillment);
+    if (!f.success) throw new HttpProblem(400, "BAD_FULFILLMENT", "fulfillment is invalid");
+    const total = f.data.items.reduce((s, i) => s + i.qty * i.unitPriceMinor, 0);
+    if (total !== input.amountMinor) throw new HttpProblem(400, "BAD_FULFILLMENT", `fulfillment items total ${total}, not amountMinor ${input.amountMinor}`);
+    if (f.data.channel === "TILL" && !f.data.billId) throw new HttpProblem(400, "BAD_FULFILLMENT", "a TILL fulfillment needs its billId");
+    fulfillment = f.data;
+  }
   const db = getDb();
   const now = clock.now();
   const { user, profile, caps } = await loadUser(db, input.userId);
@@ -274,6 +295,22 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     if (!ob || ob.payeeId !== input.payeeId) throw new HttpProblem(400, "BAD_OBLIGATION", "obligationId is not this user's obligation for this payee");
     period = input.dueDate ?? ob.dueDate;
     linked = { id: ob.id, category: ob.category, amountMinor: ob.amountMinor, currency: ob.currency, dueDate: ob.dueDate, period };
+  }
+  // (M5) A purchase-order invoice: the PO must be the user's own, signed, for this supplier, and cover the amount.
+  let poNotDelivered = false;
+  if (input.purchaseOrderId) {
+    const row = (
+      await db
+        .select({ po: purchaseOrders, ownerUserId: merchants.ownerUserId })
+        .from(purchaseOrders)
+        .innerJoin(merchants, eq(merchants.id, purchaseOrders.merchantId))
+        .where(eq(purchaseOrders.id, input.purchaseOrderId))
+    )[0];
+    const core = row?.po.core;
+    if (!row || row.ownerUserId !== user.id || !core || !row.po.poHash) throw new HttpProblem(400, "BAD_PURCHASE_ORDER", "purchaseOrderId is not a signed purchase order of this user");
+    if (core.supplierPayeeId !== input.payeeId) throw new HttpProblem(400, "BAD_PURCHASE_ORDER", "the payee is not the purchase order's supplier", { reasonCodes: ["INVOICE_ACCOUNT_MISMATCH"] });
+    if (core.currency !== input.currency || input.amountMinor > core.totalMinor) throw new HttpProblem(400, "BAD_PURCHASE_ORDER", "amount above the signed purchase order total", { reasonCodes: ["INVOICE_ABOVE_PO"] });
+    poNotDelivered = !row.po.timeline.some((t) => t.status === "DELIVERED");
   }
   // X1: a linked bill's category comes from the obligation (server side), never from the caller's input.
   const category = linked?.category ?? input.category ?? (payee ? defaultCategory(payee.kind) : "other");
@@ -314,7 +351,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const score = riskScore(features);
 
   const paymentsCapHome = await paymentsCapInHome(user.homeCurrency, now);
-  const result: DecideResult = decide({
+  const decided: DecideResult = decide({
     now,
     frozen: user.frozenAt !== null,
     payee: payee ? { status: payee.status, coolingUntil: payee.coolingUntil, hasAccount: payee.accountHash !== null } : null,
@@ -351,6 +388,14 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     duplicateObligation,
     fundingAvailable: funding === null ? null : funding.status !== "NONE",
   });
+  // (M5) A supplier invoice is always paid with the owner's passkey (T2): never AUTO, never under a mandate; an
+  // invoice for an undelivered PO says so.
+  let result = decided;
+  if (input.purchaseOrderId && decided.decision !== "REFUSE") {
+    const codes: ReasonCode[] = [...decided.reasonCodes];
+    if (poNotDelivered) codes.push("PO_NOT_DELIVERED");
+    result = decided.decision === "AUTO" ? { ...decided, decision: "ASK", tier: "T2", mandateId: null, reasonCodes: codes.filter((c) => c !== "MANDATE_MATCH" && c !== "SMALL_AUTO") } : { ...decided, reasonCodes: codes };
+  }
 
   const proposalId = randomUUID();
   const draft: ProposalDraftJson = {
@@ -369,6 +414,8 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     riskFeatures: features,
     ...(input.sourceDocIds?.length ? { sourceDocIds: input.sourceDocIds } : {}),
     ...(input.obligationId && period ? { dueDate: period } : {}),
+    ...(fulfillment ? { fulfillment } : {}),
+    ...(input.purchaseOrderId ? { purchaseOrderId: input.purchaseOrderId } : {}),
   };
   let order: CanonicalOrder | null = null;
   let hash: string | null = null;
@@ -400,6 +447,10 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
         : {}),
       // X1: the bill this order pays is signed with it (payments re-checks it for mandate payments).
       ...(linked ? { obligationId: linked.id, obligationPeriod: linked.period } : {}),
+      // (M2) what is bought: the shop order / till bill fulfilled after payment must hash to this.
+      ...(fulfillment ? { itemsHash: computeItemsHash(fulfillment.items) } : {}),
+      // (M5) the signed purchase order this pays: payments re-verifies its owner signature, supplier and total.
+      ...(input.purchaseOrderId ? { purchaseOrderId: input.purchaseOrderId } : {}),
     };
     hash = computeOrderHash(order);
   }

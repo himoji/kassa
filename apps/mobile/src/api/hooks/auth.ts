@@ -36,16 +36,17 @@ export interface RegisterInput {
   displayName: string;
   /**
    * Demo mode only: bind this new passkey to the seeded demo account instead of creating a user
-   * (server `demoClaim`). Still a full passkey ceremony; the server refuses it once claimed.
+   * (server `demoClaim`): `true` = the seeded hero, a string = that seeded persona key. Still a full
+   * passkey ceremony; the server refuses it once claimed.
    */
-  demoClaim?: boolean;
+  demoClaim?: true | string;
 }
 
 export function useRegister() {
   return useMutation({
     mutationFn: async ({ displayName, demoClaim }: RegisterInput) => {
       const { challengeId, options } = await api.request("/auth/register/options", {
-        json: demoClaim ? { displayName, demoClaim: true } : { displayName },
+        json: demoClaim ? { displayName, demoClaim } : { displayName },
         schema: RegisterOptionsResponse,
         auth: false,
       });

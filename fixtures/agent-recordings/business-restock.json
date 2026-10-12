@@ -1,0 +1,27 @@
+{
+  "scenario": "business-restock",
+  "description": "Hand-written recording (spec §9 replay format; no model key was available to record live with RECORD=1) for Business M5, the Shanghai pizzeria owner. Turn 1: 'Will we run out of anything tomorrow?' → get_inventory + forecast_stock (400 boxes short by the end of tomorrow; suggestion 4 packs of BOX-33CM-100 from the verified supplier, which becomes payee_1, the first placeholder of the conversation). Turn 2: 'Order boxes from the usual supplier' → propose_purchase_order with payee_1 and the suggested packs; the server reads the price from the supplier's structured catalog and writes a DRAFT purchase order only (no proposal, approval or payment). The owner signs it with the payments passkey in Orders.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "Will we run out of anything tomorrow?",
+      "match": ["run out", "tomorrow"],
+      "steps": [
+        { "text": "Let me check your stock and tomorrow's forecast.", "toolCalls": [{ "toolName": "get_inventory", "input": {} }, { "toolName": "forecast_stock", "input": {} }] },
+        {
+          "text": "Yes: pizza boxes. You will be 400 boxes short by the end of tomorrow (need for today and tomorrow plus safety stock, minus what is on hand). Everything else is covered. I suggest 4 packs of 100 boxes (BOX-33CM-100) from your verified supplier payee_1, CNY 180 per pack, CNY 720 in total, delivered by tomorrow. Say \"order boxes\" and I will draft the purchase order for you to sign."
+        }
+      ]
+    },
+    {
+      "userText": "Order boxes from the usual supplier",
+      "match": ["order", "boxes"],
+      "steps": [
+        { "toolCalls": [{ "toolName": "propose_purchase_order", "input": { "supplierRef": "payee_1", "lines": [{ "supplierSku": "BOX-33CM-100", "packs": 4 }] } }] },
+        {
+          "text": "I drafted a purchase order to payee_1: 4 packs of 100 pizza boxes at the catalog price, CNY 720. Nothing is ordered or paid yet. Review and sign it with your passkey in Orders; the supplier's invoice is then checked against what you signed and paid only after your approval."
+        }
+      ]
+    }
+  ]
+}

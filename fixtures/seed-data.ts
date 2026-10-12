@@ -807,6 +807,472 @@ export const liWei = {
   transactions: liWeiTransactions,
 } as const;
 
+// ---------- Kassa Business: two pizzerias (M0) + Li Wei in Shanghai ----------
+/*
+ * One merchant codebase, two tenants (docs/DECISIONS.md "Kassa Business"):
+ * - `pizzeria-bud`: Pizza Shop in Budapest (HUF, region EU, Europe/Budapest), mock-world storeId "bud". Pays its
+ *   suppliers by BANK_TRANSFER from a capped wallet. Comfortably stocked, but stock is trending down.
+ * - `pizzeria-sha`: Pizza Shop in Shanghai (CNY, region CN, Asia/Shanghai), storeId "sha". Pays through QR HANDOFF.
+ *   Tuned so the stock forecast shows about 400 pizza boxes short by the end of tomorrow.
+ * - `li-wei-cn`: Li Wei as a customer in Shanghai (region CN, HANDOFF): a separate persona so `li-wei` (a student in
+ *   Budapest, region EU) and every test that seeds him stay unchanged.
+ *
+ * Forecast contract the seed is tuned for (M4 business/forecast.ts implements it):
+ *   demand(day) = Σ_menu round(avg qty sold on the same weekday over the last 4 weeks) × recipe qtyPerUnit
+ *   need        = demand(today) + demand(tomorrow)          (today = SEED_NOW's calendar day in the merchant's timezone)
+ *   safety      = ceil(need × safetyStockPct / 100)
+ *   shortage    = max(0, need + safety − onHand)            (onHand = Σ stock_movements.qty; no open POs at seed time)
+ * sales_daily holds the 28 completed days before today; the stock ledger is consistent with it (opening SEED stock,
+ * weekly RECEIPTs, one SALE movement per day and inventory SKU = Σ recipe × qty sold), so onHand ends at the target.
+ *
+ * Suppliers: each pizzeria has a VERIFIED supplier (A in Budapest, C in Shanghai) and a newer, cheaper one still
+ * COOLING (B / D) — the attacker in the swapped-account invoice scenario (M5). Catalogs: mock-world SUPPLIERS.
+ */
+
+export const BUSINESS_IDS = {
+  bud: {
+    user: "02ec41e3-7f0f-59cf-a7e8-d9e8cb990b4d", // seedId("user/pizzeria-bud")
+    merchant: "e07aab11-023e-5ee4-8192-6784ef287dab", // seedId("pizzeria-bud/merchant")
+    payees: {
+      supplierA: "cf4b671d-7244-5793-ab39-9596165620b1", // seedId("pizzeria-bud/payee/supplier-a")
+      supplierB: "5dfa72a0-0389-5306-a333-b9e4d67b9e66", // seedId("pizzeria-bud/payee/supplier-b")
+    },
+  },
+  sha: {
+    user: "08dc4466-1346-5be3-9fc7-708d7eb7e536", // seedId("user/pizzeria-sha")
+    merchant: "42178da4-27f6-528d-b070-7384ac1520a5", // seedId("pizzeria-sha/merchant")
+    payees: {
+      supplierC: "a0326d52-4f69-5b38-bb3a-ee31cb4e4813", // seedId("pizzeria-sha/payee/supplier-c")
+      supplierD: "7f692319-ca21-5682-8c2a-89ed73357e03", // seedId("pizzeria-sha/payee/supplier-d")
+    },
+  },
+  liWeiCn: {
+    user: "37de7459-ded7-5807-b8cd-515f1b6e18f0", // seedId("user/li-wei-cn")
+    payees: { pizzaShopSh: "90a94518-5153-52c4-bf57-12e919d6be49" }, // seedId("li-wei-cn/payee/pizza-shop-sh")
+    budgets: { eatingOut: "9906b026-0db7-5a08-ab35-be850e8e4f8a" }, // seedId("li-wei-cn/budget/eating_out")
+  },
+} as const;
+
+export const PIZZERIA_BUD_PERSONA = "pizzeria-bud";
+export const PIZZERIA_SHA_PERSONA = "pizzeria-sha";
+export const LI_WEI_CN_PERSONA = "li-wei-cn";
+/** mock-world storeIds (= merchants.slug). The old `/mock/shop/pizza/*` routes are an alias of "bud". */
+export const STORE_IDS = { bud: "bud", sha: "sha" } as const;
+export type StoreId = (typeof STORE_IDS)[keyof typeof STORE_IDS];
+
+/** Supplier names and accounts (mock-world SUPPLIERS reads these; C and D are QR-wallet merchants, no IBAN). */
+export const SUPPLIER_NAMES = {
+  a: "Dough Supplier from EU",
+  b: "Pizza Supplier from EU",
+  c: "Restaurant Supplier from China",
+  d: "Box Supplier from China",
+} as const;
+
+/** Menu SKUs (mock-world PIZZA_MENUS have the same SKUs in both stores; prices differ by currency). */
+export const MENU_SKUS = ["PZ-MARG", "PZ-PEPP", "PZ-4CHE", "PZ-VEGE", "DR-COLA", "DS-TIRA"] as const;
+export type MenuSku = (typeof MENU_SKUS)[number];
+
+export interface SeedInventoryItem {
+  sku: string;
+  name: string;
+  unit: "pcs" | "g";
+  safetyStockPct: number;
+  reorderCoverDays: number;
+}
+export interface SeedRecipe {
+  menuSku: MenuSku;
+  inventorySku: string;
+  qtyPerUnit: number;
+}
+export interface SeedSupplierItem {
+  id: string;
+  supplierPayeeId: string;
+  supplierSku: string;
+  inventorySku: string;
+  packSize: number;
+  packPriceMinor: number;
+  currency: string;
+  minOrderPacks: number;
+  leadTimeDays: number;
+}
+export interface SeedSalesDay {
+  day: string;
+  menuSku: MenuSku;
+  qty: number;
+  revenueMinor: number;
+}
+export interface SeedStockMovement {
+  id: string;
+  sku: string;
+  kind: "SEED" | "SALE" | "RECEIPT" | "ADJUSTMENT" | "WASTE";
+  qty: number;
+  occurredAt: string;
+  ref: string | null;
+}
+export interface SeedMerchant {
+  id: string;
+  slug: StoreId;
+  name: string;
+  currency: string;
+  region: Region;
+  timezone: string;
+  poCapMinor: number;
+}
+export interface SeedBusiness {
+  merchant: SeedMerchant;
+  inventory: SeedInventoryItem[];
+  recipes: SeedRecipe[];
+  supplierItems: SeedSupplierItem[];
+  salesDaily: SeedSalesDay[];
+  stockMovements: SeedStockMovement[];
+}
+
+const INVENTORY: SeedInventoryItem[] = [
+  { sku: "BOX-33CM", name: "Pizza box 33 cm", unit: "pcs", safetyStockPct: 10, reorderCoverDays: 3 },
+  { sku: "DOUGH-BALL", name: "Dough ball 250 g", unit: "pcs", safetyStockPct: 10, reorderCoverDays: 2 },
+  { sku: "MOZZ-G", name: "Mozzarella", unit: "g", safetyStockPct: 10, reorderCoverDays: 3 },
+  { sku: "TOMATO-G", name: "Tomato passata", unit: "g", safetyStockPct: 10, reorderCoverDays: 5 },
+  { sku: "SALAMI-G", name: "Spicy salami", unit: "g", safetyStockPct: 10, reorderCoverDays: 4 },
+  { sku: "VEG-G", name: "Vegetable mix", unit: "g", safetyStockPct: 15, reorderCoverDays: 2 },
+  { sku: "COLA-BTL", name: "Cola 0.5 l bottle", unit: "pcs", safetyStockPct: 10, reorderCoverDays: 7 },
+  { sku: "TIRA-PC", name: "Tiramisu portion", unit: "pcs", safetyStockPct: 10, reorderCoverDays: 2 },
+];
+
+/** Same recipes in both shops: every pizza goes out in one 33 cm box on one dough ball. */
+const RECIPES: SeedRecipe[] = [
+  { menuSku: "PZ-MARG", inventorySku: "BOX-33CM", qtyPerUnit: 1 },
+  { menuSku: "PZ-MARG", inventorySku: "DOUGH-BALL", qtyPerUnit: 1 },
+  { menuSku: "PZ-MARG", inventorySku: "MOZZ-G", qtyPerUnit: 125 },
+  { menuSku: "PZ-MARG", inventorySku: "TOMATO-G", qtyPerUnit: 80 },
+  { menuSku: "PZ-PEPP", inventorySku: "BOX-33CM", qtyPerUnit: 1 },
+  { menuSku: "PZ-PEPP", inventorySku: "DOUGH-BALL", qtyPerUnit: 1 },
+  { menuSku: "PZ-PEPP", inventorySku: "MOZZ-G", qtyPerUnit: 110 },
+  { menuSku: "PZ-PEPP", inventorySku: "TOMATO-G", qtyPerUnit: 80 },
+  { menuSku: "PZ-PEPP", inventorySku: "SALAMI-G", qtyPerUnit: 60 },
+  { menuSku: "PZ-4CHE", inventorySku: "BOX-33CM", qtyPerUnit: 1 },
+  { menuSku: "PZ-4CHE", inventorySku: "DOUGH-BALL", qtyPerUnit: 1 },
+  { menuSku: "PZ-4CHE", inventorySku: "MOZZ-G", qtyPerUnit: 160 },
+  { menuSku: "PZ-VEGE", inventorySku: "BOX-33CM", qtyPerUnit: 1 },
+  { menuSku: "PZ-VEGE", inventorySku: "DOUGH-BALL", qtyPerUnit: 1 },
+  { menuSku: "PZ-VEGE", inventorySku: "MOZZ-G", qtyPerUnit: 100 },
+  { menuSku: "PZ-VEGE", inventorySku: "TOMATO-G", qtyPerUnit: 80 },
+  { menuSku: "PZ-VEGE", inventorySku: "VEG-G", qtyPerUnit: 120 },
+  { menuSku: "DR-COLA", inventorySku: "COLA-BTL", qtyPerUnit: 1 },
+  { menuSku: "DS-TIRA", inventorySku: "TIRA-PC", qtyPerUnit: 1 },
+];
+
+/** Menu prices (minor units) per store; mock-world PIZZA_MENUS uses exactly these. */
+export const MENU_PRICES: Record<StoreId, Record<MenuSku, number>> = {
+  bud: { "PZ-MARG": 299000, "PZ-PEPP": 349000, "PZ-4CHE": 369000, "PZ-VEGE": 329000, "DR-COLA": 69000, "DS-TIRA": 129000 },
+  sha: { "PZ-MARG": 6800, "PZ-PEPP": 7800, "PZ-4CHE": 8800, "PZ-VEGE": 7200, "DR-COLA": 800, "DS-TIRA": 3200 },
+};
+
+/** Units sold per pizza across the menu (pizzas split by these shares; drinks and desserts per pizza). */
+const MENU_MIX: Record<MenuSku, number> = { "PZ-MARG": 0.35, "PZ-PEPP": 0.3, "PZ-4CHE": 0.15, "PZ-VEGE": 0.2, "DR-COLA": 0.4, "DS-TIRA": 0.15 };
+
+const DAY_MS = 86_400_000;
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+/** Weekday (0 = Sunday) of a calendar date. */
+const weekdayOf = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay();
+
+/** Deterministic ±`spread` jitter per name (FNV-1a), so the history looks real but is identical on every run. */
+function jitter(name: string, spread: number): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 0x01000193) >>> 0;
+  return 1 + ((h % 2001) / 1000 - 1) * spread;
+}
+
+/** The merchant's calendar date at an instant (IANA zone), e.g. "2026-10-27". */
+export function localDay(at: string | number, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
+}
+
+interface BusinessSpec {
+  persona: string;
+  merchant: SeedMerchant;
+  /** Pizzas sold per weekday (Sunday first) at the start of the 28 days. */
+  pizzasByWeekday: readonly number[];
+  /** Total relative change of daily sales over the 28 days (−0.1 = sales drift 10 % down). */
+  trend: number;
+  /** BOX-33CM / DOUGH-BALL / ... on hand at seed time, as days of cover of (today + tomorrow) demand incl. safety. */
+  endStock: (sku: string, needWithSafety: number) => number;
+  supplierItems: Omit<SeedSupplierItem, "id">[];
+}
+
+/** demand(day) as in the forecast contract above. */
+function forecastNeed(sales: SeedSalesDay[], today: string): Record<string, number> {
+  const tomorrow = isoDay(Date.parse(`${today}T12:00:00Z`) + DAY_MS);
+  const need: Record<string, number> = {};
+  for (const day of [today, tomorrow]) {
+    const wd = weekdayOf(day);
+    const same = sales.filter((s) => weekdayOf(s.day) === wd);
+    const days = [...new Set(same.map((s) => s.day))].sort().slice(-4);
+    for (const sku of MENU_SKUS) {
+      const qtys = same.filter((s) => s.menuSku === sku && days.includes(s.day)).map((s) => s.qty);
+      const avg = qtys.length ? Math.round(qtys.reduce((a, b) => a + b, 0) / qtys.length) : 0;
+      for (const r of RECIPES.filter((x) => x.menuSku === sku)) need[r.inventorySku] = (need[r.inventorySku] ?? 0) + avg * r.qtyPerUnit;
+    }
+  }
+  return need;
+}
+
+/** Shortage by the end of tomorrow per inventory SKU (the forecast contract), from seed rows alone. */
+export function seedForecastShortage(b: SeedBusiness, nowIso: string = SEED_NOW): Record<string, { need: number; safety: number; onHand: number; shortage: number }> {
+  const need = forecastNeed(b.salesDaily, localDay(nowIso, b.merchant.timezone));
+  const out: Record<string, { need: number; safety: number; onHand: number; shortage: number }> = {};
+  for (const item of b.inventory) {
+    const n = need[item.sku] ?? 0;
+    const safety = Math.ceil((n * item.safetyStockPct) / 100);
+    const onHand = b.stockMovements.filter((m) => m.sku === item.sku && Date.parse(m.occurredAt) <= Date.parse(nowIso)).reduce((s, m) => s + m.qty, 0);
+    out[item.sku] = { need: n, safety, onHand, shortage: Math.max(0, n + safety - onHand) };
+  }
+  return out;
+}
+
+function buildBusiness(spec: BusinessSpec): SeedBusiness {
+  const m = spec.merchant;
+  const today = localDay(SEED_NOW, m.timezone);
+  const todayMs = Date.parse(`${today}T12:00:00Z`);
+  const days = Array.from({ length: 28 }, (_, i) => isoDay(todayMs - (28 - i) * DAY_MS));
+  const salesDaily: SeedSalesDay[] = [];
+  days.forEach((day, i) => {
+    const pizzas = spec.pizzasByWeekday[weekdayOf(day)]! * (1 + (spec.trend * i) / 27) * jitter(`${spec.persona}/${day}`, 0.06);
+    for (const sku of MENU_SKUS) {
+      const qty = Math.max(0, Math.round(pizzas * MENU_MIX[sku] * jitter(`${spec.persona}/${day}/${sku}`, 0.08)));
+      salesDaily.push({ day, menuSku: sku, qty, revenueMinor: qty * MENU_PRICES[m.slug][sku] });
+    }
+  });
+
+  // Stock ledger: opening SEED stock (day 1), a RECEIPT every Monday, one SALE per day and SKU; ends at endStock.
+  const needWithSafety = forecastNeed(salesDaily, today);
+  const mv = (n: string) => seedId(`${spec.persona}/stock/${n}`);
+  const stockMovements: SeedStockMovement[] = [];
+  for (const item of INVENTORY) {
+    const used = (day: string) =>
+      salesDaily
+        .filter((s) => s.day === day)
+        .reduce((sum, s) => sum + s.qty * (RECIPES.find((r) => r.menuSku === s.menuSku && r.inventorySku === item.sku)?.qtyPerUnit ?? 0), 0);
+    const consumption = days.map(used);
+    const dailyAvg = consumption.reduce((a, b) => a + b, 0) / 28;
+    const n = needWithSafety[item.sku] ?? 0;
+    const end = spec.endStock(item.sku, n + Math.ceil((n * item.safetyStockPct) / 100));
+    if (end < 0) throw new Error(`seed ${spec.persona}: negative end stock for ${item.sku}`);
+    // Walk back from the end stock: each Monday delivery (06:00, before the day's sales) tops the shelf up from
+    // about one day of use, so the level is never negative and ends exactly at `end`.
+    const receipts = days.map(() => 0);
+    let level = end;
+    for (let i = days.length - 1; i >= 0; i--) {
+      level += consumption[i]!;
+      if (i > 0 && weekdayOf(days[i]!) === 1) {
+        receipts[i] = Math.max(0, level - Math.round(dailyAvg * jitter(`${spec.persona}/${item.sku}/${days[i]}`, 0.3)));
+        level -= receipts[i]!;
+      }
+    }
+    const opening = level;
+    stockMovements.push({ id: mv(`${item.sku}/seed`), sku: item.sku, kind: "SEED", qty: opening, occurredAt: `${days[0]}T06:00:00.000Z`, ref: "seed" });
+    days.forEach((day, i) => {
+      if (receipts[i]! > 0) {
+        stockMovements.push({ id: mv(`${item.sku}/receipt/${day}`), sku: item.sku, kind: "RECEIPT", qty: receipts[i]!, occurredAt: `${day}T06:00:00.000Z`, ref: `delivery ${day}` });
+        level += receipts[i]!;
+      }
+      if (consumption[i]! > 0) {
+        stockMovements.push({ id: mv(`${item.sku}/sale/${day}`), sku: item.sku, kind: "SALE", qty: -consumption[i]!, occurredAt: `${day}T12:00:00.000Z`, ref: `sales ${day}` });
+        level -= consumption[i]!;
+      }
+      if (level < 0) throw new Error(`seed ${spec.persona}: stock of ${item.sku} below zero on ${day}`);
+    });
+    if (level !== end) throw new Error(`seed ${spec.persona}: ${item.sku} ends at ${level}, expected ${end}`);
+  }
+
+  const supplierItems = spec.supplierItems.map((si) => ({ ...si, id: seedId(`${spec.persona}/supplier-item/${si.supplierPayeeId}/${si.supplierSku}`) }));
+  return { merchant: m, inventory: INVENTORY, recipes: RECIPES, supplierItems, salesDaily, stockMovements };
+}
+
+/** Supplier catalogs as merchant supplier_items (pack prices = mock-world SUPPLIERS catalog prices). */
+export const SUPPLIER_PACKS = {
+  a: [
+    { supplierSku: "BOX-33CM-100", inventorySku: "BOX-33CM", packSize: 100, packPriceMinor: 1890000, minOrderPacks: 1 },
+    { supplierSku: "DOUGH-250G-40", inventorySku: "DOUGH-BALL", packSize: 40, packPriceMinor: 1450000, minOrderPacks: 1 },
+    { supplierSku: "MOZZ-2.5KG", inventorySku: "MOZZ-G", packSize: 2500, packPriceMinor: 690000, minOrderPacks: 2 },
+    { supplierSku: "TOMATO-5KG", inventorySku: "TOMATO-G", packSize: 5000, packPriceMinor: 320000, minOrderPacks: 2 },
+  ],
+  b: [
+    { supplierSku: "BOX-33CM-100", inventorySku: "BOX-33CM", packSize: 100, packPriceMinor: 1690000, minOrderPacks: 1 },
+    { supplierSku: "DOUGH-250G-40", inventorySku: "DOUGH-BALL", packSize: 40, packPriceMinor: 1390000, minOrderPacks: 1 },
+    { supplierSku: "MOZZ-2.5KG", inventorySku: "MOZZ-G", packSize: 2500, packPriceMinor: 720000, minOrderPacks: 1 },
+    { supplierSku: "TOMATO-5KG", inventorySku: "TOMATO-G", packSize: 5000, packPriceMinor: 299000, minOrderPacks: 2 },
+  ],
+  c: [
+    { supplierSku: "BOX-33CM-100", inventorySku: "BOX-33CM", packSize: 100, packPriceMinor: 18000, minOrderPacks: 1 },
+    { supplierSku: "DOUGH-250G-40", inventorySku: "DOUGH-BALL", packSize: 40, packPriceMinor: 22000, minOrderPacks: 1 },
+    { supplierSku: "MOZZ-2.5KG", inventorySku: "MOZZ-G", packSize: 2500, packPriceMinor: 16500, minOrderPacks: 1 },
+    { supplierSku: "TOMATO-5KG", inventorySku: "TOMATO-G", packSize: 5000, packPriceMinor: 5800, minOrderPacks: 1 },
+  ],
+  d: [{ supplierSku: "BOX-33CM-100", inventorySku: "BOX-33CM", packSize: 100, packPriceMinor: 15000, minOrderPacks: 1 }],
+} as const;
+
+const packs = (key: keyof typeof SUPPLIER_PACKS, supplierPayeeId: string, currency: string, leadTimeDays: number) =>
+  SUPPLIER_PACKS[key].map((p) => ({ ...p, supplierPayeeId, currency, leadTimeDays }));
+
+/** Target box shortage of the Shanghai shop by the end of tomorrow. */
+export const SHA_BOX_SHORTAGE = 400;
+
+const pizzeriaBudBusiness = buildBusiness({
+  persona: PIZZERIA_BUD_PERSONA,
+  merchant: {
+    id: BUSINESS_IDS.bud.merchant,
+    slug: "bud",
+    name: "Pizza Shop in Budapest",
+    currency: "HUF",
+    region: "EU",
+    timezone: "Europe/Budapest",
+    // HUF 400,000: well under the payments daily cap (PAYMENTS_DAILY_CAP_HOME_MINOR in HUF) and the owner's caps.
+    poCapMinor: toMinor("400000", "HUF"),
+  },
+  pizzasByWeekday: [100, 60, 65, 70, 75, 120, 140],
+  trend: -0.12,
+  // Comfortable: about 3 days of (today + tomorrow) need on top, so no shortage, but sales and stock trend down.
+  endStock: (_sku, n) => Math.round(n * 1.6),
+  supplierItems: [...packs("a", BUSINESS_IDS.bud.payees.supplierA, "HUF", 1), ...packs("b", BUSINESS_IDS.bud.payees.supplierB, "HUF", 1)],
+});
+
+const pizzeriaShaBusiness = buildBusiness({
+  persona: PIZZERIA_SHA_PERSONA,
+  merchant: {
+    id: BUSINESS_IDS.sha.merchant,
+    slug: "sha",
+    name: "Pizza Shop in Shanghai",
+    currency: "CNY",
+    region: "CN",
+    timezone: "Asia/Shanghai",
+    // CNY 5,000: a restock of boxes (CNY 180 per 100) and dough fits easily; under the daily cap in CNY.
+    poCapMinor: toMinor("5000", "CNY"),
+  },
+  pizzasByWeekday: [480, 300, 320, 340, 360, 520, 600],
+  trend: 0.08,
+  // Boxes: exactly SHA_BOX_SHORTAGE short by the end of tomorrow. Everything else: covered.
+  endStock: (sku, n) => (sku === "BOX-33CM" ? n - SHA_BOX_SHORTAGE : Math.round(n * 1.3)),
+  supplierItems: [...packs("c", BUSINESS_IDS.sha.payees.supplierC, "CNY", 1), ...packs("d", BUSINESS_IDS.sha.payees.supplierD, "CNY", 1)],
+});
+
+/** Business owners: no incomes, no cards; caps sized for supplier orders in the home currency (EXAMPLE values). */
+function businessProfile(userId: string, currency: string, caps: Record<keyof SeedCaps, string>, minBalance: string): SeedProfile & { caps: SeedCaps } {
+  return {
+    userId,
+    incomes: [],
+    notificationMode: "EACH",
+    reserveRules: { protectObligationCategories: [], minBalances: [{ currency, amountMinor: toMinor(minBalance, currency) }] },
+    caps: {
+      perPaymentMinor: toMinor(caps.perPaymentMinor, currency),
+      perDayMinor: toMinor(caps.perDayMinor, currency),
+      perMonthMinor: toMinor(caps.perMonthMinor, currency),
+      smallAutoMinor: toMinor(caps.smallAutoMinor, currency),
+      reserveMinor: toMinor(caps.reserveMinor, currency),
+    },
+  };
+}
+
+function supplierPayee(id: string, userId: string, name: string, account: string, scheme: "IBAN" | "MERCHANT_ID", country: string, currency: string, verifiedAt: string | null, coolingUntil: string | null): SeedPayee {
+  return {
+    id,
+    userId,
+    name,
+    kind: "SUPPLIER",
+    account,
+    accountScheme: scheme,
+    bic: null,
+    country,
+    currency,
+    status: verifiedAt ? "VERIFIED" : "COOLING",
+    verifiedAt,
+    coolingUntil,
+    replacesPayeeId: null,
+  };
+}
+
+/** Added an hour before SEED_NOW: still cooling (I7) through the demo's "+1 day". */
+const ATTACKER_ADDED_COOLING_UNTIL = "2026-10-29T08:00:00.000Z";
+
+const noRows = { cards: [] as SeedCard[], cardFeeProfiles: [] as SeedCardFeeProfile[], obligations: [] as SeedObligation[], budgets: [] as SeedBudget[], transactions: [] as SeedTransaction[] };
+
+/** A BUSINESS persona: owner user + merchant data (inserted by apps/api demo/seed.ts). */
+export const pizzeriaBud = {
+  persona: PIZZERIA_BUD_PERSONA,
+  accountType: "BUSINESS" as const,
+  mockBankProfileId: 16_000_004,
+  user: { id: BUSINESS_IDS.bud.user, displayName: "Pizza Shop in Budapest", homeCurrency: "HUF", region: "EU", preset: "SMART", moneyMode: "CAPPED_WALLET", frozenAt: null, createdAt: "2026-09-01T08:00:00.000Z" } satisfies SeedUser,
+  profile: businessProfile(BUSINESS_IDS.bud.user, "HUF", { perPaymentMinor: "400000", perDayMinor: "600000", perMonthMinor: "3000000", smallAutoMinor: "5000", reserveMinor: "100000" }, "100000"),
+  balances: [{ currency: "HUF", amountMinor: toMinor("2500000", "HUF") }] as SeedBalance[],
+  ...noRows,
+  payees: [
+    supplierPayee(BUSINESS_IDS.bud.payees.supplierA, BUSINESS_IDS.bud.user, SUPPLIER_NAMES.a, ACCOUNTS.supplierA, "IBAN", "HU", "HUF", "2026-09-02T09:00:00.000Z", null),
+    supplierPayee(BUSINESS_IDS.bud.payees.supplierB, BUSINESS_IDS.bud.user, SUPPLIER_NAMES.b, ACCOUNTS.supplierB, "IBAN", "HU", "HUF", null, ATTACKER_ADDED_COOLING_UNTIL),
+  ],
+  business: pizzeriaBudBusiness,
+} as const;
+
+export const pizzeriaSha = {
+  persona: PIZZERIA_SHA_PERSONA,
+  accountType: "BUSINESS" as const,
+  mockBankProfileId: 16_000_005,
+  // Region CN: Kassa never moves the money itself; supplier invoices are paid by QR HANDOFF (spec §11).
+  user: { id: BUSINESS_IDS.sha.user, displayName: "Pizza Shop in Shanghai", homeCurrency: "CNY", region: "CN", preset: "SMART", moneyMode: "HANDOFF", frozenAt: null, createdAt: "2026-09-01T08:00:00.000Z" } satisfies SeedUser,
+  profile: businessProfile(BUSINESS_IDS.sha.user, "CNY", { perPaymentMinor: "5000", perDayMinor: "8000", perMonthMinor: "60000", smallAutoMinor: "100", reserveMinor: "2000" }, "2000"),
+  balances: [{ currency: "CNY", amountMinor: toMinor("40000", "CNY") }] as SeedBalance[],
+  ...noRows,
+  payees: [
+    // QR-wallet merchants: the "account" is the normalised name the handoff check compares (like Dana's dorm office).
+    supplierPayee(BUSINESS_IDS.sha.payees.supplierC, BUSINESS_IDS.sha.user, SUPPLIER_NAMES.c, SUPPLIER_NAMES.c.toLowerCase(), "MERCHANT_ID", "CN", "CNY", "2026-09-03T02:00:00.000Z", null),
+    supplierPayee(BUSINESS_IDS.sha.payees.supplierD, BUSINESS_IDS.sha.user, SUPPLIER_NAMES.d, SUPPLIER_NAMES.d.toLowerCase(), "MERCHANT_ID", "CN", "CNY", null, ATTACKER_ADDED_COOLING_UNTIL),
+  ],
+  business: pizzeriaShaBusiness,
+} as const;
+
+/** Li Wei, region CN (Shanghai): the Shanghai pizzeria's customer, paying by QR handoff. */
+export const liWeiCn = {
+  persona: LI_WEI_CN_PERSONA,
+  mockBankProfileId: 16_000_003,
+  user: { id: BUSINESS_IDS.liWeiCn.user, displayName: "Li Wei", homeCurrency: "CNY", region: "CN", preset: "SMART", moneyMode: "HANDOFF", frozenAt: null, createdAt: "2026-09-18T08:00:00.000Z" } satisfies SeedUser,
+  profile: {
+    userId: BUSINESS_IDS.liWeiCn.user,
+    incomes: [{ source: "Part-time job", currency: "CNY", amountMinor: toMinor("6000", "CNY"), cadence: "MONTHLY", dayOfMonth: 10, nextDate: "2026-11-10" }],
+    notificationMode: "EACH",
+    reserveRules: { protectObligationCategories: [], minBalances: [{ currency: "CNY", amountMinor: toMinor("1000", "CNY") }] },
+    caps: {
+      perPaymentMinor: toMinor("3000", "CNY"),
+      perDayMinor: toMinor("5000", "CNY"),
+      perMonthMinor: toMinor("20000", "CNY"),
+      smallAutoMinor: toMinor("100", "CNY"),
+      reserveMinor: toMinor("1000", "CNY"),
+    },
+  } satisfies SeedProfile & { caps: SeedCaps },
+  balances: [{ currency: "CNY", amountMinor: toMinor("8000", "CNY") }] as SeedBalance[],
+  cards: [] as SeedCard[],
+  cardFeeProfiles: [] as SeedCardFeeProfile[],
+  payees: [
+    {
+      id: BUSINESS_IDS.liWeiCn.payees.pizzaShopSh,
+      userId: BUSINESS_IDS.liWeiCn.user,
+      name: "Pizza Shop in Shanghai",
+      kind: "MERCHANT",
+      account: "pizza shop in shanghai",
+      accountScheme: "MERCHANT_ID",
+      bic: null,
+      country: "CN",
+      currency: "CNY",
+      status: "VERIFIED",
+      verifiedAt: "2026-10-01T04:00:00.000Z",
+      coolingUntil: null,
+      replacesPayeeId: null,
+    },
+  ] satisfies SeedPayee[],
+  obligations: [] as SeedObligation[],
+  budgets: [
+    { id: BUSINESS_IDS.liWeiCn.budgets.eatingOut, userId: BUSINESS_IDS.liWeiCn.user, category: "eating_out", periodStart: "2026-10-01", periodEnd: "2026-10-31", limitHomeMinor: toMinor("800", "CNY") },
+  ] satisfies SeedBudget[],
+  transactions: [] as SeedTransaction[],
+} as const;
+
 export const seed = {
   seedNow: SEED_NOW,
   homeCurrency: HOME_CURRENCY,
@@ -823,7 +1289,7 @@ export const seed = {
   budgets,
   transactions,
   /** Extra demo personas, inserted only with `seedDatabase(..., { personas: true })`. */
-  personas: [liWei],
+  personas: [liWei, liWeiCn, pizzeriaBud, pizzeriaSha],
 } as const;
 
 export default seed;

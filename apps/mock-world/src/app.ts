@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 
-import { balances, IDS, liWei, MOCK_BANK_PROFILE_ID } from "../../../fixtures/seed-data.ts";
+import { balances, IDS, MOCK_BANK_PROFILE_ID, seed } from "../../../fixtures/seed-data.ts";
 import { BankError, MockBank } from "./bank/bank.ts";
 import { ApiRates, type RateProvider } from "./bank/rates.ts";
 import type { Clock, FetchLike } from "./clock.ts";
@@ -17,9 +17,13 @@ import { type DocumentCache, documentRoutes } from "./routes/documents.ts";
 import { eventRoutes } from "./routes/events.ts";
 import { qrRoutes } from "./routes/qr.ts";
 import { ChargeLog, shopRoutes } from "./routes/shop.ts";
+import { shopOrderRoutes } from "./routes/shopOrders.ts";
 import { stageRoutes } from "./routes/stage.ts";
+import { supplierPortalRoutes } from "./routes/supplierPortal.ts";
+import { SupplierBook } from "./supplier/book.ts";
 import { StageApi } from "./stage/client.ts";
 import { FakeIssuerClient, type Issuer, StripeTestHelperClient } from "./shop/issuer.ts";
+import { ShopOrderBook } from "./shop/orders.ts";
 import { type OutboxEntry, WebhookClient, type WebhookSink } from "./webhooks.ts";
 import { PAYEE_INVOICES, SUPPLIERS } from "./world/data.ts";
 
@@ -45,6 +49,10 @@ export interface MockWorld {
   app: FastifyInstance;
   bank: MockBank;
   qr: QrWallet;
+  /** (M2/M3) The pizza shops' delivery orders and till bills. */
+  shop: ShopOrderBook;
+  /** (M5) Suppliers' purchase orders (portal, invoices). */
+  suppliers: SupplierBook;
   webhooks: WebhookSink & { outbox?: OutboxEntry[] };
   clock: Clock;
 }
@@ -53,7 +61,12 @@ async function renderDocuments(): Promise<DocumentCache> {
   const invoices: Record<string, Uint8Array> = {};
   for (const [id, spec] of Object.entries(PAYEE_INVOICES)) invoices[id] = (await renderInvoice(spec)).pdf;
   return {
-    priceLists: { a: await renderPriceList(SUPPLIERS.a), b: await renderPriceList(SUPPLIERS.b) },
+    priceLists: {
+      a: await renderPriceList(SUPPLIERS.a),
+      b: await renderPriceList(SUPPLIERS.b),
+      c: await renderPriceList(SUPPLIERS.c),
+      d: await renderPriceList(SUPPLIERS.d),
+    },
     invoices,
   };
 }
@@ -80,8 +93,9 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     stepMs: config.bankStepMs,
     initialBalances: [
       { profileId: MOCK_BANK_PROFILE_ID, aliases: [IDS.user], balances },
-      // D-CN3 second persona (seeded by the API with `personas: true`); alias "li-wei" for `sim mock remittance --profile li-wei`.
-      { profileId: liWei.mockBankProfileId, aliases: [liWei.user.id, liWei.persona], balances: [...liWei.balances] },
+      // Demo personas (seeded by the API with `personas: true`: Li Wei D-CN3, Li Wei in Shanghai, the two pizzerias);
+      // alias = user id and persona key, e.g. `sim mock remittance --profile li-wei`.
+      ...seed.personas.map((p) => ({ profileId: p.mockBankProfileId, aliases: [p.user.id, p.persona], balances: [...p.balances] })),
     ],
   });
   const qr = new QrWallet({ clock, webhooks, publicUrl: config.publicUrl });
@@ -91,6 +105,8 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
       ? new StripeTestHelperClient({ secretKey: config.stripeSecretKey!, apiBase: config.stripeApiBase, ...(deps.fetch ? { fetch: deps.fetch } : {}) })
       : new FakeIssuerClient({ apiUrl: config.apiUrl, secret: config.hmacSecret, clock, ...(deps.fetch ? { fetch: deps.fetch } : {}) }));
   const charges = new ChargeLog();
+  const shop = new ShopOrderBook({ issuer, clock, log: charges, webhooks, qr, kassaAppUrl: config.kassaAppUrl, stepMs: config.shopStepMs, autopilot: config.shopAutopilot });
+  const suppliers = new SupplierBook({ clock, webhooks, publicUrl: config.publicUrl });
   const docs = await renderDocuments();
 
   app.setErrorHandler((err: unknown, req, reply) => {
@@ -133,6 +149,8 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
         bank.reset();
         qr.reset();
         charges.reset();
+        shop.reset();
+        suppliers.reset();
         return { ok: true, simulated: true };
       });
 
@@ -141,10 +159,14 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
 
       r.get("/", async (_req, reply) => {
         const links: [string, string][] = [
-          ["Pizza Shop in Budapest", "/mock/shop/pizza"],
-          ["Pizza Shop in Budapest menu (JSON)", "/mock/shop/pizza/menu"],
+          ["Pizza Shop in Budapest", "/mock/shop/bud"],
+          ["Pizza Shop in Budapest menu (JSON)", "/mock/shop/bud/menu"],
+          ["Pizza Shop in Shanghai", "/mock/shop/sha"],
+          ["Pizza Shop in Shanghai menu (JSON)", "/mock/shop/sha/menu"],
           ["Supplier A catalog", "/mock/suppliers/a/catalog"],
           ["Supplier B catalog", "/mock/suppliers/b/catalog"],
+          ["Supplier C catalog (Shanghai)", "/mock/suppliers/c/catalog"],
+          ["Supplier D catalog (Shanghai)", "/mock/suppliers/d/catalog"],
           ["Supplier A price list (PDF)", "/mock/suppliers/a/price-list.pdf"],
           ["Supplier B price list (PDF)", "/mock/suppliers/b/price-list.pdf"],
           ["Tuition invoice (PDF)", "/mock/payees/university/invoice.pdf"],
@@ -154,7 +176,19 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
           ["Inbox (JSON)", "/mock/inbox"],
           ["Mock bank transfers (JSON)", "/mock/bank/transfers"],
           ["Webhook outbox (JSON)", "/mock/outbox"],
-          ...(config.demoEnabled ? ([["Demo Stage (phone screens for the pitch)", "/mock/stage"]] as [string, string][]) : []),
+          ...(config.demoEnabled
+            ? ([
+                ["Demo Stage (phone screens for the pitch)", "/mock/stage"],
+                ["Pizza Shop in Budapest kitchen screen", "/mock/shop/bud/kitchen"],
+                ["Pizza Shop in Budapest counter till", "/mock/shop/bud/till"],
+                ["Pizza Shop in Shanghai kitchen screen", "/mock/shop/sha/kitchen"],
+                ["Pizza Shop in Shanghai counter till", "/mock/shop/sha/till"],
+                ["Supplier A portal (Budapest)", "/mock/supplier/a/portal"],
+                ["Supplier B portal (Budapest, attacker)", "/mock/supplier/b/portal"],
+                ["Supplier C portal (Shanghai)", "/mock/supplier/c/portal"],
+                ["Supplier D portal (Shanghai, attacker)", "/mock/supplier/d/portal"],
+              ] as [string, string][])
+            : []),
         ];
         const items = links.map(([t, h]) => `<li><a href="${esc(h)}">${esc(t)}</a></li>`).join("");
         return reply
@@ -164,8 +198,11 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
 
       bankRoutes(r, bank);
       shopRoutes(r, { issuer, clock, log: charges });
+      shopOrderRoutes(r, { config, book: shop });
       documentRoutes(r, { docs, publicUrl: config.publicUrl });
       qrRoutes(r, qr);
+      // (M5) own context: its raw-body JSON parser (HMAC check of Kassa's signed POs) stays local.
+      await r.register(async (s) => supplierPortalRoutes(s, { config, book: suppliers, clock }));
       eventRoutes(r, { clock, webhooks, bank, defaultProfileId: MOCK_BANK_PROFILE_ID });
 
       // Demo Stage (/mock/stage/*): own encapsulation context so its DEMO_ENABLED gate covers only its routes.
@@ -179,10 +216,14 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
           shop: { issuer, clock, log: charges },
           clock,
           rates,
+          orders: shop,
+          suppliers,
           resetWorld: () => {
             bank.reset();
             qr.reset();
             charges.reset();
+            shop.reset();
+            suppliers.reset();
           },
           syncClock: () => {
             if (clock instanceof DemoClock) clock.invalidate();
@@ -196,10 +237,11 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
   if (deps.startTicker !== false) {
     const timer = setInterval(() => {
       bank.tick().catch((err: unknown) => log("bank tick failed", { error: String(err) }));
+      shop.tick().catch((err: unknown) => log("shop autopilot tick failed", { error: String(err) }));
     }, config.bankTickMs);
     timer.unref();
     app.addHook("onClose", async () => clearInterval(timer));
   }
 
-  return { app, bank, qr, webhooks, clock };
+  return { app, bank, qr, shop, suppliers, webhooks, clock };
 }

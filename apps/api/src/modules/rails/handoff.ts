@@ -49,6 +49,11 @@ function checked(qr: QrPayment, order: CanonicalOrder): HandoffQr {
   };
 }
 
+/** (M2) Check a QR code the merchant issued itself (e.g. the pizza shop's code for one order) like any handoff QR. */
+export function checkHandoffQr(qr: QrPayment, order: CanonicalOrder): HandoffQr {
+  return checked(qr, order);
+}
+
 /** (X7) Ask the merchant for its QR payment request and check it against the signed payee name and amount. */
 export async function requestHandoffQr(order: CanonicalOrder): Promise<HandoffQr> {
   const qr = await mockWorld<QrPayment>("POST", "/qr/payments", {

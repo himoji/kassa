@@ -18,6 +18,9 @@ import handoff from "./handoff.json";
 import demo from "./demo.json";
 import reasonCodes from "./reasonCodes.json";
 import notifications from "./notifications.json";
+import shortcut from "./shortcut.json";
+import shop from "./shop.json";
+import business from "./business.json";
 
 export const en = {
   translation,
@@ -37,4 +40,7 @@ export const en = {
   demo,
   reasonCodes,
   notifications,
+  shortcut,
+  shop,
+  business,
 };

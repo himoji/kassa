@@ -9,6 +9,7 @@
  * - Enums come from @kassa/shared so DB, API and app agree.
  */
 import {
+  AccountType,
   AgentMode,
   CardKind,
   DeviceKind,
@@ -22,16 +23,19 @@ import {
   Preset,
   ProposalCreatedBy,
   ProposalStatus,
+  PurchaseOrderStatus,
   Rail,
   Recurrence,
   Region,
   RuleChangeDirection,
+  ShopOrderChannel,
+  StockMovementKind,
   Tier,
   TransactionSource,
   TransactionStatus,
   Decision,
 } from "@kassa/shared";
-import type { CanonicalOrder, ReasonCode, SettingsOverrides } from "@kassa/shared";
+import type { CanonicalOrder, Fulfillment, FulfillmentItem, PurchaseOrderCore, PurchaseOrderLine, ReasonCode, SettingsOverrides } from "@kassa/shared";
 import {
   bigint,
   boolean,
@@ -78,6 +82,11 @@ export const railEnum = pgEnum("rail", tuple(Rail.options));
 export const paymentStatusEnum = pgEnum("payment_status", tuple(PaymentStatus.options));
 export const deviceKindEnum = pgEnum("device_kind", tuple(DeviceKind.options));
 export const agentModeEnum = pgEnum("agent_mode", tuple(AgentMode.options));
+// (added 2026-10-14, Business M0, migration 0007)
+export const accountTypeEnum = pgEnum("account_type", tuple(AccountType.options));
+export const purchaseOrderStatusEnum = pgEnum("purchase_order_status", tuple(PurchaseOrderStatus.options));
+export const stockMovementKindEnum = pgEnum("stock_movement_kind", tuple(StockMovementKind.options));
+export const shopOrderChannelEnum = pgEnum("shop_order_channel", tuple(ShopOrderChannel.options));
 
 const money = (name: string) => bigint(name, { mode: "number" });
 const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
@@ -145,6 +154,8 @@ export const users = pgTable("users", {
   restrictedAt: tstz("restricted_at"),
   /** (added, Phase 2) GDPR Art. 17 erasure done: DEK shredded, personal rows deleted; sessions refused. */
   erasedAt: tstz("erased_at"),
+  /** (added 2026-10-14, Business M0, migration 0007) BUSINESS = owns a merchant (Kassa Business mode in the app). */
+  accountType: accountTypeEnum("account_type").notNull().default("PERSONAL"),
 });
 
 /**
@@ -400,6 +411,13 @@ export type ProposalDraftJson = {
   /** (added 2026-10-11, B1) documents whose persisted Reader checks were applied (I10). */
   sourceDocIds?: string[];
   /**
+   * (added 2026-10-14, Business M0) A merchant order this payment buys (shop delivery or till bill): the merchant slug
+   * (= mock-world storeId), channel and line items; the order signs `itemsHash(items)` (CanonicalOrder.itemsHash).
+   */
+  fulfillment?: Fulfillment;
+  /** (added 2026-10-14, Business M0) The signed supplier purchase order this payment settles (CanonicalOrder.purchaseOrderId). */
+  purchaseOrderId?: string;
+  /**
    * (added 2026-10-12, X7) HANDOFF orders: the merchant's QR request fetched and checked against the verified payee
    * when the order was first shown, BEFORE the passkey prompt; the handoff rail pays exactly this QR.
    */
@@ -651,3 +669,209 @@ export const demoState = pgTable("demo_state", {
   demoClaimed: boolean("demo_claimed").notNull().default(false),
 });
 
+
+// ---------- Kassa Business (added 2026-10-14, Business M0, migration 0007) ----------
+/*
+ * A BUSINESS user owns one merchant (a pizzeria). Stock is never stored as a number: on-hand = the sum of
+ * `stock_movements.qty` per (merchant, sku), and movements are append-only (no UPDATE/DELETE in code; a correction is
+ * an ADJUSTMENT row). Inventory quantities are integers in the item's unit (pcs, g, ml). Money: minor units + ISO 4217.
+ */
+
+export const merchants = pgTable(
+  "merchants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Equals the mock-world storeId (e.g. "bud", "sha"): the storefront, till and kitchen screen of this merchant. */
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    currency: text("currency").notNull(),
+    region: regionEnum("region").notNull(),
+    /** IANA time zone: "today"/"tomorrow" for sales and the forecast are calendar days here. */
+    timezone: text("timezone").notNull(),
+    /** A purchase order above this total is refused before it can be signed (M5). */
+    poCapMinor: money("po_cap_minor").notNull(),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("merchants_slug_uq").on(t.slug), index("merchants_owner_idx").on(t.ownerUserId)],
+);
+
+export const inventoryItems = pgTable(
+  "inventory_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    merchantId: uuid("merchant_id")
+      .notNull()
+      .references(() => merchants.id, { onDelete: "cascade" }),
+    sku: text("sku").notNull(),
+    name: text("name").notNull(),
+    /** "pcs" | "g" | "ml": the unit of every quantity of this SKU. */
+    unit: text("unit").notNull(),
+    /** Extra stock kept on top of forecast demand, in percent of that demand. */
+    safetyStockPct: integer("safety_stock_pct").notNull().default(10),
+    /** How many days of demand a reorder should cover. */
+    reorderCoverDays: integer("reorder_cover_days").notNull().default(3),
+  },
+  (t) => [uniqueIndex("inventory_items_merchant_sku_uq").on(t.merchantId, t.sku)],
+);
+
+/** Bill of materials: one menu item uses `qtyPerUnit` of an inventory SKU (in that SKU's unit). */
+export const recipes = pgTable(
+  "recipes",
+  {
+    merchantId: uuid("merchant_id")
+      .notNull()
+      .references(() => merchants.id, { onDelete: "cascade" }),
+    menuSku: text("menu_sku").notNull(),
+    inventorySku: text("inventory_sku").notNull(),
+    qtyPerUnit: integer("qty_per_unit").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.merchantId, t.menuSku, t.inventorySku] })],
+);
+
+/** What a supplier (a SUPPLIER payee of the owner) sells this merchant: packs of an inventory SKU. */
+export const supplierItems = pgTable(
+  "supplier_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    merchantId: uuid("merchant_id")
+      .notNull()
+      .references(() => merchants.id, { onDelete: "cascade" }),
+    supplierPayeeId: uuid("supplier_payee_id")
+      .notNull()
+      .references(() => payees.id, { onDelete: "cascade" }),
+    /** The supplier's catalog SKU (mock-world SUPPLIERS[x].items[].sku), e.g. "BOX-33CM-100". */
+    supplierSku: text("supplier_sku").notNull(),
+    inventorySku: text("inventory_sku").notNull(),
+    /** Inventory units per pack (100 boxes, 40 dough balls, 2500 g). */
+    packSize: integer("pack_size").notNull(),
+    /** Snapshot of the catalog pack price; a PO re-reads the structured catalog price when it is drafted (M5). */
+    packPriceMinor: money("pack_price_minor").notNull(),
+    currency: text("currency").notNull(),
+    minOrderPacks: integer("min_order_packs").notNull().default(1),
+    leadTimeDays: integer("lead_time_days").notNull().default(1),
+  },
+  (t) => [
+    uniqueIndex("supplier_items_merchant_supplier_sku_uq").on(t.merchantId, t.supplierPayeeId, t.supplierSku),
+    index("supplier_items_merchant_inventory_idx").on(t.merchantId, t.inventorySku),
+  ],
+);
+
+/** Append-only. qty is signed: SEED / RECEIPT / positive ADJUSTMENT add, SALE / WASTE / negative ADJUSTMENT subtract. */
+export const stockMovements = pgTable(
+  "stock_movements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    merchantId: uuid("merchant_id")
+      .notNull()
+      .references(() => merchants.id, { onDelete: "cascade" }),
+    sku: text("sku").notNull(),
+    kind: stockMovementKindEnum("kind").notNull(),
+    qty: integer("qty").notNull(),
+    occurredAt: tstz("occurred_at").notNull(),
+    /** What caused it: a shop order id, a purchase order id, a sales day ("2026-10-26"), "seed". */
+    ref: text("ref"),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("stock_movements_merchant_sku_idx").on(t.merchantId, t.sku, t.occurredAt)],
+);
+
+/** Units sold per menu SKU per calendar day (merchant timezone). The forecast's history. */
+export const salesDaily = pgTable(
+  "sales_daily",
+  {
+    merchantId: uuid("merchant_id")
+      .notNull()
+      .references(() => merchants.id, { onDelete: "cascade" }),
+    day: isoDate("day").notNull(),
+    menuSku: text("menu_sku").notNull(),
+    qty: integer("qty").notNull(),
+    revenueMinor: money("revenue_minor").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.merchantId, t.day, t.menuSku] })],
+);
+
+/** The signed / delivered / invoiced state of a PO; `invoice` is what the supplier sent (untrusted until matched, M5). */
+export type PurchaseOrderInvoiceJson = {
+  invoiceId: string;
+  supplierName: string;
+  amountMinor: number;
+  currency: string;
+  /** base64url(sha256(normalized account)) of the account the invoice asks to be paid. */
+  accountHash: string;
+  issuedAt: string;
+  reference?: string | null;
+};
+
+export const purchaseOrders = pgTable(
+  "purchase_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    merchantId: uuid("merchant_id")
+      .notNull()
+      .references(() => merchants.id, { onDelete: "cascade" }),
+    supplierPayeeId: uuid("supplier_payee_id")
+      .notNull()
+      .references(() => payees.id),
+    status: purchaseOrderStatusEnum("status").notNull().default("DRAFT"),
+    /** "AGENT" | "SCHEDULER" | "USER": who drafted it (a draft never moves money). */
+    createdBy: text("created_by").notNull(),
+    currency: text("currency").notNull(),
+    lines: jsonb("lines").$type<PurchaseOrderLine[]>().notNull(),
+    totalMinor: money("total_minor").notNull(),
+    /** The forecast the draft was computed from (shown to the owner, hashed into core.forecastHash). */
+    forecastSnapshot: jsonb("forecast_snapshot").$type<Record<string, unknown>>(),
+    reasonCodes: jsonb("reason_codes").$type<ReasonCode[]>().notNull().default([]),
+    /** Set when signed: the exact core, its hash (= WebAuthn challenge) and the owner's payments-passkey assertion. */
+    core: jsonb("core").$type<PurchaseOrderCore>(),
+    poHash: text("po_hash"),
+    ownerAssertion: jsonb("owner_assertion").$type<AssertionJson>(),
+    signedAt: tstz("signed_at"),
+    invoice: jsonb("invoice").$type<PurchaseOrderInvoiceJson>(),
+    obligationId: uuid("obligation_id"),
+    proposalId: uuid("proposal_id"),
+    /** [{status, at}] in order. */
+    timeline: jsonb("timeline").$type<{ status: string; at: string; note?: string }[]>().notNull().default([]),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    updatedAt: tstz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [index("purchase_orders_merchant_idx").on(t.merchantId, t.createdAt), uniqueIndex("purchase_orders_po_hash_uq").on(t.poHash)],
+);
+
+/** A consumer's order at a merchant (delivery or till bill) paid through Kassa; the shop's status timeline. */
+export const shopOrders = pgTable(
+  "shop_orders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The paying Kassa user (customer). */
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** mock-world storeId; `merchantId` is set when the shop is a Kassa Business merchant (stock goes down by recipe). */
+    merchantSlug: text("merchant_slug").notNull(),
+    merchantId: uuid("merchant_id").references(() => merchants.id, { onDelete: "set null" }),
+    channel: shopOrderChannelEnum("channel").notNull(),
+    /** The shop's order id (DELIVERY) once submitted. */
+    externalOrderId: text("external_order_id"),
+    /** The till's bill id (TILL). */
+    billId: text("bill_id"),
+    items: jsonb("items").$type<FulfillmentItem[]>().notNull(),
+    totalMinor: money("total_minor").notNull(),
+    currency: text("currency").notNull(),
+    /** RECEIVED → ACCEPTED → COOKING → OUT_FOR_DELIVERY → DELIVERED (DELIVERY) | PAID (TILL) | FAILED | CANCELED. */
+    status: text("status").notNull(),
+    timeline: jsonb("timeline").$type<{ status: string; at: string; note?: string }[]>().notNull().default([]),
+    proposalId: uuid("proposal_id"),
+    paymentId: uuid("payment_id"),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    updatedAt: tstz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("shop_orders_user_idx").on(t.userId, t.createdAt),
+    uniqueIndex("shop_orders_slug_external_uq").on(t.merchantSlug, t.externalOrderId),
+    uniqueIndex("shop_orders_slug_bill_uq").on(t.merchantSlug, t.billId),
+    index("shop_orders_proposal_idx").on(t.proposalId),
+  ],
+);

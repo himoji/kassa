@@ -196,6 +196,12 @@ function SettingsBody({ me }: { me: MeResponse }) {
           onPress={() => router.push("/bills")}
         />
         <Row
+          leading={<Icon name="wave.3.right" fallback="contactless" size={20} color="foreground" />}
+          title={t("shortcut:title")}
+          subtitle={t("shortcut:settingsHint")}
+          onPress={() => router.push("/shortcut")}
+        />
+        <Row
           leading={
             <Icon
               name="doc.text.magnifyingglass"

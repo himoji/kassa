@@ -34,6 +34,7 @@ import { notify } from "../notifications/service.ts";
 import { mockWorld } from "../rails/http.ts";
 import { ingestCapture, reconcileSettlement, SettlementError } from "../capture/service.ts";
 import { DocumentError, storeDocument } from "../reader/index.ts";
+import { forecastTick } from "../business/scheduler.ts";
 import { tick } from "../scheduler/index.ts";
 import { loadSeedData, seedDatabase } from "./seed.ts";
 
@@ -126,7 +127,11 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
       // €2,400 from any single balance (B2, docs/DECISIONS.md 2026-10-11 "demo story").
       return { mock: await mockWorld("POST", "/remittance/incoming", { userId, amountMinor: 100_000_000, currency: "KZT" }).catch((e: Error) => ({ error: e.message })) };
     case "pos-low-dough":
-      return { mock: await mockWorld("POST", "/pos/emit", { sku: "dough", level: "low" }).catch((e: Error) => ({ error: e.message })) };
+      // The Budapest pizzeria's till reports dough balls running low. Shape = mock-world PosBody (routes/events.ts):
+      // an uppercase SKU, an integer level in `unit`, the storeId (= merchants.slug). A trigger only logs (I6).
+      return {
+        mock: await mockWorld("POST", "/pos/emit", { sku: "DOUGH-BALL", level: 12, unit: "pcs", storeId: "bud" }).catch((e: Error) => ({ error: e.message })),
+      };
     case "cn-spending-day": {
       // Capture only logs (I6): each notice is parsed, logged in CNY, converted to the home currency at the
       // purchase-date rate and budgeted; nothing is proposed or paid.
@@ -137,6 +142,10 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
       }
       return { captured };
     }
+    case "business-forecast":
+      // The business forecast tick (scheduler job business.forecastTick) now, for every business owner: stock short by
+      // the end of tomorrow -> a DRAFT purchase order + the owner's shortage notice. Drafts only; signing is the owner's (I6).
+      return { drafted: await forecastTick(clock.now()) };
     case "landlord-iban-email":
       await notify(userId, {
         kind: "INBOX_NEW_EMAIL",

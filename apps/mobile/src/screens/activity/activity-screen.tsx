@@ -10,6 +10,7 @@ import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 
 import { useLedger, useMarkNotificationRead, useNotifications } from "@/api/hooks/activity";
 import { useMe } from "@/api/hooks/me";
+import { useShopOrders } from "@/api/hooks/shop";
 import { useTransactions } from "@/api/hooks/money";
 import { errorText } from "@/components/kassa/error-text";
 import { ReasonCodeList } from "@/components/kassa/reason-codes";
@@ -28,10 +29,11 @@ import {
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
+import { ShopOrderTimeline } from "../shop/shop-order-timeline";
 import { ledgerDisplay } from "./ledger-entry";
 import { notificationReasonCodes, notificationText } from "./notification-text";
 
-type Segment = "timeline" | "spending" | "inbox";
+type Segment = "timeline" | "spending" | "orders" | "inbox";
 
 function LedgerRow({ entry }: { entry: LedgerEntryDto }) {
   const t = useKassaT();
@@ -194,6 +196,8 @@ export function ActivityScreen() {
   const ledger = useLedger();
   const txs = useTransactions();
   const notes = useNotifications();
+  // (M2/M3) Polls every 2 s while an order is open (see useShopOrders); only while this segment is shown.
+  const shop = useShopOrders({ enabled: segment === "orders" });
 
   const header = (
     <Box gap={4} pb={2}>
@@ -203,6 +207,7 @@ export function ActivityScreen() {
         options={[
           { value: "timeline", label: t("activity:segment.timeline") },
           { value: "spending", label: t("activity:segment.spending") },
+          { value: "orders", label: t("shop:segment") },
           { value: "inbox", label: t("activity:segment.inbox") },
         ]}
       />
@@ -266,6 +271,44 @@ export function ActivityScreen() {
           )
         }
         ListFooterComponent={txs.isFetchingNextPage ? <ActivityIndicator /> : null}
+      />
+    );
+  }
+  if (segment === "orders") {
+    const orders = shop.data?.shopOrders ?? [];
+    return (
+      <FlatList
+        {...common}
+        data={orders}
+        keyExtractor={(o) => o.id}
+        renderItem={({ item }) =>
+          item.proposalId ? (
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push(`/order/${item.proposalId}`)}
+              style={{ paddingVertical: 8 }}
+            >
+              <ShopOrderTimeline order={item} />
+            </Pressable>
+          ) : (
+            <View style={{ paddingVertical: 8 }}>
+              <ShopOrderTimeline order={item} />
+            </View>
+          )
+        }
+        refreshing={shop.isRefetching}
+        onRefresh={() => void shop.refetch()}
+        ListEmptyComponent={
+          shop.isPending || shop.error ? (
+            <ListState
+              pending={shop.isPending}
+              error={shop.error}
+              retry={() => void shop.refetch()}
+            />
+          ) : (
+            <EmptyState title={t("shop:emptyOrders")} />
+          )
+        }
       />
     );
   }

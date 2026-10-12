@@ -34,6 +34,14 @@ bun run sim logs --tail 50
 bun run sim down                # stops everything it started; reports portsFree
 ```
 
+`bun run sim story` (M6) runs the whole connected world in one command: it starts a **fresh** sim (fails with
+`SIM_RUNNING` if one is up; wipes `.data/sim`), sets `ISSUING_PROVIDER=fake` and agent mode REPLAY, registers
+`dana` (demo user), `owner-bud` and `owner-sha`, then runs the beats `setup`, `pizza` (pizza-order.json →
+DELIVERED), `till` (bud bill → PAID), `restock` (Shanghai box shortage → agent DRAFT PO → owner signs → supplier C
+confirms), `swappedInvoice` (supplier D → refused `INVOICE_ACCOUNT_MISMATCH`), `invoicePaid` (C delivers and
+invoices → QR handoff → PO PAID), `shortcut` (capture returns `nudge`) and `ledgerVerify`. It prints one JSON
+evidence object, exits 1 (`STORY_FAILED`) if any beat failed, and always stops the sim (`stopped.portsFree`).
+
 Only one sim runs at a time. Parallel agents share it. Each agent uses its **own persona names** (for example
 `p1-<runid>`), but only one agent may claim the demo user per seed (`--claim-demo`).
 

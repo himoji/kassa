@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { HttpError, parseWith } from "../errors.ts";
-import { inboxEmails, PAYEE_IDS, PAYEE_INVOICES, SUPPLIERS } from "../world/data.ts";
+import { inboxEmails, PAYEE_IDS, PAYEE_INVOICES, type SupplierId, SUPPLIERS } from "../world/data.ts";
 
 /*
  * Documents the agent reads through the Reader (spec §17): supplier catalogs and price lists,
@@ -11,7 +11,7 @@ import { inboxEmails, PAYEE_IDS, PAYEE_INVOICES, SUPPLIERS } from "../world/data
  */
 
 export interface DocumentCache {
-  priceLists: Record<"a" | "b", Uint8Array>;
+  priceLists: Record<SupplierId, Uint8Array>;
   invoices: Record<string, Uint8Array>;
 }
 
@@ -23,7 +23,7 @@ function sendPdf(reply: FastifyReply, bytes: Uint8Array, filename: string) {
     .send(Buffer.from(bytes));
 }
 
-const SupplierParam = z.object({ id: z.enum(["a", "b"]) });
+const SupplierParam = z.object({ id: z.enum(Object.keys(SUPPLIERS) as [SupplierId, ...SupplierId[]]) });
 
 export function documentRoutes(app: FastifyInstance, deps: { docs: DocumentCache; publicUrl: string }): void {
   const base = `${deps.publicUrl}/mock`;
@@ -44,7 +44,7 @@ export function documentRoutes(app: FastifyInstance, deps: { docs: DocumentCache
     if (!r.success) throw new HttpError(404, "NOT_FOUND", "Unknown supplier");
     const s = SUPPLIERS[r.data.id];
     return {
-      supplier: { id: s.id, name: s.name, city: s.city, country: s.country, mcc: s.mcc, iban: s.iban },
+      supplier: { id: s.id, name: s.name, city: s.city, country: s.country, mcc: s.mcc, iban: s.iban, qrMerchantId: s.qrMerchantId },
       currency: s.currency,
       items: s.items.map((i) => ({ ...i, currency: s.currency })),
       notes: s.notes,

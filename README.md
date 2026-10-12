@@ -19,6 +19,7 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 | [docs/TESTS.md](docs/TESTS.md) | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence |
 | [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Dated log of every deviation from the technical spec |
+| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md) | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits |
 | [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md) | Technical specification (source of truth for how) |
 | [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference |
 

@@ -69,6 +69,15 @@ export const ReasonCode = z.enum([
   "RAIL_ERROR",
   // (added 2026-10-11, B2) the bank quote's source amount exceeds the signed fundingAmountMinor: nothing sent
   "FUNDING_ABOVE_SIGNED_MAX",
+  // (added 2026-10-14, Business M0) supplier purchase orders and their invoices (three-way match, M5)
+  // the invoice total is above the passkey-signed purchase order total: refused
+  "INVOICE_ABOVE_PO",
+  // the invoice's account is not the verified supplier payee's account (e.g. a swapped IBAN): refused
+  "INVOICE_ACCOUNT_MISMATCH",
+  // the purchase order has not been delivered yet, so its invoice cannot be paid
+  "PO_NOT_DELIVERED",
+  // the drafted purchase order is far above what the stock forecast suggests (> 2x) → ASK
+  "PO_ABOVE_FORECAST",
   // Rule changes (I8) and webhooks (I13)
   "LOOSEN_PENDING",
   "PASSKEY_REQUIRED",

@@ -52,7 +52,9 @@ const CATEGORY_EN: Record<string, string> = {
   other: "Other",
 };
 
-const cat = (c: string) => CATEGORY_EN[c] ?? c;
+/** English category label ("eating_out" → "Eating out"); unknown keys are shown as written. */
+export const categoryEn = (c: string): string => CATEGORY_EN[c] ?? c;
+const cat = categoryEn;
 const money = (m: MoneyParam) => formatMoney(m.amountMinor, m.currency, "en");
 const paceEn = (p: BudgetPace) => (p === "ON_TRACK" ? "on track" : p === "AHEAD_OF_PACE" ? "ahead of pace" : "over budget");
 

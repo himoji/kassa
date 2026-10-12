@@ -8,6 +8,8 @@ import type { Clock } from "../clock.ts";
 import type { MockWorldConfig } from "../config.ts";
 import { HttpError, parseWith } from "../errors.ts";
 import type { QrWallet } from "../qr/qr.ts";
+import { ORDER_FLOW, type ShopOrderBook } from "../shop/orders.ts";
+import type { SupplierBook } from "../supplier/book.ts";
 import { QrError } from "../qr/qr.ts";
 import { type ApiResult, problemCode, type StageApi, StageApiError } from "../stage/client.ts";
 import { STAGE_CSS, STAGE_JS } from "../stage/assets.ts";
@@ -34,6 +36,9 @@ export interface StageDeps {
   shop: ShopDeps;
   clock: Clock;
   rates: RateProvider;
+  /** (M6) The pizza shops' order book (kitchen screens) and the suppliers' PO book (supplier portals). */
+  orders: ShopOrderBook;
+  suppliers: SupplierBook;
   /** Resets the mock world's own in-memory state (bank, QR wallet, charges). */
   resetWorld: () => void;
   /** Drops the cached demo-clock offset so the next read follows a clock move this server just made. */
@@ -71,6 +76,9 @@ const ActionParam = z.object({
     "clock",
     "bank-forged",
     "home-send",
+    "kitchen-advance",
+    "forecast-tick",
+    "supplier-attack",
     "reset",
   ]),
 });
@@ -421,6 +429,49 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
         const r = await trigger("money-from-home");
         if (r.status !== 200) return configProblem(r) ?? { ok: false, tone: "bad", title: "Transfer failed", detail: apiDetail(r) };
         return { ok: true, tone: "ok", title: `Sent ${formatMoney(100_000_000, "KZT")} to Dana`, detail: "Kassa gets a signed notice and updates routes and coverage. Nothing is paid until Dana approves.", data: r.body };
+      }
+
+      // ---------- Connected world (M6): beats with no phone screen of their own ----------
+      case "kitchen-advance": {
+        const { store } = parseWith(z.object({ store: z.enum(["bud", "sha"]).default("bud") }), body);
+        const last = ORDER_FLOW[ORDER_FLOW.length - 1];
+        const o = deps.orders.listOrders(store).find((x) => (ORDER_FLOW as readonly string[]).includes(x.status) && x.status !== last);
+        if (!o) return { ok: false, tone: "warn", title: "No order to move", detail: "Place and pay a delivery order in Kassa first." };
+        const moved = await deps.orders.advance(store, o.orderId);
+        return {
+          ok: true,
+          tone: "info",
+          title: `Kitchen: order ${moved.orderId.slice(0, 8)} is ${moved.status}`,
+          detail: "The shop sent Kassa a signed status message; the order screen and Activity update (simulated).",
+          data: { orderId: moved.orderId, status: moved.status },
+        };
+      }
+      case "forecast-tick": {
+        const r = await trigger("business-forecast");
+        if (r.status !== 200) return configProblem(r) ?? { ok: false, tone: "bad", title: "Forecast not run", detail: apiDetail(r) };
+        const drafted = (r.body as { result?: { drafted?: Array<{ totalMinor: number; currency: string }> } }).result?.drafted ?? [];
+        return drafted.length > 0
+          ? {
+              ok: true,
+              tone: "warn",
+              title: `Shortage by tomorrow: ${drafted.length} purchase order${drafted.length === 1 ? "" : "s"} drafted`,
+              detail: `${drafted.map((d) => formatMoney(d.totalMinor, d.currency)).join(", ")}. The owner reviews and signs in Kassa; nothing is paid yet (I6).`,
+              data: r.body,
+            }
+          : { ok: true, tone: "info", title: "No new shortage", detail: "Stock covers tomorrow, or today's draft already exists.", data: r.body };
+      }
+      case "supplier-attack": {
+        // A9: supplier D invoices the newest purchase order sent to supplier C with D's own payment details.
+        const target = deps.suppliers.list("c")[0];
+        if (!target) return { ok: false, tone: "warn", title: "No purchase order to attack", detail: `Sign a purchase order to ${SUPPLIERS.c.name} in Kassa first.` };
+        const inv = await deps.suppliers.swappedInvoice("d", target.purchaseOrderId);
+        return {
+          ok: true,
+          tone: "warn",
+          title: `${SUPPLIERS.d.name} sent an invoice for ${formatMoney(inv.amountMinor, inv.currency)}`,
+          detail: `It names your purchase order to ${SUPPLIERS.c.name} but asks to be paid elsewhere. Kassa checks it against the signed order and refuses (INVOICE_ACCOUNT_MISMATCH); nothing is paid.`,
+          data: { purchaseOrderId: target.purchaseOrderId, invoiceId: inv.invoiceId },
+        };
       }
 
       // ---------- Director ----------

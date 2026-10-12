@@ -116,8 +116,10 @@ describe("second persona Li Wei (D-CN3)", () => {
 
     const r = await seedBoth();
     const allUsers = await getDb().select().from(users);
-    expect(allUsers).toHaveLength(2);
-    expect(r.personaUserIds).toEqual([LI_WEI_IDS.user]);
+    // Li Wei, then (Business M0) Li Wei in Shanghai and the two pizzeria owners.
+    expect(allUsers).toHaveLength(1 + data.personas!.length);
+    expect(r.personaUserIds[0]).toBe(LI_WEI_IDS.user);
+    expect(r.personaUserIds).toEqual(data.personas!.map((p) => p.user.id));
 
     const [ds] = await getDb().select().from(demoState).where(eq(demoState.id, 1));
     expect(ds?.demoUserId).toBe(IDS.user);

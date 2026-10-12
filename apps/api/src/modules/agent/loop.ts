@@ -6,7 +6,7 @@ import { getPlannerModel, plannerSpec } from "../ai/models.ts";
 import { SDK_MAX_RETRIES } from "../ai/retry.ts";
 import { redactionMiddleware } from "./middleware.ts";
 import type { AgentPorts } from "./ports.ts";
-import { SYSTEM_PROMPT } from "./prompt.ts";
+import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "./replay.ts";
 import { buildTools, MAX_TOOL_STEPS, type ToolContext } from "./tools.ts";
@@ -97,7 +97,9 @@ export function rehydrateStream(redactor: Redactor, payeeNames: Map<string, stri
 }
 
 export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
-  const [history, existing, names, payees] = await Promise.all([o.store.history(), o.store.placeholders(), knownNames(o.ports), o.ports.payees()]);
+  const [history, existing, names, payees, profile] = await Promise.all([o.store.history(), o.store.placeholders(), knownNames(o.ports), o.ports.payees(), o.ports.profile()]);
+  // (M5) A BUSINESS account gets the business tool set and prompt section (when the ports provide them).
+  const business = profile.accountType === "BUSINESS" && o.ports.business !== undefined;
   const redactor = new Redactor({ names, existing });
   const redactedText = redactor.redactText(o.text);
   const userMsg: ModelMessage = { role: "user", content: redactedText };
@@ -109,6 +111,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     readDocs: (await o.store.readDocs?.()) ?? new Map(),
     stop: { requested: false, reason: null },
     proposals: [],
+    business,
   };
   const tools = buildTools(ctx);
 
@@ -133,7 +136,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
 
   const result = streamText({
     model,
-    instructions: SYSTEM_PROMPT,
+    instructions: business ? `${SYSTEM_PROMPT}\n\n${BUSINESS_PROMPT}` : SYSTEM_PROMPT,
     messages: [...history, userMsg],
     tools,
     // Live models retry 429 / 5xx themselves (ai/retry.ts: AI_MAX_RETRIES, backoff + jitter, Retry-After).

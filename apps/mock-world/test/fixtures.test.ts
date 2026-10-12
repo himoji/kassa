@@ -19,7 +19,16 @@ import {
   liWei,
   LI_WEI_IDS,
   LI_WEI_TUITION_REFERENCE,
+  BUSINESS_IDS,
+  liWeiCn,
+  MENU_SKUS,
+  pizzeriaBud,
+  pizzeriaSha,
+  SHA_BOX_SHORTAGE,
+  seedForecastShortage,
+  SUPPLIER_PACKS,
 } from "../../../fixtures/seed-data.ts";
+import { PIZZA_MENUS, PIZZA_STORES, QR_MERCHANTS, SUPPLIERS } from "../src/world/data.ts";
 import { seedId, uuidV5 } from "../../../fixtures/uuid.ts";
 
 const UUID_V5 = /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -256,7 +265,141 @@ describe("second persona Li Wei (D-CN3)", () => {
     }
   });
 
-  it("seed.personas is exactly Li Wei", () => {
-    expect(seed.personas).toEqual([liWei]);
+  it("seed.personas: Li Wei, Li Wei in Shanghai and the two pizzerias", () => {
+    expect(seed.personas).toEqual([liWei, liWeiCn, pizzeriaBud, pizzeriaSha]);
+    expect(new Set(seed.personas.map((p) => p.persona)).size).toBe(seed.personas.length);
+    expect(new Set(seed.personas.map((p) => p.mockBankProfileId)).size).toBe(seed.personas.length);
+  });
+});
+
+describe("Kassa Business personas (M0)", () => {
+  const shops = [pizzeriaBud, pizzeriaSha] as const;
+
+  it("every BUSINESS_IDS literal equals seedId of its name", () => {
+    expect(BUSINESS_IDS.bud.user).toBe(seedId("user/pizzeria-bud"));
+    expect(BUSINESS_IDS.bud.merchant).toBe(seedId("pizzeria-bud/merchant"));
+    expect(BUSINESS_IDS.bud.payees.supplierA).toBe(seedId("pizzeria-bud/payee/supplier-a"));
+    expect(BUSINESS_IDS.bud.payees.supplierB).toBe(seedId("pizzeria-bud/payee/supplier-b"));
+    expect(BUSINESS_IDS.sha.user).toBe(seedId("user/pizzeria-sha"));
+    expect(BUSINESS_IDS.sha.merchant).toBe(seedId("pizzeria-sha/merchant"));
+    expect(BUSINESS_IDS.sha.payees.supplierC).toBe(seedId("pizzeria-sha/payee/supplier-c"));
+    expect(BUSINESS_IDS.sha.payees.supplierD).toBe(seedId("pizzeria-sha/payee/supplier-d"));
+    expect(BUSINESS_IDS.liWeiCn.user).toBe(seedId("user/li-wei-cn"));
+    expect(BUSINESS_IDS.liWeiCn.payees.pizzaShopSh).toBe(seedId("li-wei-cn/payee/pizza-shop-sh"));
+    expect(BUSINESS_IDS.liWeiCn.budgets.eatingOut).toBe(seedId("li-wei-cn/budget/eating_out"));
+  });
+
+  it("all persona ids (and stock movement / supplier item ids) are unique UUIDv5s", () => {
+    const ids = seed.personas.flatMap((p) => [p.user.id, ...p.payees.map((x) => x.id), ...p.budgets.map((b) => b.id), ...p.transactions.map((t) => t.id)]);
+    const bizIds = shops.flatMap((p) => [p.business.merchant.id, ...p.business.stockMovements.map((m) => m.id), ...p.business.supplierItems.map((x) => x.id)]);
+    const all = [user.id, ...payees.map((p) => p.id), ...ids, ...bizIds];
+    for (const id of all) expect(id).toMatch(UUID_V5);
+    expect(new Set(all).size).toBe(all.length);
+  });
+
+  it("merchant slugs are the mock-world storeIds, with currency, region and timezone matching the store", () => {
+    for (const p of shops) {
+      const m = p.business.merchant;
+      const store = PIZZA_STORES[m.slug];
+      expect(store).toMatchObject({ storeId: m.slug, currency: m.currency, region: m.region, timezone: m.timezone, name: m.name });
+      expect(p.user).toMatchObject({ homeCurrency: m.currency, region: m.region });
+      expect(p.accountType).toBe("BUSINESS");
+    }
+    expect(pizzeriaBud.business.merchant).toMatchObject({ slug: "bud", currency: "HUF", region: "EU", timezone: "Europe/Budapest" });
+    expect(pizzeriaSha.business.merchant).toMatchObject({ slug: "sha", currency: "CNY", region: "CN", timezone: "Asia/Shanghai" });
+  });
+
+  it("every menu SKU of both stores has a recipe, and every recipe SKU is an inventory item", () => {
+    for (const p of shops) {
+      const inv = new Set(p.business.inventory.map((i) => i.sku));
+      for (const m of PIZZA_MENUS[p.business.merchant.slug]) expect(p.business.recipes.some((r) => r.menuSku === m.sku), m.sku).toBe(true);
+      for (const r of p.business.recipes) expect(inv.has(r.inventorySku), r.inventorySku).toBe(true);
+    }
+    expect(PIZZA_MENUS.bud.map((m) => m.sku)).toEqual([...MENU_SKUS]);
+    expect(PIZZA_MENUS.sha.map((m) => m.sku)).toEqual([...MENU_SKUS]);
+  });
+
+  it("28 completed days of sales per menu SKU, with weekend peaks", () => {
+    for (const p of shops) {
+      const days = [...new Set(p.business.salesDaily.map((s) => s.day))].sort();
+      expect(days).toHaveLength(28);
+      expect(days.at(-1)).toBe("2026-10-26");
+      expect(p.business.salesDaily).toHaveLength(28 * MENU_SKUS.length);
+      const pizzasOn = (wd: number) =>
+        p.business.salesDaily.filter((s) => s.menuSku.startsWith("PZ-") && new Date(`${s.day}T12:00:00Z`).getUTCDay() === wd).reduce((a, s) => a + s.qty, 0);
+      expect(pizzasOn(6)).toBeGreaterThan(pizzasOn(1)); // Saturday > Monday
+    }
+  });
+
+  it("the stock ledger never goes negative and is consistent with sales (SALE = recipe × qty sold)", () => {
+    for (const p of shops) {
+      for (const item of p.business.inventory) {
+        const mv = p.business.stockMovements.filter((m) => m.sku === item.sku).sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+        let level = 0;
+        for (const m of mv) {
+          level += m.qty;
+          expect(level, `${p.persona} ${item.sku} ${m.occurredAt}`).toBeGreaterThanOrEqual(0);
+        }
+        const sold = p.business.salesDaily.reduce(
+          (a, s) => a + s.qty * (p.business.recipes.find((r) => r.menuSku === s.menuSku && r.inventorySku === item.sku)?.qtyPerUnit ?? 0),
+          0,
+        );
+        expect(-mv.filter((m) => m.kind === "SALE").reduce((a, m) => a + m.qty, 0)).toBe(sold);
+      }
+    }
+  });
+
+  it("forecast contract: Shanghai is SHA_BOX_SHORTAGE (400) boxes short by the end of tomorrow; Budapest has no shortage", () => {
+    expect(SHA_BOX_SHORTAGE).toBe(400);
+    const sha = seedForecastShortage(pizzeriaSha.business);
+    expect(sha["BOX-33CM"]!.shortage).toBe(400);
+    for (const [sku, f] of Object.entries(sha)) if (sku !== "BOX-33CM") expect(f.shortage, sku).toBe(0);
+    const bud = seedForecastShortage(pizzeriaBud.business);
+    for (const [sku, f] of Object.entries(bud)) {
+      expect(f.shortage, sku).toBe(0);
+      expect(f.onHand, sku).toBeGreaterThan(f.need + f.safety); // comfortably stocked
+    }
+  });
+
+  it("suppliers: a VERIFIED supplier and a COOLING attacker per shop; packs match the mock-world catalogs", () => {
+    const bud = pizzeriaBud.payees;
+    expect(bud.map((p) => [p.name, p.status, p.account])).toEqual([
+      [SUPPLIERS.a.name, "VERIFIED", SUPPLIERS.a.iban],
+      [SUPPLIERS.b.name, "COOLING", SUPPLIERS.b.iban],
+    ]);
+    const sha = pizzeriaSha.payees;
+    expect(sha.map((p) => [p.name, p.status, p.currency])).toEqual([
+      [SUPPLIERS.c.name, "VERIFIED", "CNY"],
+      [SUPPLIERS.d.name, "COOLING", "CNY"],
+    ]);
+    for (const p of [...bud, ...sha]) {
+      expect(p.kind).toBe("SUPPLIER");
+      if (p.status === "VERIFIED") expect(Date.parse(p.verifiedAt!)).toBeLessThan(SEED_NOW);
+      else expect(Date.parse(p.coolingUntil!)).toBeGreaterThan(SEED_NOW + DAY_MS);
+    }
+    for (const s of [SUPPLIERS.c, SUPPLIERS.d]) expect(QR_MERCHANTS[s.qrMerchantId]?.name).toBe(s.name);
+    expect(QR_MERCHANTS[PIZZA_STORES.sha.id]?.name).toBe("Pizza Shop in Shanghai");
+    for (const key of ["a", "b", "c", "d"] as const) {
+      for (const pack of SUPPLIER_PACKS[key]) {
+        const item = SUPPLIERS[key].items.find((i) => i.sku === pack.supplierSku);
+        expect(item, `${key} ${pack.supplierSku}`).toBeDefined();
+        expect(item!.priceMinor).toBe(pack.packPriceMinor);
+      }
+      expect(SUPPLIERS[key].items.some((i) => i.sku === "BOX-33CM-100"), key).toBe(true);
+    }
+  });
+
+  it("a restock of the Shanghai shortage fits the PO cap and the owner's per-payment cap", () => {
+    const box = SUPPLIER_PACKS.c.find((x) => x.supplierSku === "BOX-33CM-100")!;
+    const total = Math.ceil(SHA_BOX_SHORTAGE / box.packSize) * box.packPriceMinor;
+    expect(total).toBeLessThanOrEqual(pizzeriaSha.business.merchant.poCapMinor);
+    expect(total).toBeLessThanOrEqual(pizzeriaSha.profile.caps.perPaymentMinor);
+    expect(pizzeriaBud.business.merchant.poCapMinor).toBeLessThanOrEqual(pizzeriaBud.profile.caps.perPaymentMinor);
+  });
+
+  it("Li Wei in Shanghai: region CN, HANDOFF, pays the Shanghai pizzeria (a QR merchant)", () => {
+    expect(liWeiCn.user).toMatchObject({ displayName: "Li Wei", region: "CN", moneyMode: "HANDOFF", homeCurrency: "CNY" });
+    expect(liWeiCn.payees[0]!.name).toBe(PIZZA_STORES.sha.name);
+    expect(liWei.user.region).toBe("EU"); // the original persona is unchanged
   });
 });

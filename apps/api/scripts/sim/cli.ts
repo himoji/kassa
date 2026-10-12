@@ -36,6 +36,7 @@ import { FILES, removeFile } from "./lib/config.ts";
 import { evidence, ledgerVerify, mark, report } from "./lib/evidence.ts";
 import { control } from "./lib/http.ts";
 import { down, logs, status, up } from "./lib/lifecycle.ts";
+import { story } from "./lib/story.ts";
 import { fail, jsonArg, print, printError, textArg } from "./lib/out.ts";
 import { freshAccessToken, listPersonas, loadPersona, loginPersona, type PersonaFile, personaRequest, registerPersona } from "./lib/persona.ts";
 
@@ -74,6 +75,7 @@ const USAGE = {
     "mock qr <qrPaymentId> | qr-swap on|off | pos-emit [--sku S --level N --qty N] | remittance [--amount 400000 --currency KZT --sender text --profile li-wei] | outbox | transfers",
     "mock shop-menu | shop-checkout <cardId> [--amount minor | --items '<json>'] | shop-recharge <cardId> | charges",
   ],
+  story: ["story   (fresh sim: pizza → DELIVERED, till PAID, Shanghai PO signed/confirmed/delivered/invoiced/QR-paid, swapped invoice refused, Shortcut nudge, ledger verify; always stops the sim)"],
   evidence: ["mark <name>", "evidence <scenario> [--since <marker>]", "report <scenario> --result PASS|FAIL --notes '<text>'|@file", "ledger-verify"],
 };
 
@@ -439,6 +441,11 @@ async function main(argv: string[]): Promise<unknown> {
     }
     case "ledger-verify":
       return ledgerVerify();
+    case "story": {
+      const r = await story();
+      if (!r.ok) fail("STORY_FAILED", "one or more story beats failed", r);
+      return r;
+    }
     default:
       return fail("BAD_ARGS", `unknown command "${cmd}"`, { usage: USAGE });
   }

@@ -93,9 +93,43 @@ describe("health and pizza shop", () => {
   });
 });
 
+describe("pizza stores (Business M0)", () => {
+  it("bud and pizza are the same Budapest store; sha is Shanghai in CNY", async () => {
+    const bud = jsonOf(await app.inject({ method: "GET", url: "/mock/shop/bud/menu" }));
+    const pizza = jsonOf(await app.inject({ method: "GET", url: "/mock/shop/pizza/menu" }));
+    expect(bud).toEqual(pizza);
+    const sha = await app.inject({ method: "GET", url: "/mock/shop/sha/menu" });
+    expect(sha.statusCode).toBe(200);
+    expect(jsonOf(sha)).toMatchObject({ currency: "CNY", merchant: { storeId: "sha", name: "Pizza Shop in Shanghai", timezone: "Asia/Shanghai" } });
+    expect((jsonOf(sha).items as unknown[]).length).toBe(6);
+    expect((await app.inject({ method: "GET", url: "/mock/shop/nope/menu" })).statusCode).toBe(404);
+  });
+
+  it("a Shanghai checkout is priced in CNY at the Shanghai shop", async () => {
+    authorize.mockResolvedValueOnce({ approved: true, provider: "fake", authorizationId: "auth_sha", reasonCode: null, issuerStatus: 200 });
+    const res = await app.inject({ method: "POST", url: "/mock/shop/sha/checkout", payload: { cardId: "card_sha", items: [{ sku: "PZ-MARG", quantity: 2 }] } });
+    expect(res.statusCode).toBe(200);
+    expect(jsonOf(res)).toMatchObject({ status: "approved", amountMinor: 13_600, currency: "CNY", merchant: "Pizza Shop in Shanghai" });
+    const charges = jsonOf(await app.inject({ method: "GET", url: "/mock/shop/sha/charges" })).charges as { storeId: string }[];
+    expect(charges.length).toBeGreaterThan(0);
+    expect(charges.every((c) => c.storeId === "sha")).toBe(true);
+    expect(authorize).toHaveBeenLastCalledWith(expect.objectContaining({ currency: "CNY", merchant: expect.objectContaining({ name: "Pizza Shop in Shanghai", country: "CN" }) }));
+  });
+
+  it("the Shanghai suppliers' catalogs and price lists are served", async () => {
+    for (const id of ["c", "d"]) {
+      const cat = await app.inject({ method: "GET", url: `/mock/suppliers/${id}/catalog` });
+      expect(cat.statusCode, id).toBe(200);
+      expect(jsonOf(cat)).toMatchObject({ currency: "CNY", supplier: { iban: null } });
+      const pdf = await app.inject({ method: "GET", url: `/mock/suppliers/${id}/price-list.pdf` });
+      expect(pdf.statusCode, id).toBe(200);
+    }
+  });
+});
+
 describe("HTML pages", () => {
   it("shows the simulated banner on the index and the pizza page", async () => {
-    for (const url of ["/mock", "/mock/shop/pizza"]) {
+    for (const url of ["/mock", "/mock/shop/pizza", "/mock/shop/bud", "/mock/shop/sha"]) {
       const res = await app.inject({ method: "GET", url });
       expect(res.statusCode, url).toBe(200);
       expect(res.body.toLowerCase(), url).toContain("simulated");

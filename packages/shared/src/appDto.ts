@@ -424,7 +424,7 @@ export type RegisterDeviceRequest = z.infer<typeof RegisterDeviceRequest>;
 /** Header carrying DEMO_ADMIN_TOKEN on /demo/* calls. */
 export const DEMO_TOKEN_HEADER = "x-kassa-demo-token";
 
-export const DemoScenario = z.enum(["settlement", "money-from-home", "landlord-iban-email", "pos-low-dough", "cn-spending-day"]);
+export const DemoScenario = z.enum(["settlement", "money-from-home", "landlord-iban-email", "pos-low-dough", "cn-spending-day", "business-forecast"]);
 export type DemoScenario = z.infer<typeof DemoScenario>;
 
 /** POST /demo/clock/advance */
