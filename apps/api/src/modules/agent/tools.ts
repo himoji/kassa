@@ -2,7 +2,9 @@ import { tool, type ToolSet, type UIMessageChunk } from "ai";
 
 import {
   ForecastCoverageInput,
+  ForecastStockInput,
   GetBalancesInput,
+  GetInventoryInput,
   GetBudgetInput,
   GetObligationsInput,
   GetPayeeFactsInput,
@@ -10,8 +12,11 @@ import {
   GetRoutesInput,
   LogExpenseInput,
   ProposeOrderInput,
+  ProposePurchaseOrderInput,
   ReadDocumentInput,
   SearchCatalogInput,
+  type Fulfillment,
+  type OrderItem,
   type ProposeOrderResult,
 } from "@kassa/shared";
 
@@ -42,6 +47,8 @@ export interface ToolContext {
   stop: { requested: boolean; reason: string | null };
   /** Every propose_order call made in this turn (for tests / audit). */
   proposals: ProposeOrderResult[];
+  /** (M5) BUSINESS account: add the business tool set (get_inventory, forecast_stock, propose_purchase_order). */
+  business?: boolean;
 }
 
 export type ToolName =
@@ -55,12 +62,21 @@ export type ToolName =
   | "forecast_coverage"
   | "read_document"
   | "propose_order"
-  | "log_expense";
+  | "log_expense"
+  | "get_inventory"
+  | "forecast_stock"
+  | "propose_purchase_order";
 
 const STATUS_RANK: Record<PayeeRow["status"], number> = { VERIFIED: 0, COOLING: 1, BLOCKED: 2 };
 
 /** The only tool allowed to change state (I1). log_expense only records spending (I6). */
 export const WRITE_TOOLS: readonly ToolName[] = ["propose_order"];
+
+/**
+ * (M5) Business tools that write a DRAFT purchase order only: no proposal, approval or payment is ever created
+ * (business/drafts.ts); the owner signs the PO with the payments passkey outside the agent.
+ */
+export const DRAFT_TOOLS: readonly ToolName[] = ["propose_purchase_order"];
 
 function errorOut(e: unknown): { error: string; message: string } {
   if (isAiConfigError(e)) return { error: e.code, message: e.message };
@@ -82,6 +98,39 @@ export function quickExpense(text: string): { merchant: string; amountText: stri
   const merchant = g.find((x) => x !== cur && x !== amt);
   if (!cur || !amt || !merchant) return null;
   return { merchant, amountText: amt, currency: sym[cur] ?? cur.toUpperCase() };
+}
+
+const sameName = (a: string) => {
+  const k = a.trim().toLowerCase();
+  return (b: string) => b.trim().toLowerCase() === k;
+};
+
+/**
+ * (M2) When the payee is a shop with a storefront (catalog directory entry with a storeId, same exact name), map the
+ * planner's items onto the shop's menu by SKU (or exact item name) at the menu's prices. The planner's own prices are
+ * never used; the menu total must equal the proposed amount, else the tool answers an error and nothing is proposed.
+ */
+async function storefrontOrder(
+  ports: AgentPorts,
+  payeeName: string,
+  items: readonly OrderItem[],
+  amountMinor: number,
+  currency: string,
+): Promise<{ fulfillment: Fulfillment } | { error: string; message: string } | null> {
+  const entry = (await ports.catalogDirectory?.())?.find((d) => d.storeId && sameName(d.name)(payeeName));
+  if (!entry?.storeId) return null;
+  const menu = await ports.catalog(entry.storeId, "*");
+  if (!menu.items) return { error: "CATALOG_NOT_FOUND", message: `No menu for ${entry.id}` };
+  if (menu.currency && menu.currency !== currency) return { error: "CURRENCY_MISMATCH", message: `The shop sells in ${menu.currency}` };
+  const out: Fulfillment["items"] = [];
+  for (const it of items) {
+    const m = menu.items.find((x) => (it.sku && x.sku?.toLowerCase() === it.sku.toLowerCase()) || x.name.toLowerCase() === it.name.trim().toLowerCase());
+    if (!m?.sku) return { error: "UNKNOWN_ITEM", message: `${it.name} is not on the shop's menu; use search_catalog and pass the item sku` };
+    out.push({ sku: m.sku, qty: it.quantity, unitPriceMinor: m.unitPriceMinor, name: m.name });
+  }
+  const total = out.reduce((s, i) => s + i.qty * i.unitPriceMinor, 0);
+  if (total !== amountMinor) return { error: "ITEMS_TOTAL_MISMATCH", message: `The menu total for these items is ${total} minor units; propose exactly that amount` };
+  return { fulfillment: { merchant: entry.storeId, channel: "DELIVERY", items: out } };
 }
 
 export function buildTools(ctx: ToolContext): ToolSet {
@@ -106,7 +155,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
       }
     };
 
-  return {
+  const personal = {
     get_profile_summary: tool({
       description: "The user's profile: home currency, region, preset, money mode, notification mode and incomes (redacted).",
       inputSchema: GetProfileSummaryInput,
@@ -199,7 +248,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
 
     search_catalog: tool({
       description:
-        "Items with prices from a mock shop or supplier catalog (merchant id, e.g. 'pizza', 'supplier-a', or the merchant's payee placeholder payee_N). payeeRef is the merchant's payee placeholder for propose_order (null if the user has no payee for it); payeeStatus is its status or UNKNOWN.",
+        "Items with prices from a mock shop or supplier catalog (merchant id, e.g. 'pizza' or 'bud' (Budapest pizza shop), 'sha' (Shanghai pizza shop), 'supplier-a', or the merchant's payee placeholder payee_N). payeeRef is the merchant's payee placeholder for propose_order (null if the user has no payee for it); payeeStatus is its status or UNKNOWN. For a shop (storeId set), pass the chosen items with their sku to propose_order: the shop delivers exactly those.",
       inputSchema: SearchCatalogInput,
       execute: safe(async ({ merchant, query }) => {
         // (Y5, p1 B8) The planner may name the merchant by the payee placeholder it saw (payee_N): resolve it to the
@@ -216,7 +265,12 @@ export function buildTools(ctx: ToolContext): ToolSet {
         const c = await ports.catalog(merchant, query);
         // The merchant's payee is matched by normalised name (same normaliser as capture); VERIFIED wins over other rows.
         const key = c.merchantName ? normalizeMerchant(c.merchantName) : "";
-        const payee = key ? (await allPayees()).filter((p) => normalizeMerchant(p.name) === key).sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status])[0] : undefined;
+        // (M2) The exact merchant name wins over the normalised one ("Pizza Shop in Budapest" / "… in Shanghai" both
+        // normalise to "pizza shop in").
+        const exact = c.merchantName ? sameName(c.merchantName) : () => false;
+        const all = await allPayees();
+        const candidates = all.some((p) => exact(p.name)) ? all.filter((p) => exact(p.name)) : key ? all.filter((p) => normalizeMerchant(p.name) === key) : [];
+        const payee = candidates.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status])[0];
         return { ...c, payeeRef: payee ? ref(payee.id) : null, payeeStatus: payee?.status ?? "UNKNOWN" };
       }),
     }),
@@ -306,6 +360,9 @@ export function buildTools(ctx: ToolContext): ToolSet {
         // planner are re-hydrated here, so the user never reads "payee_4" (cn note 5). Tool output stays redacted.
         const names = new Map((await allPayees()).map((p) => [p.id, p.name]));
         const forUser = (s: string) => redactor.rehydrateForUser(s, names);
+        // (M2) A storefront order: the shop's own catalog prices and SKUs become the signed fulfillment.
+        const shop = payee && input.items?.length ? await storefrontOrder(ports, payee.name, input.items, input.amountMinor, input.currency) : null;
+        if (shop && "error" in shop) return shop;
         const result = await ports.proposeOrder({
           userId: ports.userId,
           createdBy: "AGENT",
@@ -314,7 +371,11 @@ export function buildTools(ctx: ToolContext): ToolSet {
           currency: input.currency,
           purpose: forUser(input.purpose),
           ...(input.rail ? { rail: input.rail } : {}),
-          ...(input.items ? { items: input.items.map((i) => ({ ...i, name: forUser(i.name) })) } : {}),
+          ...(shop
+            ? { items: shop.fulfillment.items.map((i) => ({ sku: i.sku, name: i.name ?? i.sku, quantity: i.qty, unitPriceMinor: i.unitPriceMinor })), fulfillment: shop.fulfillment }
+            : input.items
+              ? { items: input.items.map((i) => ({ ...i, name: forUser(i.name) })) }
+              : {}),
           ...(obligation ? { category: obligation.category, obligationId: obligation.id, dueDate: obligation.dueDate } : {}),
           ...(input.agentRequestedConfirm ? { agentRequestedConfirm: true } : {}),
           ...(readerChecks ? { readerChecks } : {}),
@@ -350,6 +411,111 @@ export function buildTools(ctx: ToolContext): ToolSet {
             ? await ports.logExpense({ source: "TEXT", fields: { merchant: q.merchant, amountMinor, currency: q.currency } })
             : await ports.logExpense({ source: "TEXT", rawText: text });
         return { status: r.status, category: r.category, amountMinor: r.amountMinor, currency: r.currency, homeAmountMinor: r.homeAmountMinor, budget: r.notification?.en.body ?? null };
+      }),
+    }),
+  };
+  const business = ctx.business && ports.business ? businessTools(ctx, ports.business, { ref, out, allPayees }) : {};
+  return { ...personal, ...business };
+}
+
+/**
+ * (M5) The business tool set. Suppliers are payee placeholders only; prices for a purchase order come from the
+ * supplier's STRUCTURED catalog (sku + price fields, ports.catalog drops free-text notes), never from the planner.
+ */
+function businessTools(
+  ctx: ToolContext,
+  biz: NonNullable<AgentPorts["business"]>,
+  h: { ref: (payeeId: string) => string; out: <T>(v: T, rc?: RedactContext) => T; allPayees: () => Promise<PayeeRow[]> },
+): ToolSet {
+  const { ports, redactor } = ctx;
+  const safe =
+    <I, O>(fn: (input: I) => Promise<O>) =>
+    async (input: I) => {
+      try {
+        return h.out(await fn(input));
+      } catch (e) {
+        return h.out(errorOut(e));
+      }
+    };
+  return {
+    get_inventory: tool({
+      description: "The shop's stock per inventory item: on hand, incoming (confirmed purchase orders), need for today + tomorrow, safety stock and shortage.",
+      inputSchema: GetInventoryInput,
+      execute: safe(async () => {
+        const f = await biz.forecast();
+        return { today: f.today, tomorrow: f.tomorrow, items: f.lines.map((l) => ({ sku: l.sku, name: l.name, unit: l.unit, onHand: l.onHand, incoming: l.incoming, need: l.need, safety: l.safety, shortage: l.shortage })) };
+      }),
+    }),
+
+    forecast_stock: tool({
+      description:
+        "Stock forecast to the end of tomorrow (same weekday over the last 4 weeks): items that will run short and a suggested restock in whole packs from a supplier (supplierRef placeholder, supplierStatus, supplier SKU, packs, catalog price).",
+      inputSchema: ForecastStockInput,
+      execute: safe(async () => {
+        const f = await biz.forecast();
+        return {
+          today: f.today,
+          tomorrow: f.tomorrow,
+          itemsChecked: f.lines.length,
+          shortages: f.shortages.map((l) => ({
+            sku: l.sku,
+            name: l.name,
+            unit: l.unit,
+            demandToday: l.demandToday,
+            demandTomorrow: l.demandTomorrow,
+            safety: l.safety,
+            onHand: l.onHand,
+            incoming: l.incoming,
+            shortage: l.shortage,
+            suggestion: l.suggestion
+              ? {
+                  supplierRef: h.ref(l.suggestion.supplierPayeeId),
+                  supplierStatus: l.suggestion.verified ? "VERIFIED" : "NOT_VERIFIED",
+                  supplierSku: l.suggestion.supplierSku,
+                  packSize: l.suggestion.packSize,
+                  packs: l.suggestion.packs,
+                  packPriceMinor: l.suggestion.packPriceMinor,
+                  lineTotalMinor: l.suggestion.lineTotalMinor,
+                  currency: l.suggestion.currency,
+                  arrivesBy: l.suggestion.arrivesBy,
+                  late: l.suggestion.late,
+                }
+              : null,
+          })),
+        };
+      }),
+    }),
+
+    propose_purchase_order: tool({
+      description:
+        "Draft a purchase order to a supplier (supplierRef from forecast_stock) in whole packs of supplier SKUs. Prices are read from the supplier's catalog on the server. Writes a DRAFT only: it moves no money; the owner signs it with their passkey.",
+      inputSchema: ProposePurchaseOrderInput,
+      execute: safe(async (input) => {
+        const e = redactor.resolve(input.supplierRef);
+        const payee = e?.kind === "PAYEE" ? (await h.allPayees()).find((p) => p.id === e.realRef) : undefined;
+        if (!payee || payee.kind !== "SUPPLIER") return { error: "UNKNOWN_SUPPLIER_REF", message: `${input.supplierRef} is not one of your suppliers` };
+        const merchant = await biz.merchant();
+        if (!merchant) return { error: "NO_MERCHANT", message: "No shop for this account" };
+        // The supplier's catalog by its exact name (suppliers have no storefront).
+        const entry = (await ports.catalogDirectory?.())?.find((d) => !d.storeId && sameName(d.name)(payee.name));
+        const catalog = entry ? await ports.catalog(entry.id, "*") : null;
+        if (!catalog?.items) return { error: "CATALOG_NOT_FOUND", message: "The supplier's catalog is not available" };
+        const lines = [];
+        for (const l of input.lines) {
+          const item = catalog.items.find((i) => i.sku?.toUpperCase() === l.supplierSku.trim().toUpperCase());
+          if (!item?.sku) return { error: "UNKNOWN_ITEM", message: `${l.supplierSku} is not in the supplier's catalog` };
+          if (item.currency !== merchant.currency) return { error: "CURRENCY_MISMATCH", message: `The supplier prices ${item.sku} in ${item.currency}` };
+          lines.push({ supplierSku: item.sku, packs: l.packs, packPriceMinor: item.unitPriceMinor });
+        }
+        const r = await biz.draftPurchaseOrder({ supplierPayeeId: payee.id, currency: merchant.currency, lines });
+        if (!r.ok) {
+          if (r.error === "PO_ABOVE_CAP" || r.error === "SUPPLIER_NOT_VERIFIED") {
+            ctx.stop.requested = true;
+            ctx.stop.reason = r.error;
+          }
+          return { error: r.error, message: r.message, ...(r.capMinor !== undefined ? { capMinor: r.capMinor, currency: merchant.currency } : {}), ...(r.purchaseOrderId ? { purchaseOrderId: r.purchaseOrderId } : {}) };
+        }
+        return { purchaseOrderId: r.purchaseOrderId, status: r.status, supplierRef: input.supplierRef, currency: r.currency, totalMinor: r.totalMinor, lines: r.lines, deliverBy: r.deliverBy, reasonCodes: r.reasonCodes, movesMoney: false, next: "The owner reviews and signs this purchase order with their passkey in Orders." };
       }),
     }),
   };

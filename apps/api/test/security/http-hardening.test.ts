@@ -77,6 +77,8 @@ describe("deny-by-default route registration", () => {
       "POST /api/webhooks/mock/qr",
       "POST /api/webhooks/mock/pos",
       "POST /api/webhooks/mock/remittance",
+      "POST /api/webhooks/mock/shop",
+      "POST /api/webhooks/mock/supplier",
       "POST /api/rails/fake-issuing/authorize",
       "POST /api/webhooks/stripe",
       "POST /api/agent/documents",

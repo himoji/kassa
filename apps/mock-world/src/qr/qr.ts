@@ -56,10 +56,16 @@ export class QrWallet {
   private readonly payments = new Map<string, QrPayment>();
   /** Demo switch for A5: when on, every new request is issued with the swapped payee. */
   swapAll = false;
+  /** Called after a code is paid (the merchant learns it was paid, e.g. the pizza shop's order book). */
+  private readonly paidListeners: ((p: QrPayment) => void | Promise<void>)[] = [];
 
   constructor(
     private readonly opts: { clock: Clock; webhooks: WebhookSink; publicUrl: string },
   ) {}
+
+  onPaid(fn: (p: QrPayment) => void | Promise<void>): void {
+    this.paidListeners.push(fn);
+  }
 
   reset(): void {
     this.payments.clear();
@@ -139,6 +145,7 @@ export class QrWallet {
       paidAt: p.paidAt,
       simulated: true,
     });
+    for (const fn of this.paidListeners) await fn(p);
     return p;
   }
 }

@@ -153,6 +153,73 @@ describe("parseShortcut variants", () => {
   });
 });
 
+describe("parseShortcut: what the iOS Transaction trigger actually sends", () => {
+  const nbsp = "\u00a0";
+  const narrow = "\u202f";
+  it.each([
+    ["1 290 Ft", 129000, "HUF"],
+    [`1${nbsp}290${nbsp}Ft`, 129000, "HUF"],
+    [`1${narrow}290,00${nbsp}Ft`, 129000, "HUF"],
+    ["1.290 Ft", 129000, "HUF"],
+    ["Ft 1,290", 129000, "HUF"],
+    ["Ft1,290", 129000, "HUF"],
+    ["HUF 1,290.00", 129000, "HUF"],
+    ["HUF1,290.00", 129000, "HUF"],
+    ["1 290,00 HUF", 129000, "HUF"],
+    ["€4.50", 450, "EUR"],
+    ["4,50 €", 450, "EUR"],
+    ["EUR 4.50", 450, "EUR"],
+    ["₸2 500", 250000, "KZT"],
+    ["2 500 ₸", 250000, "KZT"],
+    ["2 500 тг", 250000, "KZT"],
+    ["¥38.00", 3800, "CNY"],
+    ["CN¥38.00", 3800, "CNY"],
+    ["38.00 元", 3800, "CNY"],
+    ["$4.50", 450, "USD"],
+    ["US$4.50", 450, "USD"],
+    ["€4.50.", 450, "EUR"],
+  ])("%j → %i %s", (amount, minor, currency) => {
+    const r = parseShortcut(ShortcutPayload.parse({ merchant: "CAFE X", amount }), "KZT");
+    expect(r?.amountMinor).toBe(minor);
+    expect(r?.currency).toBe(currency);
+    expect(r?.kind).toBe("PURCHASE");
+  });
+
+  it.each(["£4.50", "A$4.50", "JPY 500", "4.50 CHF", "abc", "€"])("%j (unsupported or no number) → null, never the home currency", (amount) => {
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount }), "HUF")).toBeNull();
+  });
+
+  it.each(["-€4.50", "€-4.50", "−1 290 Ft", "(€4.50)"])("%j is a refund, not spending", (amount) => {
+    const r = parseShortcut(ShortcutPayload.parse({ merchant: "X", amount }), "HUF");
+    expect(r?.kind).toBe("REFUND");
+    expect(r?.amountMinor).toBeGreaterThan(0);
+  });
+
+  it("a Number-typed amount uses the explicit or fallback currency and rounds float noise", () => {
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: 1290 }), "HUF")).toMatchObject({ amountMinor: 129000, currency: "HUF" });
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: 4.499999999, currency: "eur" }), "HUF")).toMatchObject({ amountMinor: 450, currency: "EUR" });
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: 0 }), "HUF")).toBeNull();
+  });
+
+  it("an explicit currency wins over the symbol (¥ could be JPY)", () => {
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: "¥38.00", currency: "CNY" }))?.currency).toBe("CNY");
+  });
+
+  it("a localized date is ignored (server time is used); ISO with an offset is kept", () => {
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: "€1", date: "11 Oct 2026 at 10:59" }))?.occurredAt).toBeNull();
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: "€1", date: "2026-10-11T10:59:00" }))?.occurredAt).toBeNull();
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: "€1", date: "2026-10-11T10:59:00+02:00" }))?.occurredAt?.toISOString()).toBe("2026-10-11T08:59:00.000Z");
+    expect(parseShortcut(ShortcutPayload.parse({ merchant: "X", amount: "€1", date: "2026-10-11T08:59:00Z" }))?.occurredAt?.toISOString()).toBe("2026-10-11T08:59:00.000Z");
+  });
+
+  it("an empty merchant is accepted as unknown; card name is kept as the hint", () => {
+    const r = parseShortcut(ShortcutPayload.parse({ merchant: " ", amount: "€1", card: " Revolut ••4821 " }));
+    expect(r?.merchantRaw).toBeNull();
+    expect(r?.cardHint).toBe("Revolut ••4821");
+    expect(parseShortcut(ShortcutPayload.parse({ amount: "€1" }))?.merchantRaw).toBeNull();
+  });
+});
+
 describe("parseAmountString", () => {
   it.each([
     ["4 760,00", "HUF", "comma", 476000],

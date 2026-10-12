@@ -1,6 +1,7 @@
 import { TabList, TabSlot, TabTrigger, Tabs } from "expo-router/ui";
 import { Pressable } from "react-native";
 
+import { useMe } from "@/api/hooks/me";
 import { Icon, Text, useTheme } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 
@@ -9,11 +10,68 @@ import { useKassaT } from "@/lib/i18n";
  * expo-router/ui with a bottom bar that mirrors the native one (WAI-ARIA tablist semantics).
  */
 const TABS = [
-  { name: "home", href: "/home", sf: "house.fill", md: "home" },
-  { name: "chat", href: "/chat", sf: "bubble.left.and.text.bubble.right.fill", md: "forum" },
-  { name: "activity", href: "/activity", sf: "list.bullet.rectangle", md: "receipt_long" },
-  { name: "cards", href: "/cards", sf: "creditcard.fill", md: "credit_card" },
-  { name: "settings", href: "/settings", sf: "gearshape.fill", md: "settings" },
+  { name: "home", href: "/home", sf: "house.fill", md: "home", label: "home:tab" },
+  {
+    name: "chat",
+    href: "/chat",
+    sf: "bubble.left.and.text.bubble.right.fill",
+    md: "forum",
+    label: "chat:tab",
+  },
+  {
+    name: "activity",
+    href: "/activity",
+    sf: "list.bullet.rectangle",
+    md: "receipt_long",
+    label: "activity:tab",
+  },
+  { name: "cards", href: "/cards", sf: "creditcard.fill", md: "credit_card", label: "cards:tab" },
+  {
+    name: "settings",
+    href: "/settings",
+    sf: "gearshape.fill",
+    md: "settings",
+    label: "settings:tab",
+  },
+] as const;
+
+/** (Business M4) The tab set of a BUSINESS account (me.accountType). */
+const BUSINESS_TABS = [
+  {
+    name: "today",
+    href: "/today",
+    sf: "storefront.fill",
+    md: "storefront",
+    label: "business:todayTab",
+  },
+  {
+    name: "stock",
+    href: "/stock",
+    sf: "shippingbox.fill",
+    md: "inventory_2",
+    label: "business:stockTab",
+  },
+  {
+    name: "orders",
+    href: "/orders",
+    sf: "doc.text.fill",
+    md: "request_quote",
+    label: "business:ordersTab",
+  },
+  {
+    name: "chat",
+    href: "/chat",
+    sf: "bubble.left.and.text.bubble.right.fill",
+    md: "forum",
+    label: "chat:tab",
+  },
+  {
+    name: "settings",
+    href: "/settings",
+    sf: "gearshape.fill",
+    md: "settings",
+    label: "settings:tab",
+  },
 ] as const;
 
 function TabButton({
@@ -56,6 +114,9 @@ function TabButton({
 export default function WebTabsLayout() {
   const t = useKassaT();
   const { colors } = useTheme();
+  const me = useMe();
+  if (me.isLoading) return null;
+  const tabs = me.data?.accountType === "BUSINESS" ? BUSINESS_TABS : TABS;
   return (
     <Tabs>
       <TabSlot />
@@ -67,9 +128,9 @@ export default function WebTabsLayout() {
           backgroundColor: colors.background,
         }}
       >
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <TabTrigger key={tab.name} name={tab.name} href={tab.href} asChild>
-            <TabButton label={t(`${tab.name}:tab`)} sf={tab.sf} md={tab.md} />
+            <TabButton label={t(tab.label)} sf={tab.sf} md={tab.md} />
           </TabTrigger>
         ))}
       </TabList>

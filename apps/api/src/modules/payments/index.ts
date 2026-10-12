@@ -14,6 +14,9 @@
  *    T1: mandate active+effective+in scope+period usage, and its assertion over mandateHash; (X1) the order's
  *        signed obligation link re-checked against the obligation (payee, category, amount ≤ bill, period);
  *        or (no mandate) the passkey-signed base rules and the small-auto limit they contain
+ *    (M5) an order that settles a purchase order: poHash recomputed from the stored core == the stored poHash, the
+ *        owner's stored passkey assertion re-verified over it, payee = the PO's supplier (and its signed account),
+ *        amount ≤ the signed total, PO not already paid → BAD_SIGNATURE / INVOICE_ACCOUNT_MISMATCH / INVOICE_ABOVE_PO
  *  7 screening on every rail (X4)                      → REFUSE_SANCTIONS
  *  8 [tx, per-user advisory lock] nonce inserted into used_nonces (PK) → NONCE_USED;
  *    own daily cap per user in the HOME currency, all currencies summed and converted by payments itself (X2,
@@ -22,12 +25,12 @@
  *  9 rail dispatch; status + ledger. The bank rail quotes from the signed funding currency and refuses a
  *    quote whose source amount exceeds the signed fundingAmountMinor (FUNDING_ABOVE_SIGNED_MAX, B2).
  */
-import { CanonicalOrder, jcs, jcsHash, mandateHash, orderHash, type MandateCore, type PaymentStatus, type ReasonCode } from "@kassa/shared";
+import { CanonicalOrder, jcs, jcsHash, mandateHash, orderHash, poHash, type MandateCore, type PaymentStatus, type ReasonCode } from "@kassa/shared";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
 import { verify } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
-import { approvals, mandates, payees, payments, profiles, proposals, usedNonces, users } from "../../db/schema.ts";
+import { approvals, mandates, merchants, payees, payments, profiles, proposals, purchaseOrders, usedNonces, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
@@ -175,6 +178,45 @@ async function verifyMandate(db: DbOrTx, order: CanonicalOrder, now: Date): Prom
   if (!check.ok) refuse(check.reason, `mandate assertion: ${check.detail}`);
 }
 
+/**
+ * (M5) Re-verify the passkey-signed purchase order an order settles, from payments' own reads (same stored-assertion
+ * pattern as verifyMandate): the stored core still hashes to the signed poHash, the owner's assertion over it is
+ * valid, and the order pays the PO's supplier account no more than the signed total.
+ */
+async function verifyPurchaseOrder(db: DbOrTx, order: CanonicalOrder): Promise<void> {
+  const row = (
+    await db
+      .select({ po: purchaseOrders, ownerUserId: merchants.ownerUserId })
+      .from(purchaseOrders)
+      .innerJoin(merchants, eq(merchants.id, purchaseOrders.merchantId))
+      .where(eq(purchaseOrders.id, order.purchaseOrderId!))
+  )[0];
+  if (!row || row.ownerUserId !== order.userId) refuse("NO_APPROVAL", "purchase order not found");
+  const { po } = row;
+  if (!po.core || !po.poHash || !po.ownerAssertion) refuse("NO_APPROVAL", "purchase order was never signed");
+  let recomputed: string;
+  try {
+    recomputed = poHash(po.core);
+  } catch {
+    refuse("BAD_SIGNATURE", "stored purchase order is not a valid core");
+  }
+  if (recomputed !== po.poHash) refuse("BAD_SIGNATURE", "purchase order fields do not match the signed poHash");
+  if (po.core.purchaseOrderId !== po.id || po.core.ownerUserId !== order.userId) refuse("BAD_SIGNATURE", "purchase order core is for another order or owner");
+  if (order.payeeId !== po.core.supplierPayeeId || order.payeeAccountHash !== po.core.supplierAccountHash) {
+    refuse("INVOICE_ACCOUNT_MISMATCH", "payee is not the signed purchase order's supplier account");
+  }
+  if (order.currency !== po.core.currency || order.amountMinor > po.core.totalMinor) refuse("INVOICE_ABOVE_PO", "amount above the signed purchase order total");
+  if (po.status === "PAID") refuse("NONCE_USED", "purchase order already paid");
+  const check = await verifyPaymentsAssertion(db, {
+    userId: order.userId,
+    assertion: po.ownerAssertion,
+    expectedChallenge: po.poHash,
+    mode: "stored",
+    challengeReason: "BAD_SIGNATURE",
+  });
+  if (!check.ok) refuse(check.reason, `purchase order assertion: ${check.detail}`);
+}
+
 /** Execute an approval. Never throws for a refusal: returns FAILED + reason codes (and logs to the ledger). */
 export async function executeApproval(approvalId: string): Promise<ExecuteResult> {
   const db = getDb();
@@ -236,6 +278,7 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     } else {
       smallAuto = await verifyBaseRules(db, order, now);
     }
+    if (order.purchaseOrderId) await verifyPurchaseOrder(db, order);
     // 7 (X4) every rail; both the signed name and the payee's current name.
     for (const name of new Set([order.payeeName, payee.name])) {
       const s = screenName(name);
@@ -288,6 +331,13 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
         })
         .returning({ id: payments.id });
       const id = row[0]!.id;
+      // (M5) the purchase order is being paid (→ PAID when this payment is SENT, payments/status.ts).
+      if (order.purchaseOrderId) {
+        await tx
+          .update(purchaseOrders)
+          .set({ status: "PAYING", timeline: sql`${purchaseOrders.timeline} || ${JSON.stringify([{ status: "PAYING", at: now.toISOString() }])}::jsonb`, updatedAt: now })
+          .where(eq(purchaseOrders.id, order.purchaseOrderId));
+      }
       await ledger.append(
         "PAYMENT_CREATED",
         { userId: order.userId, proposalId: order.proposalId, approvalId: a.id, paymentId: id, tier: a.tier, rail: order.rail, amountMinor: order.amountMinor, currency: order.currency, orderHash: a.orderHash, nonce: order.nonce },
@@ -331,6 +381,10 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     }
     // X9: rail failures written directly above (not via updatePaymentStatus) notify here; SENT notified there.
     if (status === "FAILED" || status === "CANCELED") await notifyPaymentOutcome(paymentId, status, reasonCodes);
+    // (M5) a rail that failed right away leaves the purchase order payable again.
+    if ((status === "FAILED" || status === "CANCELED") && order.purchaseOrderId) {
+      await db.update(purchaseOrders).set({ status: "INVOICED", updatedAt: clock.now() }).where(and(eq(purchaseOrders.id, order.purchaseOrderId), eq(purchaseOrders.status, "PAYING")));
+    }
     await ledger.append("PAYMENT_STATUS", { userId: order.userId, proposalId: order.proposalId, paymentId, status, reasonCodes, rail: order.rail });
     return { paymentId, status, reasonCodes };
   } catch (err) {

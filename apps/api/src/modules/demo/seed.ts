@@ -22,9 +22,15 @@ import {
   cardFeeProfiles,
   cards,
   demoState,
+  inventoryItems,
+  merchants,
   obligations,
   payees,
   profiles,
+  recipes,
+  salesDaily,
+  stockMovements,
+  supplierItems,
   transactions,
   users,
 } from "../../db/schema.ts";
@@ -39,8 +45,32 @@ type SeedCaps = { perPaymentMinor: number; perDayMinor: number; perMonthMinor: n
 /** One seeded user with everything they own (Dana's part of `seed`, or one of `seed.personas`). */
 export type SeedUserData = Omit<SeedData, "seedNow" | "homeCurrency" | "personas"> & { profile: SeedData["profile"] & { caps?: SeedCaps } };
 
+/**
+ * (added 2026-10-14, Business M0) A BUSINESS persona's merchant: the shop (slug = mock-world storeId), its inventory,
+ * recipes, supplier packs (supplierPayeeId = one of the persona's own SUPPLIER payees), 28 days of sales and the
+ * append-only stock ledger consistent with them (fixtures/seed-data.ts "Kassa Business").
+ */
+export type SeedBusinessData = {
+  merchant: { id: string; slug: string; name: string; currency: string; region: "EU" | "CN"; timezone: string; poCapMinor: number };
+  inventory: readonly { sku: string; name: string; unit: string; safetyStockPct: number; reorderCoverDays: number }[];
+  recipes: readonly { menuSku: string; inventorySku: string; qtyPerUnit: number }[];
+  supplierItems: readonly {
+    id: string;
+    supplierPayeeId: string;
+    supplierSku: string;
+    inventorySku: string;
+    packSize: number;
+    packPriceMinor: number;
+    currency: string;
+    minOrderPacks: number;
+    leadTimeDays: number;
+  }[];
+  salesDaily: readonly { day: string; menuSku: string; qty: number; revenueMinor: number }[];
+  stockMovements: readonly { id: string; sku: string; kind: "SEED" | "SALE" | "RECEIPT" | "ADJUSTMENT" | "WASTE"; qty: number; occurredAt: string; ref: string | null }[];
+};
+
 /** A persona that can be claimed with `demoClaim: "<persona>"` (POST /auth/register/options). */
-export type SeedPersonaData = SeedUserData & { persona: string };
+export type SeedPersonaData = SeedUserData & { persona: string; accountType?: "PERSONAL" | "BUSINESS"; business?: SeedBusinessData };
 
 /** The subset of fixtures/seed-data.ts `seed` this loader uses. */
 export type SeedData = {
@@ -138,7 +168,9 @@ export async function truncateAll(db: Db): Promise<void> {
 }
 
 /** Insert one user and everything they own (inside the seed transaction). */
-async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0], data: SeedUserData, aiConsent: boolean): Promise<void> {
+type SeedTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
+async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaData, "accountType">, aiConsent: boolean): Promise<void> {
   const u = data.user;
   const minBalances = data.profile.reserveRules.minBalances ?? [];
   const reserveHome = minBalances.filter((b) => b.currency === u.homeCurrency).reduce((s, b) => s + b.amountMinor, 0);
@@ -149,6 +181,7 @@ async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0
     region: u.region,
     preset: u.preset,
     moneyMode: u.moneyMode,
+    accountType: data.accountType ?? "PERSONAL",
     // No consent unless the caller asks (tests); a claimed demo account consents at sign-up like any user.
     aiConsentAt: aiConsent ? new Date(u.createdAt) : null,
     overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: PRESET_DEFAULTS[u.preset].moneyMode === u.moneyMode ? null : u.moneyMode },
@@ -207,6 +240,24 @@ async function insertUserData(tx: Parameters<Parameters<Db["transaction"]>[0]>[0
   }
 }
 
+/** (added 2026-10-14, Business M0) A BUSINESS persona's merchant rows (after its payees: supplier items reference them). */
+async function insertBusinessData(tx: SeedTx, ownerUserId: string, b: SeedBusinessData): Promise<void> {
+  const m = b.merchant;
+  await tx.insert(merchants).values({ ...m, ownerUserId });
+  await tx.insert(inventoryItems).values(b.inventory.map((i) => ({ ...i, merchantId: m.id })));
+  await tx.insert(recipes).values(b.recipes.map((r) => ({ ...r, merchantId: m.id })));
+  if (b.supplierItems.length) await tx.insert(supplierItems).values(b.supplierItems.map((si) => ({ ...si, merchantId: m.id })));
+  // Batched: a shop has ~170 sales rows and ~250 movements.
+  for (let i = 0; i < b.salesDaily.length; i += 500) {
+    await tx.insert(salesDaily).values(b.salesDaily.slice(i, i + 500).map((s) => ({ ...s, merchantId: m.id })));
+  }
+  for (let i = 0; i < b.stockMovements.length; i += 500) {
+    await tx.insert(stockMovements).values(
+      b.stockMovements.slice(i, i + 500).map((mv) => ({ ...mv, merchantId: m.id, occurredAt: new Date(mv.occurredAt), createdAt: new Date(mv.occurredAt) })),
+    );
+  }
+}
+
 /**
  * Insert seed data; `reset` truncates first; `personas` adds `seed.personas`; `aiConsent` pre-grants AI consent to
  * every seeded user (tests only; default false). Sets the demo clock to seed time.
@@ -222,7 +273,10 @@ export async function seedDatabase(
   await db.transaction(async (tx) => {
     const aiConsent = opts.aiConsent === true;
     await insertUserData(tx, data, aiConsent);
-    for (const p of personas) await insertUserData(tx, p, aiConsent);
+    for (const p of personas) {
+      await insertUserData(tx, p, aiConsent);
+      if (p.business) await insertBusinessData(tx, p.user.id, p.business);
+    }
     // Seeded mandates are NOT inserted: they have no passkey signature yet. Dana signs the rent mandate
     // during onboarding (/onboarding/confirm/options suggests it; /mandates/options + /mandates create it).
     await tx

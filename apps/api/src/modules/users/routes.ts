@@ -1,6 +1,6 @@
 /*
  * GET /me, PATCH /me (GDPR Art. 16), PATCH /settings, GET /caps, GET /rule-changes, POST /freeze,
- * POST /unfreeze (I8 loosening), POST /devices(/shortcut), POST /onboarding/confirm/options,
+ * POST /unfreeze (I8 loosening), POST /devices(/shortcut), GET /devices, DELETE /devices/:id, POST /onboarding/confirm/options,
  * POST /onboarding/confirm (contracts: @kassa/shared dto.ts + appDto.ts + privacyDto.ts).
  */
 import {
@@ -25,15 +25,15 @@ import {
   type MandateOptionsRequest,
   type OnboardingProfileDraft,
 } from "@kassa/shared";
-import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, max, ne, sql } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { demoState, devices, obligations, payees, profiles, ruleChanges, users } from "../../db/schema.ts";
+import { demoState, devices, obligations, payees, profiles, ruleChanges, transactions, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
-import { auditAssertionFailure } from "../../http/audit.ts";
+import { auditAssertionFailure, ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
@@ -107,6 +107,11 @@ async function suggestRentMandate(userId: string): Promise<{ suggestedMandate: M
   };
 }
 
+const ShortcutDevicesResponse = z.object({
+  devices: z.array(z.object({ id: z.string().uuid(), kind: z.literal("IOS_SHORTCUT"), createdAt: z.string() })),
+  lastCaptureAt: z.string().nullable(),
+});
+
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
 
@@ -134,6 +139,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       aiNotice: aiNotice(user.region),
       aiConsentAt: user.aiConsentAt?.toISOString() ?? null,
       restrictedAt: user.restrictedAt?.toISOString() ?? null,
+      accountType: user.accountType,
     };
   }
 
@@ -231,6 +237,58 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .returning({ id: devices.id });
       await ledger.append("DEVICE_TOKEN_CREATED", { userId, deviceId: rows[0]!.id, kind: "IOS_SHORTCUT" });
       return reply.status(201).send({ deviceId: rows[0]!.id, token });
+    },
+  );
+
+  /*
+   * Shortcut devices (Settings → "Apple Pay → Kassa"). The devices table has no per-device name or last-use
+   * column, so the list carries the newest Shortcut capture of the user instead (`lastCaptureAt`): enough to
+   * see that the automation reaches Kassa. Revoked tokens are not listed.
+   */
+  app.get("/devices", { schema: { response: { 200: ShortcutDevicesResponse } } }, async (req) => {
+    const userId = userIdOf(req);
+    const db = getDb();
+    const rows = await db
+      .select({ id: devices.id, createdAt: devices.createdAt })
+      .from(devices)
+      .where(and(eq(devices.userId, userId), eq(devices.kind, "IOS_SHORTCUT"), isNull(devices.revokedAt)))
+      .orderBy(desc(devices.createdAt));
+    const last = (
+      await db
+        .select({ at: max(transactions.createdAt) })
+        .from(transactions)
+        .where(and(eq(transactions.userId, userId), eq(transactions.source, "SHORTCUT")))
+    )[0]?.at;
+    return {
+      devices: rows.map((r) => ({ id: r.id, kind: "IOS_SHORTCUT" as const, createdAt: r.createdAt.toISOString() })),
+      lastCaptureAt: last ? new Date(last).toISOString() : null,
+    };
+  });
+
+  // Revoking is a tightening (I8): instant, no passkey. The token 401s on /capture/shortcut from now on. Idempotent.
+  app.delete(
+    "/devices/:id",
+    { schema: { params: z.object({ id: z.string().uuid() }) } },
+    async (req, reply) => {
+      const userId = userIdOf(req);
+      const db = getDb();
+      const id = req.params.id;
+      const own = and(eq(devices.id, id), eq(devices.userId, userId), eq(devices.kind, "IOS_SHORTCUT"));
+      const found = await db.transaction(async (tx) => {
+        const r = await tx
+          .update(devices)
+          .set({ revokedAt: clock.now() })
+          .where(and(own, isNull(devices.revokedAt)))
+          .returning({ id: devices.id });
+        if (r.length > 0) {
+          await ledger.append("DEVICE_TOKEN_REVOKED", { userId, deviceId: id, kind: "IOS_SHORTCUT" }, tx);
+          return true;
+        }
+        return (await tx.select({ id: devices.id }).from(devices).where(own)).length > 0; // already revoked
+      });
+      // Another user's device answers like an unknown one (API1), audited as AUTHZ_DENIED.
+      if (!found) throw await ownedNotFound(userId, "device", id, async () => (await db.select({ id: devices.id }).from(devices).where(eq(devices.id, id))).length > 0);
+      return reply.status(204).send();
     },
   );
 

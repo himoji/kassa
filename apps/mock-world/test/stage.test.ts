@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { signMockWebhook } from "@kassa/shared";
+import { mockWebhookHeaders, signMockWebhook } from "@kassa/shared";
 
 import { buildMockWorld } from "../src/app.ts";
 import { StaticRates } from "../src/bank/rates.ts";
@@ -474,6 +474,63 @@ describe("scene 5: money from home and clock", () => {
     const reset = await act(app, "reset");
     expect(jsonOf(reset)).toMatchObject({ ok: true });
     expect(callsTo(mainApi, `${API}/api/demo/reset`)).toHaveLength(1);
+  });
+});
+
+describe("connected world (M6)", () => {
+  it("the director links the kitchens, till and supplier portals", async () => {
+    const page = (await app.inject({ method: "GET", url: "/mock/stage" })).body;
+    for (const href of ["/mock/shop/bud/kitchen", "/mock/shop/bud/till", "/mock/shop/sha/kitchen", "/mock/supplier/c/portal", "/mock/supplier/d/portal"]) {
+      expect(page).toContain(`href="${href}"`);
+    }
+    expectClean(page);
+  });
+
+  it("kitchen-advance moves the newest paid order one step and reports it to Kassa", async () => {
+    expect(jsonOf(await act(app, "kitchen-advance", { store: "bud" }))).toMatchObject({ ok: false, tone: "warn" });
+    authorize.mockResolvedValueOnce({ approved: true, provider: "fake", authorizationId: "auth_k", reasonCode: null, issuerStatus: 200 });
+    const created = await app.inject({ method: "POST", url: "/mock/shop/bud/orders", payload: { items: [{ sku: "PZ-MARG", qty: 1 }], payment: { method: "CARD", cardId: "fic_card_k" } } });
+    expect(created.json().order.status).toBe("RECEIVED");
+    mainSink.sent.length = 0;
+    const r = jsonOf(await act(app, "kitchen-advance", {}));
+    expect(r).toMatchObject({ ok: true, data: { status: "ACCEPTED" } });
+    expect(mainSink.sent.filter((e) => e.kind === "shop")).toHaveLength(1);
+    expect((await act(app, "kitchen-advance", { store: "xyz" })).statusCode).toBe(400);
+  });
+
+  it("forecast-tick runs the business-forecast trigger with the demo token", async () => {
+    const r = jsonOf(await act(app, "forecast-tick"));
+    expect(r).toMatchObject({ ok: true, tone: "info" });
+    const call = callsTo(mainApi, `${API}/api/demo/trigger/business-forecast`)[0];
+    expect(call?.headers[DEMO_HEADER]).toBe(TOKEN);
+  });
+
+  it("supplier-attack: D invoices C's purchase order with its own payment details", async () => {
+    expect(jsonOf(await act(app, "supplier-attack"))).toMatchObject({ ok: false, tone: "warn" });
+    const poId = "44444444-4444-4444-8444-444444444444";
+    const raw = JSON.stringify({
+      purchaseOrderId: poId,
+      poHash: "h",
+      supplierName: "Restaurant Supplier from China",
+      merchant: { slug: "sha", name: "Pizza Shop in Shanghai" },
+      currency: "CNY",
+      lines: [{ supplierSku: "BOX-33CM-100", packs: 1, packSize: 100, packPriceMinor: 9_000, lineTotalMinor: 9_000 }],
+      totalMinor: 9_000,
+      deliverBy: "2026-10-28",
+    });
+    const sent = await app.inject({
+      method: "POST",
+      url: "/mock/supplier/purchase-orders",
+      payload: raw,
+      headers: { "content-type": "application/json", ...mockWebhookHeaders(SECRET, raw, Math.floor((await mainClock.now()).getTime() / 1000)) },
+    });
+    expect(sent.statusCode).toBe(201);
+    mainSink.sent.length = 0;
+    const r = jsonOf(await act(app, "supplier-attack"));
+    expect(r).toMatchObject({ ok: true, tone: "warn", data: { purchaseOrderId: poId } });
+    const ev = mainSink.sent.filter((e) => e.kind === "supplier");
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.body).toMatchObject({ type: "po.invoiced", invoice: { supplierName: "Restaurant Supplier from China", account: { scheme: "QR", payeeName: "Box Supplier from China" } } });
   });
 });
 

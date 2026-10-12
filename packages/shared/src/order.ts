@@ -34,6 +34,14 @@ export const CanonicalOrder = z.object({
   // covers; payments re-checks the obligation independently (payee, category, amount ≤ bill, period unsettled).
   obligationId: z.string().uuid().optional(),
   obligationPeriod: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // (added 2026-10-14, Business M0) What is being bought, signed with the order (both optional, so orders without
+  // them keep their JCS bytes and hash):
+  // - itemsHash: base64url(sha256(JCS(items))) of a merchant order's line items (shop delivery / till bill), so the
+  //   shop order fulfilled after payment is the one the user signed;
+  // - purchaseOrderId: the passkey-signed supplier purchase order this payment settles; payments re-verifies the
+  //   PO signature, payee = PO supplier and amount ≤ PO total.
+  itemsHash: z.string().min(1).max(64).optional(),
+  purchaseOrderId: z.string().uuid().optional(),
 });
 export type CanonicalOrder = z.infer<typeof CanonicalOrder>;
 

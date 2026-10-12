@@ -17,7 +17,9 @@ Source of truth: [docs/spec/TECH_SPEC.md](spec/TECH_SPEC.md) (how). Deviations a
 | Ledger | Append-only, hash-chained record of every proposal, approval, refusal, payment and auth decision; signed checkpoints every 20 entries | `apps/api/src/modules/ledger/` | Everything writes; nothing edits |
 | Capture, budget, FX | Parses notifications and Shortcut payloads, deduplicates, categorises, budgets and pace, rates, route optimizer, coverage forecast, fee x-ray | `capture/`, `budget/`, `fx/` | Reader (fallback), ledger |
 | Scheduler | 15 s in-process tick on the demo clock: due bills, rule-change and mandate activation, card expiry, bank polling, digests, retention | `apps/api/src/modules/scheduler/` | Rules, payments, rails, privacy |
-| Mock world | Simulated companies, QR wallet, bank, POS, remittance; every outgoing webhook is HMAC-signed | `apps/mock-world/src/` | API webhooks |
+| Business (pizzerias, Shanghai and Budapest) | Inventory and stock movements, recipes, sales, the stock forecast, purchase orders (draft, passkey signing over `poHash`, send to supplier), supplier webhooks and the invoice three-way match | `apps/api/src/modules/business/` | Rules (`proposeOrder` for a matched invoice), payments re-check, mock world over signed HTTP, ledger |
+| Commerce | Shop orders (delivery) and till bills a customer pays through Kassa; status mirrored from signed `shop` webhooks; the merchant's sale recorded once paid | `apps/api/src/modules/commerce/` | Rules, business (`recordSale`), notifications, ledger |
+| Mock world | Simulated companies, QR wallet, bank, POS, remittance, pizza shop order book (delivery, kitchen screen, counter till), supplier portals (A to D, D the lookalike), Demo Stage; every outgoing webhook is HMAC-signed | `apps/mock-world/src/` | API webhooks |
 
 Shared contracts live in `packages/shared/src/`: zod schemas, `CanonicalOrder`, `orderHash`, `mandateHash`, reason codes, money formatting, IBAN checks, and the mock webhook signer and verifier.
 
@@ -44,7 +46,8 @@ flowchart LR
   subgraph MOCK["Mock world process :4001 (apps/mock-world)"]
     BANK[Mock bank<br/>Wise-shaped]
     QR[QR Wallet<br/>simulated]
-    SHOP[Pizza Shop]
+    SHOP[Pizza Shop<br/>orders, kitchen, till]
+    SUP[Supplier portals]
     POS[POS emitter]
   end
 
@@ -127,6 +130,10 @@ Refusals stop at the first failing step. The result is a ledger entry (`PAYMENT_
 | Handoff (Shanghai region) | `region = CN` gives decision HANDOFF. The mock QR wallet returns a payee name. The API compares it with the verified payee (similarity at least 0.92). On mismatch the app shows no pay button and no QR |
 | Money from home | Mock remittance webhook credits the wallet and creates a notification. The forecast and route optimizer then propose a conversion |
 | Capture | Notification, Shortcut or text input goes to a deterministic parser first, then to the Reader. Capture only logs and budgets. It never creates an approval (I6) |
+| Shop order and till bill | The app proposes a shop order or a till bill; the amount comes from the shop's server-side price, not the client. After approval the shop charges the one-time card (or the region CN QR handoff is paid). The shop's signed `shop` webhooks (kind `shop`) move the order forward only (RECEIVED, ACCEPTED, COOKING, OUT_FOR_DELIVERY, DELIVERED; till: PAID); the merchant's sale lowers stock by recipe once |
+| Restock (purchase order) | The forecast tick (scheduler job `business.forecastTick`) or the business agent drafts a PO from a VERIFIED supplier (I6: a draft, nothing payable). The owner signs it with the payments passkey: challenge = `poHash` of the core the server rebuilds from the stored draft. Kassa sends it to the supplier HMAC-signed; the supplier's signed `supplier` webhooks report confirmed, delivered (stock receipt) and invoiced |
+| Invoice three-way match | `business/invoices.ts`: invoice supplier = PO supplier, invoice account hash = the signed core's `supplierAccountHash` = the verified payee's current hash, amount ≤ signed total. A miss is `INVOICE_ACCOUNT_MISMATCH` or `INVOICE_ABOVE_PO` (ledger `INVOICE_REFUSED`, owner notified, no proposal). A match creates one obligation and proposes its payment (always ASK T2, or HANDOFF in region CN; `PO_NOT_DELIVERED` if goods have not arrived) |
+| Payments re-check for a PO | **Invariant:** payments never trusts the business module. For an order carrying `purchaseOrderId` it recomputes `poHash` from the stored core, re-verifies the owner's stored passkey assertion over it, and checks payee = the PO's supplier and signed account, amount ≤ signed total, PO not already paid (`payments/index.ts` `verifyPurchaseOrder`; `BAD_SIGNATURE`, `INVOICE_ACCOUNT_MISMATCH`, `INVOICE_ABOVE_PO`) |
 
 ## 4. Core algorithms
 
@@ -278,6 +285,7 @@ Tables are defined in `apps/api/src/db/schema.ts` (spec §6, plus additions) and
 | Orders | `proposals`, `approvals`, `used_nonces` | `proposals.canonical_order` is the signed object. `used_nonces` has the nonce as primary key |
 | Ledger | `ledger_entries`, `ledger_checkpoints` | `prev_hash` and `hash` per entry; checkpoint every 20 entries |
 | Agent and capture | `agent_messages`, `agent_documents`, `placeholder_maps`, `merchant_category_memory`, `onboarding_drafts` | Redacted history only. `placeholder_maps` is server-side. Uploaded documents are cached with their Reader result |
+| Business and commerce | `merchants`, `inventory_items`, `recipes`, `supplier_items`, `sales_daily`, `stock_movements`, `purchase_orders`, `shop_orders` | Stock on hand is the sum of `stock_movements`. `purchase_orders` stores the signed `core`, `poHash` (unique) and the owner assertion; `shop_orders` mirrors the shop's status timeline |
 | Demo and notices | `notifications`, `demo_state` | Demo clock offset and agent mode |
 
 ## 7. AI layer
@@ -326,7 +334,9 @@ The planner's behaviour in replay is therefore fixed, which is what makes the de
 | `apps/api/src/modules/privacy/` | Export, erasure, restriction, consent, AI notice, retention (`service.ts`), per-user keys (`keys.ts`) |
 | `apps/api/src/modules/webhooks/` | Mock HMAC webhooks, fake issuing authorization, Stripe webhook |
 | `apps/api/src/modules/scheduler/` | 15 s tick and job list |
-| `apps/mock-world/src/` | `app.ts`, `routes/` (bank, documents, events, QR, shop), `bank/`, `qr/` (EMVCo payload), `pdf/` (invoices), `world/data.ts` |
+| `apps/api/src/modules/business/` | `forecast.ts` (pure), `scheduler.ts` (forecast tick), `drafts.ts`, `sign.ts`, `supplier.ts`, `invoices.ts` (three-way match), `routes.ts` |
+| `apps/api/src/modules/commerce/` | `service.ts` (shop order status), `bills.ts` (till), `fulfill.ts`, `routes.ts` |
+| `apps/mock-world/src/` | `app.ts`, `routes/` (bank, documents, events, QR, shop, shopOrders, supplierPortal, stage), `shop/` (order book, issuer), `supplier/` (PO book, swapped-invoice attack), `stage/` (Demo Stage pages), `bank/`, `qr/` (EMVCo payload), `pdf/` (invoices), `world/data.ts` |
 | `packages/shared/src/` | `order.ts`, `mandate.ts`, `jcs.ts`, `reasonCodes.ts`, `money.ts`, `iban.ts`, `fxMath.ts`, `webhookHmac.ts`, `dto.ts`, `appDto.ts`, `intelDto.ts`, `privacyDto.ts` |
 
 ## 10. Standards used

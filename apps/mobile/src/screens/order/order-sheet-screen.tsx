@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ScrollView } from "react-native";
 
 import { OrderReissuedError, useApproveOrder, useOrder, useRejectOrder } from "@/api/hooks/orders";
+import { useShopOrderOfProposal } from "@/api/hooks/shop";
 import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
 import { StatusChip } from "@/components/kassa/status-chip";
@@ -13,6 +14,7 @@ import { haptics } from "@/lib/haptics";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useKassaT } from "@/lib/i18n";
 
+import { ShopOrderTimeline } from "../shop/shop-order-timeline";
 import { OrderSheetView } from "./order-sheet-view";
 
 /** order/[proposalId] - native form sheet (presentation set in the root layout). */
@@ -25,6 +27,9 @@ export function OrderSheetScreen() {
   const reject = useRejectOrder(proposalId);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<ApproveOrderResponse | null>(null);
+  // (M2/M3) A merchant order (signed itemsHash): after approval the sheet stays open on the shop's status timeline.
+  const [tracking, setTracking] = useState(false);
+  const shopOrder = useShopOrderOfProposal(proposalId, { poll: tracking });
 
   const close = () => (router.canGoBack() ? router.back() : router.replace("/home"));
 
@@ -41,6 +46,11 @@ export function OrderSheetScreen() {
       }
       if (rail === "PAY_IN_PLACE" && result.paymentId) {
         setOutcome(result);
+        return;
+      }
+      if (query.data.canonicalOrder.itemsHash && result.paymentId) {
+        toast.show({ title: t("order:approvedToast"), kind: "success" });
+        setTracking(true);
         return;
       }
       toast.show({ title: t("order:approvedToast"), kind: "success" });
@@ -80,7 +90,23 @@ export function OrderSheetScreen() {
       contentContainerStyle={{ flexGrow: 1 }}
       contentInsetAdjustmentBehavior="automatic"
     >
-      {outcome?.paymentId ? (
+      {shopOrder.data ? (
+        <Box p={5} gap={4}>
+          <Text variant="heading">{t("shop:timelineTitle")}</Text>
+          <ShopOrderTimeline order={shopOrder.data} testID="shop-order-timeline" />
+          {tracking || shopOrder.data.final ? (
+            <Button variant="ghost" onPress={close}>
+              {t("common:close")}
+            </Button>
+          ) : null}
+        </Box>
+      ) : null}
+      {tracking && !shopOrder.data ? (
+        <Box p={5} gap={4}>
+          <StatusChip tone="positive" label={t("order:approvedChip")} />
+          <Text variant="caption">{t("shop:timelineHint")}</Text>
+        </Box>
+      ) : tracking ? null : outcome?.paymentId ? (
         <Box p={5} gap={4}>
           <StatusChip tone="positive" label={t("order:approvedChip")} />
           <Text variant="heading">{t("order:payInPlaceTitle")}</Text>

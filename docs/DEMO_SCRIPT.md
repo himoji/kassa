@@ -26,6 +26,33 @@ Everything shown is simulated.
 | 4:30–4:45 | `/mock/stage/wallet?v=notify` | "发送到 Kassa Send to Kassa" | Chinese spending notices logged in CNY with ₸ equivalent | I6 |
 | 4:45–5:00 | `/mock/stage/supplier?v=bad` | "Show hidden text" | (explain) The hidden instruction is data; planner cannot pay; unknown account refused | A1, I1, I10 |
 
+## Connected world on real devices
+
+Setup: `bun run phone` starts the one-origin proxy (`/api` → API :4000, `/mock` → mock-world :4001, else the web export) and a Cloudflare tunnel, then prints the env block and start commands for the API, mock-world and the web export. Use a named tunnel (`CLOUDFLARED_TUNNEL` + `PHONE_HOST`): passkeys are bound to `RP_ID`, and a quick tunnel changes host on every restart. `KASSA_APP_URL` must be the tunnel origin so till QR codes open `https://HOST/pay/<billId>` (a signed-out scan returns to that bill after sign-in).
+
+Devices (all on `https://HOST`):
+
+- iPhone 1: Dana (the seeded hero, "Try the demo") in Safari, plus the real Apple Pay Shortcut automation from [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md).
+- iPhone 2: the pizzeria owner (persona `pizzeria-bud`, or `pizzeria-sha` for the Shanghai beats) in Safari, and a second tab on `/mock/shop/bud/till`.
+- Mac: `/mock/shop/bud/kitchen`, `/mock/shop/sha/kitchen`, `/mock/supplier/c/portal` (Shanghai supplier; `a` is Budapest, `b`/`d` are the cooling attackers) and `/mock/stage`.
+- Android emulator: Li Wei in Shanghai (persona `li-wei-cn`, region CN) in the browser.
+
+Picking the persona: the welcome screen shows persona chips above "Try the demo" (Dana, Li Wei, Li Wei (Shanghai), Pizzeria owner Budapest, Pizzeria owner Shanghai; default Dana). A demo link can preselect one with `/welcome?persona=<key>`, key one of `dana`, `li-wei`, `li-wei-cn`, `pizzeria-bud`, `pizzeria-sha` (unknown keys fall back to Dana). The app sends `demoClaim: true` for Dana and `demoClaim: "<key>"` otherwise on `POST /api/auth/register/options`; non-Dana personas need a seed with personas (`bun run seed`, sim up, or demo reset).
+
+Beats, in order:
+
+1. Café tap: a real Apple Pay tap on iPhone 1; the Shortcut sends it to Kassa, which logs it and may reply with a nudge.
+2. Pizza order: in Dana's Kassa chat "Order me 2 pizzas"; approve with the passkey; the shop charges the one-time card.
+3. Kitchen: advance the order on `/mock/shop/bud/kitchen` (RECEIVED → ACCEPTED → COOKING → OUT_FOR_DELIVERY → DELIVERED).
+4. Till QR pay: ring up a bill on `/mock/shop/bud/till`; scan its QR with iPhone 1; approve; the till turns PAID.
+5. Shanghai shortage: the `pizzeria-sha` owner's Today/Stock shows boxes 400 short by the end of tomorrow; ask the agent to order boxes from the usual supplier; it drafts a PO (moves no money).
+6. PO sign: the owner signs the PO with the payments passkey (challenge = the PO hash); it is sent to supplier C.
+7. Supplier: on `/mock/supplier/c/portal` confirm, deliver, then invoice.
+8. QR payment: the invoice passes the three-way match; approve the QR handoff payment; the PO is PAID.
+9. Swapped-bank invoice: supplier D invoices C's PO with its own account; Kassa refuses it (`INVOICE_ACCOUNT_MISMATCH`).
+
+Headless proof: `bun run sim story` runs the same beats against a fresh sim over the same HTTP surfaces (pizza, till, restock, attack, invoice, shortcut, ledger verify) and always stops the sim. It uses ports 4000/4001, so stop the device stack first.
+
 ## If something goes wrong
 
 - "Reset demo" on `/mock/stage` restores the seed and the clock.

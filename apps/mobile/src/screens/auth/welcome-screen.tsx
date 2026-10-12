@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { type Href, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,9 +7,16 @@ import { KassaApiError } from "@/api/errors";
 import { useDemoAvailability, useRegister } from "@/api/hooks/auth";
 import { errorText } from "@/components/kassa/error-text";
 import { Box, Button, Icon, Text, useTheme } from "@/components/ui";
+import {
+  DEMO_PERSONAS,
+  demoClaimFor,
+  parseDemoPersona,
+  type DemoPersona,
+} from "@/lib/demo-personas";
 import { haptics } from "@/lib/haptics";
 import { useKassaT, type TFn } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
+import { peekReturnPath } from "@/lib/return-path";
 
 const POINTS = [
   { key: "auth:welcome.point1", sf: "wand.and.stars", md: "auto_awesome" },
@@ -23,18 +30,24 @@ function demoErrorText(t: TFn, err: unknown): string {
     return t("auth:welcome.demoClaimed");
   if (err instanceof KassaApiError && err.code === "DEMO_NOT_SEEDED")
     return t("auth:welcome.demoNotSeeded");
+  if (err instanceof KassaApiError && err.code === "DEMO_PERSONA_UNKNOWN")
+    return t("auth:welcome.demoPersonaUnknown");
   return errorText(t, err);
 }
 
 /**
  * "Try the demo": shown only when the API runs in demo mode (GET /auth/demo). It is the normal
  * passkey registration with `demoClaim`, so the new passkey owns the seeded demo account and every
- * payment still needs that passkey (same security model as a real sign-up).
+ * payment still needs that passkey (same security model as a real sign-up). The persona chips pick
+ * which seeded account to claim (default Dana); `/welcome?persona=<key>` preselects one, validated
+ * against the allow-list in `lib/demo-personas`.
  */
 function DemoButton() {
   const t = useKassaT();
   const demo = useDemoAvailability();
   const register = useRegister();
+  const params = useLocalSearchParams<{ persona?: string }>();
+  const [persona, setPersona] = useState<DemoPersona>(() => parseDemoPersona(params.persona));
   const [error, setError] = useState<string | null>(null);
   if (!demo.data?.enabled) return null;
 
@@ -42,11 +55,13 @@ function DemoButton() {
     setError(null);
     try {
       const session = await register.mutateAsync({
-        displayName: t("auth:welcome.demoName"),
-        demoClaim: true,
+        displayName: t(`auth:welcome.personas.${persona}.name`),
+        demoClaim: demoClaimFor(persona),
       });
       haptics.success();
-      router.replace(session.onboarded ? "/home" : "/onboarding/chat");
+      router.replace(
+        session.onboarded ? ((peekReturnPath() ?? "/home") as Href) : "/onboarding/chat"
+      );
     } catch (err) {
       if (err instanceof PasskeyCancelledError) return;
       haptics.error();
@@ -56,6 +71,23 @@ function DemoButton() {
 
   return (
     <Box gap={2}>
+      <Text variant="caption">{t("auth:welcome.demoPersonaLabel")}</Text>
+      <Box row gap={2} style={{ flexWrap: "wrap" }}>
+        {DEMO_PERSONAS.map((p) => (
+          <Button
+            key={p}
+            size="sm"
+            variant={p === persona ? "secondary" : "outline"}
+            disabled={register.isPending}
+            onPress={() => {
+              setError(null);
+              setPersona(p);
+            }}
+          >
+            {t(`auth:welcome.personas.${p}.label`)}
+          </Button>
+        ))}
+      </Box>
       <Button
         size="lg"
         variant="secondary"

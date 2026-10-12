@@ -589,3 +589,97 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   once unsigned and once signed with a random key; the API answers 401 to both.
 - **Clock sync:** after the stage moves the demo clock, mock-world drops its cached offset (`DemoClock.invalidate`) so
   the mock bank and the fake issuer do not sign with the pre-jump time (same race as Y7).
+
+## 2026-10-12 — Apple Pay → Kassa: app UI for Shortcut tokens, device list/revoke, tolerant Shortcut parser, `nudge`
+
+- **Gap closed:** the 2026-10-13 Demo Stage entry noted "`POST /devices/shortcut` needs a session; the app has no UI
+  for it". The app now has **Settings → Apple Pay → Kassa** (`apps/mobile/src/screens/settings/shortcut-screen.tsx`,
+  route `/shortcut`): create a token (shown once, copy as token or as `Bearer …` header), the endpoint URL
+  (`EXPO_PUBLIC_API_URL`, else the page origin on web), numbered iOS 17 setup steps, the device list and revoke. Setup
+  guide: `docs/SHORTCUT_SETUP.md`. The demo-stage token route stays for the stage (no session there).
+- **New routes (session auth, users module):** `GET /devices` lists the user's active `IOS_SHORTCUT` devices
+  (`id`, `kind`, `createdAt`) plus `lastCaptureAt` (newest `SHORTCUT` transaction of the user). `DELETE /devices/:id`
+  revokes (sets `revokedAt`, ledgered `DEVICE_TOKEN_REVOKED`); a tightening, so instant and passkey-free (I8);
+  idempotent (204 again); another user's id → 404 audited `AUTHZ_DENIED` (API1). The revoked token 401s on capture
+  because `shortcutDeviceUser` already filters `revokedAt IS NULL`.
+- **Deviation, no device name / per-device last use:** `devices` has no `name` or `lastUsedAt` column and the schema was
+  being edited by a parallel milestone, so no migration here. The list shows created time and a short id; last use is
+  per user (`lastCaptureAt`), not per device. A `devices.label` + `lastUsedAt` column is the follow-up.
+- **Parser (`capture/parsers/shortcut.ts`):** what iOS actually pastes into the JSON body: glued markers ("HUF1,290.00",
+  "Ft1,290", "CN¥38.00"), NBSP / narrow NBSP groups, trailing dots, JSON numbers (rounded to 2 decimals, which every
+  supported currency uses), a minus anywhere or accounting parentheses → `REFUND` (not spending). An amount carrying an
+  **unsupported** currency marker ("£4.50", "A$4.50", "JPY 500") is now `UNPARSED` instead of being logged in the home
+  currency. `date` accepts any string but is used only when it is ISO 8601 with a zone; a localized date is ignored
+  (Run Immediately makes server time the tap time), so a localized date no longer fails the whole request with 400.
+  `merchant` may be empty ("Unknown merchant"); `currency` is case-insensitive.
+- **`nudge` (`capture/nudge.ts`, only on `POST /capture/shortcut`):** one English line for the Shortcut's Show
+  Notification, built from results Kassa already has: amount (+ home equivalent if foreign), display merchant,
+  category budget left ("this month" for calendar-month budgets, else "for N days"; "over budget by …"), the matched
+  card's rolling-median markup for that currency pair, and DCC (an earlier `FEES_DCC` flag for the merchant, or a
+  home-currency charge within 24 h of foreign-currency spending). MERGED / refund / unparsed get their own short line.
+  English only: the Shortcut has no app locale; the app keeps the localised `notification`. The response schema is
+  `CaptureEventResponse.extend({ nudge })`, local to the route (`packages/shared` unchanged). Read-only: no proposal,
+  approval or payment (I6, asserted in `test/core/shortcut-devices.test.ts`).
+- **Tests:** `apps/api/test/core/shortcut-devices.test.ts` (list, revoke → 401, idempotence, BOLA 404 + audit, nudge
+  content incl. budget, dedupe, foreign markup, DCC, unparsed/refund), `apps/api/test/intel/parsers.test.ts`
+  ("what the iOS Transaction trigger actually sends"), `apps/mobile/src/api/__tests__/shortcut-endpoint.test.ts`.
+
+
+## 2026-10-14 Kassa Business M0: data model, two pizzerias, phone tunnel
+
+- **Tables (migration `0007_business`, in `db/schema.ts`):** `users.account_type` (PERSONAL|BUSINESS), `merchants`
+  (slug = mock-world storeId), `inventory_items`, `recipes`, `supplier_items`, `stock_movements` (append-only by
+  convention like the ledger: no UPDATE/DELETE in code; on-hand = Σ qty; corrections are ADJUSTMENT rows),
+  `sales_daily`, `purchase_orders`, `shop_orders`. Journal `when` set to 1791790000003 (after 0006's hand-set value):
+  drizzle applies only migrations newer than the last applied one, so a generated `Date.now()` would be skipped.
+- **Shared:** `purchaseOrder.ts` (`PurchaseOrderCore`, `poHash` = JCS SHA-256 like `mandateHash`, lines sorted by
+  supplierSku, totals checked; `itemsHash` over {sku, qty, unitPriceMinor}). `CanonicalOrder.itemsHash` and
+  `.purchaseOrderId` are optional, so existing golden vectors are unchanged. Reason codes `INVOICE_ABOVE_PO`,
+  `INVOICE_ACCOUNT_MISMATCH`, `PO_NOT_DELIVERED`, `PO_ABOVE_FORECAST` (+ en text, app locale).
+- **Seed:** personas `pizzeria-bud` (HUF/EU, storeId `bud`, capped wallet), `pizzeria-sha` (CNY/CN, storeId `sha`,
+  HANDOFF) and `li-wei-cn` (Li Wei as a Shanghai customer, region CN). A separate persona instead of a flag on `li-wei`
+  keeps that persona and its tests unchanged. Suppliers: A (VERIFIED) / B (COOLING, attacker) in Budapest; C (VERIFIED)
+  / D (COOLING, attacker) in Shanghai, QR-wallet merchants without IBAN. The forecast contract the seed is tuned for is
+  documented in `fixtures/seed-data.ts` (`seedForecastShortage`): Shanghai is exactly 400 boxes short by the end of
+  tomorrow; Budapest has no shortage.
+- **mock-world:** `/shop/:store/*` for `bud` and `sha`; `pizza` stays an alias of `bud`. POS default storeId is `bud`.
+  `KASSA_APP_URL` (default `http://localhost:8081`) for till QR links (M3).
+- **`pos-low-dough` trigger** now sends `{sku: "DOUGH-BALL", level: 12, unit: "pcs", storeId: "bud"}`; before, mock-world
+  rejected `{sku: "dough", level: "low"}` with 400 and the trigger returned the error inside a 200.
+- **`bun run phone`** (`scripts/phone.ts`): Caddyfile-equivalent proxy + named cloudflared tunnel when
+  `CLOUDFLARED_TUNNEL` and `PHONE_HOST` are set (stable RP_ID), else a quick tunnel with a warning; prints the env block.
+
+## 2026-10-15 Kassa Business M5: purchase order → supplier → invoice → payment
+
+- **Agent business tools** (`get_inventory`, `forecast_stock`, `propose_purchase_order`; schemas in
+  `@kassa/shared` `BUSINESS_TOOL_INPUT_SCHEMAS`, kept out of `TOOL_INPUT_SCHEMAS` so the 11 personal tools are
+  unchanged) are added only for a BUSINESS account, with a business section appended to the system prompt.
+  `propose_purchase_order` **moves no money**: it writes one DRAFT `purchase_orders` row (`business/drafts.ts`, ledger
+  `PO_DRAFTED`, owner notified) and never creates a proposal, approval or payment (`DRAFT_TOOLS`; `WRITE_TOOLS` stays
+  `["propose_order"]`). The planner passes supplier SKUs and packs only; the price is the supplier's **structured
+  catalog** price (`ports.catalog`, free-text notes dropped). Refused above `merchants.poCapMinor` (`PO_ABOVE_CAP`,
+  ledger `PO_REFUSED`), for a non-VERIFIED supplier, or when an open PO already covers the SKU. A line above 2× the
+  forecast suggestion (or with no suggestion) flags `PO_ABOVE_FORECAST`. Agent code reaches only `business/drafts`,
+  `forecastData` and `queries`; signing (`business/sign.ts`, imports payments credentials) is not reachable from agent/**.
+- **Signing** (`POST /business/purchase-orders/:id/sign/options` → `{core, poHash, webauthnOptions}`, `.../sign`):
+  the server rebuilds the core from the DRAFT (a different submitted core → 409 `PO_CHANGED`), verifies the assertion
+  with `verifyPaymentsAssertion` (payments credential table, `live`: the counter advances, so a replay fails), stores
+  core + poHash + assertion (ledger `PO_SIGNED`) and sends the PO to the supplier, HMAC-signed by Kassa
+  (`rails/http.mockWorldSigned`, same scheme as mock webhooks) → SENT. Send failure keeps SIGNED (`.../send` retries).
+- **Supplier portal** (mock-world `/mock/supplier/:id/portal`, DEMO_ENABLED only): Confirm / Mark delivered / Issue
+  invoice (PDF via `pdf/invoice.ts`), each a signed `"supplier"` webhook (`po.confirmed`, `po.delivered`,
+  `po.invoiced`). Delivery appends one RECEIPT movement per line (`ref = PURCHASE_ORDER:<id>`, once, advisory lock).
+  B and D have a "swapped bank details" button: an invoice for A's / C's PO in that supplier's name, paid to the
+  attacker's IBAN / QR merchant (attack A9).
+- **Three-way match** (`business/invoices.ts`): supplier name = PO supplier, `accountHash(invoice account)` = signed
+  `supplierAccountHash` = the payee's current hash (payee VERIFIED), else `INVOICE_ACCOUNT_MISMATCH`; same currency and
+  amount ≤ signed total, else `INVOICE_ABOVE_PO`. For CN QR-wallet suppliers the "account" is the QR payee name (what a
+  MERCHANT_ID payee holds). A refusal is ledgered (`INVOICE_REFUSED`, hashes only), recorded on the PO and notified;
+  nothing is proposed. A wrong supplier name is reported as `INVOICE_ACCOUNT_MISMATCH` (no separate code). A match
+  creates one obligation (ONCE, category `supplies`) and `proposeOrder({obligationId, purchaseOrderId})` as SCHEDULER.
+- **Rules**: a `purchaseOrderId` must be the user's signed PO for this payee with amount ≤ total; the decision is never
+  AUTO (forced ASK, T2), and `PO_NOT_DELIVERED` is added when no delivery was reported. EU → BANK_TRANSFER, CN → HANDOFF.
+- **Payments re-check** when `CanonicalOrder.purchaseOrderId` is set: recompute `poHash` from the stored core, re-verify
+  the stored owner assertion (`stored` mode, like `verifyMandate`), payee + account = the PO's supplier, amount ≤ total,
+  PO not PAID. The PO goes PAYING when the payment row is created, PAID on SENT (`payments/status.ts`, ledger `PO_PAID`),
+  back to INVOICED on FAILED/CANCELED.

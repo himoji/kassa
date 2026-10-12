@@ -58,6 +58,42 @@ describe("notificationText", () => {
     );
   });
 
+  it("renders supplier / purchase-order notifications", () => {
+    const n = (key: string, params: Record<string, unknown>) =>
+      notificationText({ title: "x", body: "y", data: { key, params } }, t, money);
+    expect(
+      n("business.poDrafted", {
+        supplier: "Fresh Farm",
+        total: { amountMinor: 1250000, currency: "HUF" },
+      }).body
+    ).toContain("Fresh Farm (HUF 12500.00)");
+    expect(n("business.poDelivered", { supplier: "Fresh Farm" }).title).toBe("Delivery received");
+    expect(
+      n("business.invoiceRefused", { supplier: "D", reason: "INVOICE_ACCOUNT_MISMATCH" }).title
+    ).toBe("Invoice with different bank details");
+    expect(n("business.invoiceRefused", { supplier: "D", reason: "INVOICE_ABOVE_PO" }).title).toBe(
+      "Invoice above your purchase order"
+    );
+    expect(n("business.invoiceRefused", { supplier: "D", reason: "WHAT" }).title).toBe("x");
+  });
+
+  it("renders shop order status updates", () => {
+    const n = (params: Record<string, unknown>) =>
+      notificationText(
+        { title: "x", body: "y", data: { key: "shop.orderStatus", params } },
+        t,
+        money
+      );
+    expect(n({ merchant: "Pizza", status: "COOKING", channel: "DELIVERY" }).title).toBe(
+      "Pizza: Being prepared"
+    );
+    expect(n({ merchant: "Bud", status: "PAID", channel: "TILL" }).body).toContain("counter till");
+    expect(
+      n({ merchant: "Pizza", status: "DECLINED", reasonCode: "CARD_DECLINED" }).body
+    ).toContain("CARD_DECLINED");
+    expect(n({ merchant: "Pizza", status: "NOPE" }).title).toBe("x");
+  });
+
   it("falls back to the stored English text for unknown or malformed data", () => {
     expect(notificationText({ title: "T", body: "B", data: null }, t, money)).toEqual({
       title: "T",

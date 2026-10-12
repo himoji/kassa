@@ -1,0 +1,34 @@
+{
+  "scenario": "pizza-order",
+  "description": "Hand-written recording (spec §9 replay; no model key was available to record live with RECORD=1) for the M2 pizza loop: Dana asks for two pizzas; the planner reads the Budapest pizza shop's storefront menu (search_catalog 'bud') and proposes 2 x Margherita at the menu price. propose_order turns the shop's own SKUs and prices into the signed fulfillment (itemsHash in the CanonicalOrder); after the passkey approval the one-time card is handed to the shop, which charges it once and reports the order status to Kassa. Placeholders: the user text names no payee; the shop's payee becomes payee_1 in the search_catalog result (first placeholder of the conversation).",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "Order me 2 pizzas",
+      "match": ["order", "pizza"],
+      "steps": [
+        {
+          "text": "Let me check the pizza shop's menu.",
+          "toolCalls": [{ "toolName": "search_catalog", "input": { "merchant": "bud", "query": "margherita" } }]
+        },
+        {
+          "toolCalls": [
+            {
+              "toolName": "propose_order",
+              "input": {
+                "payeeRef": "payee_1",
+                "amountMinor": 598000,
+                "currency": "HUF",
+                "purpose": "2 x Margherita, delivery",
+                "items": [{ "sku": "PZ-MARG", "name": "Margherita", "quantity": 2, "unitPriceMinor": 299000 }]
+              }
+            }
+          ]
+        },
+        {
+          "text": "I've drafted 2 Margherita pizzas from payee_1 for 5,980 Ft at the shop's menu price. Approve it with your passkey: Kassa then issues a one-time card for exactly this amount and this shop, the shop charges it once, and you can follow the order from received to delivered here. A second charge on that card is declined."
+        }
+      ]
+    }
+  ]
+}

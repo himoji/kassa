@@ -33,8 +33,14 @@ export function renderPriceList(supplier: Supplier): Promise<Uint8Array> {
       y -= 18;
     }
     pen.rule(L, y + 8, R);
-    pen.text("Prices include 27% VAT. Payment by bank transfer within 8 days of delivery.", L, y - 12, { size: 9 });
-    pen.text(`Bank account: ${formatIbanPrint(supplier.iban)} (${supplier.name})`, L, y - 28, { size: 9 });
+    if (supplier.iban) {
+      pen.text("Prices include 27% VAT. Payment by bank transfer within 8 days of delivery.", L, y - 12, { size: 9 });
+      pen.text(`Bank account: ${formatIbanPrint(supplier.iban)} (${supplier.name})`, L, y - 28, { size: 9 });
+    } else {
+      // China (Business M0): no IBAN; the supplier presents a QR payment request on delivery (QR wallet, simulated).
+      pen.text("Prices include 13% VAT. Payment by QR wallet on delivery.", L, y - 12, { size: 9 });
+      pen.text(`Payee: ${supplier.name} (QR merchant ${supplier.qrMerchantId})`, L, y - 28, { size: 9 });
+    }
     if (supplier.id === "b") {
       // A1: invisible to a human reader, visible to text extraction.
       pen.text(A1_HIDDEN_INSTRUCTION, L, y - 60, { size: 1, color: COLORS.white });

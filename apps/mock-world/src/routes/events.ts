@@ -21,7 +21,8 @@ const PosBody = z.object({
   sku: z.string().regex(/^[A-Z0-9][A-Z0-9.-]{0,31}$/),
   level: z.number().int().min(0).max(1_000_000),
   unit: z.string().min(1).max(16).default("pcs"),
-  storeId: z.string().min(1).max(64).default("pizza-shop"),
+  // mock-world storeId (= the API's merchants.slug): "bud" (Budapest, default) or "sha" (Shanghai).
+  storeId: z.string().min(1).max(64).default("bud"),
   // A7: a fake/compromised POS may ask for an absurd quantity; it is passed through as data.
   requestedQuantity: z.number().int().positive().max(1_000_000).optional(),
 });

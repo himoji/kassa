@@ -2,14 +2,17 @@
  * Small JSON HTTP client for mock-world (base = MOCK_WORLD_URL + "/mock", coordination doc) with a
  * timeout. Tests replace the transport with `setMockWorldTransportForTests`.
  */
+import { mockWebhookHeaders } from "@kassa/shared";
+
 import { env } from "../../env.ts";
+import { clock } from "../clock/index.ts";
 
-export type Transport = (method: string, path: string, body?: unknown) => Promise<{ status: number; json: unknown }>;
+export type Transport = (method: string, path: string, body?: unknown, headers?: Record<string, string>) => Promise<{ status: number; json: unknown }>;
 
-const defaultTransport: Transport = async (method, path, body) => {
+const defaultTransport: Transport = async (method, path, body, headers) => {
   const res = await fetch(`${env().MOCK_WORLD_URL.replace(/\/$/, "")}/mock${path}`, {
     method,
-    headers: body !== undefined ? { "content-type": "application/json" } : {},
+    headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...headers },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(4000),
   });
@@ -40,6 +43,18 @@ export class MockWorldError extends Error {
 
 export async function mockWorld<T = Record<string, unknown>>(method: string, path: string, body?: unknown): Promise<T> {
   const r = await transport(method, path, body);
+  if (r.status < 200 || r.status >= 300) throw new MockWorldError(`mock-world ${method} ${path} → ${r.status}`, r.status);
+  return r.json as T;
+}
+
+/**
+ * (M5) A request mock-world must authenticate as coming from Kassa (e.g. a signed purchase order sent to a supplier):
+ * the body is signed like mock-world's own webhooks (X-Kassa-Timestamp / X-Kassa-Signature over the raw JSON body,
+ * MOCK_HMAC_SECRET, demo-clock seconds).
+ */
+export async function mockWorldSigned<T = Record<string, unknown>>(method: string, path: string, body: unknown): Promise<T> {
+  const raw = JSON.stringify(body);
+  const r = await transport(method, path, body, mockWebhookHeaders(env().MOCK_HMAC_SECRET, raw, Math.floor(clock.nowMs() / 1000)));
   if (r.status < 200 || r.status >= 300) throw new MockWorldError(`mock-world ${method} ${path} → ${r.status}`, r.status);
   return r.json as T;
 }

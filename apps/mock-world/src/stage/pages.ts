@@ -93,6 +93,9 @@ function bind(id, action, body) {
 }
 bind("clock1", "clock", { hours: 1 });
 bind("clock72", "clock", { hours: 72 });
+bind("kitchenBud", "kitchen-advance", { store: "bud" });
+bind("forecast", "forecast-tick", {});
+bind("supplierAttack", "supplier-attack", {});
 resetBtn.addEventListener("click", () => {
   if (!confirm("Reset the demo to the seed?")) return;
   window.stage.run(resetBtn, "reset", {}, out);
@@ -122,6 +125,22 @@ export function renderDirector(): string {
 <div class="director-grid">
 ${scenes}
 </div>
+<section class="card scene">
+<h2>Connected world</h2>
+<p class="muted">The shops and suppliers Kassa talks to over signed messages (simulated). Open their screens, or play the beats that have no phone screen.</p>
+<div class="variants">
+<a class="btn" href="/mock/shop/bud/kitchen">Pizza Shop in Budapest: kitchen</a>
+<a class="btn" href="/mock/shop/bud/till">Pizza Shop in Budapest: counter till</a>
+<a class="btn" href="/mock/shop/sha/kitchen">Pizza Shop in Shanghai: kitchen</a>
+<a class="btn" href="/mock/supplier/c/portal">Restaurant Supplier from China: portal</a>
+<a class="btn" href="/mock/supplier/d/portal"><span class="tag-bad">BAD</span>Box Supplier from China: portal</a>
+</div>
+<div class="variants">
+<button type="button" class="btn secondary" id="kitchenBud">Advance the Budapest kitchen order</button>
+<button type="button" class="btn secondary" id="forecast">Run the stock forecast (Shanghai shortage)</button>
+<button type="button" class="btn danger" id="supplierAttack">Box Supplier sends a swapped invoice</button>
+</div>
+</section>
 <section class="card">
 <h2>Presenter controls</h2>
 <button type="button" class="btn secondary" id="clock1">Clock +1 hour</button>

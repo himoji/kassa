@@ -20,6 +20,8 @@ import { issuedCards, payments, profiles, type PaymentDetailsJson } from "../../
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
+import { onSupplierWebhook } from "../business/supplier.ts";
+import { onShopWebhook } from "../commerce/service.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
@@ -167,6 +169,18 @@ const routes: FastifyPluginAsync = async (app) => {
     // I6: a stock trigger can only log (and later create a draft through the agent/scheduler), never approve.
     await ledger.append("TRIGGER_POS", { event: req.body });
     return { ok: true };
+  });
+
+  // (M2/M3) The pizza shop's order book: order / till-bill status. Only mirrors the shop's status (I6).
+  app.post("/webhooks/mock/shop", async (req) => {
+    await assertMockWebhook(req, "shop");
+    return onShopWebhook(req.body);
+  });
+
+  // (M5) Suppliers: purchase order confirmed / delivered / invoiced. Claims only; the invoice is three-way matched.
+  app.post("/webhooks/mock/supplier", async (req) => {
+    await assertMockWebhook(req, "supplier");
+    return onSupplierWebhook(req.body);
   });
 
   app.post("/webhooks/mock/remittance", async (req) => {

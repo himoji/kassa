@@ -26,6 +26,7 @@ import {
   TransactionStatus,
 } from "./enums.ts";
 import { MandateCore } from "./mandate.ts";
+import { AccountType } from "./purchaseOrder.ts";
 import { CanonicalOrder } from "./order.ts";
 import { AmountMinor, CurrencyCode, IsoDate, IsoDateTime, paginated, PositiveAmountMinor, Uuid } from "./primitives.ts";
 import { ReasonCode } from "./reasonCodes.ts";
@@ -63,6 +64,8 @@ export const MeResponse = z.object({
   aiConsentAt: IsoDateTime.nullable().optional(),
   /** (added Phase 2) GDPR Art. 18 restriction in force since (null = none). */
   restrictedAt: IsoDateTime.nullable().optional(),
+  /** (added 2026-10-14, Business M4) BUSINESS = owns a merchant; the app shows the business tabs. Optional = PERSONAL. */
+  accountType: AccountType.optional(),
 });
 export type MeResponse = z.infer<typeof MeResponse>;
 

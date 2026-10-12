@@ -13,6 +13,7 @@ import { vi } from "vitest";
 import { buildMockWorld, type MockWorld } from "../../../mock-world/src/app.ts";
 import { FIXTURE_RATES, type RateProvider } from "../../../mock-world/src/bank/rates.ts";
 import { loadConfig } from "../../../mock-world/src/config.ts";
+import { FakeIssuerClient } from "../../../mock-world/src/shop/issuer.ts";
 import type { OutboxEntry, WebhookKind, WebhookSink } from "../../../mock-world/src/webhooks.ts";
 import { env } from "../../src/env.ts";
 import { clock } from "../../src/modules/clock/index.ts";
@@ -36,19 +37,37 @@ class CaptureSink implements WebhookSink {
 
 const fixtureRates: RateProvider = { getRates: async () => FIXTURE_RATES };
 
-/** Start the mock world and route the API's rail transport to it. Call `close()` in afterAll. */
-export async function startMockWorld(): Promise<TestMockWorld> {
+/**
+ * Start the mock world and route the API's rail transport to it. Call `close()` in afterAll.
+ * `env` adds mock-world settings (e.g. DEMO_ENABLED for the till); `api` routes the shops' card charges (fake issuer,
+ * HMAC-signed) into the API app under test, so a shop charge exercises Kassa's real authorization path.
+ */
+export async function startMockWorld(opts: { env?: Record<string, string>; api?: () => FastifyInstance } = {}): Promise<TestMockWorld> {
   const sink = new CaptureSink();
+  const api = opts.api;
+  const issuer = api
+    ? new FakeIssuerClient({
+        apiUrl: "http://api.test",
+        secret: env().MOCK_HMAC_SECRET,
+        clock: { now: async () => clock.now() },
+        fetch: async (input, init) => {
+          const res = await api().inject({ method: "POST", url: new URL(input).pathname, headers: init?.headers as Record<string, string>, payload: String(init?.body ?? "") });
+          return new Response(res.body, { status: res.statusCode, headers: { "content-type": "application/json" } });
+        },
+      })
+    : undefined;
   const mw = await buildMockWorld({
-    config: loadConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", MOCK_HMAC_SECRET: env().MOCK_HMAC_SECRET } as NodeJS.ProcessEnv),
+    config: loadConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", MOCK_HMAC_SECRET: env().MOCK_HMAC_SECRET, ...opts.env } as NodeJS.ProcessEnv),
+    ...(issuer ? { issuer } : {}),
     clock: { now: async () => clock.now() },
     rates: fixtureRates,
     webhooks: sink,
     logger: false,
     startTicker: false,
   });
-  setMockWorldTransportForTests(async (method, path, body) => {
-    const res = await mw.app.inject({ method: method as "GET", url: `/mock${path}`, ...(body !== undefined ? { payload: body as object } : {}) });
+  setMockWorldTransportForTests(async (method, path, body, headers) => {
+    // Signed requests (mockWorldSigned) send the exact JSON string their signature covers.
+    const res = await mw.app.inject({ method: method as "GET", url: `/mock${path}`, ...(headers ? { headers: { "content-type": "application/json", ...headers } } : {}), ...(body !== undefined ? { payload: headers ? JSON.stringify(body) : (body as object) } : {}) });
     return { status: res.statusCode, json: res.body ? res.json() : null };
   });
   return {

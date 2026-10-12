@@ -6,6 +6,10 @@ import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
 import { agentDocuments } from "../../db/schema.intel.ts";
 import { budgetImpact, listBudgets } from "../budget/index.ts";
+import { draftPurchaseOrder, type DraftLineInput, type DraftResult } from "../business/drafts.ts";
+import type { Forecast } from "../business/forecast.ts";
+import { loadForecast } from "../business/forecastData.ts";
+import { merchantOfOwner } from "../business/queries.ts";
 import { ingestCapture, type CaptureInput } from "../capture/index.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { addDays } from "../fx/dates.ts";
@@ -52,6 +56,18 @@ export interface ProfileRow {
   moneyMode: string;
   notificationMode: string;
   incomes: IncomeJson[];
+  /** (M5) "BUSINESS" turns on the business tool set and prompt section. */
+  accountType?: "PERSONAL" | "BUSINESS";
+}
+
+/**
+ * (added 2026-10-15, Business M5) The owner's merchant: stock forecast and purchase-order DRAFTS. A draft moves no
+ * money (business/drafts.ts); signing, sending and paying are not reachable from here.
+ */
+export interface BusinessPorts {
+  merchant(): Promise<{ id: string; currency: string; timezone: string; poCapMinor: number } | null>;
+  forecast(): Promise<Forecast>;
+  draftPurchaseOrder(input: { supplierPayeeId: string; currency: string; lines: DraftLineInput[] }): Promise<DraftResult>;
 }
 
 /** Catalog lookup result: items on success; `error` (and no items) when the merchant has no catalog. */
@@ -62,6 +78,8 @@ export interface CatalogLookup {
   merchantName?: string | null;
   currency?: string | null;
   items?: Array<{ sku: string | undefined; name: string; unitPriceMinor: number; currency: string }>;
+  /** (M2) Set when the catalog is a shop's storefront (mock-world storeId): its orders are delivered by the shop. */
+  storeId?: string;
 }
 
 export interface AgentPorts {
@@ -76,8 +94,11 @@ export interface AgentPorts {
   obligations(withinDays?: number, opts?: { includePast?: boolean }): Promise<ObligationRow[]>;
   paymentCount(payeeId: string): Promise<number>;
   catalog(merchant: string, query: string): Promise<CatalogLookup>;
-  /** (Y5) Catalog ids with their merchant names (pizza shop + suppliers), to map a payee placeholder to its catalog. */
-  catalogDirectory?(): Promise<Array<{ id: string; name: string }>>;
+  /**
+   * (Y5) Catalog ids with their merchant names (pizza shops + suppliers), to map a payee placeholder to its catalog.
+   * (M2) Storefronts carry their storeId.
+   */
+  catalogDirectory?(): Promise<Array<{ id: string; name: string; storeId?: string }>>;
   routes(a: { fromCurrency?: string; toCurrency: string; amountMinor: number; dueDate?: string }): Promise<{ homeCurrency: string; routes: RouteDto[] }>;
   forecast(): Promise<ForecastResponse>;
   readDocument(docId: string): Promise<ReaderResult>;
@@ -92,6 +113,8 @@ export interface AgentPorts {
   proposeOrder(input: ProposeOrderInput): Promise<ProposeOrderResult>;
   proposalCard(proposalId: string): Promise<{ summary: ProposalSummary | null; budgetImpact: BudgetImpact | null }>;
   logExpense(input: CaptureInput): Promise<CaptureEventResponse>;
+  /** (M5) Present for the DB implementation; the tools use it only when the profile is a BUSINESS account. */
+  business?: BusinessPorts;
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -106,6 +129,9 @@ export async function bindToConversation(userId: string, docId: string, conversa
     .set({ conversationId })
     .where(and(eq(agentDocuments.id, docId), eq(agentDocuments.userId, userId), isNull(agentDocuments.conversationId)));
 }
+
+/** Catalog ids that name a shop's storefront → mock-world storeId. */
+const STOREFRONT_IDS: Record<string, string> = { pizza: "bud", "pizza-shop": "bud", pizzashop: "bud", bud: "bud", sha: "sha", "pizza-shop-sh": "sha" };
 
 export function dbPorts(userId: string, conversationId: string): AgentPorts {
   const db = getDb();
@@ -124,6 +150,7 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         moneyMode: u.moneyMode,
         notificationMode: p?.notificationMode ?? "EACH",
         incomes: p?.incomes ?? [],
+        accountType: u.accountType,
       };
     },
     async payees() {
@@ -177,11 +204,13 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     },
     async catalogDirectory() {
       const base = `${process.env.MOCK_WORLD_URL ?? "http://localhost:4001"}/mock`;
-      const out: Array<{ id: string; name: string }> = [];
-      const menu = await fetch(`${base}/shop/pizza/menu`).catch(() => null);
-      if (menu?.ok) {
+      const out: Array<{ id: string; name: string; storeId?: string }> = [];
+      // The Budapest shop keeps its original catalog id "pizza"; (M2) the Shanghai shop is "sha".
+      for (const [id, storeId] of [["pizza", "bud"], ["sha", "sha"]] as const) {
+        const menu = await fetch(`${base}/shop/${storeId}/menu`).catch(() => null);
+        if (!menu?.ok) continue;
         const name = ((await menu.json()) as { merchant?: { name?: unknown } }).merchant?.name;
-        if (typeof name === "string") out.push({ id: "pizza", name });
+        if (typeof name === "string") out.push({ id, name, storeId });
       }
       const sup = await fetch(`${base}/suppliers`).catch(() => null);
       if (sup?.ok) {
@@ -194,10 +223,12 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     async catalog(merchant, query) {
       const base = `${process.env.MOCK_WORLD_URL ?? "http://localhost:4001"}/mock`;
       const id = merchant.toLowerCase().replace(/[^a-z0-9-]/g, "");
-      const url = id === "pizza" || id === "pizza-shop" || id === "pizzashop" ? `${base}/shop/pizza/menu` : `${base}/suppliers/${encodeURIComponent(id)}/catalog`;
+      // Storefronts (M2): the Budapest shop ("pizza", "bud") and the Shanghai shop ("sha"); else a supplier catalog.
+      const store = STOREFRONT_IDS[id];
+      const url = store ? `${base}/shop/${store}/menu` : `${base}/suppliers/${encodeURIComponent(id)}/catalog`;
       const res = await fetch(url);
       if (!res.ok) return { error: "CATALOG_NOT_FOUND", merchant };
-      const body = (await res.json()) as { currency?: string; items?: Array<Record<string, unknown>>; merchant?: { name?: unknown }; supplier?: { name?: unknown } };
+      const body = (await res.json()) as { currency?: string; items?: Array<Record<string, unknown>>; merchant?: { name?: unknown; storeId?: unknown }; supplier?: { name?: unknown } };
       const q = query.toLowerCase();
       // The merchant's display name (pizza `merchant.name`, supplier `supplier.name`) is matched to a payee by the tools.
       const merchantName = typeof body.merchant?.name === "string" ? body.merchant.name : typeof body.supplier?.name === "string" ? body.supplier.name : null;
@@ -210,7 +241,8 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
           currency: String(i.currency ?? body.currency ?? ""),
         }))
         .filter((i) => Number.isSafeInteger(i.unitPriceMinor) && (q === "*" || i.name.toLowerCase().includes(q) || (i.sku ?? "").toLowerCase().includes(q)));
-      return { merchant: id, merchantName, currency: body.currency ?? null, items: items.slice(0, 25) };
+      const storeId = store && typeof body.merchant?.storeId === "string" ? body.merchant.storeId : undefined;
+      return { merchant: id, merchantName, currency: body.currency ?? null, items: items.slice(0, 25), ...(storeId ? { storeId } : {}) };
     },
     async routes(a) {
       const r = await getRoutes({ userId, ...a });
@@ -256,5 +288,21 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
       return { summary, budgetImpact: impact };
     },
     logExpense: (input) => ingestCapture(userId, input),
+    business: {
+      async merchant() {
+        const m = await merchantOfOwner(userId, db);
+        return m ? { id: m.id, currency: m.currency, timezone: m.timezone, poCapMinor: m.poCapMinor } : null;
+      },
+      async forecast() {
+        const m = await merchantOfOwner(userId, db);
+        if (!m) throw Object.assign(new Error("No merchant for this account"), { code: "NO_MERCHANT" });
+        return loadForecast(m, clock.now(), db);
+      },
+      async draftPurchaseOrder(input) {
+        const m = await merchantOfOwner(userId, db);
+        if (!m) return { ok: false, error: "NO_MERCHANT", message: "No merchant for this account" };
+        return draftPurchaseOrder(m, { ...input, createdBy: "AGENT", now: clock.now() });
+      },
+    },
   };
 }

@@ -29,15 +29,17 @@
     "settlement": "Bank settlement",
     "money-from-home": "Money from home",
     "landlord-iban-email": "Landlord changes IBAN",
-    "pos-low-dough": "Low balance at checkout",
-    "cn-spending-day": "Spending day in Shanghai"
+    "pos-low-dough": "Pizzeria low on dough",
+    "cn-spending-day": "Spending day in Shanghai",
+    "business-forecast": "Business stock forecast"
   },
   "scenarioHint": {
     "settlement": "A card payment settles at the bank.",
     "money-from-home": "Family sends money to your account.",
     "landlord-iban-email": "An email asks you to pay a new account.",
-    "pos-low-dough": "A card payment at a shop with low funds.",
-    "cn-spending-day": "Wallet and card notices from a day in Shanghai."
+    "pos-low-dough": "The Budapest pizzeria's till reports dough balls running low (simulated; logged only).",
+    "cn-spending-day": "Wallet and card notices from a day in Shanghai.",
+    "business-forecast": "Runs the stock forecast now: a shortage by tomorrow drafts a purchase order for the owner to sign (simulated)."
   },
   "scenariosTitle": "Scenarios",
   "sendNotif": "Send notification",

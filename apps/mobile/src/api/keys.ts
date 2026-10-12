@@ -12,13 +12,23 @@ export const keys = {
   payees: ["payees"] as const,
   mandates: ["mandates"] as const,
   caps: ["caps"] as const,
+  shortcutDevices: ["devices", "shortcut"] as const,
   ruleChanges: ["rule-changes", "pending"] as const,
   proposalsPending: ["proposals", "pending"] as const,
   order: (proposalId: string) => ["orders", proposalId] as const,
+  // (added 2026-10-14, Business M2/M3) shop orders and till bills
+  shopOrders: ["shop-orders"] as const,
+  shopOrderOfProposal: (proposalId: string) => ["shop-orders", "proposal", proposalId] as const,
+  merchantBill: (billId: string) => ["merchant-bills", billId] as const,
   ledger: ["ledger"] as const,
   notifications: ["notifications"] as const,
   handoff: (paymentId: string) => ["handoff", paymentId] as const,
   verify: (id: string) => ["verify", id] as const,
+  // (added 2026-10-14, Business M4) Kassa Business mode
+  businessForecast: ["business", "forecast"] as const,
+  businessInventory: ["business", "inventory"] as const,
+  businessSalesToday: ["business", "sales", "today"] as const,
+  businessPurchaseOrders: ["business", "purchase-orders"] as const,
 };
 
 /** Everything that depends on money state: refreshed after approvals, freezes and demo actions. */
@@ -37,4 +47,9 @@ export const moneyKeys = [
   keys.proposalsPending,
   keys.ledger,
   keys.notifications,
+  keys.shopOrders,
+  keys.businessForecast,
+  keys.businessInventory,
+  keys.businessSalesToday,
+  keys.businessPurchaseOrders,
 ];

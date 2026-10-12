@@ -3,6 +3,7 @@
  * static import from rules to payments or rails, so the agent's import graph (agent → rules) never reaches
  * payments/** or rails/** (I1, checked transitively by test/invariants). server.ts and tests call wireExecutor().
  */
+import { withFulfillment, withShopQr } from "../commerce/fulfill.ts";
 import { toHome } from "../money/fx.ts";
 import { executeApproval, registerHomeConverter } from "../payments/index.ts";
 import { requestHandoffQr } from "../rails/handoff.ts";
@@ -11,9 +12,11 @@ import { registerExecutor, registerHandoffPreflight } from "../rules/index.ts";
 import { registerWalletReader } from "../rules/facts.ts";
 
 export function wireExecutor(): void {
-  registerExecutor(executeApproval);
+  // (M2) After payments executed a merchant order (draft.fulfillment), commerce hands the one-time card to the shop.
+  registerExecutor(withFulfillment(executeApproval));
   // X7: HANDOFF orders fetch and check the merchant's QR when shown, before the passkey prompt.
-  registerHandoffPreflight(requestHandoffQr);
+  // (M2) For a shop order / till bill that QR is the shop's own code for it (the shop order is created first).
+  registerHandoffPreflight(withShopQr(requestHandoffQr));
   registerWalletReader(getWalletBalances);
   // X2: payments converts amounts for its own daily cap through this port (it imports no fx/rules code itself).
   registerHomeConverter(async (amountMinor, currency, homeCurrency, at, rounding) => (await toHome(amountMinor, currency, homeCurrency, at, rounding)).amountMinor);

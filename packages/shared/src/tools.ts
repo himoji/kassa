@@ -66,6 +66,33 @@ export const LogExpenseInput = z.object({
   text: z.string().min(1).max(1000).describe("Free-text expense, e.g. 'coffee 1200 HUF'"),
 });
 
+/*
+ * (added 2026-10-15, Business M5) The business tool set, only for a BUSINESS account. propose_purchase_order writes
+ * a DRAFT purchase order and nothing else: it never creates a payment or an approval (the owner signs the PO with
+ * the payments passkey; the supplier's invoice is paid later through propose_order's rules path).
+ */
+export const GetInventoryInput = z.object({});
+export const ForecastStockInput = z.object({});
+export const ProposePurchaseOrderInput = z.object({
+  supplierRef: PlaceholderRef.describe("Supplier payee placeholder from forecast_stock (supplierRef), e.g. payee_1"),
+  lines: z
+    .array(
+      z.object({
+        supplierSku: z.string().min(1).max(64).describe("Supplier catalog SKU, e.g. BOX-33CM-100"),
+        packs: z.number().int().positive().max(1000).describe("Whole packs"),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
+export const BUSINESS_TOOL_INPUT_SCHEMAS = {
+  get_inventory: GetInventoryInput,
+  forecast_stock: ForecastStockInput,
+  propose_purchase_order: ProposePurchaseOrderInput,
+} as const;
+export type BusinessToolName = keyof typeof BUSINESS_TOOL_INPUT_SCHEMAS;
+
 export const TOOL_INPUT_SCHEMAS = {
   get_profile_summary: GetProfileSummaryInput,
   get_balances: GetBalancesInput,

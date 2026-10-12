@@ -3,10 +3,10 @@
  * payments/index.ts so rails can import it without an import cycle.
  */
 import type { PaymentStatus, ReasonCode } from "@kassa/shared";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
-import { payments, proposals, transactions } from "../../db/schema.ts";
+import { payments, proposals, purchaseOrders, transactions } from "../../db/schema.ts";
 import { releaseSettlement } from "../obligations/settlements.ts";
 import { normalizeName } from "../screening/normalize.ts";
 import { clock } from "../clock/index.ts";
@@ -56,6 +56,18 @@ export async function updatePaymentStatus(
         paymentId: p.id,
         dedupeKey: `kassa-payment|${p.id}`,
       });
+    }
+    // (M5) The purchase order this payment settles: PAID when sent; back to INVOICED when the payment failed.
+    const poId = (await tx.select({ order: proposals.canonicalOrder }).from(proposals).where(eq(proposals.id, p.proposalId)))[0]?.order?.purchaseOrderId;
+    if (poId && (status === "SENT" || status === "FAILED" || status === "CANCELED")) {
+      const next = status === "SENT" ? "PAID" : "INVOICED";
+      const at = clock.now();
+      const moved = await tx
+        .update(purchaseOrders)
+        .set({ status: next, timeline: sql`${purchaseOrders.timeline} || ${JSON.stringify([{ status: next, at: at.toISOString(), note: `payment ${status.toLowerCase()}` }])}::jsonb`, updatedAt: at })
+        .where(and(eq(purchaseOrders.id, poId), inArray(purchaseOrders.status, ["PAYING", "INVOICED"])))
+        .returning({ id: purchaseOrders.id });
+      if (moved.length > 0 && next === "PAID") await ledger.append("PO_PAID", { userId: p.userId, purchaseOrderId: poId, paymentId, amountMinor: p.amountMinor, currency: p.currency }, tx);
     }
     // B4: a payment that failed or was canceled after execution no longer settles its obligation period.
     if (status === "FAILED" || status === "CANCELED") await releaseSettlement(tx, p.proposalId);
