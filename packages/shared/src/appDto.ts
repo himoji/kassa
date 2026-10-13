@@ -268,10 +268,54 @@ export const OnboardingProfileDraft = z.object({
 });
 export type OnboardingProfileDraft = z.infer<typeof OnboardingProfileDraft>;
 
+// ---------- Choices (agent-triggered UI) ----------
+
+export const ChoiceOption = z.object({
+  id: z.string().min(1).max(32),
+  label: z.string().min(1).max(60),
+  /** Aliases a user may say or type (voice-ready); matched server-side. */
+  spoken: z.array(z.string()).optional(),
+  value: z.string(),
+});
+export type ChoiceOption = z.infer<typeof ChoiceOption>;
+
+/**
+ * `data-choices` part: the assistant asks the user to pick instead of type. kind "choice" / "confirm" carry options;
+ * "amount" carries a currency + stepper bounds; "date" a date range. `answer` is set once the user answered (history),
+ * and the card turns read-only.
+ */
+export const DataChoices = z.object({
+  id: z.string().min(1).max(64),
+  kind: z.enum(["choice", "confirm", "amount", "date"]).default("choice"),
+  prompt: z.string(),
+  options: z.array(ChoiceOption),
+  multi: z.boolean().optional(),
+  allowOther: z.boolean().optional(),
+  amount: z
+    .object({ currency: CurrencyCode, defaultMinor: z.number().int().optional(), minMinor: z.number().int().optional(), maxMinor: z.number().int().optional(), stepMinor: z.number().int().optional() })
+    .optional(),
+  date: z.object({ min: IsoDate.optional(), max: IsoDate.optional(), default: IsoDate.optional() }).optional(),
+  answer: z.object({ optionIds: z.array(z.string()), value: z.string().optional(), label: z.string() }).optional(),
+});
+export type DataChoices = z.infer<typeof DataChoices>;
+
+/**
+ * The user's pick for a `data-choices` part, sent with the message. Options are referenced by id (the server
+ * rejects ids that are not in the stored part); "amount" / "date" send `value` (minor units / YYYY-MM-DD).
+ */
+export const ChoiceAnswer = z.object({
+  id: z.string().min(1).max(64),
+  optionId: z.string().min(1).max(32).optional(),
+  optionIds: z.array(z.string().min(1).max(32)).max(8).optional(),
+  value: z.string().max(40).optional(),
+});
+export type ChoiceAnswer = z.infer<typeof ChoiceAnswer>;
+
 /** POST /onboarding/message */
 export const OnboardingMessageRequest = z.object({
   conversationId: Uuid,
   text: z.string().min(1).max(4000),
+  choice: ChoiceAnswer.optional(),
 });
 export type OnboardingMessageRequest = z.infer<typeof OnboardingMessageRequest>;
 export const OnboardingMessageResponse = z.object({
@@ -279,6 +323,8 @@ export const OnboardingMessageResponse = z.object({
   draft: OnboardingProfileDraft,
   /** True once the draft has everything needed for the review screen. */
   complete: z.boolean(),
+  /** Pickers for this turn (rendered with the same ChoiceCard as the agent chat). */
+  ui: z.array(DataChoices).default([]),
 });
 export type OnboardingMessageResponse = z.infer<typeof OnboardingMessageResponse>;
 
@@ -460,6 +506,7 @@ export const AgentDataParts = {
     routes: z.array(RouteDto),
   }),
   "budget-impact": BudgetImpact,
+  choices: DataChoices,
 } as const;
 export type AgentDataPartTypes = { [K in keyof typeof AgentDataParts]: z.infer<(typeof AgentDataParts)[K]> };
 
@@ -468,3 +515,33 @@ export const AgentMessageMetadata = z.object({
   replay: z.boolean().optional(),
 });
 export type AgentMessageMetadata = z.infer<typeof AgentMessageMetadata>;
+
+// ---------- Conversations (persisted chats) ----------
+
+/** GET /agent/conversations */
+export const ConversationSummary = z.object({ id: Uuid, title: z.string().nullable(), createdAt: IsoDateTime });
+export type ConversationSummary = z.infer<typeof ConversationSummary>;
+export const ConversationsResponse = z.object({ conversations: z.array(ConversationSummary) });
+export type ConversationsResponse = z.infer<typeof ConversationsResponse>;
+
+/** One stored chat message as an AI SDK UIMessage (text + data parts), rehydrated for its owner. */
+export const StoredUIMessage = z.object({
+  id: z.string(),
+  role: z.enum(["user", "assistant"]),
+  parts: z.array(z.looseObject({ type: z.string() })),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+export type StoredUIMessage = z.infer<typeof StoredUIMessage>;
+
+/** GET /agent/conversations/:id/messages */
+export const ConversationMessagesResponse = z.object({ messages: z.array(StoredUIMessage) });
+export type ConversationMessagesResponse = z.infer<typeof ConversationMessagesResponse>;
+
+/** GET /onboarding/conversation: the caller's latest onboarding conversation (null when none). */
+export const OnboardingConversationResponse = z.object({
+  conversationId: Uuid.nullable(),
+  draft: OnboardingProfileDraft.nullable(),
+  complete: z.boolean(),
+  turns: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string(), ui: z.array(DataChoices).default([]) })),
+});
+export type OnboardingConversationResponse = z.infer<typeof OnboardingConversationResponse>;

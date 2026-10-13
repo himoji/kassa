@@ -75,6 +75,19 @@ bun run dev            # Expo dev-client build for native devices
 
 `env:setup` writes `apps/mobile/.env` with `EXPO_PUBLIC_API_URL=http://localhost:4000`, so the web app reaches the API from port 8081. Passkeys need a secure context, and `localhost` counts as one.
 
+### Running on a phone
+
+```bash
+bun run dev:all                # tunnel + single HTTPS origin + api, mock-world and mobile web; prints the URL and a QR code
+bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
+```
+
+`dev:all` needs `cloudflared` (`brew install cloudflared`). It starts the tunnel, then a proxy on `:8080` so the phone gets one HTTPS origin (web app, `/api` and `/mock`), writes the gitignored `.env.dev-runtime` (`PUBLIC_ORIGIN`, `EXTRA_ORIGINS`, `RP_ID`, `EXPO_PUBLIC_API_URL`) and runs the services through turbo with that env. Scan the QR code with the phone camera. Ctrl-C stops everything.
+
+- **Named tunnel (stable host, recommended):** set `CLOUDFLARED_TUNNEL=<tunnel name>` and `PHONE_HOST=<its hostname>` (route it once with `cloudflared tunnel route dns <name> <host>`). `RP_ID` stays the same across restarts, so passkeys keep working.
+- **Quick tunnel (default):** a random `trycloudflare.com` host that changes on every run, so passkeys made on it stop working after a restart. In this mode `dev:all` sets `DEV_LOGIN=true`: the API accepts `POST /auth/dev/login` and the sign-in screen shows a "Continue as dev user" button.
+- `bun run phone` is the older proxy-and-tunnel-only command; it shares the same tunnel and proxy code (`scripts/lib/`).
+
 ### AI configuration
 
 | Mode | Setting | Needs |

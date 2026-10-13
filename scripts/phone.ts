@@ -20,8 +20,9 @@
  * Flags: `--no-tunnel` runs only the proxy (PHONE_DIST overrides the export dir; used by `bun run demo:video`); `--print-env <host>` prints the env block for a host and exits.
  * Ctrl-C stops the proxy and the tunnel.
  */
-import { existsSync, statSync } from "node:fs";
-import { join, normalize } from "node:path";
+import { join } from "node:path";
+import { startProxy } from "./lib/proxy.ts";
+import { startTunnel } from "./lib/tunnel.ts";
 
 const root = join(import.meta.dir, "..");
 const args = process.argv.slice(2);
@@ -32,13 +33,6 @@ const API = `http://127.0.0.1:${num(process.env.API_PORT, 4000)}`;
 const MOCK = `http://127.0.0.1:${num(process.env.MOCK_PORT, 4001)}`;
 const WEB = `http://127.0.0.1:${num(process.env.WEB_PORT, 8081)}`;
 const DIST = process.env.PHONE_DIST ?? join(root, "apps/mobile/dist");
-
-/** Which upstream serves a path (Caddyfile routing). */
-function upstreamFor(pathname: string): "api" | "mock" | "web" {
-  if (pathname === "/api" || pathname.startsWith("/api/")) return "api";
-  if (pathname === "/mock" || pathname.startsWith("/mock/")) return "mock";
-  return "web";
-}
 
 /** The env block for a public host (no scheme). */
 function envBlock(host: string): string {
@@ -80,69 +74,15 @@ if (printEnvAt >= 0) {
 
 // ---------- proxy ----------
 
-const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-connection", "te", "trailer"];
-
-async function forward(req: Request, base: string, clientIp: string | null): Promise<Response> {
-  const url = new URL(req.url);
-  const headers = new Headers(req.headers);
-  for (const h of HOP_BY_HOP) headers.delete(h);
-  // The API trusts these only with TRUST_PROXY=true (printed above): per-client rate limits behind the tunnel.
-  const prior = req.headers.get("x-forwarded-for");
-  if (clientIp) headers.set("x-forwarded-for", prior ? `${prior}, ${clientIp}` : clientIp);
-  headers.set("x-forwarded-host", url.host);
-  headers.set("x-forwarded-proto", req.headers.get("x-forwarded-proto") ?? "https");
-  try {
-    const res = await fetch(`${base}${url.pathname}${url.search}`, {
-      method: req.method,
-      headers,
-      body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
-      redirect: "manual",
-      // @ts-expect-error Bun: stream request bodies without buffering
-      duplex: "half",
-    });
-    const out = new Headers(res.headers);
-    // fetch already decoded the body: the upstream encoding/length no longer apply.
-    out.delete("content-encoding");
-    out.delete("content-length");
-    return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
-  } catch (err) {
-    return new Response(`upstream ${base} unreachable: ${(err as Error).message}\n`, { status: 502, headers: { "content-type": "text/plain" } });
-  }
-}
-
-/** Static web export with an SPA fallback (Caddyfile try_files {path} {path}.html {path}/index.html /index.html). */
-function serveDist(pathname: string): Response {
-  const safe = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, "");
-  for (const candidate of [safe, `${safe}.html`, join(safe, "index.html"), "/index.html"]) {
-    const file = join(DIST, candidate);
-    if (!file.startsWith(DIST)) continue;
-    if (existsSync(file) && statSync(file).isFile()) return new Response(Bun.file(file));
-  }
-  return new Response("Not found\n", { status: 404 });
-}
-
-const useDist = existsSync(join(DIST, "index.html"));
-
-const server = Bun.serve({
-  port: PORT,
-  hostname: "127.0.0.1",
-  async fetch(req, srv) {
-    const url = new URL(req.url);
-    const ip = srv.requestIP(req)?.address ?? null;
-    const up = upstreamFor(url.pathname);
-    if (up === "api") return forward(req, API, ip);
-    if (up === "mock") return forward(req, MOCK, ip);
-    return useDist ? serveDist(url.pathname) : forward(req, WEB, ip);
-  },
-});
-console.log(`proxy on http://127.0.0.1:${server.port}: /api -> ${API}, /mock -> ${MOCK}, else -> ${useDist ? DIST : WEB}`);
+const proxy = startProxy({ port: PORT, api: API, mock: MOCK, web: WEB, dist: DIST });
+console.log(`proxy on http://127.0.0.1:${proxy.port}: /api -> ${API}, /mock -> ${MOCK}, else -> ${proxy.webTarget}`);
 
 // ---------- tunnel ----------
 
-let child: ReturnType<typeof Bun.spawn> | null = null;
+let tunnel: { stop(): void } | null = null;
 function shutdown(code = 0): never {
-  child?.kill();
-  server.stop(true);
+  tunnel?.stop();
+  proxy.stop();
   process.exit(code);
 }
 process.on("SIGINT", () => shutdown(0));
@@ -151,41 +91,30 @@ process.on("SIGTERM", () => shutdown(0));
 if (args.includes("--no-tunnel")) {
   console.log("--no-tunnel: proxy only. Ctrl-C to stop.");
 } else {
-  if (!Bun.which("cloudflared")) {
-    console.error("cloudflared not found (brew install cloudflared), or run with --no-tunnel.");
-    shutdown(1);
-  }
-  const named = process.env.CLOUDFLARED_TUNNEL;
-  const fixedHost = process.env.PHONE_HOST;
-  const target = `http://127.0.0.1:${server.port}`;
-  if (named && fixedHost) {
-    child = Bun.spawn(["cloudflared", "tunnel", "--no-autoupdate", "run", "--url", target, named], { stdout: "inherit", stderr: "inherit" });
-    printEnv(fixedHost);
-  } else {
+  const name = process.env.CLOUDFLARED_TUNNEL;
+  const hostname = process.env.PHONE_HOST;
+  if (!(name && hostname)) {
     const bar = "!".repeat(78);
     console.warn(
       `\n${bar}\n QUICK TUNNEL: the hostname is random and changes on every restart.\n` +
         ` Passkeys are bound to RP_ID (= this host): after a restart every passkey made on the phones stops working.\n` +
         ` For a stable host set CLOUDFLARED_TUNNEL=<named tunnel> and PHONE_HOST=<its hostname>.\n${bar}\n`,
     );
-    child = Bun.spawn(["cloudflared", "tunnel", "--no-autoupdate", "--url", target], { stdout: "inherit", stderr: "pipe" });
-    // cloudflared logs the assigned https://<random>.trycloudflare.com URL on stderr.
-    const decoder = new TextDecoder();
-    let printed = false;
-    void (async () => {
-      for await (const chunk of child!.stderr as ReadableStream<Uint8Array>) {
-        const text = decoder.decode(chunk);
-        process.stderr.write(text);
-        const m = !printed && /https:\/\/([a-z0-9-]+\.trycloudflare\.com)/.exec(text);
-        if (m) {
-          printed = true;
-          printEnv(m[1]!);
-        }
-      }
-    })();
   }
-  void child.exited.then((code) => {
-    console.error(`cloudflared exited (${code})`);
-    shutdown(code ?? 1);
-  });
+  try {
+    const t = await startTunnel({
+      port: proxy.port,
+      name,
+      hostname,
+      onExit: (code) => {
+        console.error(`cloudflared exited (${code})`);
+        shutdown(code ?? 1);
+      },
+    });
+    tunnel = t;
+    printEnv(t.host);
+  } catch (err) {
+    console.error((err as Error).message);
+    shutdown(1);
+  }
 }
