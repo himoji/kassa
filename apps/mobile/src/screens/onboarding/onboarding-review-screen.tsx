@@ -15,9 +15,10 @@ import { fetchOnboardingConversation } from "@/api/hooks/chat";
 import { useConfirmOnboarding, useOnboardingReview } from "@/api/hooks/onboarding";
 import { useCreateMandate } from "@/api/hooks/payees";
 import { errorText } from "@/components/kassa/error-text";
+import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { QueryView } from "@/components/kassa/query-view";
 import { StatusChip } from "@/components/kassa/status-chip";
-import { Box, Button, Divider, Icon, Loading, Text, useTheme } from "@/components/ui";
+import { Box, Button, Divider, Loading, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
@@ -85,10 +86,6 @@ function SheetBody({
   );
 }
 
-const passkeyIcon = (
-  <Icon name="faceid" fallback="fingerprint" size={20} color="primaryForeground" />
-);
-
 function OnboardingReview() {
   const t = useKassaT();
   const f = useFormat();
@@ -125,14 +122,12 @@ function OnboardingReview() {
         testID="onboarding-mandate-step"
         actions={
           <>
-            <Button
-              size="lg"
+            <PasskeyButton
               onPress={() => void signMandate(mandate)}
               loading={createMandate.isPending}
-              leftIcon={passkeyIcon}
             >
               {t("onboarding:signMandate")}
-            </Button>
+            </PasskeyButton>
             <Button size="lg" variant="ghost" onPress={finish}>
               {t("onboarding:skipMandate")}
             </Button>
@@ -194,14 +189,9 @@ function OnboardingReview() {
             testID="onboarding-review-step"
             actions={
               <>
-                <Button
-                  size="lg"
-                  onPress={() => void signRules()}
-                  loading={confirmRules.isPending}
-                  leftIcon={passkeyIcon}
-                >
+                <PasskeyButton onPress={() => void signRules()} loading={confirmRules.isPending}>
                   {t("onboarding:signRules")}
-                </Button>
+                </PasskeyButton>
                 <Button size="lg" variant="ghost" onPress={() => router.back()}>
                   {t("onboarding:backToChat")}
                 </Button>

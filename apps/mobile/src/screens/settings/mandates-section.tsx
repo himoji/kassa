@@ -6,6 +6,7 @@ import { RowGroup } from "@/components/row-group";
 import { Countdown } from "@/components/kassa/countdown";
 import { errorText } from "@/components/kassa/error-text";
 import { SettingPicker } from "@/components/kassa/native-controls";
+import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { QueryView } from "@/components/kassa/query-view";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { Box, Button, Input, Sheet, Text, toast } from "@/components/ui";
@@ -184,9 +185,9 @@ function CreateMandateSheet({ visible, onClose }: { visible: boolean; onClose: (
               keyboardType="decimal-pad"
             />
             {error ? <Text color="destructive">{error}</Text> : null}
-            <Button size="lg" onPress={() => void submit()} loading={create.isPending}>
+            <PasskeyButton onPress={() => void submit()} loading={create.isPending}>
               {t("settings:mandates.signCreate")}
-            </Button>
+            </PasskeyButton>
           </>
         )}
         <Button variant="ghost" onPress={onClose}>
