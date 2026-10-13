@@ -11,7 +11,15 @@
     "utilities": "Utilities",
     "shopping": "Shopping",
     "health": "Health",
-    "other": "Other"
+    "other": "Other",
+    "fun": "Fun",
+    "subscriptions": "Subscriptions",
+    "travel": "Travel",
+    "phone": "Phone",
+    "sport": "Sport",
+    "beauty": "Beauty",
+    "gifts": "Gifts",
+    "pets": "Pets"
   },
   "close": "Close",
   "countdown": {
@@ -60,5 +68,9 @@
     "PAY_IN_PLACE": "Pay in place"
   },
   "retry": "Try again",
-  "simulated": "Simulated"
+  "simulated": "Simulated",
+  "choose": "Choose",
+  "search": "Search",
+  "searchIn": "Search {{label}}",
+  "noMatches": "Nothing matches."
 }

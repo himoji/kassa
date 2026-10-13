@@ -1,4 +1,4 @@
-# Apple Pay → Kassa (iOS Shortcut)
+# Payment taps → Kassa (iOS Shortcut, Android forwarder)
 
 Each Apple Pay tap on your iPhone can be logged in Kassa by itself. An iOS Shortcuts **Personal Automation** with the
 **Transaction** trigger sends the merchant and amount to Kassa. Kassa logs the spend and replies with one line,
@@ -19,7 +19,7 @@ Capture **only logs**. It never approves, creates or blocks a payment (invariant
 
 ## 1. Create a device token in Kassa
 
-1. In the Kassa app, open **Settings → Apple Pay → Kassa**.
+1. In the Kassa app, open **Settings → Payment taps → Kassa**.
 2. Tap **Create token**.
 3. Tap **Copy "Bearer …" header value**.
    - Kassa shows the token **once**. The server stores only its SHA-256 hash, so it cannot show the token again.
@@ -76,7 +76,7 @@ Tap **Done**.
 1. Pay with Apple Pay. A coffee is enough.
 2. A moment later the Kassa line appears as a notification.
 3. The spend is in **Activity**.
-4. In **Settings → Apple Pay → Kassa**, the device list shows "Last tap received …".
+4. In **Settings → Payment taps → Kassa**, the device list shows "Last tap received …".
 
 ## What Kassa accepts
 
@@ -136,9 +136,57 @@ of the same message.
 
   The real fee is known only when the charge settles.
 
+## Online and in-app Apple Pay (iPhone)
+
+The **Transaction** trigger only runs when you hold the iPhone to a payment terminal. Apple Pay in Safari or inside
+an app goes through a different path (the merchant's payment sheet), and iOS runs no automation for it. No public iOS
+API reports those payments to another app either, so the Shortcut above cannot catch them.
+
+What does arrive for almost every card payment, online or not, is the bank's **SMS**. A second automation forwards
+those to the same endpoint:
+
+1. **Shortcuts** → **Automation** → **+** → **Message**. Under **Message Contains**, enter a word every payment SMS
+   from your bank has (or choose the bank as **Sender**). Choose **Run Immediately**.
+2. Add **Get Contents of URL** with the same URL, method and `Authorization` header. **Request Body**: JSON with
+   `text` = **Shortcut Input › Content** and `app` = **Shortcut Input › Sender**.
+3. Add **Get Dictionary Value** (`nudge`) and **Show Notification**, as above.
+
+Kassa runs the text through its notification parsers (Kazakh banks, Alipay / UnionPay bank SMS, WeChat Pay, Revolut,
+Wise) and, with your AI consent, the Reader. A text that is not a payment is answered with `UNPARSED` and not logged.
+A tap in a shop that also sends an SMS is merged into one entry (`MERGED`).
+
+## Android: Google Wallet, Samsung Wallet, Alipay, WeChat Pay
+
+Android lets an app with notification access read other apps' notifications, so one automation covers every wallet,
+in shops and online. Use the same token and endpoint.
+
+1. Install an automation app, for example **MacroDroid** or **Tasker**.
+2. New macro → trigger **Notification received** → apps: Google Wallet, Samsung Wallet, Alipay, WeChat, your bank's
+   app. Grant notification access when Android asks.
+3. Action **HTTP request**: `POST` the endpoint, header `Authorization: Bearer <token>`, content type
+   `application/json`, body:
+
+   ```json
+   {"app":"[notification_app_package]","title":"[notification_title]","text":"[notification]"}
+   ```
+
+   (MacroDroid magic text; in Tasker use `%anapp`, `%antitle`, `%antext`.)
+4. Optional: save the response and show its `nudge` as a notification.
+
+Formats Kassa reads (`apps/api/src/modules/capture/parsers/wallet.ts`):
+
+| App | Example notification |
+| --- | --- |
+| Google Wallet | title `Cafe Frei`, text `€4.50 with Visa ••1234` (older: `Paid 1 290 Ft at Spar with Mastercard •••• 9876`) |
+| Samsung Wallet | text `Payment of ₸2 500 at Magnum completed` |
+| Alipay | `你在 便利店 消费 ¥32.50` |
+| WeChat Pay | `支付成功 ¥45.00 收款方：面馆` |
+
+Any other app's text goes to the same parsers as a bank SMS (above).
+
 ## Revoking a token
 
-Open **Settings → Apple Pay → Kassa** and tap **Revoke** next to the device. The change is immediate: the next request
+Open **Settings → Payment taps → Kassa** and tap **Revoke** next to the device. The change is immediate: the next request
 with that token gets `401 DEVICE_TOKEN_INVALID`. Revoking is a tightening, so it needs no passkey (I8).
 
 The API calls behind the screen need a user session:

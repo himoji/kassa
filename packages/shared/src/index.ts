@@ -17,6 +17,7 @@ export * from "./webhookHmac.ts";
 export * from "./iban.ts";
 export * from "./fxMath.ts";
 export * from "./appDto.ts";
+export * from "./plan.ts";
 export * from "./intelDto.ts";
 export * from "./privacyDto.ts";
 // (added 2026-10-14, Business M4) business read API

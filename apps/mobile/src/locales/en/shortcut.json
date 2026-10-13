@@ -1,8 +1,8 @@
 {
-  "title": "Apple Pay → Kassa",
-  "settingsHint": "Log iPhone Apple Pay taps with a Shortcut",
-  "intro": "An iOS Shortcut automation sends each Apple Pay tap to Kassa. Kassa logs the spend and answers with one line (budget left, fee or DCC warning) that the Shortcut shows as a notification.",
-  "limits": "Needs iOS 17 or later. Only cards in Apple Wallet trigger it. The amount may be a pre-authorisation that settles later. It only logs spending: it never approves or blocks a payment. A tap made offline is not sent again.",
+  "title": "Payment taps → Kassa",
+  "settingsHint": "Log Apple Pay, Google Pay, Samsung Pay, Alipay and WeChat Pay",
+  "intro": "Your phone sends each payment to Kassa. Kassa logs the spend and answers with one line (budget left, fee or DCC warning) that your phone shows as a notification.",
+  "limits": "Taps in shops: needs iOS 17 or later and a card in Apple Wallet. The amount may be a pre-authorisation that settles later. It only logs spending: it never approves or blocks a payment. A tap made offline is not sent again.",
   "endpointTitle": "Endpoint",
   "endpointFooter": "Paste this as the URL of “Get Contents of URL”.",
   "endpointUnknown": "Set EXPO_PUBLIC_API_URL to show the full address; the path is /api/capture/shortcut on your Kassa server.",
@@ -33,5 +33,34 @@
   "revoke": "Revoke",
   "revokeTitle": "Revoke this Shortcut token?",
   "revokeBody": "The Shortcut stops logging taps at once. Create a new token to connect it again.",
-  "revoked": "Token revoked"
+  "revoked": "Token revoked",
+  "phone": {
+    "iphone": "iPhone",
+    "android": "Android"
+  },
+  "online": {
+    "title": "Online and in-app Apple Pay",
+    "why": "Apple's Transaction trigger only runs for taps at a payment terminal. Apple Pay in Safari or inside an app never reaches it, so Kassa reads the SMS your bank sends for each card payment instead. Chinese bank SMS (尾号…消费…元) work the same way.",
+    "footer": "Only messages you choose are sent. Kassa ignores texts it cannot read as a payment.",
+    "steps": {
+      "1": "Open Shortcuts → Automation → + → Message. Message Contains: a word every payment SMS from your bank has, or pick your bank as the Sender. Choose Run Immediately.",
+      "2": "Add “Get Contents of URL” with the same URL, method and Authorization header as above. Request Body: JSON with text = Shortcut Input › Content and app = Shortcut Input › Sender.",
+      "3": "Add “Get Dictionary Value” for nudge, then “Show Notification”, as above.",
+      "4": "Pay online with Apple Pay. When the bank SMS arrives, the spend is in Activity."
+    }
+  },
+  "android": {
+    "title": "Set up on Android",
+    "limits": "Works with Google Wallet, Samsung Wallet, Alipay, WeChat Pay and your bank's app: anything that shows a notification for a payment, in shops, online or in apps. It only logs spending: it never approves or blocks a payment.",
+    "footer": "Android lets an automation app read notifications; iOS does not, which is why iPhone uses Shortcuts instead.",
+    "copyBody": "Copy JSON body",
+    "steps": {
+      "1": "Create a token above and copy the header value.",
+      "2": "Install an automation app such as MacroDroid or Tasker. New macro → trigger “Notification received” → pick Google Wallet, Samsung Wallet, Alipay, WeChat and your bank app.",
+      "3": "Allow the app notification access when Android asks.",
+      "4": "Action “HTTP request”: POST to the endpoint above, header Authorization = Bearer <token>, content type application/json, with the body below.",
+      "5": "Optional: save the response and show its nudge field as a notification.",
+      "6": "Pay with your phone. A moment later the spend is in Activity."
+    }
+  }
 }

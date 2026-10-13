@@ -87,6 +87,15 @@ function RootStack() {
         name="bills/index"
         options={{ ...largeTitleOptions, headerShown: true, title: t("bills:title") }}
       />
+      {/* Mandatory backup codes (use-require-backup-codes.ts): no swipe-down, no back, until a set is saved. */}
+      <Stack.Screen
+        name="backup-codes"
+        options={{
+          presentation: "fullScreenModal",
+          gestureEnabled: false,
+          headerShown: false,
+        }}
+      />
       <Stack.Screen
         name="credit-record"
         options={{ ...largeTitleOptions, headerShown: true, title: t("credit:title") }}

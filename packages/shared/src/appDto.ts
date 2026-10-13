@@ -419,6 +419,13 @@ export const OnboardingConfirmOptionsRequest = z.object({
   /** Edits made on the review sheet before signing: the caps to sign, and budget limits for the draft's categories. */
   caps: CapsPatch.optional(),
   budgets: z.array(z.object({ category: z.string(), limitHomeMinor: PositiveAmountMinor })).max(20).optional(),
+  /** Budgets the user added by hand on the review sheet (categories the draft does not have yet). */
+  addedBudgets: z
+    .array(z.object({ category: z.string().regex(/^[a-z0-9_]{1,32}$/), limitHomeMinor: PositiveAmountMinor }))
+    .max(20)
+    .optional(),
+  /** Monthly take-home pay in the home currency, edited on the review sheet's planner (replaces the main salary). */
+  monthlyIncomeMinor: PositiveAmountMinor.optional(),
 });
 export type OnboardingConfirmOptionsRequest = z.infer<typeof OnboardingConfirmOptionsRequest>;
 export const OnboardingConfirmOptionsResponse = z.object({
@@ -431,6 +438,11 @@ export const OnboardingConfirmOptionsResponse = z.object({
   suggestedMandate: MandateOptionsRequest.nullable(),
   /** Payee names for `suggestedMandate.payeeIds`, for display. */
   suggestedMandatePayees: z.array(z.object({ id: Uuid, name: z.string() })),
+  /**
+   * The planner's starting point, per month in the home currency: the draft's incomes and its recurring bills,
+   * converted at today's rate (shared/plan.ts cadences). Bills here are not budgets: they are paid as bills.
+   */
+  planBasis: z.object({ monthlyIncomeMinor: AmountMinor, fixedMonthlyMinor: AmountMinor }).optional(),
 });
 export type OnboardingConfirmOptionsResponse = z.infer<typeof OnboardingConfirmOptionsResponse>;
 
@@ -669,3 +681,35 @@ export const RecentCapturesResponse = z.object({
   serverTime: IsoDateTime,
 });
 export type RecentCapturesResponse = z.infer<typeof RecentCapturesResponse>;
+
+// ---------- Savings plan (the "your rules" planner) ----------
+
+/**
+ * POST /plan/advice: income, fixed bills and budgets per month plus a savings goal. The server works out what is left
+ * each month and, when the goal does not fit, suggests lower limits for the flexible budgets (AI-written when the
+ * user allows AI processing, else a deterministic rule). Advice only: nothing is changed until the user applies it.
+ */
+export const PlanAdviceRequest = z.object({
+  currency: CurrencyCode,
+  monthlyIncomeMinor: AmountMinor,
+  fixedMonthlyMinor: AmountMinor,
+  budgets: z
+    .array(z.object({ category: z.string().regex(/^[a-z0-9_]{1,32}$/), limitHomeMinor: PositiveAmountMinor }))
+    .max(20),
+  goal: z.object({ amountMinor: PositiveAmountMinor, months: z.number().int().min(1).max(60) }),
+});
+export type PlanAdviceRequest = z.infer<typeof PlanAdviceRequest>;
+export const PlanAdviceResponse = z.object({
+  source: z.enum(["AI", "RULES"]),
+  /** One or two plain sentences for the user. */
+  summary: z.string(),
+  /** Suggested limits (only the categories that change); empty when the goal already fits. */
+  budgets: z.array(z.object({ category: z.string(), limitHomeMinor: PositiveAmountMinor })),
+  /** Left each month after bills and budgets, with the suggestion applied (may be negative). */
+  monthlyLeftMinor: z.number().int(),
+  /** monthlyLeftMinor × months (0 when negative). */
+  projectedMinor: AmountMinor,
+  /** Months the goal takes at that pace; null when nothing is left to save. */
+  monthsToGoal: z.number().int().positive().nullable(),
+});
+export type PlanAdviceResponse = z.infer<typeof PlanAdviceResponse>;

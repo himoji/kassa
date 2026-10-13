@@ -1,4 +1,4 @@
-export type ParserFormat = "KZ_BANK" | "ALIPAY" | "WECHAT_PAY" | "REVOLUT" | "WISE" | "IOS_SHORTCUT";
+export type ParserFormat = "KZ_BANK" | "ALIPAY" | "WECHAT_PAY" | "REVOLUT" | "WISE" | "IOS_SHORTCUT" | "GOOGLE_WALLET" | "SAMSUNG_WALLET";
 
 export type EventKind = "PURCHASE" | "INCOMING" | "REFUND";
 

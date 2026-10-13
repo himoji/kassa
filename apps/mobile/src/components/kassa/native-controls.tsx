@@ -8,6 +8,8 @@ import { View } from "react-native";
 
 import { Text, useTheme } from "@/components/ui";
 
+import { SEARCH_PICKER_THRESHOLD, SearchPicker } from "./search-picker";
+
 export interface PickerOption<T extends string> {
   value: T;
   label: string;
@@ -22,7 +24,10 @@ interface SettingPickerProps<T extends string> {
   testID?: string;
 }
 
-/** Labelled menu picker row (Apple HIG "Pop-up buttons"; Material 3 exposed dropdown). */
+/**
+ * Labelled menu picker row (Apple HIG "Pop-up buttons"; Material 3 exposed dropdown). A long list (currencies,
+ * countries) gets the search picker instead: a menu of 150 entries is not usable.
+ */
 export function SettingPicker<T extends string>({
   label,
   value,
@@ -32,6 +37,18 @@ export function SettingPicker<T extends string>({
   testID,
 }: SettingPickerProps<T>) {
   const { mode } = useTheme();
+  if (options.length > SEARCH_PICKER_THRESHOLD) {
+    return (
+      <SearchPicker
+        label={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+        disabled={disabled}
+        testID={testID}
+      />
+    );
+  }
   return (
     <View
       testID={testID}

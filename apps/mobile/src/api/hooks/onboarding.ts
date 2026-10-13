@@ -23,6 +23,10 @@ export function useOnboardingMessage() {
 export interface OnboardingReviewEdits {
   caps?: CapsPatch;
   budgets?: { category: string; limitHomeMinor: number }[];
+  /** Budgets added by hand on the sheet (categories the draft does not have). */
+  addedBudgets?: { category: string; limitHomeMinor: number }[];
+  /** The planner's monthly salary (home currency). */
+  monthlyIncomeMinor?: number;
 }
 
 /**
