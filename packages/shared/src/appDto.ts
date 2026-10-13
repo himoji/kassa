@@ -279,14 +279,27 @@ export const ChoiceOption = z.object({
 });
 export type ChoiceOption = z.infer<typeof ChoiceOption>;
 
+/** One row of an "amounts" picker (e.g. a monthly budget per category): a labelled slider with a suggested value. */
+export const AmountsItem = z.object({
+  id: z.string().min(1).max(32),
+  label: z.string().min(1).max(60),
+  emoji: z.string().max(16).optional(),
+  defaultMinor: z.number().int().nonnegative(),
+  minMinor: z.number().int().nonnegative().optional(),
+  maxMinor: z.number().int().optional(),
+  stepMinor: z.number().int().positive().optional(),
+});
+export type AmountsItem = z.infer<typeof AmountsItem>;
+
 /**
  * `data-choices` part: the assistant asks the user to pick instead of type. kind "choice" / "confirm" carry options;
- * "amount" carries a currency + stepper bounds; "date" a date range. `answer` is set once the user answered (history),
+ * "amount" carries a currency + slider bounds; "amounts" several labelled amounts set together (one answer for all);
+ * "date" a date range. `answer` is set once the user answered (history),
  * and the card turns read-only.
  */
 export const DataChoices = z.object({
   id: z.string().min(1).max(64),
-  kind: z.enum(["choice", "confirm", "amount", "date"]).default("choice"),
+  kind: z.enum(["choice", "confirm", "amount", "amounts", "date"]).default("choice"),
   prompt: z.string(),
   options: z.array(ChoiceOption),
   multi: z.boolean().optional(),
@@ -294,6 +307,7 @@ export const DataChoices = z.object({
   amount: z
     .object({ currency: CurrencyCode, defaultMinor: z.number().int().optional(), minMinor: z.number().int().optional(), maxMinor: z.number().int().optional(), stepMinor: z.number().int().optional() })
     .optional(),
+  amounts: z.object({ currency: CurrencyCode, items: z.array(AmountsItem).min(1).max(12) }).optional(),
   date: z.object({ min: IsoDate.optional(), max: IsoDate.optional(), default: IsoDate.optional() }).optional(),
   answer: z.object({ optionIds: z.array(z.string()), value: z.string().optional(), label: z.string() }).optional(),
 });
@@ -301,13 +315,15 @@ export type DataChoices = z.infer<typeof DataChoices>;
 
 /**
  * The user's pick for a `data-choices` part, sent with the message. Options are referenced by id (the server
- * rejects ids that are not in the stored part); "amount" / "date" send `value` (minor units / YYYY-MM-DD).
+ * rejects ids that are not in the stored part); "amount" / "date" send `value` (minor units / YYYY-MM-DD);
+ * "amounts" sends `values`, one per item id (minor units).
  */
 export const ChoiceAnswer = z.object({
   id: z.string().min(1).max(64),
   optionId: z.string().min(1).max(32).optional(),
   optionIds: z.array(z.string().min(1).max(32)).max(8).optional(),
   value: z.string().max(40).optional(),
+  values: z.array(z.object({ id: z.string().min(1).max(32), value: z.string().max(20) })).max(12).optional(),
 });
 export type ChoiceAnswer = z.infer<typeof ChoiceAnswer>;
 
@@ -341,7 +357,12 @@ export const BaseRulesCore = z.object({
 export type BaseRulesCore = z.infer<typeof BaseRulesCore>;
 
 /** POST /onboarding/confirm/options { conversationId } -> the server-built core to review and sign. */
-export const OnboardingConfirmOptionsRequest = z.object({ conversationId: Uuid });
+export const OnboardingConfirmOptionsRequest = z.object({
+  conversationId: Uuid,
+  /** Edits made on the review sheet before signing: the caps to sign, and budget limits for the draft's categories. */
+  caps: CapsPatch.optional(),
+  budgets: z.array(z.object({ category: z.string(), limitHomeMinor: PositiveAmountMinor })).max(20).optional(),
+});
 export type OnboardingConfirmOptionsRequest = z.infer<typeof OnboardingConfirmOptionsRequest>;
 export const OnboardingConfirmOptionsResponse = z.object({
   core: BaseRulesCore,

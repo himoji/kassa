@@ -99,7 +99,14 @@ jest.mock("react-native-keyboard-controller", () =>
   require("react-native-keyboard-controller/jest")
 );
 // The kit's `Sheet` is @expo/ui's native BottomSheet: render its children while presented.
+// Host renders its children; Slider is a plain View carrying its props (tests fire `valueChange` on it).
 jest.mock("@expo/ui", () => ({
+  Host: ({ children }: { children?: import("react").ReactNode }) => children,
+  Slider: (props: Record<string, unknown>) => {
+    const { View } = jest.requireActual<typeof import("react-native")>("react-native");
+    const { createElement } = jest.requireActual<typeof import("react")>("react");
+    return createElement(View, { ...props, testID: (props.testID as string | undefined) ?? "slider" });
+  },
   BottomSheet: ({
     isPresented,
     children,
