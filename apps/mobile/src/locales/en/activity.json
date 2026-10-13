@@ -29,7 +29,8 @@
     "VOICE": "Voice",
     "SCREENSHOT": "Screenshot",
     "SETTLEMENT": "Bank settlement",
-    "KASSA_PAYMENT": "Kassa payment"
+    "KASSA_PAYMENT": "Kassa payment",
+    "IMPORT": "Imported"
   },
   "tab": "Activity",
   "timelineHint": "Every decision and change, in order. Entries cannot be edited.",

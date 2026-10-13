@@ -4,7 +4,9 @@ import {
   BudgetsSetResponse,
   type BudgetsSetRequest,
   CardFeesResponse,
+  CardDto,
   CardsResponse,
+  CreateCardRequest,
   ForecastResponse,
   ObligationsResponse,
   ProposalsResponse,
@@ -60,6 +62,32 @@ export function useCards() {
     queryKey: keys.cards,
     queryFn: ({ signal }) => api.request("/cards", { schema: CardsResponse, signal }),
     enabled: useAuthed(),
+  });
+}
+
+/** POST /cards: a card added by hand (last 4 digits only). */
+export function useCreateCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateCardRequest) =>
+      api.request("/cards", { json: CreateCardRequest.parse(body), schema: CardDto }),
+    onSettled: () =>
+      Promise.all(
+        [keys.cards, keys.cardFees].map((queryKey) => qc.invalidateQueries({ queryKey }))
+      ),
+  });
+}
+
+/** DELETE /cards/:id: past spending stays, without the card. */
+export function useDeleteCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.request(`/cards/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    onSettled: () =>
+      Promise.all(
+        [keys.cards, keys.cardFees].map((queryKey) => qc.invalidateQueries({ queryKey }))
+      ),
   });
 }
 

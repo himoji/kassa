@@ -179,7 +179,7 @@ export async function setTransactionCategory(userId: string, transactionId: stri
   return true;
 }
 
-export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb()): Promise<CaptureEventResponse> {
+export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean } = {}): Promise<CaptureEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   const aiAllowed = aiProcessingAllowedFor(u);
@@ -260,8 +260,9 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   if (first) {
     return { ...base, status: "MERGED", transactionId: row.id, mergedIntoId: first.id, merchantNorm, homeAmountMinor: home.amountMinor, category: cat.category, categorySource: cat.source, notification: null };
   }
-  const display = await merchantDisplayName(userId, merchantNorm, merchantRaw, db);
-  const msg = await onSpendLogged(userId, {
+  // A data import logs history in bulk: no "spent at ..." notification per row.
+  const display = opts.notify === false ? "" : await merchantDisplayName(userId, merchantNorm, merchantRaw, db);
+  const msg = opts.notify === false ? null : await onSpendLogged(userId, {
     transactionId: row.id,
     category: cat.category,
     homeAmountMinor: home.amountMinor,

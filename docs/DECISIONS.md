@@ -696,3 +696,32 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - Why: limits are numbers the user sets deliberately; the passkey already proves it is them, and waiting a day to use a
   raised limit made the review sheet and the chat card feel broken. The agent still cannot change either (I1): the app
   applies the user's own confirmed values.
+
+## 2026-10-13: Backup codes, every ISO currency, manual cards, data import/export, onboarding pickers
+
+- **Backup codes (lost passkey).** The spec has no recovery path: a lost device meant a lost account.
+  Choice: 10 one-time codes (Crockford base32, 50 bits, `XXXXX-XXXXX`), created behind a passkey round trip
+  (428) and shown once; only HMAC-SHA256(code, SESSION_SECRET) is stored (`recovery_codes`, migration 0009).
+  A code registers a new passkey that **replaces** every old one (rules and payments stores), revokes earlier
+  sessions (`users.sessions_revoked_at`) and **freezes payments** (a tightening, I8); moving money again needs
+  the new passkey plus the usual 24 h unfreeze. So a stolen code alone never moves money at once, and the
+  owner sees the freeze. Routes are public, auth-rate-limited, refused to KassaLite sessions.
+- **Every ISO 4217 currency.** `@kassa/shared` takes its table from the `currency-codes` package (the ISO
+  maintenance agency's list) instead of a hand-kept list of five. `SupportedCurrency` stays the five the
+  simulated wallet and rails hold; records, bills, budgets, cards and the home currency accept any code.
+  Live rates: all ECB currencies (Frankfurter) and er-api for the rest; offline rates still cover the five.
+- **Onboarding pickers.** The model often asks two things per reply or asks in prose. Every question now gets
+  buttons (up to two per turn): the known topics (the preset also matches "how hands-on …"), and a question
+  that lists its own answers ("what's it for (dorm, phone, transit…)?") gets those plus "Other…". The home
+  currency options come from the conversation (codes, symbols, currency, country and demonym names) and any
+  other currency can be searched. Onboarding never completes before asking about cards, and says why only
+  the last 4 digits are needed.
+- **Manual cards.** `POST /cards`, `DELETE /cards/:id`. Cards only label spending, so adding or removing one
+  loosens nothing and needs no passkey.
+- **Data import/export.** `GET /export` writes Kassa's own `kassa-export` v1 JSON. `POST /import/preview`
+  maps Kassa's export exactly and any other JSON deterministically (record arrays anywhere in the document,
+  multilingual field-name synonyms plus a Levenshtein match, locale-aware amounts, `chrono-node` dates with
+  the day/month order read from the whole column). No model sees the file. `POST /import/commit` only adds:
+  spending through capture (I6, dedupe, source `IMPORT`, migration 0010, no per-row notifications), bills
+  through the onboarding path (placeholder payees, never payable without account details; sanctions
+  screening, I9), cards. Budgets are applied by the app with `PUT /budgets` and the passkey.

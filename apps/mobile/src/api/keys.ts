@@ -12,6 +12,7 @@ export const keys = {
   payees: ["payees"] as const,
   mandates: ["mandates"] as const,
   caps: ["caps"] as const,
+  recoveryCodes: ["auth", "recovery-codes"] as const,
   shortcutDevices: ["devices", "shortcut"] as const,
   ruleChanges: ["rule-changes", "pending"] as const,
   proposalsPending: ["proposals", "pending"] as const,

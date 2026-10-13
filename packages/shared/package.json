@@ -21,6 +21,7 @@
   "dependencies": {
     "@noble/hashes": "^2.4.0",
     "canonicalize": "^5.1.0",
+    "currency-codes": "2.2.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

@@ -14,7 +14,21 @@
     "MULTI": "Multi-currency card"
   },
   "markup": "{{markup}} median markup from {{samples}} transactions",
-  "noCards": "No cards yet.",
+  "noCards": "No cards yet. Add one so Kassa can match your spending to it.",
+  "add": {
+    "title": "Add a card",
+    "why": "Only the last 4 digits: they tell your cards apart, match bank notifications and Apple Pay taps to the right card, and show each card's hidden conversion fees. Kassa never needs the full number, expiry date or CVV.",
+    "label": "Name",
+    "labelPlaceholder": "e.g. Kaspi Gold",
+    "last4": "Last 4 digits",
+    "currency": "Billing currency",
+    "kind": "Type",
+    "submit": "Add card",
+    "added": "Card added",
+    "invalid": "Enter a name and exactly 4 digits."
+  },
+  "remove": "Remove",
+  "removeConfirm": "Remove the card ending {{last4}}? Past spending stays.",
   "pair": "{{from}} to {{to}}",
   "tab": "Cards",
   "title": "Cards",

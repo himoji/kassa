@@ -5,7 +5,6 @@ import {
   PaymentPolicy,
   PRESET_DEFAULTS,
   Region,
-  SupportedCurrency,
   type MeResponse,
   type SettingsOverrides,
 } from "@kassa/shared";
@@ -21,9 +20,10 @@ import { Box, Icon, Row, Text, setThemeMode, useThemeMode, type ThemeMode } from
 import { auth } from "@/lib/auth";
 import { confirm } from "@/lib/confirm";
 import { env } from "@/lib/env";
-import { useFormat } from "@/lib/format";
+import { currencyCodes, useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
+import { BackupCodesSection } from "./backup-codes-section";
 import { CapsSection } from "./caps-section";
 import { MandatesSection } from "./mandates-section";
 import { PendingChanges } from "./pending-changes";
@@ -94,7 +94,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
         <SettingPicker
           label={t("settings:homeCurrencyLabel")}
           value={s.homeCurrency}
-          options={SupportedCurrency.options.map((c) => ({
+          options={currencyCodes().map((c) => ({
             value: c,
             label: t("settings:currencyOption", { code: c, name: f.currencyName(c) }),
           }))}
@@ -171,6 +171,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
       <PendingChanges />
       <CapsSection />
       <MandatesSection />
+      <BackupCodesSection />
 
       <RowGroup title={t("settings:appearanceTitle")}>
         <SettingPicker<ThemeMode>
@@ -194,6 +195,19 @@ function SettingsBody({ me }: { me: MeResponse }) {
           leading={<Icon name="calendar" fallback="event" size={20} color="foreground" />}
           title={t("bills:title")}
           onPress={() => router.push("/bills")}
+        />
+        <Row
+          leading={
+            <Icon
+              name="arrow.up.arrow.down"
+              fallback="import_export"
+              size={20}
+              color="foreground"
+            />
+          }
+          title={t("settings:data.title")}
+          subtitle={t("settings:data.rowHint")}
+          onPress={() => router.push("/data")}
         />
         <Row
           leading={<Icon name="wave.3.right" fallback="contactless" size={20} color="foreground" />}
