@@ -39,6 +39,5 @@ docs/demo/*.mp4
 
 # KassaLite native project (scripts/lite.ts output; regenerated, never committed)
 apps/mobile/ios-lite/
-
-# vercel link / vercel build (project id, local build output)
-.vercel/
+.vercel
+.env*
