@@ -1,6 +1,8 @@
 import {
   BalancesResponse,
+  CardDto,
   CardsResponse,
+  CreateCardRequest,
   ObligationsResponse,
   SetTransactionCategoryRequest,
   TransactionsResponse,
@@ -183,6 +185,37 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       .from(cards)
       .where(eq(cards.userId, userId));
     return { cards: rows };
+  });
+
+  // Cards added by hand (Cards tab). Adding or removing a card loosens nothing: cards only label spending.
+  app.post("/cards", { schema: { body: CreateCardRequest, response: { 201: CardDto } } }, async (req, reply) => {
+    const userId = userIdOf(req);
+    const db = getDb();
+    const dup = await db.select({ id: cards.id }).from(cards).where(and(eq(cards.userId, userId), eq(cards.last4, req.body.last4), eq(cards.label, req.body.label)));
+    if (dup.length > 0) throw new HttpProblem(409, "CARD_EXISTS", "You already have this card");
+    const row = (
+      await db
+        .insert(cards)
+        .values({ userId, ...req.body })
+        .returning({ id: cards.id, label: cards.label, last4: cards.last4, billingCurrency: cards.billingCurrency, kind: cards.kind })
+    )[0]!;
+    return reply.status(201).send(row);
+  });
+
+  app.delete("/cards/:id", { schema: { params: z.object({ id: z.string().uuid() }) } }, async (req, reply) => {
+    const userId = userIdOf(req);
+    const removed = await getDb().transaction(async (tx) => {
+      const own = await tx.select({ id: cards.id }).from(cards).where(and(eq(cards.id, req.params.id), eq(cards.userId, userId)));
+      if (own.length === 0) return false;
+      // Past spending keeps its record, without the card.
+      await tx.update(transactions).set({ cardId: null }).where(eq(transactions.cardId, req.params.id));
+      await tx.delete(cards).where(eq(cards.id, req.params.id));
+      return true;
+    });
+    if (!removed) {
+      throw await ownedNotFound(userId, "card", req.params.id, async () => (await getDb().select({ id: cards.id }).from(cards).where(eq(cards.id, req.params.id))).length > 0);
+    }
+    return reply.status(204).send();
   });
 
   app.get(

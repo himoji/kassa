@@ -57,28 +57,52 @@ const norm = (s: string) => s.trim().toLowerCase();
  * Several pickers in one turn (a reply that asks two things): the user message answers the one it matches (else
  * the first); the others turn read-only without an answer.
  */
-export function withReplyAnswers(parts: DataChoices[], answerText: string | undefined): DataChoices[] {
-  if (parts.length < 2 || answerText === undefined) return parts.map((p) => withReplyAnswer(p, answerText));
+export function withReplyAnswers(
+  parts: DataChoices[],
+  answerText: string | undefined
+): DataChoices[] {
+  if (parts.length < 2 || answerText === undefined)
+    return parts.map((p) => withReplyAnswer(p, answerText));
   const t = norm(answerText);
   const hit = parts.findIndex((p) =>
     p.options.some((o) => [o.label, o.value, ...(o.spoken ?? [])].some((x) => norm(x) === t))
   );
   const target = hit >= 0 ? hit : 0;
   return parts.map((p, i) =>
-    i === target ? withReplyAnswer(p, answerText) : p.answer ? p : { ...p, answer: { optionIds: [], label: "" } }
+    i === target
+      ? withReplyAnswer(p, answerText)
+      : p.answer
+        ? p
+        : { ...p, answer: { optionIds: [], label: "" } }
   );
 }
 
 /** ISO 4217 currencies matching a typed code or name (English ISO name or the localised one). */
-export function searchCurrencies(query: string, localName: (code: string) => string, limit = 8): string[] {
+export function searchCurrencies(
+  query: string,
+  localName: (code: string) => string,
+  limit = 8
+): string[] {
   const q = norm(query);
   if (!q) return [];
   const scored = CURRENCIES.map((c) => {
     const names = [c.code, c.name, localName(c.code), ...c.countries].map(norm);
-    const score = names[0] === q ? 0 : names[0]!.startsWith(q) ? 1 : names.some((n) => n.startsWith(q)) ? 2 : names.some((n) => n.includes(q)) ? 3 : 9;
+    const score =
+      names[0] === q
+        ? 0
+        : names[0]!.startsWith(q)
+          ? 1
+          : names.some((n) => n.startsWith(q))
+            ? 2
+            : names.some((n) => n.includes(q))
+              ? 3
+              : 9;
     return { code: c.code, score };
   }).filter((c) => c.score < 9);
-  return scored.sort((a, b) => a.score - b.score || a.code.localeCompare(b.code)).slice(0, limit).map((c) => c.code);
+  return scored
+    .sort((a, b) => a.score - b.score || a.code.localeCompare(b.code))
+    .slice(0, limit)
+    .map((c) => c.code);
 }
 
 /** "Other…": a typed answer; for a currency question, a search over every ISO 4217 currency. */
@@ -102,7 +126,9 @@ function OtherAnswer({
     [currency, text, f]
   );
   if (!open) {
-    return <Chip label={t("chat:choice.other")} disabled={disabled} onPress={() => setOpen(true)} />;
+    return (
+      <Chip label={t("chat:choice.other")} disabled={disabled} onPress={() => setOpen(true)} />
+    );
   }
   return (
     <Box gap={2}>
@@ -114,7 +140,9 @@ function OtherAnswer({
           editable={!disabled}
           placeholder={t(currency ? "chat:choice.searchCurrency" : "chat:choice.otherPlaceholder")}
           placeholderTextColor={colors.mutedForeground}
-          accessibilityLabel={t(currency ? "chat:choice.searchCurrency" : "chat:choice.otherPlaceholder")}
+          accessibilityLabel={t(
+            currency ? "chat:choice.searchCurrency" : "chat:choice.otherPlaceholder"
+          )}
           autoCapitalize={currency ? "characters" : "sentences"}
           onSubmitEditing={() => (text.trim() && !currency ? onSend(text.trim()) : undefined)}
           style={{
@@ -404,11 +432,7 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
         <Text weight="semibold">{part.prompt}</Text>
         {body}
         {part.allowOther && !answered && (part.kind === "choice" || part.kind === "confirm") ? (
-          <OtherAnswer
-            part={part}
-            disabled={locked}
-            onSend={(text) => answer({ text }, [])}
-          />
+          <OtherAnswer part={part} disabled={locked} onSend={(text) => answer({ text }, [])} />
         ) : null}
       </Box>
     </Card>
