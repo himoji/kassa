@@ -29,4 +29,12 @@ describe("defaultApiOrigin", () => {
   it("leaves an unset URL unset", () => {
     expect(defaultApiOrigin(undefined, "kassa.example")).toBeUndefined();
   });
+
+  it("under dev:all ignores API_URL on web: tunnel pages same-origin, localhost tabs the dev:all API", () => {
+    const stale = "https://old-dead-host.trycloudflare.com";
+    const devAll = "http://localhost:4000";
+    expect(defaultApiOrigin(stale, "new-host.trycloudflare.com", devAll)).toBeUndefined();
+    expect(defaultApiOrigin(stale, "localhost", devAll)).toBe(devAll);
+    expect(defaultApiOrigin(stale, undefined, devAll)).toBe(stale);
+  });
 });
