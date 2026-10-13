@@ -204,6 +204,19 @@ function SettingsBody({ me }: { me: MeResponse }) {
         <Row
           leading={
             <Icon
+              name="iphone.and.arrow.forward"
+              fallback="phonelink"
+              size={20}
+              color="foreground"
+            />
+          }
+          title={t("lite:pairDevice.rowTitle")}
+          subtitle={t("lite:pairDevice.rowHint")}
+          onPress={() => router.push("/pair-lite")}
+        />
+        <Row
+          leading={
+            <Icon
               name="doc.text.magnifyingglass"
               fallback="description"
               size={20}

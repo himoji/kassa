@@ -14,6 +14,12 @@
   "inputA11y": "Message",
   "newConversation": "New conversation",
   "placeholder": "Ask Kassa",
+  "preparing": {
+    "budgetImpact": "Preparing budget check…",
+    "proposal": "Preparing proposal…",
+    "routes": "Preparing routes…",
+    "choices": "Preparing options…"
+  },
   "replay": "Replay",
   "reviewAndSign": "Review and sign",
   "routeCost": "Cost {{cost}} ({{markup}} markup), arrives {{arrival}}",
@@ -30,5 +36,16 @@
   "tab": "Chat",
   "thinking": "Kassa is thinking",
   "title": "Chat",
-  "working": "Working on it"
+  "working": "Working on it",
+  "choice": {
+    "allowOther": "Or type your own answer below.",
+    "confirm": "Confirm",
+    "answered": "Answered: {{label}}",
+    "amountA11y": "Amount",
+    "dayMinus": "-1 day",
+    "dayPlus": "+1 day",
+    "weekMinus": "-7 days",
+    "weekPlus": "+7 days"
+  },
+  "loadingHistory": "Loading your conversation"
 }

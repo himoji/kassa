@@ -9,12 +9,12 @@ import {
 } from "@kassa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { signWithPasskey } from "@/lib/passkeys";
 import { useSessionStore } from "@/stores/session";
 
 import { api } from "../client";
 import { keys } from "../keys";
 import { withPasskeyGate } from "../passkey-gate";
+import { signPasskeyChallenge } from "../passkey-sign";
 
 export function usePayees() {
   const authed = useSessionStore((s) => s.status) === "authenticated";
@@ -73,7 +73,7 @@ export function useCreateMandate() {
       if (options.webauthnOptions.challenge !== options.mandateHash) {
         throw new Error("Mandate challenge does not match the mandate hash");
       }
-      const assertion = await signWithPasskey(options.webauthnOptions);
+      const assertion = await signPasskeyChallenge(options.webauthnOptions);
       return api.request("/mandates", {
         json: { core: options.core, assertion },
         schema: MandateDto,

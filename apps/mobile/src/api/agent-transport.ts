@@ -1,9 +1,14 @@
 /**
  * Agent chat transport (spec §8 POST /agent/message, §9 streaming). The server answers with an
  * AI SDK UI message stream; on native the global fetch is expo/fetch, which streams bodies.
- * The request body is the spec's `{ conversationId, text }` - the server keeps the history.
+ * The request body is the spec's `{ conversationId, text }` (+ optional `choice`) - the server keeps the history.
  */
-import { AgentDataParts, AgentMessageMetadata, type AgentDataPartTypes } from "@kassa/shared";
+import {
+  AgentDataParts,
+  AgentMessageMetadata,
+  type AgentDataPartTypes,
+  type ChoiceAnswer,
+} from "@kassa/shared";
 import { DefaultChatTransport, type UIMessage } from "ai";
 
 import { api } from "./client";
@@ -29,9 +34,14 @@ export function createAgentTransport(conversationId: string) {
     credentials: api.kind === "web" ? "include" : undefined,
     fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
       api.authorizedFetch(String(input), init)) as typeof globalThis.fetch,
-    prepareSendMessagesRequest: ({ messages }) => ({
-      body: { conversationId, text: lastUserText(messages) },
-    }),
+    // `body` carries the per-request extras of `sendMessage(msg, { body: { choice } })`: a tapped
+    // ChoiceCard answer the server validates against the stored picker.
+    prepareSendMessagesRequest: ({ messages, body }) => {
+      const choice = body?.choice as ChoiceAnswer | undefined;
+      return {
+        body: { conversationId, text: lastUserText(messages), ...(choice ? { choice } : {}) },
+      };
+    },
   });
 }
 

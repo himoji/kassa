@@ -86,6 +86,60 @@ export const ProposePurchaseOrderInput = z.object({
     .max(20),
 });
 
+/*
+ * (added 2026-10-13) Read-only FX lookup. Not a write tool: never counts toward proposal gating.
+ */
+export const GetFxRateInput = z.object({
+  from: Currency,
+  to: Currency,
+  amountMinor: AmountMinor.optional().describe("Amount in `from` minor units to convert; omit for the rate only"),
+  date: z.iso.date().optional().describe("YYYY-MM-DD rate date; omit for today"),
+});
+
+/*
+ * (added 2026-10-13) UI tools: each emits a `data-choices` part and ends the turn, so the app waits for the user's
+ * pick (tap or, later, speech). The server validates the answer against the stored part.
+ */
+const ChoiceOptionInput = z.object({
+  id: z.string().regex(/^[a-z0-9_-]{1,32}$/).describe("Stable option id, e.g. eur"),
+  label: z.string().min(1).max(60).describe("What the button says"),
+  spoken: z.array(z.string().min(1).max(60)).max(6).optional().describe("Synonyms a user may say or type, e.g. ['euro', 'euros']"),
+  value: z.string().max(120).optional().describe("Machine value; defaults to id"),
+});
+export const AskChoiceInput = z.object({
+  prompt: z.string().min(1).max(200),
+  options: z.array(ChoiceOptionInput).min(2).max(8),
+  multi: z.boolean().optional(),
+  allowOther: z.boolean().optional().describe("Let the user type something else"),
+});
+export const AskAmountInput = z.object({
+  prompt: z.string().min(1).max(200),
+  currency: Currency,
+  defaultMinor: AmountMinor.optional(),
+  minMinor: z.number().int().nonnegative().optional(),
+  maxMinor: AmountMinor.optional(),
+  stepMinor: AmountMinor.optional(),
+});
+export const AskDateInput = z.object({
+  prompt: z.string().min(1).max(200),
+  min: z.iso.date().optional(),
+  max: z.iso.date().optional(),
+  default: z.iso.date().optional(),
+});
+export const AskConfirmInput = z.object({
+  prompt: z.string().min(1).max(200),
+  yesLabel: z.string().min(1).max(30).optional(),
+  noLabel: z.string().min(1).max(30).optional(),
+});
+
+export const UI_TOOL_INPUT_SCHEMAS = {
+  ask_choice: AskChoiceInput,
+  ask_amount: AskAmountInput,
+  ask_date: AskDateInput,
+  ask_confirm: AskConfirmInput,
+} as const;
+export type UiToolName = keyof typeof UI_TOOL_INPUT_SCHEMAS;
+
 export const BUSINESS_TOOL_INPUT_SCHEMAS = {
   get_inventory: GetInventoryInput,
   forecast_stock: ForecastStockInput,

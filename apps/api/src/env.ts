@@ -63,6 +63,13 @@ const EnvSchema = z.object({
   SMALL_AUTO_DAILY_AMOUNT_MULTIPLE: z.coerce.number().int().min(0).default(3),
   DEMO_ENABLED: bool,
   DEMO_ADMIN_TOKEN: z.string().optional(),
+  /**
+   * Dev sign-in without a passkey (POST /auth/dev/login, auth/dev.ts). Only with DEMO_ENABLED, never in production,
+   * and only when RP_ID is localhost, a *.trycloudflare.com quick tunnel or PHONE_HOST.
+   */
+  DEV_LOGIN: bool,
+  /** Stable phone host (named tunnel), e.g. kassa.example.com: the server URL KassaLite and the Shortcut use. */
+  PHONE_HOST: z.string().optional(),
   MOCK_WORLD_URL: z.string().url().default("http://localhost:4001"),
   SCHEDULER_ENABLED: z
     .enum(["true", "false", "1", "0"])
