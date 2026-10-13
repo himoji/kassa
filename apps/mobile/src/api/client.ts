@@ -43,7 +43,10 @@ export interface RequestOptions<T> {
 }
 
 export interface ApiClient {
+  /** Current API origin + `/api`; KassaLite swaps it at runtime (`setBaseUrl`) after pairing. */
   readonly baseUrl: string;
+  /** Point the client at another server (KassaLite: the paired, stored server URL). */
+  setBaseUrl(baseUrl: string): void;
   readonly kind: TokenStore["kind"];
   request<T = void>(path: string, options?: RequestOptions<T>): Promise<T>;
   /** `fetch` with the session attached and the refresh-on-401 retry, for streaming endpoints. */
@@ -89,13 +92,23 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
+type ApiErrorListener = (error: KassaApiError) => void;
+const apiErrorListeners = new Set<ApiErrorListener>();
+
+/** Observe every non-2xx answer of `request()` (KassaLite opens the web app on 428 approveInWebApp). */
+export function onApiError(listener: ApiErrorListener): () => void {
+  apiErrorListeners.add(listener);
+  return () => apiErrorListeners.delete(listener);
+}
+
 export function createApiClient(deps: ApiClientDeps): ApiClient {
   const now = deps.now ?? Date.now;
   const timeoutMs = deps.timeoutMs ?? 20_000;
   const { kind } = deps.tokenStore;
+  let baseUrl = deps.baseUrl;
   let refreshing: Promise<SessionTokens | null> | null = null;
 
-  const url = (path: string) => `${deps.baseUrl}/${path.replace(/^\/+/, "")}`;
+  const url = (path: string) => `${baseUrl}/${path.replace(/^\/+/, "")}`;
 
   async function doRefresh(): Promise<SessionTokens | null> {
     const current = await deps.tokenStore.load();
@@ -201,7 +214,11 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
     }
 
     const body = await readBody(response);
-    if (!response.ok) throw new KassaApiError(response.status, body);
+    if (!response.ok) {
+      const error = new KassaApiError(response.status, body);
+      apiErrorListeners.forEach((l) => l(error));
+      throw error;
+    }
     if (!schema) return undefined as T;
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
@@ -213,7 +230,12 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
   }
 
   return {
-    baseUrl: deps.baseUrl,
+    get baseUrl() {
+      return baseUrl;
+    },
+    setBaseUrl(next) {
+      baseUrl = next.replace(/\/+$/, "");
+    },
     kind,
     request,
     authorizedFetch,

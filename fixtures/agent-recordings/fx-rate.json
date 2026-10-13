@@ -1,0 +1,38 @@
+{
+  "scenario": "fx-rate",
+  "description": "Rate / conversion question answered with get_fx_rate (read-only); the reply cites source and date.",
+  "recordedWith": "hand-written",
+  "turns": [
+    {
+      "userText": "what's 100 EUR in KZT?",
+      "match": ["eur in kzt"],
+      "steps": [
+        { "toolCalls": [{ "toolName": "get_fx_rate", "input": { "from": "EUR", "to": "KZT", "amountMinor": 10000 } }] },
+        { "text": "**€100.00 ≈ ₸50,298.00** at 502.98 KZT per EUR.\n\n- Source: NBK, rate of 2026-10-09\n- Mid-market rate; your bank's rate may differ." }
+      ]
+    },
+    {
+      "userText": "which currency should I keep my savings in?",
+      "match": ["savings", "currency"],
+      "steps": [
+        {
+          "text": "Pick the currency you want to save in:",
+          "toolCalls": [
+            {
+              "toolName": "ask_choice",
+              "input": {
+                "prompt": "Savings currency",
+                "options": [
+                  { "id": "kzt", "label": "Tenge (KZT)", "spoken": ["tenge", "kzt"] },
+                  { "id": "eur", "label": "Euro (EUR)", "spoken": ["euro", "euros", "eur"] },
+                  { "id": "huf", "label": "Forint (HUF)", "spoken": ["forint", "huf"] }
+                ]
+              }
+            }
+          ]
+        },
+        { "text": "(never reached: the picker ends the turn)" }
+      ]
+    }
+  ]
+}

@@ -1,33 +1,92 @@
 import { useChat } from "@ai-sdk/react";
 import { Stack } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
+import { fetchConversationMessages } from "@/api/hooks/chat";
 import { useMe } from "@/api/hooks/me";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
+import {
+  ChoiceCard,
+  withReplyAnswer,
+  type ChoiceAnswerInput,
+} from "@/components/kassa/choice-card";
+import { Markdown } from "@/components/kassa/markdown";
 import { ProposalCard } from "@/components/kassa/proposal-card";
 import { RouteComparison } from "@/components/kassa/route-comparison";
-import { Box, Button, Card, Icon, Text, useTheme } from "@/components/ui";
+import { Box, Button, Card, Icon, Loading, Text, useTheme } from "@/components/ui";
+import { readCachedMessages, writeCachedMessages } from "@/lib/chat-cache";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
-import { useChatStore } from "@/stores/chat";
+import { useChatHydrated, useChatStore } from "@/stores/chat";
 
 import { consentNeeded } from "./consent";
 import { ConsentCard } from "./consent-card";
 
 const SUGGESTIONS = ["chat:suggest.tuition", "chat:suggest.budget", "chat:suggest.log"] as const;
 
-function MessageParts({ message }: { message: KassaUIMessage }) {
+/** Collapsed stand-in for a data card while the reply is still streaming. */
+function PendingRow({ label }: { label: string }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        alignSelf: "flex-start",
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 18,
+        borderCurve: "continuous",
+        backgroundColor: colors.muted,
+      }}
+    >
+      <Text variant="caption">{label}</Text>
+    </View>
+  );
+}
+
+/** Text of the first user message after index `i`, if any. */
+function laterUserText(messages: readonly KassaUIMessage[], i: number): string | undefined {
+  const later = messages.slice(i + 1).find((m) => m.role === "user");
+  return later ? messageText(later) : undefined;
+}
+
+function messageText(m: KassaUIMessage): string {
+  return m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+}
+
+/**
+ * Text parts render first, then the data cards they explain. `pending` (last message, still
+ * streaming) keeps the cards collapsed until the reply is complete.
+ */
+function MessageParts({
+  message,
+  pending,
+  answerText,
+  busy,
+  onChoice,
+}: {
+  message: KassaUIMessage;
+  pending?: boolean;
+  /** Text of the user message that followed this one: a picker in this message was answered. */
+  answerText?: string;
+  busy?: boolean;
+  onChoice: (a: ChoiceAnswerInput) => void;
+}) {
   const t = useKassaT();
   const { colors } = useTheme();
   const mine = message.role === "user";
+  const indexed = message.parts.map((part, i) => ({ part, i }));
+  const ordered = [
+    ...indexed.filter(({ part }) => part.type === "text"),
+    ...indexed.filter(({ part }) => part.type !== "text"),
+  ];
   return (
     <View style={{ gap: 8, alignItems: mine ? "flex-end" : "stretch" }}>
       {message.metadata?.replay ? <ReplayBadge force /> : null}
-      {message.parts.map((part, i) => {
+      {ordered.map(({ part, i }) => {
         const key = `${message.id}-${i}`;
         switch (part.type) {
           case "text":
@@ -44,14 +103,20 @@ function MessageParts({ message }: { message: KassaUIMessage }) {
                   backgroundColor: mine ? colors.brandAccent : colors.muted,
                 }}
               >
-                <Text selectable style={mine ? { color: "#ffffff" } : undefined}>
-                  {part.text}
-                </Text>
+                {mine ? (
+                  <Text selectable style={{ color: "#ffffff" }}>
+                    {part.text}
+                  </Text>
+                ) : (
+                  <Markdown>{part.text}</Markdown>
+                )}
               </View>
             );
           case "data-proposal":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.proposal")} />;
             return <ProposalCard key={key} proposal={part.data} />;
           case "data-routes":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.routes")} />;
             return (
               <RouteComparison
                 key={key}
@@ -62,10 +127,21 @@ function MessageParts({ message }: { message: KassaUIMessage }) {
               />
             );
           case "data-budget-impact":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.budgetImpact")} />;
             return (
               <Card key={key}>
                 <BudgetImpactView impact={part.data} />
               </Card>
+            );
+          case "data-choices":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.choices")} />;
+            return (
+              <ChoiceCard
+                key={key}
+                part={withReplyAnswer(part.data, answerText)}
+                onAnswer={onChoice}
+                disabled={busy}
+              />
             );
           default:
             if (part.type.startsWith("tool-") || part.type === "dynamic-tool") {
@@ -84,17 +160,106 @@ function MessageParts({ message }: { message: KassaUIMessage }) {
   );
 }
 
+/**
+ * Loads the conversation before `useChat` exists: the encrypted offline copy shows at once (native),
+ * the server history replaces it as soon as it arrives. A 404 (the id is unknown to this account)
+ * mints a new conversation id once.
+ */
 export function ChatScreen() {
   const t = useKassaT();
-  const { colors } = useTheme();
+  const hydrated = useChatHydrated();
   const conversationId = useChatStore((s) => s.conversationId);
   const newConversation = useChatStore((s) => s.newConversation);
+  const [history, setHistory] = useState<{
+    id: string;
+    cached?: KassaUIMessage[];
+    server?: KassaUIMessage[] | null;
+    failed?: boolean;
+  } | null>(null);
+  const rotated = useRef(false);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const ctrl = new AbortController();
+    let live = true;
+    const patch = (next: Partial<NonNullable<typeof history>>) => {
+      if (live) {
+        setHistory((h) => ({
+          ...(h?.id === conversationId ? h : { id: conversationId }),
+          ...next,
+        }));
+      }
+    };
+    void readCachedMessages<KassaUIMessage>(conversationId).then((cached) => patch({ cached }));
+    fetchConversationMessages(conversationId, ctrl.signal)
+      .then((server) => {
+        if (!live) return;
+        if (server === null && !rotated.current) {
+          rotated.current = true;
+          newConversation();
+          return;
+        }
+        patch({ server: (server ?? []) as unknown as KassaUIMessage[] });
+      })
+      .catch(() => patch({ failed: true }));
+    return () => {
+      live = false;
+      ctrl.abort();
+    };
+  }, [hydrated, conversationId, newConversation]);
+
+  const ready =
+    history?.id === conversationId &&
+    (history.server !== undefined || history.failed || (history.cached?.length ?? 0) > 0);
+  if (!hydrated || !history || !ready) {
+    return <Loading label={t("chat:loadingHistory")} />;
+  }
+  return (
+    <ChatSession
+      key={conversationId}
+      conversationId={conversationId}
+      initial={history.server ?? history.cached ?? []}
+      server={history.server ?? undefined}
+    />
+  );
+}
+
+function ChatSession({
+  conversationId,
+  initial: initialProp,
+  server,
+}: {
+  conversationId: string;
+  initial: KassaUIMessage[];
+  server: KassaUIMessage[] | undefined;
+}) {
+  const t = useKassaT();
+  const { colors } = useTheme();
+  const newConversation = useChatStore((s) => s.newConversation);
+  // What the session started with (cache or server); `server` is compared against it below.
+  const [initial] = useState(initialProp);
   const transport = useMemo(() => createAgentTransport(conversationId), [conversationId]);
-  const { messages, sendMessage, status, error, stop, regenerate } = useChat<KassaUIMessage>({
-    id: conversationId,
-    transport,
-    ...agentChatSchemas,
-  });
+  const { messages, setMessages, sendMessage, status, error, stop, regenerate } =
+    useChat<KassaUIMessage>({
+      id: conversationId,
+      messages: initial,
+      transport,
+      ...agentChatSchemas,
+    });
+  const touched = useRef(false);
+
+  // The server history arrives after the cached copy was shown: it wins, unless the user already
+  // started typing to the agent in this session.
+  useEffect(() => {
+    if (server && server !== initial && !touched.current) setMessages(server);
+  }, [server, initial, setMessages]);
+
+  // Offline copy (native; encrypted, last 50): refreshed whenever a reply has settled.
+  useEffect(() => {
+    if (status === "ready" && messages.length > 0) {
+      void writeCachedMessages(conversationId, messages);
+    }
+  }, [status, messages, conversationId]);
   const [input, setInput] = useState("");
   const scroll = useRef<ScrollView>(null);
   const busy = status === "submitted" || status === "streaming";
@@ -105,7 +270,15 @@ export function ChatScreen() {
     if (!trimmed || busy) return;
     haptics.selection();
     setInput("");
+    touched.current = true;
     void sendMessage({ text: trimmed });
+  };
+
+  const choose = (a: ChoiceAnswerInput) => {
+    if (busy) return;
+    haptics.selection();
+    touched.current = true;
+    void sendMessage({ text: a.text }, { body: { choice: a.choice } });
   };
 
   return (
@@ -161,7 +334,16 @@ export function ChatScreen() {
               </Box>
             </Box>
           ) : (
-            messages.map((m) => <MessageParts key={m.id} message={m} />)
+            messages.map((m, i) => (
+              <MessageParts
+                key={m.id}
+                message={m}
+                pending={status === "streaming" && i === messages.length - 1}
+                answerText={laterUserText(messages, i)}
+                busy={busy}
+                onChoice={choose}
+              />
+            ))
           )}
           {status === "submitted" ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
           {error && consentNeeded(error) ? (

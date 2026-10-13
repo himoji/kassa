@@ -28,7 +28,11 @@ export type AuditType =
   // (added 2026-10-12, Track Y3) PIPL Art. 38–39 separate cross-border consent (region CN)
   | "PIPL_CONSENT_GIVEN"
   | "PIPL_CONSENT_WITHDRAWN"
-  | "RETENTION_PURGED";
+  | "RETENTION_PURGED"
+  // (added 2026-10-13) KassaLite pairing (auth/pair.ts)
+  | "DEVICE_PAIRING_STARTED"
+  | "DEVICE_PAIRING_FAILED"
+  | "DEVICE_PAIRED";
 
 export async function audit(type: AuditType, payload: Record<string, unknown>, tx?: DbOrTx): Promise<void> {
   await ledger.append(type, payload, tx);

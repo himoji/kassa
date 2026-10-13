@@ -1,6 +1,19 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
-  "ui": "stream",
+  "ui": "tui",
+  "globalPassThroughEnv": [
+    "PUBLIC_ORIGIN",
+    "EXTRA_ORIGINS",
+    "RP_ID",
+    "EXPO_PUBLIC_API_URL",
+    "TRUST_PROXY",
+    "MOCK_PUBLIC_URL",
+    "KASSA_APP_URL",
+    "DEV_LOGIN",
+    "DEMO_ENABLED",
+    "PHONE_HOST",
+    "CLOUDFLARED_TUNNEL"
+  ],
   "tasks": {
     "dev": {
       "cache": false,

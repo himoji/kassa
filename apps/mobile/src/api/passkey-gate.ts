@@ -4,9 +4,8 @@
  */
 import type { AuthenticationResponseJSON } from "@kassa/shared";
 
-import { signWithPasskey } from "@/lib/passkeys";
-
 import { KassaApiError } from "./errors";
+import { signPasskeyChallenge } from "./passkey-sign";
 
 export interface PasskeyProof {
   challengeId?: string;
@@ -19,7 +18,7 @@ export async function withPasskeyGate<T>(send: (proof: PasskeyProof) => Promise<
   } catch (err) {
     const challenge = err instanceof KassaApiError ? err.passkeyChallenge : null;
     if (!challenge) throw err;
-    const assertion = await signWithPasskey(challenge.webauthnOptions);
+    const assertion = await signPasskeyChallenge(challenge.webauthnOptions);
     return send({ challengeId: challenge.challengeId, assertion });
   }
 }

@@ -1,7 +1,14 @@
+import { randomUUID } from "node:crypto";
+
 import { tool, type ToolSet, type UIMessageChunk } from "ai";
 
 import {
+  AskAmountInput,
+  AskChoiceInput,
+  AskConfirmInput,
+  AskDateInput,
   ForecastCoverageInput,
+  GetFxRateInput,
   ForecastStockInput,
   GetBalancesInput,
   GetInventoryInput,
@@ -15,6 +22,7 @@ import {
   ProposePurchaseOrderInput,
   ReadDocumentInput,
   SearchCatalogInput,
+  type DataChoices,
   type Fulfillment,
   type OrderItem,
   type ProposeOrderResult,
@@ -24,6 +32,8 @@ import { isAiConfigError } from "../ai/errors.ts";
 import { parseAmountString } from "../capture/amount.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { normalizeMerchant } from "../capture/normalize.ts";
+import { rates, type RateSource } from "../fx/rates.ts";
+import { convertMinor } from "../fx/rational.ts";
 import type { ReaderResult } from "../reader/index.ts";
 import type { AgentPorts, PayeeRow } from "./ports.ts";
 import type { RedactContext, Redactor } from "./redact.ts";
@@ -49,6 +59,8 @@ export interface ToolContext {
   proposals: ProposeOrderResult[];
   /** (M5) BUSINESS account: add the business tool set (get_inventory, forecast_stock, propose_purchase_order). */
   business?: boolean;
+  /** Set when a UI tool (ask_*) emitted a picker: the turn ends and the app waits for the user. */
+  awaitingUser?: { choiceId: string } | null;
 }
 
 export type ToolName =
@@ -65,7 +77,75 @@ export type ToolName =
   | "log_expense"
   | "get_inventory"
   | "forecast_stock"
-  | "propose_purchase_order";
+  | "propose_purchase_order"
+  | "get_fx_rate"
+  | "ask_choice"
+  | "ask_amount"
+  | "ask_date"
+  | "ask_confirm";
+
+/** Read-only tools added on top of the spec's eleven; never part of proposal gating. */
+export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate"];
+
+/** UI tools: each emits a `data-choices` part and ends the turn (loop.ts stopWhen). */
+export const UI_TOOLS: readonly ToolName[] = ["ask_choice", "ask_amount", "ask_date", "ask_confirm"];
+
+const FX_SOURCE: Record<RateSource, "ECB" | "NBK" | "fallback" | "static"> = { ECB_FRANKFURTER: "ECB", NBK: "NBK", FALLBACK_ER_API: "fallback", STATIC_EXAMPLE: "static" };
+
+/** get_fx_rate: mid-market rate (fx/rates.ts) and, when given, the converted amount (exact rational, fx/rational.ts). */
+export async function fxRate(input: { from: string; to: string; amountMinor?: number | undefined; date?: string | undefined }) {
+  const date = input.date ?? isoDate(clock.now());
+  const q = await rates().getRate(input.from, input.to, date);
+  return {
+    from: input.from,
+    to: input.to,
+    rate: q.rateString,
+    ...(input.amountMinor !== undefined ? { amountMinor: input.amountMinor, convertedMinor: convertMinor(input.amountMinor, input.from, input.to, q.rate) } : {}),
+    source: FX_SOURCE[q.source],
+    asOf: q.rateDate,
+  };
+}
+
+/** The `data-choices` part an ask_* tool input describes (choiceId is minted by the server). */
+export function choicePart(toolName: string, input: Record<string, unknown>, choiceId: string): DataChoices | null {
+  switch (toolName) {
+    case "ask_choice": {
+      const i = AskChoiceInput.parse(input);
+      return {
+        id: choiceId,
+        kind: "choice",
+        prompt: i.prompt,
+        options: i.options.map((o) => ({ id: o.id, label: o.label, value: o.value ?? o.id, ...(o.spoken ? { spoken: o.spoken } : {}) })),
+        ...(i.multi ? { multi: true } : {}),
+        ...(i.allowOther ? { allowOther: true } : {}),
+      };
+    }
+    case "ask_confirm": {
+      const i = AskConfirmInput.parse(input);
+      return {
+        id: choiceId,
+        kind: "confirm",
+        prompt: i.prompt,
+        options: [
+          { id: "yes", label: i.yesLabel ?? "Yes", value: "yes", spoken: ["yes", "yeah", "yep", "sure", "ok", "okay"] },
+          { id: "no", label: i.noLabel ?? "No", value: "no", spoken: ["no", "nope", "not now"] },
+        ],
+      };
+    }
+    case "ask_amount": {
+      const i = AskAmountInput.parse(input);
+      const { prompt, ...amount } = i;
+      return { id: choiceId, kind: "amount", prompt, options: [], amount };
+    }
+    case "ask_date": {
+      const i = AskDateInput.parse(input);
+      const { prompt, ...date } = i;
+      return { id: choiceId, kind: "date", prompt, options: [], date };
+    }
+    default:
+      return null;
+  }
+}
 
 const STATUS_RANK: Record<PayeeRow["status"], number> = { VERIFIED: 0, COOLING: 1, BLOCKED: 2 };
 
@@ -413,9 +493,44 @@ export function buildTools(ctx: ToolContext): ToolSet {
         return { status: r.status, category: r.category, amountMinor: r.amountMinor, currency: r.currency, homeAmountMinor: r.homeAmountMinor, budget: r.notification?.en.body ?? null };
       }),
     }),
+
+    get_fx_rate: tool({
+      description: "Exchange rate from → to (mid-market, ECB / NBK) and, with amountMinor, the converted amount. Read-only. Cite source and asOf date.",
+      inputSchema: GetFxRateInput,
+      execute: safe(async (input) => fxRate(input)),
+    }),
+
+    ...uiTools(ctx),
   };
   const business = ctx.business && ports.business ? businessTools(ctx, ports.business, { ref, out, allPayees }) : {};
   return { ...personal, ...business };
+}
+
+/**
+ * ask_choice / ask_amount / ask_date / ask_confirm: emit a `data-choices` part and end the turn. The output tells the
+ * model the picker is shown; the user's answer arrives as the next user message (validated in choices.ts).
+ */
+export function uiTools(ctx: Pick<ToolContext, "emit" | "awaitingUser">, only: readonly string[] = UI_TOOLS): ToolSet {
+  const make = (name: string, description: string, inputSchema: typeof AskChoiceInput | typeof AskAmountInput | typeof AskDateInput | typeof AskConfirmInput) =>
+    tool({
+      description,
+      inputSchema: inputSchema as typeof AskChoiceInput,
+      execute: async (input: Record<string, unknown>) => {
+        const choiceId = `ch_${randomUUID().slice(0, 8)}`;
+        const part = choicePart(name, input, choiceId);
+        if (!part) return { error: "UNKNOWN_UI_TOOL" };
+        ctx.emit({ type: "data-choices", id: choiceId, data: part });
+        ctx.awaitingUser = { choiceId };
+        return { shown: true, choiceId, next: "Stop here; the user answers in their next message." };
+      },
+    });
+  const all: ToolSet = {
+    ask_choice: make("ask_choice", "Show the user tappable options (chips) instead of asking them to type. Ends your turn.", AskChoiceInput),
+    ask_amount: make("ask_amount", "Show an amount stepper in a currency (minor units). Ends your turn.", AskAmountInput),
+    ask_date: make("ask_date", "Show a date picker. Ends your turn.", AskDateInput),
+    ask_confirm: make("ask_confirm", "Show Yes / No buttons. Ends your turn.", AskConfirmInput),
+  };
+  return Object.fromEntries(Object.entries(all).filter(([k]) => only.includes(k)));
 }
 
 /**

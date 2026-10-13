@@ -17,5 +17,5 @@
     "nativewind-env.d.ts",
     "jest.setup.ts"
   ],
-  "exclude": ["node_modules", "modules/**", "examples/**", "ios", "android"]
+  "exclude": ["node_modules", "modules/**", "examples/**", "ios", "ios-lite", "android"]
 }
