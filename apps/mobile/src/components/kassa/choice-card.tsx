@@ -19,11 +19,14 @@ export interface ChoiceAnswerInput {
   /** The user message text: the option label / formatted amount / date. */
   text: string;
   choice: ChoiceAnswer;
+  /** A budgets card (`amounts.purpose` "budgets"): the limits to apply before the answer is sent. */
+  budgets?: { category: string; limitHomeMinor: number }[];
 }
 
 export interface ChoiceCardProps {
   part: DataChoices;
-  onAnswer: (answer: ChoiceAnswerInput) => void;
+  /** Resolving to `false` (e.g. the budgets could not be applied) unlocks the card again. */
+  onAnswer: (answer: ChoiceAnswerInput) => void | boolean | Promise<void | boolean>;
   /** True while a reply is in flight: the card cannot answer. */
   disabled?: boolean;
 }
@@ -96,7 +99,9 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
   const answer = (a: ChoiceAnswerInput, optionIds: string[]) => {
     if (locked) return;
     setLocal({ label: a.text, optionIds });
-    onAnswer(a);
+    void Promise.resolve(onAnswer(a)).then((ok) => {
+      if (ok === false) setLocal(null);
+    });
   };
 
   const amountCfg = part.amount;
@@ -202,6 +207,11 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
                   id: part.id,
                   values: items.map((i) => ({ id: i.id, value: String(i.valueMinor) })),
                 },
+                ...(amountsCfg.purpose === "budgets"
+                  ? {
+                      budgets: items.map((i) => ({ category: i.id, limitHomeMinor: i.valueMinor })),
+                    }
+                  : {}),
               },
               []
             )

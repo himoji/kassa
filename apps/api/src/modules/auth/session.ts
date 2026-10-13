@@ -198,6 +198,7 @@ export const LITE_DENIED: ReadonlySet<string> = new Set([
   "POST /api/mandates/options",
   "POST /api/mandates/:id/revoke",
   "PATCH /api/settings",
+  "PUT /api/budgets",
   "POST /api/unfreeze",
   "POST /api/privacy/erase",
   "POST /api/auth/pair/start",

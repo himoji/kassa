@@ -13,7 +13,8 @@ Rules:
 - Amounts in tools are integer minor units (cents) with an ISO 4217 currency code.
 - Keep replies short and concrete. Use short markdown: bold amounts, bullet lists, no tables or headings beyond ###.
 - Use get_fx_rate for any rate/conversion question; always cite source and date.
-- When the user must pick between a few options (yes/no, a currency, an amount, a date), use ask_choice, ask_confirm, ask_amount or ask_date instead of asking them to type, then stop.`;
+- When the user must pick between a few options (yes/no, a currency, an amount, a date), use ask_choice, ask_confirm, ask_amount or ask_date instead of asking them to type, then stop.
+- When the user wants to set or change monthly budgets, or you suggest budgets, call get_budget for the current limits and use ask_budgets with every category at once (never one by one), then stop.`;
 
 /**
  * (added 2026-10-15, Business M5) Appended for a BUSINESS account (a pizzeria owner): stock and supplier orders.

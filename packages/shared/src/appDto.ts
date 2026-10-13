@@ -307,7 +307,8 @@ export const DataChoices = z.object({
   amount: z
     .object({ currency: CurrencyCode, defaultMinor: z.number().int().optional(), minMinor: z.number().int().optional(), maxMinor: z.number().int().optional(), stepMinor: z.number().int().optional() })
     .optional(),
-  amounts: z.object({ currency: CurrencyCode, items: z.array(AmountsItem).min(1).max(12) }).optional(),
+  /** `purpose: "budgets"`: item ids are budget categories and the app applies the confirmed values (PUT /budgets). */
+  amounts: z.object({ currency: CurrencyCode, items: z.array(AmountsItem).min(1).max(12), purpose: z.enum(["budgets"]).optional() }).optional(),
   date: z.object({ min: IsoDate.optional(), max: IsoDate.optional(), default: IsoDate.optional() }).optional(),
   answer: z.object({ optionIds: z.array(z.string()), value: z.string().optional(), label: z.string() }).optional(),
 });
@@ -326,6 +327,28 @@ export const ChoiceAnswer = z.object({
   values: z.array(z.object({ id: z.string().min(1).max(32), value: z.string().max(20) })).max(12).optional(),
 });
 export type ChoiceAnswer = z.infer<typeof ChoiceAnswer>;
+
+/**
+ * PUT /budgets: this month's limit per category (home currency). Lowering a limit or adding a category tightens the
+ * rules and applies at once; raising one loosens them (a bigger budget lowers the risk score), so like any loosening
+ * (I8) it needs a passkey (HTTP 428 round trip, as SettingsPatchRequest) and applies after 24 hours.
+ */
+export const BudgetsSetRequest = z.object({
+  budgets: z
+    .array(z.object({ category: z.string().regex(/^[a-z0-9_]{1,32}$/), limitHomeMinor: PositiveAmountMinor }))
+    .min(1)
+    .max(20),
+  challengeId: z.string().optional(),
+  assertion: AuthenticationResponseJSON.optional(),
+});
+export type BudgetsSetRequest = z.infer<typeof BudgetsSetRequest>;
+export const BudgetsSetResponse = z.object({
+  /** Categories set now (new or lowered). */
+  applied: z.array(z.string()),
+  /** Raised categories, waiting out the 24 h delay. */
+  pending: z.array(z.object({ category: z.string(), limitHomeMinor: z.number().int(), effectiveAt: IsoDateTime })),
+});
+export type BudgetsSetResponse = z.infer<typeof BudgetsSetResponse>;
 
 /** POST /onboarding/message */
 export const OnboardingMessageRequest = z.object({
