@@ -10,11 +10,13 @@
  * The web app on the tunnel calls its own origin (/api through the proxy); localhost tabs call the API directly.
  * The derived env (PUBLIC_ORIGIN, EXTRA_ORIGINS, RP_ID, EXPO_PUBLIC_API_URL, ...) is written to the gitignored
  * `.env.dev-runtime` and merged into turbo's environment (declared in globalPassThroughEnv in turbo.json).
+ * cloudflared logs go to `.data/cloudflared.log`, shown with the URL + QR in turbo's `//#dev:tunnel` pane.
  * Ctrl-C / SIGTERM stops turbo, the proxy and the tunnel.
  */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import QRCode from "qrcode";
+import { TUNNEL_LOG } from "./dev-tunnel.ts";
 import { startProxy } from "./lib/proxy.ts";
 import { startTunnel, type Tunnel } from "./lib/tunnel.ts";
 
@@ -73,6 +75,8 @@ if (noTunnel) {
       port: proxy.port,
       name,
       hostname,
+      // Into a file, not the terminal: turbo's TUI owns it next. The //#dev:tunnel pane follows the file.
+      logFile: TUNNEL_LOG,
       onExit: (code) => {
         console.error(`cloudflared exited (${code})`);
         shutdown(code ?? 1);
@@ -109,6 +113,7 @@ if (noTunnel) {
   console.log(`\nKassa on phones: ${tunnel.url}  (${tunnel.kind} tunnel)\n`);
   console.log(await QRCode.toString(tunnel.url, { type: "terminal", small: true }));
 
-  // api + mock-world dev, and the mobile web server the proxy forwards to (apps/mobile "web" task).
-  runTurbo(["@kassa/api#dev", "@kassa/mock-world#dev", "@kassa/mobile#web"], { ...process.env, ...runtime });
+  // api + mock-world dev, the mobile web server the proxy forwards to (apps/mobile "web" task), and the tunnel pane
+  // (URL, QR code, cloudflared log; the URL and QR printed above are cleared once the TUI starts).
+  runTurbo(["@kassa/api#dev", "@kassa/mock-world#dev", "@kassa/mobile#web", "//#dev:tunnel"], { ...process.env, ...runtime });
 }
