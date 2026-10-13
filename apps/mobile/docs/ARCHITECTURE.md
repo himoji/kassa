@@ -42,7 +42,10 @@ flowchart LR
     nroute__tabs__cards__layout["/cards (layout)"]
     nroute__tabs__chat__layout["/chat (layout)"]
     nroute__tabs__home__layout["/home (layout)"]
+    nroute__tabs__orders__layout["/orders (layout)"]
     nroute__tabs__settings__layout["/settings (layout)"]
+    nroute__tabs__stock__layout["/stock (layout)"]
+    nroute__tabs__today__layout["/today (layout)"]
     nroute__["/"]
     nroute___not_found["/+not-found"]
     nroute__activity["/activity"]
@@ -57,10 +60,16 @@ flowchart LR
     nroute__onboarding_chat["/onboarding/chat"]
     nroute__onboarding_review["/onboarding/review"]
     nroute__order__proposalId_["/order/[proposalId]"]
+    nroute__orders["/orders"]
+    nroute__pair_lite["/pair-lite"]
+    nroute__pay__billId_["/pay/[billId]"]
     nroute__payees["/payees"]
     nroute__payees__id_["/payees/[id]"]
     nroute__register["/register"]
     nroute__settings["/settings"]
+    nroute__shortcut["/shortcut"]
+    nroute__stock["/stock"]
+    nroute__today["/today"]
     nroute__verify__id_["/verify/[id]"]
     nroute__welcome["/welcome"]
     nroute_onboarding__layout["/onboarding (layout)"]
@@ -68,17 +77,31 @@ flowchart LR
   subgraph screens["screen"]
     nscreen_activity_activity_screen["@/screens/activity/activity-screen"]
     nscreen_activity_ledger_entry["@/screens/activity/ledger-entry"]
+    nscreen_activity_notification_text["@/screens/activity/notification-text"]
     nscreen_auth_login_screen["@/screens/auth/login-screen"]
     nscreen_auth_register_screen["@/screens/auth/register-screen"]
     nscreen_auth_welcome_screen["@/screens/auth/welcome-screen"]
     nscreen_bills_bills_screen["@/screens/bills/bills-screen"]
+    nscreen_business_business_text["@/screens/business/business-text"]
+    nscreen_business_orders_screen["@/screens/business/orders-screen"]
+    nscreen_business_stock_screen["@/screens/business/stock-screen"]
+    nscreen_business_today_screen["@/screens/business/today-screen"]
     nscreen_cards_cards_screen["@/screens/cards/cards-screen"]
     nscreen_chat_chat_screen["@/screens/chat/chat-screen"]
+    nscreen_chat_consent["@/screens/chat/consent"]
+    nscreen_chat_consent_card["@/screens/chat/consent-card"]
     nscreen_credit_credit_record_screen["@/screens/credit/credit-record-screen"]
     nscreen_demo_demo_screen["@/screens/demo/demo-screen"]
     nscreen_demo_notification_samples["@/screens/demo/notification-samples"]
     nscreen_handoff_handoff_screen["@/screens/handoff/handoff-screen"]
     nscreen_home_home_screen["@/screens/home/home-screen"]
+    nscreen_lite_activity_screen["@/screens/lite/activity-screen"]
+    nscreen_lite_lite_root["@/screens/lite/lite-root"]
+    nscreen_lite_lock_screen["@/screens/lite/lock-screen"]
+    nscreen_lite_pair_screen["@/screens/lite/pair-screen"]
+    nscreen_lite_settings_screen["@/screens/lite/settings-screen"]
+    nscreen_onboarding_draft_content["@/screens/onboarding/draft-content"]
+    nscreen_onboarding_mandate_offer["@/screens/onboarding/mandate-offer"]
     nscreen_onboarding_onboarding_chat_screen["@/screens/onboarding/onboarding-chat-screen"]
     nscreen_onboarding_onboarding_review_screen["@/screens/onboarding/onboarding-review-screen"]
     nscreen_order_order_sheet_screen["@/screens/order/order-sheet-screen"]
@@ -87,10 +110,14 @@ flowchart LR
     nscreen_payees_payees_screen["@/screens/payees/payees-screen"]
     nscreen_settings_caps_section["@/screens/settings/caps-section"]
     nscreen_settings_mandates_section["@/screens/settings/mandates-section"]
+    nscreen_settings_pair_lite_screen["@/screens/settings/pair-lite-screen"]
     nscreen_settings_pending_changes["@/screens/settings/pending-changes"]
     nscreen_settings_preset_cards["@/screens/settings/preset-cards"]
     nscreen_settings_settings_screen["@/screens/settings/settings-screen"]
+    nscreen_settings_shortcut_screen["@/screens/settings/shortcut-screen"]
     nscreen_settings_use_settings_update["@/screens/settings/use-settings-update"]
+    nscreen_shop_pay_bill_screen["@/screens/shop/pay-bill-screen"]
+    nscreen_shop_shop_order_timeline["@/screens/shop/shop-order-timeline"]
     nscreen_verify_verify_screen["@/screens/verify/verify-screen"]
   end
   subgraph hooks["hook"]
@@ -119,10 +146,13 @@ flowchart LR
     nlib_browser["@/lib/browser"]
     nlib_cache["@/lib/cache"]
     nlib_categories["@/lib/categories"]
+    nlib_chat_cache["@/lib/chat-cache"]
+    nlib_chat_cache_web["@/lib/chat-cache.web"]
     nlib_clipboard["@/lib/clipboard"]
     nlib_confirm["@/lib/confirm"]
     nlib_consent["@/lib/consent"]
     nlib_crash["@/lib/crash"]
+    nlib_demo_personas["@/lib/demo-personas"]
     nlib_env["@/lib/env"]
     nlib_format["@/lib/format"]
     nlib_haptics["@/lib/haptics"]
@@ -139,6 +169,7 @@ flowchart LR
     nlib_query["@/lib/query"]
     nlib_readynative["@/lib/readynative"]
     nlib_readynative_config["@/lib/readynative-config"]
+    nlib_return_path["@/lib/return-path"]
     nlib_share["@/lib/share"]
     nlib_shims_account_data["@/lib/shims/account-data"]
     nlib_shims_analytics["@/lib/shims/analytics"]
@@ -154,6 +185,7 @@ flowchart LR
     nlib_shims_widgets["@/lib/shims/widgets"]
     nlib_storage["@/lib/storage"]
     nlib_storage_adapter["@/lib/storage-adapter"]
+    nlib_storage_web["@/lib/storage.web"]
     nlib_store_review["@/lib/store-review"]
     nlib_tracking["@/lib/tracking"]
     nlib_utils["@/lib/utils"]
@@ -179,20 +211,24 @@ flowchart LR
   subgraph customs["custom"]
     n_id_["…"]
   end
+  nhook_use_auth_redirect -->|imports| nlib_return_path
   nhook_use_auth_redirect -->|imports| nstore_session
   nhook_use_push_token -->|imports| nlib_shims_push
   nhook_use_push_token -->|imports| nlib_storage
   nhook_use_register_device -->|imports| nlib_push
   nhook_use_register_device -->|imports| nstore_session
   nhook_use_sign_out_cleanup -->|imports| nlib_auth
+  nhook_use_sign_out_cleanup -->|imports| nlib_chat_cache
   nhook_use_sign_out_cleanup -->|imports| nlib_crash
   nhook_use_sign_out_cleanup -->|imports| nlib_privacy
+  nhook_use_sign_out_cleanup -->|imports| nstore_chat
   nlib_api_client -->|imports| nlib_env
   nlib_api_client -->|reads| nenv_EXPO_PUBLIC_API_URL
   nlib_auth -->|imports| nstore_session
   nlib_browser -->|imports| nlib_crash
   nlib_cache -->|imports| nlib_storage
   nlib_cache -->|imports| nlib_storage_adapter
+  nlib_chat_cache -->|imports| nlib_storage
   nlib_clipboard -->|imports| nlib_crash
   nlib_env -->|reads| nenv_EXPO_PUBLIC_API_URL
   nlib_env -->|reads| nenv_EXPO_PUBLIC_APP_VARIANT
@@ -212,6 +248,7 @@ flowchart LR
   nlib_share -->|imports| nlib_crash
   nlib_shims_consent -->|imports| nstore_consent
   nlib_storage -->|imports| nlib_storage_adapter
+  nlib_storage_web -->|imports| nlib_storage_adapter
   nlib_store_review -->|imports| nlib_crash
   nlib_store_review -->|imports| nlib_readynative
   nlib_store_review -->|imports| nstore_review_prompt
@@ -238,7 +275,10 @@ flowchart LR
   nroute__tabs__cards__layout -->|imports| nlib_i18n
   nroute__tabs__chat__layout -->|imports| nlib_i18n
   nroute__tabs__home__layout -->|imports| nlib_i18n
+  nroute__tabs__orders__layout -->|imports| nlib_i18n
   nroute__tabs__settings__layout -->|imports| nlib_i18n
+  nroute__tabs__stock__layout -->|imports| nlib_i18n
+  nroute__tabs__today__layout -->|imports| nlib_i18n
   nroute__ -->|imports| nstore_session
   nroute___not_found -->|imports| nlib_i18n
   nroute__activity -->|renders| nscreen_activity_activity_screen
@@ -253,29 +293,52 @@ flowchart LR
   nroute__onboarding_chat -->|renders| nscreen_onboarding_onboarding_chat_screen
   nroute__onboarding_review -->|renders| nscreen_onboarding_onboarding_review_screen
   nroute__order__proposalId_ -->|renders| nscreen_order_order_sheet_screen
+  nroute__orders -->|renders| nscreen_business_orders_screen
+  nroute__pair_lite -->|renders| nscreen_settings_pair_lite_screen
+  nroute__pay__billId_ -->|renders| nscreen_shop_pay_bill_screen
   nroute__payees -->|renders| nscreen_payees_payees_screen
   nroute__payees__id_ -->|renders| nscreen_payees_payee_detail_screen
   nroute__register -->|renders| nscreen_auth_register_screen
   nroute__settings -->|renders| nscreen_settings_settings_screen
+  nroute__shortcut -->|renders| nscreen_settings_shortcut_screen
+  nroute__stock -->|renders| nscreen_business_stock_screen
+  nroute__today -->|renders| nscreen_business_today_screen
   nroute__verify__id_ -->|renders| nscreen_verify_verify_screen
   nroute__welcome -->|renders| nscreen_auth_welcome_screen
   nroute_onboarding__layout -->|imports| nlib_i18n
   nscreen_activity_activity_screen -->|imports| nlib_format
   nscreen_activity_activity_screen -->|imports| nlib_i18n
+  nscreen_activity_notification_text -->|imports| nlib_i18n
   nscreen_auth_login_screen -->|imports| nlib_haptics
   nscreen_auth_login_screen -->|imports| nlib_i18n
   nscreen_auth_login_screen -->|imports| nlib_passkey_errors
+  nscreen_auth_login_screen -->|imports| nlib_return_path
   nscreen_auth_register_screen -->|imports| nlib_haptics
   nscreen_auth_register_screen -->|imports| nlib_i18n
   nscreen_auth_register_screen -->|imports| nlib_passkey_errors
+  nscreen_auth_register_screen -->|imports| nlib_return_path
+  nscreen_auth_welcome_screen -->|imports| nlib_demo_personas
+  nscreen_auth_welcome_screen -->|imports| nlib_haptics
   nscreen_auth_welcome_screen -->|imports| nlib_i18n
+  nscreen_auth_welcome_screen -->|imports| nlib_passkey_errors
+  nscreen_auth_welcome_screen -->|imports| nlib_return_path
   nscreen_bills_bills_screen -->|imports| nlib_format
   nscreen_bills_bills_screen -->|imports| nlib_i18n
+  nscreen_business_business_text -->|imports| nlib_i18n
+  nscreen_business_orders_screen -->|imports| nlib_format
+  nscreen_business_orders_screen -->|imports| nlib_i18n
+  nscreen_business_stock_screen -->|imports| nlib_format
+  nscreen_business_stock_screen -->|imports| nlib_i18n
+  nscreen_business_today_screen -->|imports| nlib_format
+  nscreen_business_today_screen -->|imports| nlib_i18n
   nscreen_cards_cards_screen -->|imports| nlib_format
   nscreen_cards_cards_screen -->|imports| nlib_i18n
+  nscreen_chat_chat_screen -->|imports| nlib_chat_cache
   nscreen_chat_chat_screen -->|imports| nlib_haptics
   nscreen_chat_chat_screen -->|imports| nlib_i18n
   nscreen_chat_chat_screen -->|imports| nstore_chat
+  nscreen_chat_consent_card -->|imports| nlib_haptics
+  nscreen_chat_consent_card -->|imports| nlib_i18n
   nscreen_credit_credit_record_screen -->|imports| nlib_haptics
   nscreen_credit_credit_record_screen -->|imports| nlib_i18n
   nscreen_demo_demo_screen -->|imports| nlib_confirm
@@ -287,9 +350,22 @@ flowchart LR
   nscreen_handoff_handoff_screen -->|imports| nlib_i18n
   nscreen_home_home_screen -->|imports| nlib_format
   nscreen_home_home_screen -->|imports| nlib_i18n
+  nscreen_lite_activity_screen -->|imports| nlib_format
+  nscreen_lite_activity_screen -->|imports| nlib_i18n
+  nscreen_lite_lite_root -->|imports| nlib_i18n
+  nscreen_lite_lite_root -->|imports| nlib_query
+  nscreen_lite_lite_root -->|imports| nstore_session
+  nscreen_lite_lite_root -->|imports| nstore_theme_mode
+  nscreen_lite_lock_screen -->|imports| nlib_i18n
+  nscreen_lite_pair_screen -->|imports| nlib_i18n
+  nscreen_lite_settings_screen -->|imports| nlib_clipboard
+  nscreen_lite_settings_screen -->|imports| nlib_confirm
+  nscreen_lite_settings_screen -->|imports| nlib_i18n
   nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_format
   nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_haptics
   nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_i18n
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nscreen_chat_consent
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nscreen_chat_consent_card
   nscreen_onboarding_onboarding_chat_screen -->|imports| nstore_chat
   nscreen_onboarding_onboarding_review_screen -->|imports| nlib_format
   nscreen_onboarding_onboarding_review_screen -->|imports| nlib_haptics
@@ -315,6 +391,8 @@ flowchart LR
   nscreen_settings_mandates_section -->|imports| nlib_haptics
   nscreen_settings_mandates_section -->|imports| nlib_i18n
   nscreen_settings_mandates_section -->|imports| nlib_passkey_errors
+  nscreen_settings_pair_lite_screen -->|imports| nlib_haptics
+  nscreen_settings_pair_lite_screen -->|imports| nlib_i18n
   nscreen_settings_pending_changes -->|imports| nlib_format
   nscreen_settings_pending_changes -->|imports| nlib_i18n
   nscreen_settings_preset_cards -->|imports| nlib_i18n
@@ -324,9 +402,19 @@ flowchart LR
   nscreen_settings_settings_screen -->|imports| nlib_format
   nscreen_settings_settings_screen -->|imports| nlib_i18n
   nscreen_settings_settings_screen -->|reads| nenv_EXPO_PUBLIC_DEMO_ADMIN_TOKEN
+  nscreen_settings_shortcut_screen -->|imports| nlib_clipboard
+  nscreen_settings_shortcut_screen -->|imports| nlib_confirm
+  nscreen_settings_shortcut_screen -->|imports| nlib_format
+  nscreen_settings_shortcut_screen -->|imports| nlib_haptics
+  nscreen_settings_shortcut_screen -->|imports| nlib_i18n
   nscreen_settings_use_settings_update -->|imports| nlib_haptics
   nscreen_settings_use_settings_update -->|imports| nlib_i18n
   nscreen_settings_use_settings_update -->|imports| nlib_passkey_errors
+  nscreen_shop_pay_bill_screen -->|imports| nlib_format
+  nscreen_shop_pay_bill_screen -->|imports| nlib_haptics
+  nscreen_shop_pay_bill_screen -->|imports| nlib_i18n
+  nscreen_shop_shop_order_timeline -->|imports| nlib_format
+  nscreen_shop_shop_order_timeline -->|imports| nlib_i18n
   nscreen_verify_verify_screen -->|imports| nlib_format
   nscreen_verify_verify_screen -->|imports| nlib_i18n
   nservice_kassa_api -->|custom| nenv_EXPO_PUBLIC_API_URL
@@ -368,7 +456,7 @@ flowchart LR
 | `provider:ToastHost`       | ToastHost       | `src/providers.tsx` |
 | `provider:UiThemeProvider` | UiThemeProvider | `src/providers.tsx` |
 
-## route (29)
+## route (38)
 
 | id                              | label                | file                                  |
 | ------------------------------- | -------------------- | ------------------------------------- |
@@ -379,7 +467,10 @@ flowchart LR
 | `route:(tabs)/cards/_layout`    | /cards (layout)      | `src/app/(tabs)/cards/_layout.tsx`    |
 | `route:(tabs)/chat/_layout`     | /chat (layout)       | `src/app/(tabs)/chat/_layout.tsx`     |
 | `route:(tabs)/home/_layout`     | /home (layout)       | `src/app/(tabs)/home/_layout.tsx`     |
+| `route:(tabs)/orders/_layout`   | /orders (layout)     | `src/app/(tabs)/orders/_layout.tsx`   |
 | `route:(tabs)/settings/_layout` | /settings (layout)   | `src/app/(tabs)/settings/_layout.tsx` |
+| `route:(tabs)/stock/_layout`    | /stock (layout)      | `src/app/(tabs)/stock/_layout.tsx`    |
+| `route:(tabs)/today/_layout`    | /today (layout)      | `src/app/(tabs)/today/_layout.tsx`    |
 | `route:/`                       | /                    | `src/app/index.tsx`                   |
 | `route:/+not-found`             | /+not-found          | `src/app/+not-found.tsx`              |
 | `route:/activity`               | /activity            | `src/app/(tabs)/activity/index.tsx`   |
@@ -394,31 +485,51 @@ flowchart LR
 | `route:/onboarding/chat`        | /onboarding/chat     | `src/app/onboarding/chat.tsx`         |
 | `route:/onboarding/review`      | /onboarding/review   | `src/app/onboarding/review.tsx`       |
 | `route:/order/[proposalId]`     | /order/[proposalId]  | `src/app/order/[proposalId].tsx`      |
+| `route:/orders`                 | /orders              | `src/app/(tabs)/orders/index.tsx`     |
+| `route:/pair-lite`              | /pair-lite           | `src/app/pair-lite.tsx`               |
+| `route:/pay/[billId]`           | /pay/[billId]        | `src/app/pay/[billId].tsx`            |
 | `route:/payees`                 | /payees              | `src/app/payees/index.tsx`            |
 | `route:/payees/[id]`            | /payees/[id]         | `src/app/payees/[id].tsx`             |
 | `route:/register`               | /register            | `src/app/(auth)/register.tsx`         |
 | `route:/settings`               | /settings            | `src/app/(tabs)/settings/index.tsx`   |
+| `route:/shortcut`               | /shortcut            | `src/app/shortcut.tsx`                |
+| `route:/stock`                  | /stock               | `src/app/(tabs)/stock/index.tsx`      |
+| `route:/today`                  | /today               | `src/app/(tabs)/today/index.tsx`      |
 | `route:/verify/[id]`            | /verify/[id]         | `src/app/verify/[id].tsx`             |
 | `route:/welcome`                | /welcome             | `src/app/(auth)/welcome.tsx`          |
 | `route:onboarding/_layout`      | /onboarding (layout) | `src/app/onboarding/_layout.tsx`      |
 
-## screen (26)
+## screen (44)
 
 | id                                           | label                                         | file                                                  |
 | -------------------------------------------- | --------------------------------------------- | ----------------------------------------------------- |
 | `screen:activity/activity-screen`            | @/screens/activity/activity-screen            | `src/screens/activity/activity-screen.tsx`            |
 | `screen:activity/ledger-entry`               | @/screens/activity/ledger-entry               | `src/screens/activity/ledger-entry.ts`                |
+| `screen:activity/notification-text`          | @/screens/activity/notification-text          | `src/screens/activity/notification-text.ts`           |
 | `screen:auth/login-screen`                   | @/screens/auth/login-screen                   | `src/screens/auth/login-screen.tsx`                   |
 | `screen:auth/register-screen`                | @/screens/auth/register-screen                | `src/screens/auth/register-screen.tsx`                |
 | `screen:auth/welcome-screen`                 | @/screens/auth/welcome-screen                 | `src/screens/auth/welcome-screen.tsx`                 |
 | `screen:bills/bills-screen`                  | @/screens/bills/bills-screen                  | `src/screens/bills/bills-screen.tsx`                  |
+| `screen:business/business-text`              | @/screens/business/business-text              | `src/screens/business/business-text.ts`               |
+| `screen:business/orders-screen`              | @/screens/business/orders-screen              | `src/screens/business/orders-screen.tsx`              |
+| `screen:business/stock-screen`               | @/screens/business/stock-screen               | `src/screens/business/stock-screen.tsx`               |
+| `screen:business/today-screen`               | @/screens/business/today-screen               | `src/screens/business/today-screen.tsx`               |
 | `screen:cards/cards-screen`                  | @/screens/cards/cards-screen                  | `src/screens/cards/cards-screen.tsx`                  |
 | `screen:chat/chat-screen`                    | @/screens/chat/chat-screen                    | `src/screens/chat/chat-screen.tsx`                    |
+| `screen:chat/consent`                        | @/screens/chat/consent                        | `src/screens/chat/consent.ts`                         |
+| `screen:chat/consent-card`                   | @/screens/chat/consent-card                   | `src/screens/chat/consent-card.tsx`                   |
 | `screen:credit/credit-record-screen`         | @/screens/credit/credit-record-screen         | `src/screens/credit/credit-record-screen.tsx`         |
 | `screen:demo/demo-screen`                    | @/screens/demo/demo-screen                    | `src/screens/demo/demo-screen.tsx`                    |
 | `screen:demo/notification-samples`           | @/screens/demo/notification-samples           | `src/screens/demo/notification-samples.ts`            |
 | `screen:handoff/handoff-screen`              | @/screens/handoff/handoff-screen              | `src/screens/handoff/handoff-screen.tsx`              |
 | `screen:home/home-screen`                    | @/screens/home/home-screen                    | `src/screens/home/home-screen.tsx`                    |
+| `screen:lite/activity-screen`                | @/screens/lite/activity-screen                | `src/screens/lite/activity-screen.tsx`                |
+| `screen:lite/lite-root`                      | @/screens/lite/lite-root                      | `src/screens/lite/lite-root.tsx`                      |
+| `screen:lite/lock-screen`                    | @/screens/lite/lock-screen                    | `src/screens/lite/lock-screen.tsx`                    |
+| `screen:lite/pair-screen`                    | @/screens/lite/pair-screen                    | `src/screens/lite/pair-screen.tsx`                    |
+| `screen:lite/settings-screen`                | @/screens/lite/settings-screen                | `src/screens/lite/settings-screen.tsx`                |
+| `screen:onboarding/draft-content`            | @/screens/onboarding/draft-content            | `src/screens/onboarding/draft-content.ts`             |
+| `screen:onboarding/mandate-offer`            | @/screens/onboarding/mandate-offer            | `src/screens/onboarding/mandate-offer.ts`             |
 | `screen:onboarding/onboarding-chat-screen`   | @/screens/onboarding/onboarding-chat-screen   | `src/screens/onboarding/onboarding-chat-screen.tsx`   |
 | `screen:onboarding/onboarding-review-screen` | @/screens/onboarding/onboarding-review-screen | `src/screens/onboarding/onboarding-review-screen.tsx` |
 | `screen:order/order-sheet-screen`            | @/screens/order/order-sheet-screen            | `src/screens/order/order-sheet-screen.tsx`            |
@@ -427,10 +538,14 @@ flowchart LR
 | `screen:payees/payees-screen`                | @/screens/payees/payees-screen                | `src/screens/payees/payees-screen.tsx`                |
 | `screen:settings/caps-section`               | @/screens/settings/caps-section               | `src/screens/settings/caps-section.tsx`               |
 | `screen:settings/mandates-section`           | @/screens/settings/mandates-section           | `src/screens/settings/mandates-section.tsx`           |
+| `screen:settings/pair-lite-screen`           | @/screens/settings/pair-lite-screen           | `src/screens/settings/pair-lite-screen.tsx`           |
 | `screen:settings/pending-changes`            | @/screens/settings/pending-changes            | `src/screens/settings/pending-changes.tsx`            |
 | `screen:settings/preset-cards`               | @/screens/settings/preset-cards               | `src/screens/settings/preset-cards.tsx`               |
 | `screen:settings/settings-screen`            | @/screens/settings/settings-screen            | `src/screens/settings/settings-screen.tsx`            |
+| `screen:settings/shortcut-screen`            | @/screens/settings/shortcut-screen            | `src/screens/settings/shortcut-screen.tsx`            |
 | `screen:settings/use-settings-update`        | @/screens/settings/use-settings-update        | `src/screens/settings/use-settings-update.ts`         |
+| `screen:shop/pay-bill-screen`                | @/screens/shop/pay-bill-screen                | `src/screens/shop/pay-bill-screen.tsx`                |
+| `screen:shop/shop-order-timeline`            | @/screens/shop/shop-order-timeline            | `src/screens/shop/shop-order-timeline.tsx`            |
 | `screen:verify/verify-screen`                | @/screens/verify/verify-screen                | `src/screens/verify/verify-screen.tsx`                |
 
 ## hook (6)
@@ -457,7 +572,7 @@ flowchart LR
 | `store:theme-mode`      | @/stores/theme-mode      | `src/stores/theme-mode.ts`      |
 | `store:zustand-storage` | @/stores/zustand-storage | `src/stores/zustand-storage.ts` |
 
-## lib (47)
+## lib (52)
 
 | id                       | label                    | file                            |
 | ------------------------ | ------------------------ | ------------------------------- |
@@ -468,10 +583,13 @@ flowchart LR
 | `lib:browser`            | @/lib/browser            | `src/lib/browser.ts`            |
 | `lib:cache`              | @/lib/cache              | `src/lib/cache.ts`              |
 | `lib:categories`         | @/lib/categories         | `src/lib/categories.ts`         |
+| `lib:chat-cache`         | @/lib/chat-cache         | `src/lib/chat-cache.ts`         |
+| `lib:chat-cache.web`     | @/lib/chat-cache.web     | `src/lib/chat-cache.web.ts`     |
 | `lib:clipboard`          | @/lib/clipboard          | `src/lib/clipboard.ts`          |
 | `lib:confirm`            | @/lib/confirm            | `src/lib/confirm.ts`            |
 | `lib:consent`            | @/lib/consent            | `src/lib/consent.ts`            |
 | `lib:crash`              | @/lib/crash              | `src/lib/crash.ts`              |
+| `lib:demo-personas`      | @/lib/demo-personas      | `src/lib/demo-personas.ts`      |
 | `lib:env`                | @/lib/env                | `src/lib/env.ts`                |
 | `lib:format`             | @/lib/format             | `src/lib/format.ts`             |
 | `lib:haptics`            | @/lib/haptics            | `src/lib/haptics.ts`            |
@@ -488,6 +606,7 @@ flowchart LR
 | `lib:query`              | @/lib/query              | `src/lib/query.tsx`             |
 | `lib:readynative`        | @/lib/readynative        | `src/lib/readynative.ts`        |
 | `lib:readynative-config` | @/lib/readynative-config | `src/lib/readynative-config.ts` |
+| `lib:return-path`        | @/lib/return-path        | `src/lib/return-path.ts`        |
 | `lib:share`              | @/lib/share              | `src/lib/share.ts`              |
 | `lib:shims/account-data` | @/lib/shims/account-data | `src/lib/shims/account-data.ts` |
 | `lib:shims/analytics`    | @/lib/shims/analytics    | `src/lib/shims/analytics.ts`    |
@@ -503,6 +622,7 @@ flowchart LR
 | `lib:shims/widgets`      | @/lib/shims/widgets      | `src/lib/shims/widgets.ts`      |
 | `lib:storage`            | @/lib/storage            | `src/lib/storage.ts`            |
 | `lib:storage-adapter`    | @/lib/storage-adapter    | `src/lib/storage-adapter.ts`    |
+| `lib:storage.web`        | @/lib/storage.web        | `src/lib/storage.web.ts`        |
 | `lib:store-review`       | @/lib/store-review       | `src/lib/store-review.ts`       |
 | `lib:tracking`           | @/lib/tracking           | `src/lib/tracking.ts`           |
 | `lib:utils`              | @/lib/utils              | `src/lib/utils.ts`              |

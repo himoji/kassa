@@ -21,6 +21,7 @@ import notifications from "./notifications.json";
 import shortcut from "./shortcut.json";
 import shop from "./shop.json";
 import business from "./business.json";
+import lite from "./lite.json";
 
 export const en = {
   translation,
@@ -43,4 +44,5 @@ export const en = {
   shortcut,
   shop,
   business,
+  lite,
 };

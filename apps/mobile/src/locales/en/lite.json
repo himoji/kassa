@@ -1,0 +1,87 @@
+{
+  "name": "KassaLite",
+  "tabs": { "activity": "Activity", "chat": "Chat", "settings": "Settings" },
+  "lock": {
+    "title": "KassaLite is locked",
+    "body": "Unlock with Face ID to see your purchases.",
+    "unlock": "Unlock",
+    "reason": "Unlock KassaLite"
+  },
+  "activity": {
+    "title": "Activity",
+    "empty": "No purchases yet",
+    "emptyBody": "Pay with Apple Pay. Each purchase appears here a moment after the Shortcut sends it.",
+    "capturesTitle": "Purchases",
+    "nudgesTitle": "Nudges",
+    "updated": "Updated {{time}}",
+    "uncategorised": "Uncategorised",
+    "notifyTitle": "New purchase",
+    "notifyBody": "{{merchant}} · {{amount}}",
+    "notifyManyTitle": "{{count}} new purchases",
+    "notifyManyBody": "Open KassaLite to see them."
+  },
+  "pair": {
+    "title": "Pair KassaLite",
+    "intro": "In the full Kassa app or on the web, open Settings → Pair KassaLite and scan the QR code, or type the 8-character code here.",
+    "codeLabel": "Pairing code",
+    "codePlaceholder": "ABCD2345",
+    "serverLabel": "Server URL (https)",
+    "serverPlaceholder": "https://kassa.example.com",
+    "submit": "Pair this iPhone",
+    "invalidCode": "The code has 8 letters and digits.",
+    "invalidServer": "Enter the server address, starting with https://.",
+    "failed": "Pairing failed. The code may have expired (it lasts 2 minutes): create a new one.",
+    "noTokens": "The server did not return a session. Try a new code.",
+    "deviceName": "KassaLite iPhone"
+  },
+  "settings": {
+    "title": "Settings",
+    "accountTitle": "Account",
+    "signedInAs": "Signed in as {{name}}",
+    "unknownUser": "this iPhone",
+    "shortcutTitle": "Apple Pay Shortcut",
+    "shortcutIntro": "An iOS Shortcut sends every Apple Pay purchase to your Kassa server. KassaLite then shows it here.",
+    "installShortcut": "Install Shortcut",
+    "installShortcutFooter": "Copies the endpoint and your token, then opens the Shortcut. iCloud Shortcuts cannot take parameters: paste them where the Shortcut asks.",
+    "noTemplate": "No Shortcut template link is configured in this build (extra.shortcutTemplateUrl). Follow the steps below to build it by hand.",
+    "copiedToast": "Endpoint and token copied",
+    "copyAgain": "Copy endpoint and token again",
+    "noShortcutToken": "No Shortcut token stored. Pair this iPhone again.",
+    "stepsTitle": "Set up on your iPhone",
+    "step": "{{n}}. {{text}}",
+    "steps": {
+      "1": "Tap Install Shortcut. The endpoint URL (first line) and the Authorization value (second line, “Bearer …”) are copied to the clipboard.",
+      "2": "Open Shortcuts → Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation.",
+      "3": "Add “Get Contents of URL”. URL: the first copied line (ends in /api/capture/shortcut). Method: POST. Headers: Authorization = the second copied line.",
+      "4": "Request Body: JSON with merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass.",
+      "5": "Add “Get Dictionary Value” (key nudge) and “Show Notification” with that value.",
+      "6": "Pay with Apple Pay. The purchase shows up in Activity within seconds."
+    },
+    "serverTitle": "Server",
+    "serverLabel": "Server URL",
+    "serverFooter": "Must be a stable https address, for example your named tunnel. Changing it does not re-pair: sign out and pair again if the server is different.",
+    "serverSave": "Save",
+    "serverSaved": "Server saved",
+    "serverInvalid": "Use an https:// address.",
+    "signOut": "Sign out",
+    "signOutTitle": "Sign out of KassaLite?",
+    "signOutBody": "The tokens on this iPhone are deleted. The Shortcut keeps working until you revoke it in the full app."
+  },
+  "approve": {
+    "opened": "Approve this in the Kassa web app. KassaLite cannot use a passkey."
+  },
+  "pairDevice": {
+    "rowTitle": "Pair KassaLite",
+    "rowHint": "Link a second iPhone that logs Apple Pay purchases",
+    "title": "Pair KassaLite",
+    "intro": "On the iPhone with KassaLite, scan this QR code with the camera or type the code. The code works once.",
+    "generate": "Create pairing code",
+    "creating": "Creating code",
+    "newCode": "New code",
+    "codeLabel": "Pairing code",
+    "qrLabel": "Pairing QR code",
+    "expiresIn": "Expires in {{time}}",
+    "expired": "This code expired.",
+    "countdown": "{{minutes}}:{{seconds}}"
+  }
+}

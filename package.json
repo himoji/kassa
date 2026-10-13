@@ -23,7 +23,8 @@
     "sim": "bun apps/api/scripts/sim/cli.ts",
     "phone": "bun scripts/phone.ts",
     "demo:video": "bun scripts/demo-video/record.ts",
-    "dev:all": "bun scripts/dev-all.ts"
+    "dev:all": "bun scripts/dev-all.ts",
+    "lite:ios": "bun scripts/lite.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9",

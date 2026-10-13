@@ -27,6 +27,7 @@ module.exports = defineConfig([
       ".expo/**",
       "dist/**",
       "ios/**",
+      "ios-lite/**",
       "android/**",
       "coverage/**",
       "modules/**",
