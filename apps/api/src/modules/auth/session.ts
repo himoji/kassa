@@ -12,7 +12,7 @@ import { decodeJwt, jwtVerify, SignJWT } from "jose";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
-import { users } from "../../db/schema.ts";
+import { profiles, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
@@ -26,10 +26,23 @@ const ISSUER = "kassa-api";
 declare module "fastify" {
   interface FastifyRequest {
     userId?: string;
+    /** Claims of the presented session (set by requireUser). */
+    session?: SessionClaims;
   }
 }
 
 type Typ = "access" | "refresh" | "session";
+
+/**
+ * Extra session claims. `dev`: the dev sign-in (POST /auth/dev/login, never in production); approvals are signed by
+ * the server-held dev passkey (auth/dev.ts). `scope: "lite"`: a KassaLite device paired by code; it never gets
+ * passkey-gated rights (LITE_DENIED below answers 428 with a link to approve in the web app).
+ */
+export type SessionClaims = { dev?: true; scope?: "lite" };
+
+function claimsOf(payload: Record<string, unknown>): SessionClaims {
+  return { ...(payload.dev === true ? { dev: true as const } : {}), ...(payload.scope === "lite" ? { scope: "lite" as const } : {}) };
+}
 
 /** jti of refresh tokens already used or logged out. */
 const spentRefresh = new Set<string>();
@@ -38,10 +51,10 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(env().SESSION_SECRET);
 }
 
-async function mint(userId: string, typ: Typ, ttlS: number): Promise<{ token: string; exp: number }> {
+async function mint(userId: string, typ: Typ, ttlS: number, claims: SessionClaims = {}): Promise<{ token: string; exp: number }> {
   const nowS = Math.floor(clock.nowMs() / 1000);
   const exp = nowS + ttlS;
-  const token = await new SignJWT({ typ })
+  const token = await new SignJWT({ typ, ...claims })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuer(ISSUER)
@@ -52,7 +65,7 @@ async function mint(userId: string, typ: Typ, ttlS: number): Promise<{ token: st
   return { token, exp };
 }
 
-async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: string | undefined } | null> {
+async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: string | undefined; claims: SessionClaims } | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
@@ -60,7 +73,7 @@ async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: stri
       currentDate: clock.now(),
     });
     if (payload.typ !== typ || typeof payload.sub !== "string") return null;
-    return { sub: payload.sub, jti: payload.jti };
+    return { sub: payload.sub, jti: payload.jti, claims: claimsOf(payload) };
   } catch {
     return null;
   }
@@ -72,8 +85,8 @@ export async function verifyToken(token: string, typ: Typ): Promise<string | nul
 
 export type SessionTokens = { accessToken: string; accessTokenExpiresAt: string; refreshToken: string };
 
-async function nativeTokens(userId: string): Promise<SessionTokens> {
-  const [access, refresh] = await Promise.all([mint(userId, "access", ACCESS_TTL_S), mint(userId, "refresh", REFRESH_TTL_S)]);
+async function nativeTokens(userId: string, claims: SessionClaims = {}): Promise<SessionTokens> {
+  const [access, refresh] = await Promise.all([mint(userId, "access", ACCESS_TTL_S, claims), mint(userId, "refresh", REFRESH_TTL_S, claims)]);
   return {
     accessToken: access.token,
     accessTokenExpiresAt: new Date(access.exp * 1000).toISOString(),
@@ -82,9 +95,9 @@ async function nativeTokens(userId: string): Promise<SessionTokens> {
 }
 
 /** web → httpOnly cookie, tokens null; native → bearer + refresh tokens in the body. */
-export async function startSession(reply: FastifyReply, userId: string, client: "web" | "native"): Promise<SessionTokens | null> {
-  if (client === "native") return nativeTokens(userId);
-  const cookie = await mint(userId, "session", COOKIE_TTL_S);
+export async function startSession(reply: FastifyReply, userId: string, client: "web" | "native", claims: SessionClaims = {}): Promise<SessionTokens | null> {
+  if (client === "native") return nativeTokens(userId, claims);
+  const cookie = await mint(userId, "session", COOKIE_TTL_S, claims);
   reply.setCookie(SESSION_COOKIE, cookie.token, {
     httpOnly: true,
     secure: env().PUBLIC_ORIGIN.startsWith("https://"),
@@ -93,6 +106,15 @@ export async function startSession(reply: FastifyReply, userId: string, client: 
     maxAge: COOKIE_TTL_S,
   });
   return null;
+}
+
+/** The body of every sign-in response (AuthSessionResponse). */
+export async function sessionBody(userId: string, tokens: SessionTokens | null) {
+  const db = getDb();
+  const u = (await db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq(users.id, userId)))[0];
+  if (!u) throw new HttpProblem(404, "NOT_FOUND", "user not found");
+  const p = (await db.select({ signedAt: profiles.baseRulesSignedAt }).from(profiles).where(eq(profiles.userId, userId)))[0];
+  return { user: u, onboarded: Boolean(p?.signedAt), tokens };
 }
 
 /**
@@ -108,7 +130,8 @@ export async function refreshSession(refreshToken: string): Promise<SessionToken
   const u = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, v.sub)))[0];
   if (!u) return null;
   if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
-  return nativeTokens(v.sub);
+  // Rotation keeps the session's claims (a KassaLite session stays lite, a dev session stays dev).
+  return nativeTokens(v.sub, v.claims);
 }
 
 export function revokeRefresh(refreshToken: string | undefined): void {
@@ -144,16 +167,45 @@ function assertCookieOrigin(req: FastifyRequest): void {
 
 /** Resolve the caller: `Authorization: Bearer <access JWT>` first, then the session cookie. */
 export async function authenticate(req: FastifyRequest): Promise<string | null> {
+  return (await authenticateSession(req))?.userId ?? null;
+}
+
+async function authenticateSession(req: FastifyRequest): Promise<{ userId: string; claims: SessionClaims } | null> {
   const auth = req.headers.authorization;
-  if (auth?.startsWith("Bearer ")) return verifyToken(auth.slice(7).trim(), "access");
+  if (auth?.startsWith("Bearer ")) {
+    const v = await verify(auth.slice(7).trim(), "access");
+    return v ? { userId: v.sub, claims: v.claims } : null;
+  }
   const cookie = req.cookies?.[SESSION_COOKIE];
   if (cookie) {
-    const userId = await verifyToken(cookie, "session");
-    if (userId) assertCookieOrigin(req);
-    return userId;
+    const v = await verify(cookie, "session");
+    if (v) assertCookieOrigin(req);
+    return v ? { userId: v.sub, claims: v.claims } : null;
   }
   return null;
 }
+
+/**
+ * Routes a KassaLite session may not use: everything that needs the user's passkey (approvals, signing, loosening,
+ * erasure) or mints new credentials. They answer 428 PASSKEY_REQUIRED with `approveInWebApp` so the app opens the web
+ * app instead; the passkey itself still guards each of them for full sessions.
+ */
+export const LITE_DENIED: ReadonlySet<string> = new Set([
+  "POST /api/orders/:proposalId/approve",
+  "POST /api/onboarding/confirm",
+  "POST /api/onboarding/confirm/options",
+  "POST /api/mandates",
+  "POST /api/mandates/options",
+  "POST /api/mandates/:id/revoke",
+  "PATCH /api/settings",
+  "POST /api/unfreeze",
+  "POST /api/privacy/erase",
+  "POST /api/auth/pair/start",
+  "POST /api/devices/shortcut",
+  "POST /api/auth/register/options",
+  "POST /api/business/purchase-orders/:id/sign",
+  "POST /api/business/purchase-orders/:id/sign/options",
+]);
 
 /**
  * Session check (zero trust: every request, no network trust). Installed on every non-public route by
@@ -162,12 +214,20 @@ export async function authenticate(req: FastifyRequest): Promise<string | null> 
  */
 export async function requireUser(req: FastifyRequest): Promise<void> {
   if (req.userId) return;
-  const userId = await authenticate(req);
-  if (!userId) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
+  const s = await authenticateSession(req);
+  if (!s) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
+  const { userId } = s;
   const u = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
   if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
+  if (s.claims.scope === "lite" && LITE_DENIED.has(`${req.method} ${req.routeOptions.url ?? ""}`)) {
+    throw new HttpProblem(428, "PASSKEY_REQUIRED", "Approve this in the Kassa web app with your passkey", {
+      reasonCodes: ["PASSKEY_REQUIRED"],
+      details: { approveInWebApp: env().PUBLIC_ORIGIN },
+    });
+  }
   req.userId = userId;
+  req.session = s.claims;
 }
 
 export function userIdOf(req: FastifyRequest): string {
@@ -176,8 +236,8 @@ export function userIdOf(req: FastifyRequest): string {
 }
 
 /** Tests: an access token for a user. */
-export async function mintAccessTokenForTests(userId: string): Promise<string> {
-  return (await mint(userId, "access", ACCESS_TTL_S)).token;
+export async function mintAccessTokenForTests(userId: string, claims: SessionClaims = {}): Promise<string> {
+  return (await mint(userId, "access", ACCESS_TTL_S, claims)).token;
 }
 
 /** Tests: a web session cookie value for a user. */

@@ -194,10 +194,37 @@
       }
     },
     {
+      "id": "route:(tabs)/orders/_layout",
+      "kind": "route",
+      "label": "/orders (layout)",
+      "file": "src/app/(tabs)/orders/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
       "id": "route:(tabs)/settings/_layout",
       "kind": "route",
       "label": "/settings (layout)",
       "file": "src/app/(tabs)/settings/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/stock/_layout",
+      "kind": "route",
+      "label": "/stock (layout)",
+      "file": "src/app/(tabs)/stock/_layout.tsx",
+      "meta": {
+        "type": "layout"
+      }
+    },
+    {
+      "id": "route:(tabs)/today/_layout",
+      "kind": "route",
+      "label": "/today (layout)",
+      "file": "src/app/(tabs)/today/_layout.tsx",
       "meta": {
         "type": "layout"
       }
@@ -329,6 +356,33 @@
       }
     },
     {
+      "id": "route:/orders",
+      "kind": "route",
+      "label": "/orders",
+      "file": "src/app/(tabs)/orders/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/pair-lite",
+      "kind": "route",
+      "label": "/pair-lite",
+      "file": "src/app/pair-lite.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/pay/[billId]",
+      "kind": "route",
+      "label": "/pay/[billId]",
+      "file": "src/app/pay/[billId].tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
       "id": "route:/payees",
       "kind": "route",
       "label": "/payees",
@@ -360,6 +414,33 @@
       "kind": "route",
       "label": "/settings",
       "file": "src/app/(tabs)/settings/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/shortcut",
+      "kind": "route",
+      "label": "/shortcut",
+      "file": "src/app/shortcut.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/stock",
+      "kind": "route",
+      "label": "/stock",
+      "file": "src/app/(tabs)/stock/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/today",
+      "kind": "route",
+      "label": "/today",
+      "file": "src/app/(tabs)/today/index.tsx",
       "meta": {
         "type": "page"
       }
@@ -404,6 +485,12 @@
       "file": "src/screens/activity/ledger-entry.ts"
     },
     {
+      "id": "screen:activity/notification-text",
+      "kind": "screen",
+      "label": "@/screens/activity/notification-text",
+      "file": "src/screens/activity/notification-text.ts"
+    },
+    {
       "id": "screen:auth/login-screen",
       "kind": "screen",
       "label": "@/screens/auth/login-screen",
@@ -428,6 +515,30 @@
       "file": "src/screens/bills/bills-screen.tsx"
     },
     {
+      "id": "screen:business/business-text",
+      "kind": "screen",
+      "label": "@/screens/business/business-text",
+      "file": "src/screens/business/business-text.ts"
+    },
+    {
+      "id": "screen:business/orders-screen",
+      "kind": "screen",
+      "label": "@/screens/business/orders-screen",
+      "file": "src/screens/business/orders-screen.tsx"
+    },
+    {
+      "id": "screen:business/stock-screen",
+      "kind": "screen",
+      "label": "@/screens/business/stock-screen",
+      "file": "src/screens/business/stock-screen.tsx"
+    },
+    {
+      "id": "screen:business/today-screen",
+      "kind": "screen",
+      "label": "@/screens/business/today-screen",
+      "file": "src/screens/business/today-screen.tsx"
+    },
+    {
       "id": "screen:cards/cards-screen",
       "kind": "screen",
       "label": "@/screens/cards/cards-screen",
@@ -438,6 +549,18 @@
       "kind": "screen",
       "label": "@/screens/chat/chat-screen",
       "file": "src/screens/chat/chat-screen.tsx"
+    },
+    {
+      "id": "screen:chat/consent",
+      "kind": "screen",
+      "label": "@/screens/chat/consent",
+      "file": "src/screens/chat/consent.ts"
+    },
+    {
+      "id": "screen:chat/consent-card",
+      "kind": "screen",
+      "label": "@/screens/chat/consent-card",
+      "file": "src/screens/chat/consent-card.tsx"
     },
     {
       "id": "screen:credit/credit-record-screen",
@@ -468,6 +591,48 @@
       "kind": "screen",
       "label": "@/screens/home/home-screen",
       "file": "src/screens/home/home-screen.tsx"
+    },
+    {
+      "id": "screen:lite/activity-screen",
+      "kind": "screen",
+      "label": "@/screens/lite/activity-screen",
+      "file": "src/screens/lite/activity-screen.tsx"
+    },
+    {
+      "id": "screen:lite/lite-root",
+      "kind": "screen",
+      "label": "@/screens/lite/lite-root",
+      "file": "src/screens/lite/lite-root.tsx"
+    },
+    {
+      "id": "screen:lite/lock-screen",
+      "kind": "screen",
+      "label": "@/screens/lite/lock-screen",
+      "file": "src/screens/lite/lock-screen.tsx"
+    },
+    {
+      "id": "screen:lite/pair-screen",
+      "kind": "screen",
+      "label": "@/screens/lite/pair-screen",
+      "file": "src/screens/lite/pair-screen.tsx"
+    },
+    {
+      "id": "screen:lite/settings-screen",
+      "kind": "screen",
+      "label": "@/screens/lite/settings-screen",
+      "file": "src/screens/lite/settings-screen.tsx"
+    },
+    {
+      "id": "screen:onboarding/draft-content",
+      "kind": "screen",
+      "label": "@/screens/onboarding/draft-content",
+      "file": "src/screens/onboarding/draft-content.ts"
+    },
+    {
+      "id": "screen:onboarding/mandate-offer",
+      "kind": "screen",
+      "label": "@/screens/onboarding/mandate-offer",
+      "file": "src/screens/onboarding/mandate-offer.ts"
     },
     {
       "id": "screen:onboarding/onboarding-chat-screen",
@@ -518,6 +683,12 @@
       "file": "src/screens/settings/mandates-section.tsx"
     },
     {
+      "id": "screen:settings/pair-lite-screen",
+      "kind": "screen",
+      "label": "@/screens/settings/pair-lite-screen",
+      "file": "src/screens/settings/pair-lite-screen.tsx"
+    },
+    {
       "id": "screen:settings/pending-changes",
       "kind": "screen",
       "label": "@/screens/settings/pending-changes",
@@ -536,10 +707,28 @@
       "file": "src/screens/settings/settings-screen.tsx"
     },
     {
+      "id": "screen:settings/shortcut-screen",
+      "kind": "screen",
+      "label": "@/screens/settings/shortcut-screen",
+      "file": "src/screens/settings/shortcut-screen.tsx"
+    },
+    {
       "id": "screen:settings/use-settings-update",
       "kind": "screen",
       "label": "@/screens/settings/use-settings-update",
       "file": "src/screens/settings/use-settings-update.ts"
+    },
+    {
+      "id": "screen:shop/pay-bill-screen",
+      "kind": "screen",
+      "label": "@/screens/shop/pay-bill-screen",
+      "file": "src/screens/shop/pay-bill-screen.tsx"
+    },
+    {
+      "id": "screen:shop/shop-order-timeline",
+      "kind": "screen",
+      "label": "@/screens/shop/shop-order-timeline",
+      "file": "src/screens/shop/shop-order-timeline.tsx"
     },
     {
       "id": "screen:verify/verify-screen",
@@ -674,6 +863,18 @@
       "file": "src/lib/categories.ts"
     },
     {
+      "id": "lib:chat-cache",
+      "kind": "lib",
+      "label": "@/lib/chat-cache",
+      "file": "src/lib/chat-cache.ts"
+    },
+    {
+      "id": "lib:chat-cache.web",
+      "kind": "lib",
+      "label": "@/lib/chat-cache.web",
+      "file": "src/lib/chat-cache.web.ts"
+    },
+    {
       "id": "lib:clipboard",
       "kind": "lib",
       "label": "@/lib/clipboard",
@@ -696,6 +897,12 @@
       "kind": "lib",
       "label": "@/lib/crash",
       "file": "src/lib/crash.ts"
+    },
+    {
+      "id": "lib:demo-personas",
+      "kind": "lib",
+      "label": "@/lib/demo-personas",
+      "file": "src/lib/demo-personas.ts"
     },
     {
       "id": "lib:env",
@@ -794,6 +1001,12 @@
       "file": "src/lib/readynative-config.ts"
     },
     {
+      "id": "lib:return-path",
+      "kind": "lib",
+      "label": "@/lib/return-path",
+      "file": "src/lib/return-path.ts"
+    },
+    {
       "id": "lib:share",
       "kind": "lib",
       "label": "@/lib/share",
@@ -882,6 +1095,12 @@
       "kind": "lib",
       "label": "@/lib/storage-adapter",
       "file": "src/lib/storage-adapter.ts"
+    },
+    {
+      "id": "lib:storage.web",
+      "kind": "lib",
+      "label": "@/lib/storage.web",
+      "file": "src/lib/storage.web.ts"
     },
     {
       "id": "lib:store-review",
@@ -992,6 +1211,11 @@
   "edges": [
     {
       "from": "hook:use-auth-redirect",
+      "to": "lib:return-path",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-auth-redirect",
       "to": "store:session",
       "kind": "imports"
     },
@@ -1022,12 +1246,22 @@
     },
     {
       "from": "hook:use-sign-out-cleanup",
+      "to": "lib:chat-cache",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-sign-out-cleanup",
       "to": "lib:crash",
       "kind": "imports"
     },
     {
       "from": "hook:use-sign-out-cleanup",
       "to": "lib:privacy",
+      "kind": "imports"
+    },
+    {
+      "from": "hook:use-sign-out-cleanup",
+      "to": "store:chat",
       "kind": "imports"
     },
     {
@@ -1058,6 +1292,11 @@
     {
       "from": "lib:cache",
       "to": "lib:storage-adapter",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:chat-cache",
+      "to": "lib:storage",
       "kind": "imports"
     },
     {
@@ -1152,6 +1391,11 @@
     },
     {
       "from": "lib:storage",
+      "to": "lib:storage-adapter",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:storage.web",
       "to": "lib:storage-adapter",
       "kind": "imports"
     },
@@ -1286,7 +1530,22 @@
       "kind": "imports"
     },
     {
+      "from": "route:(tabs)/orders/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "route:(tabs)/settings/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/stock/_layout",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "route:(tabs)/today/_layout",
       "to": "lib:i18n",
       "kind": "imports"
     },
@@ -1361,6 +1620,21 @@
       "kind": "renders"
     },
     {
+      "from": "route:/orders",
+      "to": "screen:business/orders-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/pair-lite",
+      "to": "screen:settings/pair-lite-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/pay/[billId]",
+      "to": "screen:shop/pay-bill-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/payees",
       "to": "screen:payees/payees-screen",
       "kind": "renders"
@@ -1378,6 +1652,21 @@
     {
       "from": "route:/settings",
       "to": "screen:settings/settings-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/shortcut",
+      "to": "screen:settings/shortcut-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/stock",
+      "to": "screen:business/stock-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/today",
+      "to": "screen:business/today-screen",
       "kind": "renders"
     },
     {
@@ -1406,6 +1695,11 @@
       "kind": "imports"
     },
     {
+      "from": "screen:activity/notification-text",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "screen:auth/login-screen",
       "to": "lib:haptics",
       "kind": "imports"
@@ -1421,6 +1715,11 @@
       "kind": "imports"
     },
     {
+      "from": "screen:auth/login-screen",
+      "to": "lib:return-path",
+      "kind": "imports"
+    },
+    {
       "from": "screen:auth/register-screen",
       "to": "lib:haptics",
       "kind": "imports"
@@ -1433,6 +1732,21 @@
     {
       "from": "screen:auth/register-screen",
       "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/register-screen",
+      "to": "lib:return-path",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/welcome-screen",
+      "to": "lib:demo-personas",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/welcome-screen",
+      "to": "lib:haptics",
       "kind": "imports"
     },
     {
@@ -1441,12 +1755,57 @@
       "kind": "imports"
     },
     {
+      "from": "screen:auth/welcome-screen",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/welcome-screen",
+      "to": "lib:return-path",
+      "kind": "imports"
+    },
+    {
       "from": "screen:bills/bills-screen",
       "to": "lib:format",
       "kind": "imports"
     },
     {
       "from": "screen:bills/bills-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/business-text",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/orders-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/orders-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/stock-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/stock-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/today-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:business/today-screen",
       "to": "lib:i18n",
       "kind": "imports"
     },
@@ -1458,6 +1817,11 @@
     {
       "from": "screen:cards/cards-screen",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/chat-screen",
+      "to": "lib:chat-cache",
       "kind": "imports"
     },
     {
@@ -1473,6 +1837,16 @@
     {
       "from": "screen:chat/chat-screen",
       "to": "store:chat",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/consent-card",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/consent-card",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
@@ -1531,6 +1905,61 @@
       "kind": "imports"
     },
     {
+      "from": "screen:lite/activity-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/activity-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/lite-root",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/lite-root",
+      "to": "lib:query",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/lite-root",
+      "to": "store:session",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/lite-root",
+      "to": "store:theme-mode",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/lock-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/pair-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/settings-screen",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/settings-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/settings-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "screen:onboarding/onboarding-chat-screen",
       "to": "lib:format",
       "kind": "imports"
@@ -1543,6 +1972,16 @@
     {
       "from": "screen:onboarding/onboarding-chat-screen",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "screen:chat/consent",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "screen:chat/consent-card",
       "kind": "imports"
     },
     {
@@ -1671,6 +2110,16 @@
       "kind": "imports"
     },
     {
+      "from": "screen:settings/pair-lite-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/pair-lite-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "screen:settings/pending-changes",
       "to": "lib:format",
       "kind": "imports"
@@ -1716,6 +2165,31 @@
       "kind": "reads"
     },
     {
+      "from": "screen:settings/shortcut-screen",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/shortcut-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/shortcut-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/shortcut-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/shortcut-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "screen:settings/use-settings-update",
       "to": "lib:haptics",
       "kind": "imports"
@@ -1728,6 +2202,31 @@
     {
       "from": "screen:settings/use-settings-update",
       "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:shop/pay-bill-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:shop/pay-bill-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:shop/pay-bill-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:shop/shop-order-timeline",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:shop/shop-order-timeline",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {

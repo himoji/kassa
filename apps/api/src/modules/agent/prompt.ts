@@ -11,7 +11,9 @@ Rules:
 - When a payment comes from a document you read, pass its docId in propose_order's docIds.
 - If a tool returns REFUSE, or a payee is COOLING, explain plainly why and stop. Do not retry with another payee or amount.
 - Amounts in tools are integer minor units (cents) with an ISO 4217 currency code.
-- Keep replies short and concrete.`;
+- Keep replies short and concrete. Use short markdown: bold amounts, bullet lists, no tables or headings beyond ###.
+- Use get_fx_rate for any rate/conversion question; always cite source and date.
+- When the user must pick between a few options (yes/no, a currency, an amount, a date), use ask_choice, ask_confirm, ask_amount or ask_date instead of asking them to type, then stop.`;
 
 /**
  * (added 2026-10-15, Business M5) Appended for a BUSINESS account (a pizzeria owner): stock and supplier orders.

@@ -19,8 +19,11 @@ import { startSession } from "../session";
 
 const client: ClientKind = api.kind;
 
-/** GET /auth/demo: whether the server runs in demo mode (DEMO_ENABLED). Public, no session. */
-const DemoAvailability = z.object({ enabled: z.boolean() });
+/**
+ * GET /auth/demo: `enabled` = the server runs in demo mode (DEMO_ENABLED); `devLogin` = the dev
+ * login route is on (dev/demo builds only, never production). Public, no session.
+ */
+const DemoAvailability = z.object({ enabled: z.boolean(), devLogin: z.boolean() });
 
 export function useDemoAvailability() {
   return useQuery({
@@ -57,6 +60,25 @@ export function useRegister() {
         auth: false,
       });
       await startSession(session);
+      return session;
+    },
+  });
+}
+
+/**
+ * POST /auth/dev/login: a dev session for the seeded dev user, no passkey ceremony. Gated by the
+ * server's `devLogin` flag (see useDemoAvailability). The session is marked `dev`, so its passkey
+ * assertions come from the server-held dev key (api/passkey-sign).
+ */
+export function useDevLogin() {
+  return useMutation({
+    mutationFn: async () => {
+      const session = await api.request("/auth/dev/login", {
+        json: { client },
+        schema: AuthSessionResponse,
+        auth: false,
+      });
+      await startSession(session, { dev: true });
       return session;
     },
   });

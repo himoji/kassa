@@ -27,7 +27,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { demoState, profiles, users, webauthnCredentialsRules } from "../../db/schema.ts";
+import { demoState, users, webauthnCredentialsRules } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
@@ -38,24 +38,23 @@ import { setAiConsent } from "../privacy/service.ts";
 import { verifyRulesAssertion } from "../rules/webauthn.ts";
 import { createUser } from "../users/service.ts";
 import { putChallenge, takeChallenge } from "./challenges.ts";
-import { authenticate, endSession, refreshSession, revokeRefresh, startSession } from "./session.ts";
+import devRoutes, { devLoginAllowed } from "./dev.ts";
+import pairRoutes from "./pair.ts";
+import { authenticate, endSession, refreshSession, revokeRefresh, sessionBody, startSession } from "./session.ts";
 
-async function sessionBody(userId: string, tokens: Awaited<ReturnType<typeof startSession>>) {
-  const db = getDb();
-  const u = (await db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq(users.id, userId)))[0];
-  if (!u) throw new HttpProblem(404, "NOT_FOUND", "user not found");
-  const p = (await db.select({ signedAt: profiles.baseRulesSignedAt }).from(profiles).where(eq(profiles.userId, userId)))[0];
-  return { user: u, onboarded: Boolean(p?.signedAt), tokens };
-}
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   // Lets the welcome screen offer "Try the demo" only where the demo-claim registration below works.
   // Registration stays a passkey ceremony either way: this only reports the flag.
   app.get(
     "/auth/demo",
-    { schema: { response: { 200: z.object({ enabled: z.boolean() }) } } },
-    async () => ({ enabled: env().DEMO_ENABLED }),
+    { schema: { response: { 200: z.object({ enabled: z.boolean(), devLogin: z.boolean() }) } } },
+    // devLogin: the welcome screen offers "Continue as dev user" (auth/dev.ts guards).
+    async () => ({ enabled: env().DEMO_ENABLED, devLogin: devLoginAllowed() }),
   );
+
+  await app.register(devRoutes);
+  await app.register(pairRoutes);
 
   app.post(
     "/auth/register/options",

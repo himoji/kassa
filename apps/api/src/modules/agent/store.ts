@@ -11,9 +11,9 @@ import type { TurnStore } from "./loop.ts";
 export function dbTurnStore(conversationId: string, userId: string, channel: "agent" | "onboarding" = "agent"): TurnStore {
   return {
     history: () => loadHistory(conversationId, userId),
-    placeholders: () => loadPlaceholders(conversationId),
+    placeholders: () => loadPlaceholders(conversationId, userId),
     saveMessages: (messages: ModelMessage[]) => appendHistory(conversationId, userId, channel, messages),
-    savePlaceholders: (entries) => savePlaceholders(conversationId, entries),
+    savePlaceholders: (entries) => savePlaceholders(conversationId, userId, entries),
     async readDocs() {
       const rows = await getDb()
         .select({ id: agentDocuments.id, r: agentDocuments.readerResult })

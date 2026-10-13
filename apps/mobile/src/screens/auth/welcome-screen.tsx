@@ -1,10 +1,11 @@
+import type { AuthSessionResponse } from "@kassa/shared";
 import { type Href, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KassaApiError } from "@/api/errors";
-import { useDemoAvailability, useRegister } from "@/api/hooks/auth";
+import { useDemoAvailability, useDevLogin, useRegister } from "@/api/hooks/auth";
 import { errorText } from "@/components/kassa/error-text";
 import { Box, Button, Icon, Text, useTheme } from "@/components/ui";
 import {
@@ -35,6 +36,48 @@ function demoErrorText(t: TFn, err: unknown): string {
   return errorText(t, err);
 }
 
+/** The one success path for every sign-in on this screen (passkey register, demo, dev login). */
+function continueSignedIn(session: AuthSessionResponse): void {
+  haptics.success();
+  router.replace(session.onboarded ? ((peekReturnPath() ?? "/home") as Href) : "/onboarding/chat");
+}
+
+/**
+ * "Continue as dev user": shown only when GET /auth/demo reports `devLogin` (server dev/demo builds).
+ * POST /auth/dev/login starts a dev session with no passkey ceremony; its later passkey signing is
+ * done by the server (api/passkey-sign).
+ */
+function DevLoginButton() {
+  const t = useKassaT();
+  const demo = useDemoAvailability();
+  const devLogin = useDevLogin();
+  const [error, setError] = useState<string | null>(null);
+  if (!demo.data?.devLogin) return null;
+
+  const start = async () => {
+    setError(null);
+    try {
+      continueSignedIn(await devLogin.mutateAsync());
+    } catch (err) {
+      haptics.error();
+      setError(errorText(t, err));
+    }
+  };
+
+  return (
+    <Box gap={2}>
+      <Button size="lg" variant="outline" onPress={() => void start()} loading={devLogin.isPending}>
+        {t("auth:welcome.devLogin")}
+      </Button>
+      {error ? (
+        <Text color="destructive" align="center">
+          {error}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
+
 /**
  * "Try the demo": shown only when the API runs in demo mode (GET /auth/demo). It is the normal
  * passkey registration with `demoClaim`, so the new passkey owns the seeded demo account and every
@@ -58,10 +101,7 @@ function DemoButton() {
         displayName: t(`auth:welcome.personas.${persona}.name`),
         demoClaim: demoClaimFor(persona),
       });
-      haptics.success();
-      router.replace(
-        session.onboarded ? ((peekReturnPath() ?? "/home") as Href) : "/onboarding/chat"
-      );
+      continueSignedIn(session);
     } catch (err) {
       if (err instanceof PasskeyCancelledError) return;
       haptics.error();
@@ -133,6 +173,7 @@ export function WelcomeScreen() {
             {t("auth:welcome.signIn")}
           </Button>
           <DemoButton />
+          <DevLoginButton />
           <Text variant="caption" align="center">
             {t("auth:welcome.demoNote")}
           </Text>

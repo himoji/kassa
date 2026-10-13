@@ -37,7 +37,7 @@ import {
   webauthnCredentialsPayments,
   webauthnCredentialsRules,
 } from "../../db/schema.ts";
-import { agentDocuments, agentMessages, merchantCategoryMemory, onboardingDrafts } from "../../db/schema.intel.ts";
+import { agentDocuments, agentMessages, conversations, merchantCategoryMemory, onboardingDrafts } from "../../db/schema.intel.ts";
 import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
@@ -81,8 +81,11 @@ const PAYMENT_DETAIL_KEYS_KEPT = new Set(["provider", "intentId", "cardId", "las
 async function conversationIds(db: DbOrTx, userId: string): Promise<string[]> {
   const a = await db.selectDistinct({ id: agentMessages.conversationId }).from(agentMessages).where(eq(agentMessages.userId, userId));
   const b = await db.select({ id: onboardingDrafts.conversationId }).from(onboardingDrafts).where(eq(onboardingDrafts.userId, userId));
-  return [...new Set([...a, ...b].map((r) => r.id))];
+  const c = await db.select({ id: conversations.id }).from(conversations).where(eq(conversations.userId, userId));
+  return [...new Set([...a, ...b, ...c].map((r) => r.id))];
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function processingInfo() {
   const e = env();
@@ -162,6 +165,7 @@ export async function exportUserData(userId: string) {
       messages: convIds.length ? await db.select().from(agentMessages).where(inArray(agentMessages.conversationId, convIds)) : [],
       placeholderMaps: convIds.length ? await db.select().from(placeholderMaps).where(inArray(placeholderMaps.conversationId, convIds)) : [],
       onboardingDrafts: await db.select().from(onboardingDrafts).where(own(onboardingDrafts)),
+      owned: await db.select().from(conversations).where(own(conversations)),
     },
     documents: await db.select().from(agentDocuments).where(own(agentDocuments)),
     ledger: await Promise.all(ledgerRows.map(async (e) => ({ seq: e.seq, ts: e.ts, type: e.type, payload: await viewLedgerPayload(e.payload, db), hash: e.hash }))),
@@ -254,6 +258,7 @@ export async function eraseUser(userId: string): Promise<{ erasedAt: Date }> {
     }
     await tx.delete(agentMessages).where(eq(agentMessages.userId, userId));
     await tx.delete(onboardingDrafts).where(eq(onboardingDrafts.userId, userId));
+    await tx.delete(conversations).where(eq(conversations.userId, userId));
     await tx.delete(agentDocuments).where(eq(agentDocuments.userId, userId));
     await tx.delete(merchantCategoryMemory).where(eq(merchantCategoryMemory.userId, userId));
     await tx.delete(notifications).where(eq(notifications.userId, userId));
@@ -342,6 +347,8 @@ export async function purgeExpired(now: Date = clock.now()): Promise<PurgeCounts
     const ids = stale.map((r) => r.id);
     if (ids.length) {
       await db.delete(agentMessages).where(inArray(agentMessages.conversationId, ids));
+      const uuids = ids.filter((id) => UUID_RE.test(id));
+      if (uuids.length) await db.delete(conversations).where(and(inArray(conversations.id, uuids), eq(conversations.channel, "agent")));
       counts.conversations = ids.length;
     }
     const active = db.selectDistinct({ id: agentMessages.conversationId }).from(agentMessages);
