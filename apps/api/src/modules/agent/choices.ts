@@ -1,7 +1,7 @@
 import type { ModelMessage } from "ai";
 import { distance } from "fastest-levenshtein";
 
-import type { ChoiceAnswer, DataChoices } from "@kassa/shared";
+import { currencyExponent, type ChoiceAnswer, type DataChoices } from "@kassa/shared";
 
 import { choicePart, UI_TOOLS } from "./tools.ts";
 
@@ -99,6 +99,24 @@ export function resolveAnswer(part: DataChoices, answer: ChoiceAnswer): NonNulla
     const a = part.amount;
     if ((a?.minMinor !== undefined && n < a.minMinor) || (a?.maxMinor !== undefined && n > a.maxMinor)) throw new ChoiceError("CHOICE_INVALID", "amount out of range");
     return { optionIds: [], value: v, label: `${v} ${a?.currency ?? ""} (minor units)`.trim() };
+  }
+  if (part.kind === "amounts") {
+    const cfg = part.amounts;
+    if (!cfg) throw new ChoiceError("CHOICE_INVALID", "picker has no amounts");
+    const values = new Map((answer.values ?? []).map((v) => [v.id, v.value]));
+    if (values.size !== (answer.values ?? []).length || [...values.keys()].some((id) => !cfg.items.some((i) => i.id === id))) {
+      throw new ChoiceError("CHOICE_INVALID", "unknown or repeated amount id");
+    }
+    const exp = currencyExponent(cfg.currency);
+    const parts = cfg.items.map((item) => {
+      const v = values.get(item.id) ?? String(item.defaultMinor);
+      if (!/^\d{1,15}$/.test(v)) throw new ChoiceError("CHOICE_INVALID", "amount must be integer minor units");
+      const n = Number(v);
+      if ((item.minMinor !== undefined && n < item.minMinor) || (item.maxMinor !== undefined && n > item.maxMinor)) throw new ChoiceError("CHOICE_INVALID", "amount out of range");
+      // Major units without separators ("Groceries 150000 KZT"): what the model reads as the user's numbers.
+      return { id: item.id, value: v, text: `${item.label} ${exp ? (n / 10 ** exp).toFixed(exp) : String(n)} ${cfg.currency}` };
+    });
+    return { optionIds: [], value: parts.map((p) => `${p.id}=${p.value}`).join(","), label: parts.map((p) => p.text).join(", ") };
   }
   if (part.kind === "date") {
     const v = answer.value ?? "";

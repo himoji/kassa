@@ -93,4 +93,17 @@ describe("onboarding confirm", () => {
     const twice = await app().inject({ method: "POST", url: "/api/onboarding/confirm", headers: h, payload: { conversationId, challengeId: again.json().challengeId, core: again.json().core, assertion: auth.assert(again.json().rulesHash) } });
     expect(twice.statusCode).toBe(409);
   });
+
+  it("caps edited on the review sheet are part of the signed core", async () => {
+    const { userId, auth } = await createUserWithPasskey({ preset: "ASK_ME" });
+    const h = await bearer(userId);
+    const conversationId = crypto.randomUUID();
+    const caps = { perPaymentMinor: 4_200_000, reserveMinor: 0 };
+    const o = (await app().inject({ method: "POST", url: "/api/onboarding/confirm/options", headers: h, payload: { conversationId, caps, budgets: [{ category: "groceries", limitHomeMinor: 100 }] } })).json();
+    expect(o.core.caps).toMatchObject(caps);
+    expect(o.draft.budgets).toEqual([]);
+    const ok = await app().inject({ method: "POST", url: "/api/onboarding/confirm", headers: h, payload: { conversationId, challengeId: o.challengeId, core: o.core, assertion: auth.assert(o.rulesHash) } });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect((await app().inject({ method: "GET", url: "/api/caps", headers: h })).json().caps).toMatchObject(caps);
+  });
 });

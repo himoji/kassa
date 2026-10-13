@@ -11,6 +11,7 @@ import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { createUser } from "../users/service.ts";
+import { demoClaimUserId } from "./demoClaim.ts";
 import { requireUser, sessionBody, startSession, userIdOf } from "./session.ts";
 import { SoftAuthenticator } from "./soft-authenticator.ts";
 
@@ -19,7 +20,9 @@ import { SoftAuthenticator } from "./soft-authenticator.ts";
  * host changes every run, so passkeys bound to it never work twice).
  *
  * POST /auth/dev/login creates (or reuses) a "Dev" user with a server-held software passkey and starts a session
- * carrying `dev: true`. Approvals still go through the normal WebAuthn checks: POST /auth/dev/assert signs the 428
+ * carrying `dev: true`. The app's two modes pick the account: dev mode (`fresh`) makes a brand-new user every time,
+ * so onboarding starts from scratch; demo mode (`demoClaim`, as in the demo-claim registration) enters a seeded demo
+ * persona without a platform passkey. Approvals still go through the normal WebAuthn checks: POST /auth/dev/assert signs the 428
  * challenge with a server-held key. Dev sessions use it for every approval; any other session (a real passkey user)
  * only when the app's "Dev" button next to a passkey button asks for it, and the key is then registered on that
  * account too. KassaLite sessions never get it (they never get passkey-gated rights). Nothing else in the passkey
@@ -30,6 +33,8 @@ import { SoftAuthenticator } from "./soft-authenticator.ts";
  */
 
 export const DEV_DISPLAY_NAME = "Dev";
+/** Dev mode users: a new one per sign-in, never reused (the reused "Dev" user is looked up by its name). */
+export const DEV_FRESH_DISPLAY_NAME = "Dev (fresh)";
 
 /** One software passkey per dev user, for this process (a restart registers a fresh one on the next use). */
 const devKeys = new Map<string, SoftAuthenticator>();
@@ -58,30 +63,43 @@ async function devKeyFor(userId: string): Promise<SoftAuthenticator> {
   return key;
 }
 
-async function devUser(): Promise<string> {
-  const db = getDb();
-  const found = (await db.select({ id: users.id, erasedAt: users.erasedAt }).from(users).where(eq(users.displayName, DEV_DISPLAY_NAME)))
-    .filter((u) => !u.erasedAt)
-    .at(0);
-  if (found) return found.id;
+async function newDevUser(displayName: string): Promise<string> {
   const id = randomUUID();
-  await db.transaction(async (tx) => {
-    await createUser(tx, { id, displayName: DEV_DISPLAY_NAME });
+  await getDb().transaction(async (tx) => {
+    await createUser(tx, { id, displayName });
     // Dev convenience: consent to AI processing so the chat works right away (shown in Settings → Privacy).
     await tx.update(users).set({ aiConsentAt: clock.now() }).where(eq(users.id, id));
   });
   return id;
 }
 
+async function devUser(): Promise<string> {
+  const db = getDb();
+  const found = (await db.select({ id: users.id, erasedAt: users.erasedAt }).from(users).where(eq(users.displayName, DEV_DISPLAY_NAME)))
+    .filter((u) => !u.erasedAt)
+    .at(0);
+  if (found) return found.id;
+  return newDevUser(DEV_DISPLAY_NAME);
+}
+
+const DevLoginBody = z.object({
+  client: ClientKind,
+  /** Dev mode: a brand-new user (onboarding from the start) instead of the reused "Dev" user. */
+  fresh: z.boolean().optional(),
+  /** Demo mode: the seeded demo account (`true` = the hero, a string = that persona key), no platform passkey. */
+  demoClaim: z.union([z.literal(true), z.string().regex(/^[a-z0-9-]{1,32}$/)]).optional(),
+});
+
 const devRoutes: FastifyPluginAsyncZod = async (app) => {
   if (env().NODE_ENV === "production") return;
 
   app.post(
     "/auth/dev/login",
-    { schema: { body: z.object({ client: ClientKind }), response: { 200: AuthSessionResponse } } },
+    { schema: { body: DevLoginBody, response: { 200: AuthSessionResponse } } },
     async (req, reply) => {
       assertAllowed();
-      const userId = await devUser();
+      const { demoClaim, fresh } = req.body;
+      const userId = demoClaim ? await demoClaimUserId(demoClaim) : fresh ? await newDevUser(DEV_FRESH_DISPLAY_NAME) : await devUser();
       await devKeyFor(userId);
       await audit("AUTH_LOGIN_SUCCEEDED", { userId, client: req.body.client, method: "DEV_LOGIN" });
       return sessionBody(userId, await startSession(reply, userId, req.body.client, { dev: true }));

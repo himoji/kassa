@@ -302,7 +302,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const db = getDb();
       const { user, profile, caps } = await loadUser(db, userId);
       const ob = await onboardingModule();
-      const draft = (await ob.getOnboardingDraft?.(userId, req.body.conversationId)) ?? emptyDraft();
+      const stored = (await ob.getOnboardingDraft?.(userId, req.body.conversationId)) ?? emptyDraft();
+      // Review-sheet edits: new limits for the draft's own budget categories (others are ignored), and the caps.
+      const budgetEdits = new Map((req.body.budgets ?? []).map((b) => [b.category, b.limitHomeMinor]));
+      const draft = { ...stored, budgets: stored.budgets.map((b) => ({ ...b, limitHomeMinor: budgetEdits.get(b.category) ?? b.limitHomeMinor })) };
+      const capEdits = Object.fromEntries(Object.entries(req.body.caps ?? {}).filter(([, v]) => v !== undefined));
       const current = settingsOf(user, profile.notificationMode);
       const core: BaseRulesCore = {
         v: 1,
@@ -314,7 +318,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           notificationMode: draft.notificationMode ?? current.notificationMode,
           overrides: { ...current.overrides, ...(draft.moneyMode ? { moneyMode: draft.moneyMode } : {}) },
         },
-        caps: { currency: draft.homeCurrency ?? user.homeCurrency, ...caps },
+        caps: { currency: draft.homeCurrency ?? user.homeCurrency, ...caps, ...capEdits },
       };
       const rulesHash = jcsHash(core);
       const challengeId = putGated({ userId, purpose: "base-rules", hash: rulesHash, payload: { core, draft } });

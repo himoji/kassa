@@ -134,3 +134,39 @@ export function SettingSlider({
     </View>
   );
 }
+
+interface AmountSliderProps {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+  testID?: string;
+}
+
+/** A bare full-width slider (no row chrome), for amounts inside cards and sheets. */
+export function AmountSlider({
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  disabled,
+  testID,
+}: AmountSliderProps) {
+  const { mode } = useTheme();
+  return (
+    <Host matchContents={{ vertical: true }} style={{ width: "100%" }} colorScheme={mode}>
+      <Slider
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={onChange}
+        disabled={disabled}
+        testID={testID}
+      />
+    </Host>
+  );
+}
