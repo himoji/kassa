@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 
 import { usePurchaseOrders, useSignPurchaseOrder } from "@/api/hooks/business";
+import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { StatusChip } from "@/components/kassa/status-chip";
@@ -101,7 +102,8 @@ function PurchaseOrderDetail({ po }: { po: PurchaseOrderDto }) {
         </Text>
       ) : null}
       {po.status === "DRAFT" ? (
-        <Button
+        <PasskeyButton
+          size="md"
           loading={sign.isPending}
           onPress={() =>
             sign.mutate(po.id, {
@@ -119,7 +121,7 @@ function PurchaseOrderDetail({ po }: { po: PurchaseOrderDto }) {
           }
         >
           {t("business:signWithPasskey")}
-        </Button>
+        </PasskeyButton>
       ) : null}
       {po.proposalId && (po.status === "INVOICED" || po.status === "PAYING") ? (
         <Button variant="secondary" onPress={() => router.push(`/order/${po.proposalId}`)}>
