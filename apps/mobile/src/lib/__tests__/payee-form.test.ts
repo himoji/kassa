@@ -17,7 +17,7 @@ describe("add-payee form", () => {
 
   it("offers Alipay first in China and keeps a still-valid choice", () => {
     expect(schemesAndChoice("CN", "CNY", "IBAN")).toEqual({
-      schemes: ["CN_ALIPAY", "CN_UNIONPAY", "OTHER"],
+      schemes: ["CN_ALIPAY", "CN_UNIONPAY", "KASSA_USER", "OTHER"],
       scheme: "CN_ALIPAY",
     });
     expect(schemesAndChoice("CN", "CNY", "CN_UNIONPAY").scheme).toBe("CN_UNIONPAY");
@@ -40,5 +40,11 @@ describe("add-payee form", () => {
         "USD"
       )
     ).toEqual({ ok: false, problem: { field: "accountNumber", code: "ACH_ACCOUNT_INVALID" } });
+    expect(
+      checkPayeeForm(
+        { ...EMPTY_PAYEE_FIELDS, scheme: "KASSA_USER", kassaId: "ksa 7qmx 2hva" },
+        "HUF"
+      )
+    ).toEqual({ ok: true, account: "KASSA:KSA-7QMX-2HVA" });
   });
 });

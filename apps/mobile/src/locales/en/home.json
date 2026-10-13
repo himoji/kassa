@@ -70,5 +70,7 @@
   "runOutShort": "Runs out {{date}}",
   "editBudgets": "Edit",
   "showAllBudgets": "Show all {{count}}",
-  "showFewerBudgets": "Show fewer"
+  "showFewerBudgets": "Show fewer",
+  "addMoney": "Add money",
+  "send": "Send"
 }

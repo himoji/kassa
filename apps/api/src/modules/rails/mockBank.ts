@@ -7,12 +7,13 @@
  * ACH (USD). Mock status changes arrive as HMAC webhooks (POST /api/webhooks/mock/bank); both are also polled by
  * the scheduler.
  */
-import { currencyExponent, decodePayeeAccount, fromMinor, isSupportedCurrency, orderFunding, toMinor, type CanonicalOrder, type PaymentStatus } from "@kassa/shared";
+import { currencyExponent, decodePayeeAccount, fromMinor, normalizeKassaId, isSupportedCurrency, orderFunding, toMinor, type CanonicalOrder, type PaymentStatus } from "@kassa/shared";
 
 import { eq } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
 import { profiles } from "../../db/schema.ts";
+import { ensureWalletProfile, userByKassaId } from "../wallet/service.ts";
 import { bankCall, bankMode, simulateNextWiseState, WiseError, wiseSandboxProfile } from "./bankApi.ts";
 import type { ExecCtx, Rail, RailResult } from "./types.ts";
 
@@ -70,9 +71,22 @@ export function wiseRecipientFor(account: string, opts: { profile: number; curre
       return { ...base, type: "chinese_card", details: { legalType: opts.legalType, cardNumber: f.cardNumber } };
     case "US_ACH":
       return { ...base, type: "aba", details: { legalType: opts.legalType, abartn: f.routingNumber, accountNumber: f.accountNumber, accountType: f.accountType } };
+    case "KASSA_USER":
     case "OTHER":
+      // Kassa users are paid wallet to wallet (kassaWalletRecipient); other identifiers cannot be reached.
       return null;
   }
+}
+
+/** Kassa → Kassa: the recipient is the other user's wallet in the sandbox bank (mock bank only). */
+async function kassaWalletRecipient(account: string, opts: { profile: number; currency: string; holder: string; legalType: LegalType }): Promise<Record<string, unknown> | string> {
+  const f = decodePayeeAccount(account);
+  if (f.scheme !== "KASSA_USER") return "not a Kassa ID";
+  if (bankMode() !== "mock") return "Kassa-to-Kassa payments run on the sandbox bank (mock-world), not on the Wise sandbox";
+  const target = await userByKassaId(normalizeKassaId(f.kassaId) ?? "");
+  if (!target) return "no Kassa user has this ID any more";
+  const walletProfile = await ensureWalletProfile(target.id);
+  return { profile: opts.profile, currency: opts.currency, accountHolderName: opts.holder, type: "kassa_wallet", details: { legalType: opts.legalType, walletProfile } };
 }
 
 type Quote = { id: string; sourceCurrency?: string; targetCurrency?: string; sourceAmountMinor?: number; targetAmountMinor?: number };
@@ -135,9 +149,14 @@ export const mockBankRail: Rail = {
         details: { quoteId: quote.id, quoteSourceAmountMinor: quote.sourceAmountMinor ?? null, signedMaxMinor: funding.maxAmountMinor, fundingCurrency: funding.currency },
       };
     }
-    const recipientBody = wiseRecipientFor(ctx.payee.account, { profile, currency: order.currency, holder: order.payeeName, legalType });
+    const recipientOpts = { profile, currency: order.currency, holder: order.payeeName, legalType: legalType as LegalType };
+    const kassa = decodePayeeAccount(ctx.payee.account).scheme === "KASSA_USER" ? await kassaWalletRecipient(ctx.payee.account, recipientOpts) : null;
+    if (typeof kassa === "string") {
+      return { status: "FAILED", railRef: `quote:${quote.id}`, reasonCodes: ["RAIL_ERROR"], details: { quoteId: quote.id, error: kassa } };
+    }
+    const recipientBody = kassa ?? wiseRecipientFor(ctx.payee.account, recipientOpts);
     if (!recipientBody) {
-      return { status: "FAILED", railRef: `quote:${quote.id}`, reasonCodes: ["RAIL_ERROR"], details: { quoteId: quote.id, error: "this payee has no bank, Alipay, UnionPay or ACH account a transfer can reach" } };
+      return { status: "FAILED", railRef: `quote:${quote.id}`, reasonCodes: ["RAIL_ERROR"], details: { quoteId: quote.id, error: "this payee has no bank, Alipay, UnionPay, ACH or Kassa account a transfer can reach" } };
     }
     let recipient: { id: string | number };
     try {

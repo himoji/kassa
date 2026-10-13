@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   abaRoutingOk,
+  normalizeKassaId,
   decodePayeeAccount,
   encodePayeeAccount,
   luhnOk,
@@ -56,9 +57,9 @@ describe("payee account schemes", () => {
   });
 
   it("offers the schemes that fit the country and currency", () => {
-    expect(payoutSchemesFor("CN", "CNY")).toEqual(["CN_ALIPAY", "CN_UNIONPAY", "OTHER"]);
-    expect(payoutSchemesFor("US", "USD")).toEqual(["US_ACH", "OTHER"]);
-    expect(payoutSchemesFor("DE", "EUR")).toEqual(["IBAN", "OTHER"]);
+    expect(payoutSchemesFor("CN", "CNY")).toEqual(["CN_ALIPAY", "CN_UNIONPAY", "KASSA_USER", "OTHER"]);
+    expect(payoutSchemesFor("US", "USD")).toEqual(["US_ACH", "KASSA_USER", "OTHER"]);
+    expect(payoutSchemesFor("DE", "EUR")).toEqual(["IBAN", "KASSA_USER", "OTHER"]);
   });
 
   it("masks with the scheme and the last characters only", () => {
@@ -67,5 +68,14 @@ describe("payee account schemes", () => {
     expect(maskPayeeAccount("ALIPAY:+8613800138000")).toBe("Alipay •••• 8000");
     expect(maskPayeeAccount(`UNIONPAY:${UNIONPAY}`)).toBe("UnionPay •••• 0005");
     expect(maskPayeeAccount(`ACH:${ROUTING}:123456789:CHECKING`)).toBe("ACH •••• 6789");
+  });
+
+  it("reads Kassa IDs however they are typed, and refuses look-alike characters", () => {
+    expect(normalizeKassaId("ksa 7qmx 2hva")).toBe("KSA-7QMX-2HVA");
+    expect(normalizeKassaId("7QMX2HVA")).toBe("KSA-7QMX-2HVA");
+    expect(normalizeKassaId("KSA-7QMX-2HV0")).toBeNull();
+    expect(encodePayeeAccount({ scheme: "KASSA_USER", kassaId: "ksa7qmx2hva" })).toBe("KASSA:KSA-7QMX-2HVA");
+    expect(validatePayeeAccount({ scheme: "KASSA_USER", kassaId: "KSA-7QMX-2HVI" })).toEqual({ field: "kassaId", code: "KASSA_ID_INVALID" });
+    expect(maskPayeeAccount("KASSA:KSA-7QMX-2HVA")).toBe("Kassa KSA-7QMX-2HVA");
   });
 });

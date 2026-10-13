@@ -75,7 +75,9 @@ export type RecipientAccount =
   | { type: "iban"; iban: string }
   | { type: "chinese_alipay"; accountNumber: string }
   | { type: "chinese_card"; cardNumber: string }
-  | { type: "aba"; abartn: string; accountNumber: string; accountType: "CHECKING" | "SAVINGS" };
+  | { type: "aba"; abartn: string; accountNumber: string; accountType: "CHECKING" | "SAVINGS" }
+  /** Another wallet in this bank (a Kassa user paying a Kassa user): credited when the transfer is sent. */
+  | { type: "kassa_wallet"; walletProfile: number };
 
 export interface Recipient {
   id: number;
@@ -129,7 +131,7 @@ export type RecipientInput = {
 } & ({ iban: string; account?: undefined } | { account: RecipientAccount; iban?: undefined });
 
 /** The shared payee-account fields for a Wise recipient, so the mock validates exactly what Kassa validates. */
-function payeeFields(a: RecipientAccount): PayeeAccountFields {
+function payeeFields(a: Exclude<RecipientAccount, { type: "kassa_wallet" }>): PayeeAccountFields {
   switch (a.type) {
     case "iban":
       return { scheme: "IBAN", iban: a.iban };
@@ -188,6 +190,8 @@ export class MockBank {
   private readonly quoteUsedBy = new Map<string, number>();
   private balances = new Map<number, Map<string, number>>();
   private readonly aliases = new Map<string, number>();
+  /** Test top-ups by reference (idempotent: a retried tap adds the money once). */
+  private readonly topUps = new Map<string, { profile: number; currency: string; amountMinor: number; balanceAfterMinor: number }>();
   private nextId: number;
 
   constructor(private readonly opts: BankOptions) {
@@ -212,7 +216,35 @@ export class MockBank {
     this.transfers.clear();
     this.byCustomerTxId.clear();
     this.quoteUsedBy.clear();
+    this.topUps.clear();
     this.resetBalances();
+  }
+
+  /**
+   * Open an empty wallet for a new user under a given profile id (the API derives and stores it). Idempotent, so the
+   * API can call it again after this in-memory bank restarted.
+   */
+  openWallet(profileId: number, aliases: string[] = []): { profileId: number; created: boolean } {
+    if (!Number.isSafeInteger(profileId) || profileId <= 0) throw new BankError(422, "NOT_VALID", "profileId must be a positive integer", "profileId");
+    const created = !this.balances.has(profileId);
+    if (created) this.balances.set(profileId, new Map());
+    this.aliases.set(String(profileId), profileId);
+    for (const a of aliases) this.aliases.set(a.toLowerCase(), profileId);
+    return { profileId, created };
+  }
+
+  /** Test money in (a simulated wallet tap or a Stripe test charge already made by the API). Idempotent by reference. */
+  topUp(profile: number, currency: string, amountMinor: number, reference: string): { balanceAfterMinor: number; created: boolean } {
+    const seen = this.topUps.get(reference);
+    if (seen) {
+      if (seen.profile !== profile || seen.currency !== currency || seen.amountMinor !== amountMinor) {
+        throw new BankError(409, "topup.idempotency_conflict", "reference already used for a different top-up", "reference");
+      }
+      return { balanceAfterMinor: seen.balanceAfterMinor, created: false };
+    }
+    const balanceAfterMinor = this.credit(profile, currency, amountMinor);
+    this.topUps.set(reference, { profile, currency, amountMinor, balanceAfterMinor });
+    return { balanceAfterMinor, created: true };
   }
 
   private wallet(profile: number): Map<string, number> {
@@ -312,11 +344,16 @@ export class MockBank {
     this.wallet(input.profile);
     if (!isSupportedCurrency(input.currency)) throw new BankError(422, "NOT_VALID", `Unsupported currency ${input.currency}`, "currency");
     const account: RecipientAccount = input.account ?? { type: "iban", iban: input.iban };
-    // ISO 13616 + MOD 97-10 for IBANs, Luhn for UnionPay, the ABA checksum, and the currency each type pays out in.
-    const problem = validatePayeeAccount(payeeFields(account), input.currency);
-    if (problem) {
-      const [message, path] = RECIPIENT_ERRORS[problem.code] ?? ["Account details are not valid", "details"];
-      throw new BankError(422, "NOT_VALID", message, path);
+    if (account.type === "kassa_wallet") {
+      if (!this.balances.has(account.walletProfile)) throw new BankError(422, "NOT_VALID", "Unknown wallet", "details.walletProfile");
+      if (account.walletProfile === input.profile) throw new BankError(422, "NOT_VALID", "A wallet cannot pay itself", "details.walletProfile");
+    } else {
+      // ISO 13616 + MOD 97-10 for IBANs, Luhn for UnionPay, the ABA checksum, and the currency each type pays out in.
+      const problem = validatePayeeAccount(payeeFields(account), input.currency);
+      if (problem) {
+        const [message, path] = RECIPIENT_ERRORS[problem.code] ?? ["Account details are not valid", "details"];
+        throw new BankError(422, "NOT_VALID", message, path);
+      }
     }
     const { type, ...fields } = account;
     const details = type === "iban" ? { iban: normalizeIban(account.iban) } : fields;
@@ -326,7 +363,7 @@ export class MockBank {
       accountHolderName: input.accountHolderName,
       type,
       currency: input.currency,
-      country: account.type === "iban" ? normalizeIban(account.iban).slice(0, 2) : account.type === "aba" ? "US" : "CN",
+      country: account.type === "iban" ? normalizeIban(account.iban).slice(0, 2) : account.type === "aba" ? "US" : account.type === "kassa_wallet" ? "XX" : "CN",
       details: { legalType: input.legalType, ...details } as Recipient["details"],
       active: true,
       simulated: true,
@@ -457,6 +494,8 @@ export class MockBank {
     const at = new Date(atMs).toISOString();
     t.status = next;
     t.history.push({ state: next, at });
+    const account = this.recipients.get(t.targetAccount);
+    if (next === "outgoing_payment_sent" && account?.type === "kassa_wallet") this.deliverToWallet(t, account, at);
     // Wise `transfers#state-change` (schema 2.0.0) plus a `kassa` block with minor-unit details.
     this.opts.webhooks.send("bank", {
       data: {
@@ -478,6 +517,25 @@ export class MockBank {
         targetAmountMinor: t.targetAmountMinor,
         simulated: true,
       },
+    });
+  }
+
+  /** Kassa → Kassa: the money lands in the other wallet, and its owner is told (remittance webhook, wallet.received). */
+  private deliverToWallet(t: Transfer, account: Recipient, at: string): void {
+    const target = (account.details as unknown as { walletProfile: number }).walletProfile;
+    const balanceAfterMinor = this.credit(target, t.targetCurrency, t.targetAmountMinor);
+    this.opts.webhooks.send("remittance", {
+      eventId: randomUUID(),
+      type: "wallet.received",
+      profileId: target,
+      sourceProfileId: t.profile,
+      transferId: t.id,
+      amountMinor: t.targetAmountMinor,
+      currency: t.targetCurrency,
+      reference: t.reference,
+      receivedAt: at,
+      balanceAfterMinor,
+      simulated: true,
     });
   }
 

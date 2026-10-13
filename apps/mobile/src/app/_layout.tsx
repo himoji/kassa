@@ -133,6 +133,19 @@ function RootStack() {
           title: t("demo:title"),
         }}
       />
+      <Stack.Screen
+        name="add-money"
+        options={{
+          ...inlineTitleOptions,
+          headerShown: true,
+          presentation: "modal",
+          title: t("wallet:addTitle"),
+        }}
+      />
+      <Stack.Screen
+        name="send"
+        options={{ ...inlineTitleOptions, headerShown: true, title: t("wallet:sendTitle") }}
+      />
       <Stack.Screen name="+not-found" />
       {/* gen:stack */}
     </Stack>
