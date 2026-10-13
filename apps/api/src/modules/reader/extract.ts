@@ -1,5 +1,3 @@
-import { PDFParse } from "pdf-parse";
-
 /** Untrusted source handed to the Reader. */
 export type UntrustedSource =
   | { type: "text"; text: string }
@@ -12,6 +10,9 @@ export const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", "imag
 export const MAX_SOURCE_CHARS = 40_000;
 
 export async function pdfToText(data: Uint8Array): Promise<string> {
+  // Loaded on first use: pdfjs-dist sets up canvas polyfills (@napi-rs/canvas) when it loads, which should never
+  // stop the API from starting where PDFs are not read.
+  const { PDFParse } = await import("pdf-parse");
   const parser = new PDFParse({ data });
   try {
     const res = await parser.getText();
