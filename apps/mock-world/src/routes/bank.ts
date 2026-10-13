@@ -59,6 +59,7 @@ const AccountBody = z.discriminatedUnion("type", [
   z.object({ ...Holder, type: z.literal("iban"), details: z.object({ ...Legal, iban: z.string().min(15).max(42) }) }),
   z.object({ ...Holder, type: z.literal("chinese_alipay"), details: z.object({ ...Legal, accountNumber: z.string().min(5).max(64) }) }),
   z.object({ ...Holder, type: z.literal("chinese_card"), details: z.object({ ...Legal, cardNumber: Digits(16, 19) }) }),
+  z.object({ ...Holder, type: z.literal("kassa_wallet"), details: z.object({ ...Legal, walletProfile: z.union([z.number().int().positive(), z.string().min(1).max(64)]) }) }),
   z.object({
     ...Holder,
     type: z.literal("aba"),
@@ -111,12 +112,16 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
   app.post("/v1/accounts", async (req) => {
     const body = wiseParse(AccountBody, req.body);
     const { legalType, ...fields } = body.details;
+    const account =
+      body.type === "kassa_wallet"
+        ? { type: "kassa_wallet" as const, walletProfile: bank.resolveProfile((fields as { walletProfile: number | string }).walletProfile) }
+        : ({ type: body.type, ...fields } as RecipientAccount);
     return bank.createRecipient({
       currency: body.currency,
       profile: bank.resolveProfile(body.profile),
       accountHolderName: body.accountHolderName,
       legalType,
-      account: { type: body.type, ...fields } as RecipientAccount,
+      account,
     });
   });
 
@@ -152,6 +157,18 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
     const q = wiseParse(z.object({ types: z.string().optional() }), req.query);
     if (q.types !== undefined && !q.types.split(",").includes("STANDARD")) return [];
     return bank.listBalances(p);
+  });
+
+  // Kassa helpers (not part of Wise's API): open a wallet for a new user; add test money from a wallet tap.
+  app.post("/bank/wallets", async (req) => {
+    const body = wiseParse(z.object({ profileId: z.number().int().positive(), aliases: z.array(z.string().min(1).max(64)).max(4).default([]) }), req.body);
+    return bank.openWallet(body.profileId, body.aliases);
+  });
+
+  app.post("/bank/top-ups", async (req) => {
+    const body = wiseParse(z.object({ profileId: z.union([z.number().int().positive(), z.string().min(1).max(64)]), currency: Currency, amountMinor: Minor, reference: z.string().min(8).max(64) }), req.body);
+    const profile = bank.resolveProfile(body.profileId);
+    return { profileId: profile, currency: body.currency, amountMinor: body.amountMinor, ...bank.topUp(profile, body.currency, body.amountMinor, body.reference), simulated: true };
   });
 
   // Demo helpers (not part of Wise's API).

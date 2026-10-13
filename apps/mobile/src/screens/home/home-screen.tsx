@@ -79,6 +79,23 @@ function BalanceCard() {
             {b.rateDate ? (
               <Text variant="caption">{t("home:rateDate", { date: f.date(b.rateDate) })}</Text>
             ) : null}
+            <Box row gap={2}>
+              <Button
+                style={{ flex: 1 }}
+                onPress={() => router.push("/add-money")}
+                leftIcon={<Icon name="plus" fallback="add" size={18} color="primaryForeground" />}
+              >
+                {t("home:addMoney")}
+              </Button>
+              <Button
+                style={{ flex: 1 }}
+                variant="secondary"
+                onPress={() => router.push("/send")}
+                leftIcon={<Icon name="paperplane" fallback="send" size={18} color="foreground" />}
+              >
+                {t("home:send")}
+              </Button>
+            </Box>
           </Box>
         </Card>
       )}

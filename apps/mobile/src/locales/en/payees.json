@@ -20,7 +20,10 @@
       "INVALID_IBAN": "This IBAN's check digits don't add up. Check it for a typo.",
       "NAME_MISSING": "Enter the name on their account.",
       "SCHEME_CURRENCY_MISMATCH": "Alipay and UnionPay receive CNY, US bank accounts receive USD, and IBAN accounts receive the other currencies.",
-      "UNIONPAY_CARD_INVALID": "This isn't a valid UnionPay card number. It starts with 62 and has 16 to 19 digits."
+      "UNIONPAY_CARD_INVALID": "This isn't a valid UnionPay card number. It starts with 62 and has 16 to 19 digits.",
+      "KASSA_ID_INVALID": "A Kassa ID looks like KSA-7QMX-2HVA: 8 letters and digits after KSA.",
+      "KASSA_ID_SELF": "That's your own Kassa ID. Top up from Home instead.",
+      "KASSA_ID_UNKNOWN": "No Kassa user has this ID. Ask them to read it from Settings."
     },
     "how": "How they get paid",
     "iban": "IBAN",
@@ -31,7 +34,8 @@
     "routingNumber": "Routing number",
     "savings": "Savings",
     "submit": "Add payee",
-    "title": "Add payee"
+    "title": "Add payee",
+    "kassaId": "Kassa ID"
   },
   "coolingEndsIn": "Can be paid in {{remaining}}",
   "coolingFor": "Cooling, {{remaining}} left",
@@ -86,6 +90,10 @@
     "US_ACH": {
       "short": "US bank",
       "hint": "An ACH transfer needs the 9-digit routing number and the account number. Both are printed on a US check."
+    },
+    "KASSA_USER": {
+      "short": "Kassa user",
+      "hint": "Another Kassa user's wallet, by their Kassa ID (Settings → Your Kassa ID). Any currency, arrives in minutes."
     },
     "OTHER": {
       "short": "Other",

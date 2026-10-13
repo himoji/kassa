@@ -9,11 +9,12 @@
  *   CN_ALIPAY    "ALIPAY:li.wei@example.cn" | "ALIPAY:+8613800138000"
  *   CN_UNIONPAY  "UNIONPAY:6222020200112233445"
  *   US_ACH       "ACH:021000021:123456789:CHECKING"
+ *   KASSA_USER   "KASSA:KSA-7QMX-2HVA"              (another Kassa user's wallet, paid inside the sandbox bank)
  * Anything else (a merchant id for a QR handoff, an account captured from a document) is OTHER and kept as typed.
  */
 import { isValidIban, normalizeIban } from "./iban.ts";
 
-export const PAYOUT_SCHEMES = ["IBAN", "CN_ALIPAY", "CN_UNIONPAY", "US_ACH", "OTHER"] as const;
+export const PAYOUT_SCHEMES = ["IBAN", "CN_ALIPAY", "CN_UNIONPAY", "US_ACH", "KASSA_USER", "OTHER"] as const;
 export type PayoutScheme = (typeof PAYOUT_SCHEMES)[number];
 
 export type AchAccountType = "CHECKING" | "SAVINGS";
@@ -23,6 +24,7 @@ export type PayeeAccountFields =
   | { scheme: "CN_ALIPAY"; alipayId: string }
   | { scheme: "CN_UNIONPAY"; cardNumber: string }
   | { scheme: "US_ACH"; routingNumber: string; accountNumber: string; accountType: AchAccountType }
+  | { scheme: "KASSA_USER"; kassaId: string }
   | { scheme: "OTHER"; value: string };
 
 /** Which field is wrong and why, for inline form errors; the server answers with the same codes. */
@@ -32,10 +34,23 @@ export type PayeeAccountProblem =
   | { field: "cardNumber"; code: "UNIONPAY_CARD_INVALID" }
   | { field: "routingNumber"; code: "ACH_ROUTING_INVALID" }
   | { field: "accountNumber"; code: "ACH_ACCOUNT_INVALID" }
+  | { field: "kassaId"; code: "KASSA_ID_INVALID" }
   | { field: "value"; code: "ACCOUNT_TOO_SHORT" }
   | { field: "currency"; code: "SCHEME_CURRENCY_MISMATCH" };
 
 const digitsOnly = (s: string) => s.replace(/[\s-]+/g, "");
+
+/** Kassa ID alphabet: no 0/O, 1/I/L or U, so an ID read aloud or typed from a screen survives. */
+export const KASSA_ID_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+const KASSA_ID_RE = new RegExp(`^KSA-[${KASSA_ID_ALPHABET}]{4}-[${KASSA_ID_ALPHABET}]{4}$`);
+
+/** "ksa 7qmx 2hva", "KSA7QMX2HVA" → "KSA-7QMX-2HVA"; null when it is not a Kassa ID. */
+export function normalizeKassaId(input: string): string | null {
+  const raw = input.toUpperCase().replace(/[\s-]+/g, "").replace(/^KSA/, "");
+  if (raw.length !== 8) return null;
+  const id = `KSA-${raw.slice(0, 4)}-${raw.slice(4)}`;
+  return KASSA_ID_RE.test(id) ? id : null;
+}
 
 /** Luhn (ISO/IEC 7812-1 Annex B) check over a digit string. */
 export function luhnOk(digits: string): boolean {
@@ -79,6 +94,8 @@ export function encodePayeeAccount(f: PayeeAccountFields): string {
       return `UNIONPAY:${digitsOnly(f.cardNumber)}`;
     case "US_ACH":
       return `ACH:${digitsOnly(f.routingNumber)}:${digitsOnly(f.accountNumber)}:${f.accountType}`;
+    case "KASSA_USER":
+      return `KASSA:${normalizeKassaId(f.kassaId) ?? f.kassaId.trim().toUpperCase()}`;
     case "OTHER":
       return f.value.trim();
   }
@@ -87,7 +104,7 @@ export function encodePayeeAccount(f: PayeeAccountFields): string {
 /** Reads an account string back into fields. Plain IBAN-looking strings are IBAN; unknown shapes are OTHER. */
 export function decodePayeeAccount(account: string): PayeeAccountFields {
   const a = account.trim();
-  const tagged = /^(ALIPAY|UNIONPAY|ACH):(.*)$/i.exec(a);
+  const tagged = /^(ALIPAY|UNIONPAY|ACH|KASSA):(.*)$/i.exec(a);
   if (tagged) {
     const [, tag, rest = ""] = tagged;
     switch (tag!.toUpperCase()) {
@@ -95,6 +112,8 @@ export function decodePayeeAccount(account: string): PayeeAccountFields {
         return { scheme: "CN_ALIPAY", alipayId: rest };
       case "UNIONPAY":
         return { scheme: "CN_UNIONPAY", cardNumber: rest };
+      case "KASSA":
+        return { scheme: "KASSA_USER", kassaId: rest };
       case "ACH": {
         const [routingNumber = "", accountNumber = "", type = "CHECKING"] = rest.split(":");
         return { scheme: "US_ACH", routingNumber, accountNumber, accountType: type.toUpperCase() === "SAVINGS" ? "SAVINGS" : "CHECKING" };
@@ -106,7 +125,7 @@ export function decodePayeeAccount(account: string): PayeeAccountFields {
 }
 
 /** Currencies each scheme pays out in (Wise payout types: iban, chinese_alipay, chinese_card, aba). */
-const SCHEME_CURRENCIES: Record<Exclude<PayoutScheme, "OTHER" | "IBAN">, readonly string[]> = {
+const SCHEME_CURRENCIES: Record<Exclude<PayoutScheme, "OTHER" | "IBAN" | "KASSA_USER">, readonly string[]> = {
   CN_ALIPAY: ["CNY"],
   CN_UNIONPAY: ["CNY"],
   US_ACH: ["USD"],
@@ -131,6 +150,9 @@ export function validatePayeeAccount(f: PayeeAccountFields, currency?: string): 
       if (!abaRoutingOk(digitsOnly(f.routingNumber))) return { field: "routingNumber", code: "ACH_ROUTING_INVALID" };
       if (!/^\d{4,17}$/.test(digitsOnly(f.accountNumber))) return { field: "accountNumber", code: "ACH_ACCOUNT_INVALID" };
       break;
+    case "KASSA_USER":
+      // A Kassa wallet holds every currency Kassa supports; the server checks the currency against that list.
+      return normalizeKassaId(f.kassaId) ? null : { field: "kassaId", code: "KASSA_ID_INVALID" };
     case "OTHER":
       return f.value.trim().length >= 4 ? null : { field: "value", code: "ACCOUNT_TOO_SHORT" };
   }
@@ -140,12 +162,13 @@ export function validatePayeeAccount(f: PayeeAccountFields, currency?: string): 
 
 /**
  * The schemes that fit a payee's currency and country, most usual first. CNY: Alipay, then UnionPay card; USD to a US
- * account: ACH; everything else (EUR, HUF, KZT, …): IBAN. OTHER is always last (merchant ids, QR handoffs).
+ * account: ACH; everything else (EUR, HUF, KZT, …): IBAN. Another Kassa user's wallet works everywhere; OTHER is always
+ * last (merchant ids, QR handoffs).
  */
 export function payoutSchemesFor(country: string, currency: string): PayoutScheme[] {
-  if (currency === "CNY") return ["CN_ALIPAY", "CN_UNIONPAY", "OTHER"];
-  if (currency === "USD" && country === "US") return ["US_ACH", "OTHER"];
-  return ["IBAN", "OTHER"];
+  if (currency === "CNY") return ["CN_ALIPAY", "CN_UNIONPAY", "KASSA_USER", "OTHER"];
+  if (currency === "USD" && country === "US") return ["US_ACH", "KASSA_USER", "OTHER"];
+  return ["IBAN", "KASSA_USER", "OTHER"];
 }
 
 /** Canonical form for hashing and storage: a known scheme re-encoded, anything else stripped and upper-cased. */
@@ -174,6 +197,9 @@ export function maskPayeeAccount(account: string): string {
       return `UnionPay •••• ${last4(f.cardNumber)}`;
     case "US_ACH":
       return `ACH •••• ${last4(f.accountNumber)}`;
+    case "KASSA_USER":
+      // A Kassa ID is a public handle (like a username), shown whole so the sender can check it.
+      return `Kassa ${normalizeKassaId(f.kassaId) ?? f.kassaId}`;
     case "OTHER":
       return f.value.length <= 4 ? `•••• ${f.value}` : `•••• ${last4(f.value)}`;
   }

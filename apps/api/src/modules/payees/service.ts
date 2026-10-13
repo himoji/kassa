@@ -3,7 +3,7 @@
  * 24 h on the Clock. Cooling payees are never usable on autopilot (T1) and need a passkey (T2) after
  * coolingUntil. The account is stored AES-256-GCM encrypted plus its hash (payees/crypto.ts).
  */
-import { decodePayeeAccount, jcsHash, validatePayeeAccount, type CreatePayeeRequest, type PayeeDto } from "@kassa/shared";
+import { decodePayeeAccount, isSupportedCurrency, jcsHash, normalizeKassaId, validatePayeeAccount, type CreatePayeeRequest, type PayeeDto, type PayPayeeRequest } from "@kassa/shared";
 import { and, eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 
@@ -18,6 +18,8 @@ import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { screenName } from "../screening/index.ts";
+import { proposeOrder } from "../rules/index.ts";
+import { kassaIdFor, userByKassaId } from "../wallet/service.ts";
 import { accountHash, decryptAccount, encryptAccount, maskAccount, normalizeAccount } from "./crypto.ts";
 
 export const COOLING_MS = DAY_MS;
@@ -28,7 +30,8 @@ const ACCOUNT_PROBLEM_TEXT: Record<string, string> = {
   ACH_ROUTING_INVALID: "The ABA routing number must be 9 digits with a valid checksum",
   ACH_ACCOUNT_INVALID: "The US account number must be 4 to 17 digits",
   ACCOUNT_TOO_SHORT: "The account must have at least 4 characters",
-  SCHEME_CURRENCY_MISMATCH: "This kind of account cannot receive that currency (Alipay and UnionPay take CNY, ACH takes USD)",
+  KASSA_ID_INVALID: "A Kassa ID looks like KSA-7QMX-2HVA",
+  SCHEME_CURRENCY_MISMATCH: "This kind of account cannot receive that currency (Alipay and UnionPay take CNY, ACH takes USD, Kassa wallets take KZT, HUF, EUR, USD and CNY)",
 };
 
 export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
@@ -67,6 +70,14 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
     throw new HttpProblem(422, "INVALID_IBAN", "IBAN check digits are wrong (ISO 13616 / ISO 7064 MOD 97-10)", { details: { field: problem.field } });
   }
   if (problem) throw new HttpProblem(422, problem.code, ACCOUNT_PROBLEM_TEXT[problem.code], { details: { field: problem.field } });
+  const fields = decodePayeeAccount(req.account);
+  if (fields.scheme === "KASSA_USER") {
+    // Another Kassa user's wallet: the ID must exist, must not be the user's own, and the currency one Kassa holds.
+    const id = normalizeKassaId(fields.kassaId)!;
+    if (id === kassaIdFor(userId)) throw new HttpProblem(422, "KASSA_ID_SELF", "That is your own Kassa ID", { details: { field: "kassaId" } });
+    if (!(await userByKassaId(id))) throw new HttpProblem(422, "KASSA_ID_UNKNOWN", "No Kassa user has that ID", { details: { field: "kassaId" } });
+    if (!isSupportedCurrency(req.currency)) throw new HttpProblem(422, "SCHEME_CURRENCY_MISMATCH", ACCOUNT_PROBLEM_TEXT.SCHEME_CURRENCY_MISMATCH, { details: { field: "currency" } });
+  }
   if (!/^[A-Z]{2}$/.test(req.country)) throw new HttpProblem(422, "INVALID_COUNTRY", "country must be ISO 3166-1 alpha-2");
   // I9 / X4: screen the name at creation. A hit is refused and not stored (a payee that can never be paid is no
   // use); the hit is ledgered with the name sealed under the user's key (GDPR Art. 17 crypto-shredding).
@@ -183,4 +194,17 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
     return r;
   });
   return rows[0]!;
+}
+
+/**
+ * The user asks to pay one of their payees. Nothing is paid here: it is proposed like any agent draft (createdBy USER),
+ * so cooling (I7), caps, the reserve and the passkey all apply, and the app opens the order to approve it.
+ */
+export async function payPayee(userId: string, payeeId: string, req: PayPayeeRequest) {
+  const db = getDb();
+  const p = (await db.select().from(payees).where(and(eq(payees.id, payeeId), eq(payees.userId, userId))))[0];
+  if (!p) throw await ownedNotFound(userId, "payee", payeeId, async () => (await db.select({ id: payees.id }).from(payees).where(eq(payees.id, payeeId))).length > 0);
+  if (req.currency !== p.currency) throw new HttpProblem(422, "CURRENCY_MISMATCH", `${p.name} is paid in ${p.currency}`, { reasonCodes: ["CURRENCY_MISMATCH"] });
+  const r = await proposeOrder({ userId, createdBy: "USER", payeeId: p.id, amountMinor: req.amountMinor, currency: req.currency, purpose: req.purpose });
+  return { proposalId: r.proposalId, decision: r.decision, reasonCodes: r.reasonCodes, summary: r.summary };
 }

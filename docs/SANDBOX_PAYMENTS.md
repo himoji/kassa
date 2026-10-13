@@ -61,6 +61,29 @@ What changes:
 - Known gap: Wise asks for the recipient's address on USD (ACH) recipients. Kassa doesn't collect it yet, so in Wise
   mode US payouts fail with Wise's "address" error. They work against the mock bank.
 
+## Test money in, and paying another Kassa user
+
+**Add money** (Home → Add money) opens a stand-in for the phone's wallet sheet: Apple Pay, Google Pay, Samsung Pay or a
+test card. Confirming calls `POST /api/wallet/top-ups`. No real wallet, card or money is involved:
+
+- With `STRIPE_SECRET_KEY=sk_test_…` the tap becomes a Stripe test-mode PaymentIntent on Stripe's test card
+  (`pm_card_visa`), so the charge shows up in the Stripe test dashboard. Without it the tap is simulated (`sim_tap_…`).
+- The amount is then credited to the user's capped wallet in the sandbox bank: mock-world `POST /bank/top-ups`, or the
+  Wise sandbox's `POST /v1/simulation/balance/topup`.
+- Each top-up is idempotent (the app sends one key per attempt), ledgered as `WALLET_TOPUP`, and a day's top-ups are
+  capped by the user's signed per-day cap. Top-ups need the capped-wallet money mode.
+
+**Kassa ID.** Every user has a public handle such as `KSA-ZVMS-3NXE` (Settings, or the Send screen). Another user adds
+it as a payee ("Kassa user"); it cools down for 24 hours like any payee. **Send** (Home → Send) proposes a payment to
+any saved payee with `POST /api/payees/:id/pay`; the order sheet then asks for the passkey exactly as for an agent's
+order. In mock mode the bank transfer is delivered into the other user's wallet when it reaches
+`outgoing_payment_sent`, and mock-world sends a signed `wallet.received` remittance webhook: the receiver gets a
+"Dana sent you 50.00 EUR" notification and a `WALLET_RECEIVED` ledger entry. The Wise sandbox has one profile, so
+Kassa-to-Kassa runs on mock-world only.
+
+Demo: Add money €50 → Settings shows your Kassa ID → as Dana add Li Wei by `KSA-ZVMS-3NXE` → advance the demo clock
+25 h → Send → approve → advance 2 h → Li Wei's HUF balance is up. Covered by `apps/api/test/demos/wallet-p2p.test.ts`.
+
 ## Card payments
 
 Card rails (one-time cards, pay in place) use Stripe test mode when `STRIPE_SECRET_KEY` is a `sk_test_` key, and a

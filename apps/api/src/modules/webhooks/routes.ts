@@ -10,7 +10,7 @@
  * Triggers never approve (I6): POS / remittance events only log and notify.
  * The raw body is kept by a content-type parser scoped to this plugin.
  */
-import { MOCK_WEBHOOK_SIGNATURE_HEADER, MOCK_WEBHOOK_TIMESTAMP_HEADER, verifyMockWebhook } from "@kassa/shared";
+import { fromMinor, isSupportedCurrency, MOCK_WEBHOOK_SIGNATURE_HEADER, MOCK_WEBHOOK_TIMESTAMP_HEADER, verifyMockWebhook } from "@kassa/shared";
 import { and, eq } from "drizzle-orm";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import type Stripe from "stripe";
@@ -30,6 +30,7 @@ import { checkQrPayee } from "../rails/handoff.ts";
 import { authorizeCardUse, fakeCharge, settleCard, stripe } from "../rails/issuing.ts";
 import { mapWiseStatus } from "../rails/mockBank.ts";
 import { onIntentSucceeded } from "../rails/payInPlace.ts";
+import { senderNameForProfile } from "../wallet/service.ts";
 import { rememberWebhookSignature } from "./replay.ts";
 
 declare module "fastify" {
@@ -191,6 +192,7 @@ const routes: FastifyPluginAsync = async (app) => {
       ? (await getDb().select({ userId: profiles.userId }).from(profiles).where(eq(profiles.bankProfileId, profileId)))[0]
       : undefined;
     const userId = owner?.userId ?? null;
+    if (body.type === "wallet.received") return onWalletReceived(userId, body);
     // The event names the sender (a third person): sealed with the recipient's key; unmatched events keep no names.
     await ledger.append(
       "TRIGGER_REMITTANCE",
@@ -273,3 +275,27 @@ const routes: FastifyPluginAsync = async (app) => {
 };
 
 export default routes;
+
+/**
+ * Kassa → Kassa: money from another user's wallet arrived in this user's wallet (mock bank, wallet.received). Like any
+ * trigger it only logs and notifies (I6); the sender's name is sealed with the recipient's key.
+ */
+async function onWalletReceived(userId: string | null, body: Record<string, unknown>) {
+  const sourceProfile = Number(body.sourceProfileId);
+  const sender = Number.isSafeInteger(sourceProfile) ? await senderNameForProfile(sourceProfile) : null;
+  const amountMinor = Number(body.amountMinor);
+  const currency = String(body.currency ?? "");
+  if (!userId) {
+    await ledger.append("WALLET_RECEIVED", { userId: null, eventId: body.eventId ?? null, amountMinor, currency });
+    return { ok: true };
+  }
+  await ledger.append("WALLET_RECEIVED", { userId, eventId: body.eventId ?? null, amountMinor, currency, transferId: body.transferId ?? null, ...(await sealPii(userId, { sender, reference: body.reference ?? null })) });
+  const amount = Number.isSafeInteger(amountMinor) && isSupportedCurrency(currency) ? `${fromMinor(amountMinor, currency)} ${currency}` : "Money";
+  await notify(userId, {
+    kind: "MONEY_RECEIVED",
+    title: sender ? `${sender} sent you ${amount}` : `You received ${amount}`,
+    body: "From another Kassa wallet (sandbox, no real money). It is in your wallet now.",
+    data: { amountMinor, currency, sender, reference: body.reference ?? null },
+  }).catch(() => undefined);
+  return { ok: true };
+}

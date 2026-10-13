@@ -34,6 +34,7 @@ export interface PayeeFormFields {
   routingNumber: string;
   accountNumber: string;
   accountType: AchAccountType;
+  kassaId: string;
   other: string;
 }
 
@@ -45,6 +46,7 @@ export const EMPTY_PAYEE_FIELDS: PayeeFormFields = {
   routingNumber: "",
   accountNumber: "",
   accountType: "CHECKING",
+  kassaId: "",
   other: "",
 };
 
@@ -63,6 +65,8 @@ export function accountFields(f: PayeeFormFields): PayeeAccountFields {
         accountNumber: f.accountNumber,
         accountType: f.accountType,
       };
+    case "KASSA_USER":
+      return { scheme: "KASSA_USER", kassaId: f.kassaId };
     case "OTHER":
       return { scheme: "OTHER", value: f.other };
   }

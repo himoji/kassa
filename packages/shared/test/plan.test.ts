@@ -52,4 +52,11 @@ describe("plan", () => {
     expect(broke.projectedMinor).toBe(0);
     expect(broke.monthsToGoal).toBeNull();
   });
+
+  it("projects over the chosen months before a goal is set", () => {
+    const o = planOutcome({ monthlyIncomeMinor: 140_000, fixedMonthlyMinor: 60_000, budgets: [{ category: "groceries", limitHomeMinor: 30_000 }], goal: null, months: 6 });
+    expect(o.monthlyLeftMinor).toBe(50_000);
+    expect(o.projectedMinor).toBe(300_000);
+    expect(o.goalReached).toBe(false);
+  });
 });

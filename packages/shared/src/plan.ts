@@ -30,6 +30,8 @@ export interface PlanInput {
   fixedMonthlyMinor: number;
   budgets: readonly { category: string; limitHomeMinor: number }[];
   goal: { amountMinor: number; months: number } | null;
+  /** Months to project over when there is no goal yet (the planner's month choice); the goal's months win. */
+  months?: number;
 }
 
 export interface PlanOutcome {
@@ -48,7 +50,7 @@ export interface PlanOutcome {
 export function planOutcome(p: PlanInput): PlanOutcome {
   const budgetsTotalMinor = p.budgets.reduce((s, b) => s + b.limitHomeMinor, 0);
   const monthlyLeftMinor = p.monthlyIncomeMinor - p.fixedMonthlyMinor - budgetsTotalMinor;
-  const months = p.goal?.months ?? 0;
+  const months = p.goal?.months ?? p.months ?? 0;
   const projectedMinor = Math.max(0, monthlyLeftMinor) * months;
   const neededPerMonthMinor = p.goal ? Math.ceil(p.goal.amountMinor / p.goal.months) : 0;
   const monthsToGoal = p.goal && monthlyLeftMinor > 0 ? Math.ceil(p.goal.amountMinor / monthlyLeftMinor) : null;

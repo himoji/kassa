@@ -713,3 +713,65 @@ export const PlanAdviceResponse = z.object({
   monthsToGoal: z.number().int().positive().nullable(),
 });
 export type PlanAdviceResponse = z.infer<typeof PlanAdviceResponse>;
+
+// ---------- Wallet: test top-ups and Kassa-to-Kassa ----------
+
+/** How a test top-up is "paid": a wallet tap (simulated sheet in the app) or a test card. */
+export const TopUpMethod = z.enum(["APPLE_PAY", "GOOGLE_PAY", "SAMSUNG_PAY", "CARD"]);
+export type TopUpMethod = z.infer<typeof TopUpMethod>;
+
+/** GET /wallet: the user's Kassa ID (what another user types to pay them) and how top-ups run here. */
+export const WalletResponse = z.object({
+  /** "KSA-7QMX-2HVA": a public handle, safe to share. */
+  kassaId: z.string(),
+  /** Top-ups need the capped wallet (money mode CAPPED_WALLET). */
+  canTopUp: z.boolean(),
+  /** "stripe-test": a Stripe test-mode PaymentIntent is charged; "simulated": no card network at all. */
+  topUpProvider: z.enum(["stripe-test", "simulated"]),
+  /** What one day of top-ups may add, in the home currency (the user's signed per-day cap). */
+  topUpDailyLimitHomeMinor: AmountMinor,
+  topUpTodayHomeMinor: AmountMinor,
+  homeCurrency: CurrencyCode,
+  currencies: z.array(CurrencyCode),
+});
+export type WalletResponse = z.infer<typeof WalletResponse>;
+
+/** POST /wallet/top-ups: add test money to the wallet. Never real money: Stripe test mode or a simulation. */
+export const TopUpRequest = z.object({
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  method: TopUpMethod,
+  /** One top-up per key (a double tap or a retry after a timeout adds the money once). */
+  idempotencyKey: z.string().uuid(),
+});
+export type TopUpRequest = z.infer<typeof TopUpRequest>;
+export const TopUpResponse = z.object({
+  topUpId: z.string(),
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  method: TopUpMethod,
+  provider: z.enum(["stripe-test", "simulated"]),
+  /** Stripe PaymentIntent id (pi_…) or a simulated reference. */
+  providerRef: z.string(),
+  balanceAfterMinor: AmountMinor.nullable(),
+  simulated: z.literal(true),
+});
+export type TopUpResponse = z.infer<typeof TopUpResponse>;
+
+/**
+ * POST /payees/:id/pay: the user asks to pay one of their payees (any scheme, another Kassa user included). It goes
+ * through the same rules as an agent draft and comes back as a proposal to approve with the passkey.
+ */
+export const PayPayeeRequest = z.object({
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  purpose: z.string().trim().min(1).max(140),
+});
+export type PayPayeeRequest = z.infer<typeof PayPayeeRequest>;
+export const PayPayeeResponse = z.object({
+  proposalId: z.string().uuid(),
+  decision: z.string(),
+  reasonCodes: z.array(z.string()),
+  summary: z.string(),
+});
+export type PayPayeeResponse = z.infer<typeof PayPayeeResponse>;

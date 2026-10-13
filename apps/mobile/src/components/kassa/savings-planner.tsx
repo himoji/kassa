@@ -122,6 +122,7 @@ export function SavingsPlanner({
     fixedMonthlyMinor: fixedMinor,
     budgets,
     goal: goalInput,
+    months: goal.months,
   });
   const money = (minor: number) => f.money(minor, currency);
   const leftTone =

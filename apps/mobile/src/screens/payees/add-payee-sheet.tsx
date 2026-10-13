@@ -21,7 +21,8 @@ import {
   type PayeeFormFields,
 } from "@/lib/payee-form";
 
-type FieldKey = "iban" | "alipayId" | "cardNumber" | "routingNumber" | "accountNumber" | "value";
+type FieldKey =
+  "iban" | "alipayId" | "cardNumber" | "routingNumber" | "accountNumber" | "kassaId" | "value";
 
 /** Which form input a problem's field belongs to (OTHER's `value` is the `other` input). */
 const PROBLEM_FIELD: Record<string, FieldKey> = {
@@ -30,6 +31,7 @@ const PROBLEM_FIELD: Record<string, FieldKey> = {
   cardNumber: "cardNumber",
   routingNumber: "routingNumber",
   accountNumber: "accountNumber",
+  kassaId: "kassaId",
   value: "value",
 };
 
@@ -231,6 +233,16 @@ export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose:
               ]}
             />
           </>
+        ) : null}
+        {scheme === "KASSA_USER" ? (
+          <Input
+            label={t("payees:add.kassaId")}
+            value={fields.kassaId}
+            onChangeText={(v) => set({ kassaId: v })}
+            autoCapitalize="characters"
+            placeholder="KSA-7QMX-2HVA"
+            error={fieldError("kassaId")}
+          />
         ) : null}
         {scheme === "OTHER" ? (
           <Input
