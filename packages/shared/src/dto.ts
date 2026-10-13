@@ -26,6 +26,7 @@ import {
   TransactionStatus,
 } from "./enums.ts";
 import { MandateCore } from "./mandate.ts";
+import { isKnownCurrency } from "./money.ts";
 import { AccountType } from "./purchaseOrder.ts";
 import { CanonicalOrder } from "./order.ts";
 import { AmountMinor, CurrencyCode, IsoDate, IsoDateTime, paginated, PositiveAmountMinor, Uuid } from "./primitives.ts";
@@ -197,6 +198,18 @@ export const CardDto = z.object({
   kind: CardKind,
 });
 export type CardDto = z.infer<typeof CardDto>;
+
+/**
+ * POST /cards: a card added by hand. Only the last 4 digits (to tell cards apart and match notifications and Apple
+ * Pay taps to them); Kassa never takes a full card number, expiry or CVV.
+ */
+export const CreateCardRequest = z.object({
+  label: z.string().trim().min(1).max(60),
+  last4: z.string().regex(/^\d{4}$/, "exactly the last 4 digits"),
+  billingCurrency: CurrencyCode.refine(isKnownCurrency, "unknown ISO 4217 currency"),
+  kind: CardKind,
+});
+export type CreateCardRequest = z.infer<typeof CreateCardRequest>;
 
 /** GET /cards */
 export const CardsResponse = z.object({ cards: z.array(CardDto) });

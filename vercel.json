@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "bunVersion": "1.x",
+  "installCommand": "bun install",
+  "buildCommand": "bun run vercel-build",
+  "outputDirectory": "apps/mobile/dist",
+  "cleanUrls": true,
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 300,
+      "includeFiles": "{apps/api/src/**,apps/api/drizzle/**,apps/mock-world/src/**,packages/shared/src/**,fixtures/**}"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api" },
+    { "source": "/mock", "destination": "/api" },
+    { "source": "/mock/:path*", "destination": "/api" },
+    { "source": "/:path*", "destination": "/index.html" }
+  ]
+}

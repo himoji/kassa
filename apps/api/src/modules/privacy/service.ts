@@ -34,6 +34,7 @@ import {
   transactions,
   userKeys,
   users,
+  recoveryCodes,
   webauthnCredentialsPayments,
   webauthnCredentialsRules,
 } from "../../db/schema.ts";
@@ -265,6 +266,7 @@ export async function eraseUser(userId: string): Promise<{ erasedAt: Date }> {
     await tx.delete(devices).where(eq(devices.userId, userId));
     await tx.delete(webauthnCredentialsRules).where(eq(webauthnCredentialsRules.userId, userId));
     await tx.delete(webauthnCredentialsPayments).where(eq(webauthnCredentialsPayments.userId, userId));
+    await tx.delete(recoveryCodes).where(eq(recoveryCodes.userId, userId));
     await tx.delete(transactions).where(eq(transactions.userId, userId));
     await tx.delete(budgets).where(eq(budgets.userId, userId));
     await tx.delete(obligations).where(eq(obligations.userId, userId));
@@ -343,7 +345,8 @@ export async function purgeExpired(now: Date = clock.now()): Promise<PurgeCounts
       .select({ id: agentMessages.conversationId })
       .from(agentMessages)
       .groupBy(agentMessages.conversationId)
-      .having(lt(sql`max(${agentMessages.createdAt})`, cCut));
+      // ISO string: a raw sql operand has no column encoder, and postgres.js rejects a bare Date.
+      .having(lt(sql`max(${agentMessages.createdAt})`, cCut.toISOString()));
     const ids = stale.map((r) => r.id);
     if (ids.length) {
       await db.delete(agentMessages).where(inArray(agentMessages.conversationId, ids));

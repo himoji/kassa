@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "license": "MIT",
+  "type": "module",
   "packageManager": "bun@1.4.0",
   "workspaces": [
     "apps/*",
@@ -25,7 +26,8 @@
     "demo:video": "bun scripts/demo-video/record.ts",
     "dev:all": "bun scripts/dev-all.ts",
     "dev:tunnel": "bun scripts/dev-tunnel.ts",
-    "lite:ios": "bun scripts/lite.ts"
+    "lite:ios": "bun scripts/lite.ts",
+    "vercel-build": "bun scripts/vercel-build.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9",
@@ -42,5 +44,8 @@
   "//patchedDependencies": "Moved from apps/mobile/package.json: bun applies patches from the workspace root only. Pinned exactly: a patch applies to one version.",
   "patchedDependencies": {
     "react-native-screens@4.26.2": "apps/mobile/patches/react-native-screens@4.26.2.patch"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.9.11"
   }
 }

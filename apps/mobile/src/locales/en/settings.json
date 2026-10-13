@@ -147,5 +147,49 @@
     "dark": "Dark"
   },
   "themeLabel": "Theme",
-  "title": "Settings"
+  "title": "Settings",
+  "backupCodes": {
+    "title": "Backup codes",
+    "footer": "If you lose every device with your passkey, a backup code lets you set up a new passkey. Each code works once. Store them somewhere safe, like a password manager or on paper.",
+    "status": "{{remaining}} of {{total}} codes left",
+    "none": "No backup codes yet",
+    "create": "Create backup codes",
+    "regenerate": "Create new codes (old ones stop working)",
+    "shownOnce": "Save these now. They will not be shown again.",
+    "copyAll": "Copy all codes",
+    "copied": "Backup codes copied",
+    "done": "I saved them"
+  },
+  "data": {
+    "title": "Import & export",
+    "rowHint": "Your data as JSON, or bring it from another app",
+    "exportTitle": "Export",
+    "exportFooter": "Your cards, budgets, bills, incomes and spending as a JSON file you can keep or import again.",
+    "export": "Export as JSON",
+    "importTitle": "Import",
+    "importFooter": "A Kassa export, or JSON from your bank or another money app. Kassa finds the records and matches their fields (any language), then shows you what it will add before anything changes.",
+    "chooseFile": "Choose a .json file",
+    "paste": "Paste from clipboard",
+    "placeholder": "…or paste the JSON here",
+    "check": "Check the file",
+    "fromKassa": "A Kassa export: everything is read exactly.",
+    "fromOther": "Here is what Kassa understood:",
+    "mapping": "{{path}}: {{kind}}, {{imported}} of {{rows}} rows ({{fields}})",
+    "kind": {
+      "transactions": "spending",
+      "bills": "bills",
+      "cards": "cards",
+      "budgets": "budgets"
+    },
+    "section": {
+      "transactions": "Spending ({{count}})",
+      "bills": "Bills ({{count}})",
+      "cards": "Cards ({{count}})",
+      "budgets": "Budgets ({{count}})"
+    },
+    "budgetsNote": "Raising a budget needs your passkey.",
+    "import": "Import",
+    "doneTitle": "Imported",
+    "done": "Spending: {{imported}} added, {{duplicates}} already there, {{failed}} not readable. Bills: {{bills}}. Cards: {{cards}}. Budgets: {{budgets}}. New bills' payees need account details before Kassa can pay them."
+  }
 }

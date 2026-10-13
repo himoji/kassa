@@ -1,0 +1,133 @@
+import { type ImportCommitResponse, type ImportItems, type KassaExport } from "@kassa/shared";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+
+import { getDb } from "../../db/client.ts";
+import { budgets, cards, obligations, payees, profiles, transactions, users } from "../../db/schema.ts";
+import { HttpProblem } from "../../http/problem.ts";
+import { dedupeCandidates } from "../capture/dedupe.ts";
+import { normalizeMerchant } from "../capture/normalize.ts";
+import { ingestCapture } from "../capture/service.ts";
+import { clock } from "../clock/index.ts";
+import { ledger } from "../ledger/index.ts";
+import { addBills } from "../onboarding/service.ts";
+
+/*
+ * Data export / import (GET /export, POST /import/commit; the preview is mapper.ts).
+ * Import only ever ADDS records that loosen nothing: spending history goes through capture (I6: capture only logs,
+ * with its dedupe, categories and FX), bills through the onboarding path (placeholder payees without an account,
+ * never payable until verified; sanctions screening, I9), cards are labels. Budgets are not written here: raising
+ * one loosens the rules, so the app applies them with PUT /budgets and the passkey.
+ */
+
+async function account(userId: string) {
+  const u = (await getDb().select().from(users).where(eq(users.id, userId)))[0];
+  if (!u) throw new HttpProblem(404, "NOT_FOUND", "user not found");
+  // GDPR Art. 18: a restricted account is not processed further.
+  if (u.restrictedAt) throw new HttpProblem(403, "ACCOUNT_RESTRICTED", "Processing is restricted for this account");
+  return u;
+}
+
+/** Kassa's portable export (kassa-export v1). */
+export async function exportData(userId: string): Promise<KassaExport> {
+  const db = getDb();
+  const u = await account(userId);
+  const profile = (await db.select({ incomes: profiles.incomes }).from(profiles).where(eq(profiles.userId, userId)))[0];
+  const cardRows = await db.select().from(cards).where(eq(cards.userId, userId));
+  const last4 = new Map(cardRows.map((c) => [c.id, c.last4]));
+  // The latest limit per category.
+  const budgetRows = await db.select().from(budgets).where(eq(budgets.userId, userId)).orderBy(desc(budgets.periodStart));
+  const latest = [...new Map(budgetRows.reverse().map((b) => [b.category, b])).values()];
+  const bills = await db
+    .select({ name: payees.name, kind: payees.kind, amountMinor: obligations.amountMinor, currency: obligations.currency, dueDate: obligations.dueDate, recurrence: obligations.recurrence, category: obligations.category })
+    .from(obligations)
+    .innerJoin(payees, eq(payees.id, obligations.payeeId))
+    .where(eq(obligations.userId, userId));
+  const tx = await db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), isNull(transactions.mergedIntoId)))
+    .orderBy(desc(transactions.occurredAt));
+  return {
+    format: "kassa-export",
+    version: 1,
+    exportedAt: clock.now().toISOString(),
+    profile: {
+      displayName: u.displayName,
+      homeCurrency: u.homeCurrency,
+      region: u.region,
+      incomes: (profile?.incomes ?? []).map((i) => ({ source: i.source, currency: i.currency, amountMinor: i.amountMinor, cadence: i.cadence, nextDate: i.nextDate ?? null })),
+    },
+    cards: cardRows.map((c) => ({ label: c.label, last4: c.last4, billingCurrency: c.billingCurrency, kind: c.kind })),
+    budgets: latest.map((b) => ({ category: b.category, limitHomeMinor: b.limitHomeMinor, periodStart: b.periodStart })),
+    bills: bills.map((b) => ({ payeeName: b.name, payeeKind: b.kind, amountMinor: b.amountMinor, currency: b.currency, dueDate: b.dueDate, recurrence: b.recurrence, category: b.category ?? "bills" })),
+    transactions: tx
+      .filter((t) => t.amountMinor > 0)
+      .map((t) => ({
+        occurredAt: t.occurredAt.toISOString(),
+        merchant: t.merchantRaw.slice(0, 140) || "Unknown merchant",
+        amountMinor: t.amountMinor,
+        currency: t.currency,
+        category: t.category,
+        cardLast4: t.cardId ? (last4.get(t.cardId) ?? null) : null,
+        mcc: t.mcc && /^\d{4}$/.test(t.mcc) ? t.mcc : null,
+      })),
+  };
+}
+
+/** Adds the import's cards, bills and spending (see the header comment). */
+export async function commitImport(userId: string, items: ImportItems): Promise<ImportCommitResponse> {
+  const db = getDb();
+  await account(userId);
+  const result: ImportCommitResponse = { transactions: { imported: 0, duplicates: 0, failed: 0 }, bills: { added: 0, skipped: 0 }, cards: { added: 0, skipped: 0 } };
+
+  // Cards first, so imported spending can match them by last 4 digits.
+  const existing = await db.select({ label: cards.label, last4: cards.last4 }).from(cards).where(eq(cards.userId, userId));
+  for (const c of items.cards) {
+    // The same last 4 digits is the same card (whatever its name), as in onboarding.
+    if (existing.some((e) => e.last4 === c.last4)) {
+      result.cards.skipped++;
+      continue;
+    }
+    await db.insert(cards).values({ userId, ...c });
+    existing.push(c);
+    result.cards.added++;
+  }
+
+  if (items.bills.length) result.bills = await db.transaction((tx) => addBills(tx, userId, items.bills, "import"));
+
+  for (const t of items.transactions) {
+    const occurredAt = new Date(t.occurredAt);
+    const merchantNorm = normalizeMerchant(t.merchant) || "unknown";
+    const keys = dedupeCandidates({ userId, amountMinor: t.amountMinor, currency: t.currency, merchantNorm, occurredAt });
+    const dup = await db
+      .select({ id: transactions.id })
+      .from(transactions)
+      .where(and(eq(transactions.userId, userId), inArray(transactions.dedupeKey, keys)))
+      .limit(1);
+    if (dup.length) {
+      result.transactions.duplicates++;
+      continue;
+    }
+    try {
+      const r = await ingestCapture(
+        userId,
+        { source: "IMPORT", fields: { merchant: t.merchant, amountMinor: t.amountMinor, currency: t.currency, occurredAt: t.occurredAt, cardHint: t.cardLast4 ?? undefined, mcc: t.mcc ?? undefined } },
+        db,
+        { notify: false },
+      );
+      if (!r.transactionId) {
+        result.transactions.failed++;
+        continue;
+      }
+      // The file's own category wins over the guess (without teaching the merchant memory).
+      if (t.category) await db.update(transactions).set({ category: t.category }).where(eq(transactions.id, r.transactionId));
+      result.transactions.imported++;
+    } catch {
+      // e.g. no exchange rate for the currency on that date
+      result.transactions.failed++;
+    }
+  }
+
+  await ledger.append("DATA_IMPORTED", { userId, ...result });
+  return result;
+}

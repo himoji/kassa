@@ -18,6 +18,7 @@ import authRoutes from "./modules/auth/routes.ts";
 import commerceRoutes from "./modules/commerce/routes.ts";
 import businessRoutes from "./modules/business/routes.ts";
 import creditRecordRoutes from "./modules/credit-record/routes.ts";
+import dataportRoutes from "./modules/dataport/routes.ts";
 import demoRoutes from "./modules/demo/routes.ts";
 import ledgerRoutes from "./modules/ledger/routes.ts";
 import mandateRoutes from "./modules/mandates/routes.ts";
@@ -108,6 +109,7 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
       await api.register(webhookRoutes);
       await api.register(privacyRoutes);
       await api.register(businessRoutes);
+      await api.register(dataportRoutes);
       // Demo routes exist only when DEMO_ENABLED (they also re-check at request time).
       if (e.DEMO_ENABLED) await api.register(demoRoutes);
       for (const name of OPTIONAL_PLUGINS) {
