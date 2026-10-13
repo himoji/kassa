@@ -13,17 +13,6 @@
  */
 import { waitUntil } from "@vercel/functions";
 
-// Loaded through computed dynamic imports elsewhere; imported here so Vercel's file tracing ships them and their dependencies.
-import "../apps/api/src/modules/agent/routes.ts";
-import "../apps/api/src/modules/budget/index.ts";
-import "../apps/api/src/modules/budget/routes.ts";
-import "../apps/api/src/modules/capture/index.ts";
-import "../apps/api/src/modules/capture/routes.ts";
-import "../apps/api/src/modules/fx/index.ts";
-import "../apps/api/src/modules/fx/routes.ts";
-import "../apps/api/src/modules/onboarding/index.ts";
-import "../apps/api/src/modules/onboarding/routes.ts";
-import "../fixtures/seed-data.ts";
 
 const API_PORT = 4000;
 const MOCK_PORT = 4001;
@@ -49,7 +38,28 @@ let started: Promise<Instance> | null = null;
 let lastSchedulerTick = 0;
 let lastMockTick = 0;
 
+/**
+ * Modules the API loads through computed import() paths, named here with literal paths so Vercel's file tracing
+ * ships them and their dependencies. Imported inside start(), so a failing module becomes a STARTUP_FAILED answer
+ * instead of a function that cannot load at all.
+ */
+async function preloadTracedModules(): Promise<void> {
+  await Promise.all([
+    import("../apps/api/src/modules/agent/routes.ts"),
+    import("../apps/api/src/modules/budget/index.ts"),
+    import("../apps/api/src/modules/budget/routes.ts"),
+    import("../apps/api/src/modules/capture/index.ts"),
+    import("../apps/api/src/modules/capture/routes.ts"),
+    import("../apps/api/src/modules/fx/index.ts"),
+    import("../apps/api/src/modules/fx/routes.ts"),
+    import("../apps/api/src/modules/onboarding/index.ts"),
+    import("../apps/api/src/modules/onboarding/routes.ts"),
+    import("../fixtures/seed-data.ts"),
+  ]);
+}
+
 async function start(): Promise<Instance> {
+  await preloadTracedModules();
   const { resolveDbTarget } = await import("../apps/api/src/db/client.ts");
   if (resolveDbTarget().driver !== "postgres") {
     throw new Error("DATABASE_URL must be a postgres:// URL on Vercel (the PGlite file database needs a writable disk)");
