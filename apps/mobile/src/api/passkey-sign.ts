@@ -4,6 +4,8 @@
  * passkey: the server signs the same challenge with its dev key (POST /auth/dev/assert), and that
  * assertion is returned in the place of a platform one. Every caller (order approval, withPasskeyGate,
  * the other sign-with-passkey mutations) goes through here, so the branch lives only here.
+ * Any other session uses the dev assertion only for the next challenge after `armDevPasskey()`: the "Dev"
+ * button next to a passkey button (components/kassa/passkey-button), dev builds against a dev-login server.
  */
 import {
   AuthenticationResponseJSON,
@@ -32,11 +34,27 @@ async function sessionIsDev(): Promise<boolean> {
   return useSessionStore.getState().dev;
 }
 
+/** How long an armed dev passkey waits for its challenge (the action's request + the 428 round trip). */
+const DEV_ARM_MS = 30_000;
+let devArmedUntil = 0;
+
+/** The next challenge (within DEV_ARM_MS) is signed by the server-held dev key instead of the platform passkey. */
+export function armDevPasskey(now: number = Date.now()): void {
+  devArmedUntil = now + DEV_ARM_MS;
+}
+
+function takeDevArm(now: number = Date.now()): boolean {
+  const armed = now <= devArmedUntil;
+  devArmedUntil = 0;
+  return armed;
+}
+
 /** Sign `options.challenge` for the current session: platform passkey, or the dev assertion. */
 export async function signPasskeyChallenge(
   options: PublicKeyCredentialRequestOptionsJSON
 ): Promise<AuthenticationResponseJSON> {
-  if (!(await sessionIsDev())) return signWithPasskey(options);
+  const armed = takeDevArm();
+  if (!armed && !(await sessionIsDev())) return signWithPasskey(options);
   const { assertion } = await api.request("/auth/dev/assert", {
     json: { challenge: options.challenge },
     schema: DevAssertResponse,
