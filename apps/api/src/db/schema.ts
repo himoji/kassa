@@ -156,7 +156,31 @@ export const users = pgTable("users", {
   erasedAt: tstz("erased_at"),
   /** (added 2026-10-14, Business M0, migration 0007) BUSINESS = owns a merchant (Kassa Business mode in the app). */
   accountType: accountTypeEnum("account_type").notNull().default("PERSONAL"),
+  /**
+   * (added, migration 0009) Sign-in with a backup code replaced every passkey: sessions issued before this instant
+   * are refused (a lost or stolen device stays signed out).
+   */
+  sessionsRevokedAt: tstz("sessions_revoked_at"),
 });
+
+/**
+ * (added, migration 0009) Backup codes: one-time codes that let the owner register a new passkey when every passkey
+ * is lost. Only an HMAC-SHA256 of each code (keyed with SESSION_SECRET) is stored; codes are high-entropy random
+ * strings, so a keyed hash is enough (no slow hash needed). A new set deletes the old one.
+ */
+export const recoveryCodes = pgTable(
+  "recovery_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    usedAt: tstz("used_at"),
+  },
+  (t) => [uniqueIndex("recovery_codes_hash_uq").on(t.codeHash), index("recovery_codes_user_idx").on(t.userId)],
+);
 
 /**
  * (added, Phase 2) Per-user data encryption key (DEK) for personal fields in append-only stores (ledger

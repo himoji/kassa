@@ -5,17 +5,22 @@
 import {
   AuthSessionResponse,
   LoginOptionsResponse,
+  RecoveryCodesResponse,
+  RecoveryCodesStatus,
+  RecoveryVerifyResponse,
   RegisterOptionsResponse,
   type ClientKind,
 } from "@kassa/shared";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
 import { createPasskey, signWithPasskey } from "@/lib/passkeys";
 
 import { api } from "../client";
 import { keys } from "../keys";
+import { withPasskeyGate } from "../passkey-gate";
 import { startSession } from "../session";
+import { useSessionStore } from "@/stores/session";
 
 const client: ClientKind = api.kind;
 
@@ -108,5 +113,52 @@ export function useLogin() {
       await startSession(session);
       return session;
     },
+  });
+}
+
+/**
+ * Lost passkey: a backup code → a new passkey on this device (POST /auth/recovery/options + /verify). The new
+ * passkey replaces every old one; payments are frozen until an unfreeze (passkey + 24 h).
+ */
+export function useRecover() {
+  return useMutation({
+    mutationFn: async (code: string) => {
+      const { challengeId, options } = await api.request("/auth/recovery/options", {
+        json: { code },
+        schema: RegisterOptionsResponse,
+        auth: false,
+      });
+      const response = await createPasskey(options);
+      const session = await api.request("/auth/recovery/verify", {
+        json: { challengeId, response, client },
+        schema: RecoveryVerifyResponse,
+        auth: false,
+      });
+      await startSession(session);
+      return session;
+    },
+  });
+}
+
+/** GET /auth/recovery-codes: unused backup codes left. */
+export function useRecoveryCodesStatus() {
+  const authed = useSessionStore((s) => s.status) === "authenticated";
+  return useQuery({
+    queryKey: keys.recoveryCodes,
+    queryFn: ({ signal }) =>
+      api.request("/auth/recovery-codes", { schema: RecoveryCodesStatus, signal }),
+    enabled: authed,
+  });
+}
+
+/** POST /auth/recovery-codes: a new set, shown once (passkey-gated, 428 round trip). */
+export function useCreateRecoveryCodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      withPasskeyGate((proof) =>
+        api.request("/auth/recovery-codes", { json: { ...proof }, schema: RecoveryCodesResponse })
+      ),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.recoveryCodes }),
   });
 }

@@ -1,3 +1,4 @@
+import currencyCodes from "currency-codes";
 import { z } from "zod";
 
 /**
@@ -5,26 +6,49 @@ import { z } from "zod";
  * only place minor <-> major conversion happens; they work on decimal strings, never float maths.
  */
 
-/** ISO 4217 minor-unit exponents for the currencies Kassa handles. HUF is 2 in ISO 4217. */
-export const CURRENCY_EXPONENTS = {
-  KZT: 2,
-  HUF: 2,
-  EUR: 2,
-  USD: 2,
-  CNY: 2,
-} as const;
+/**
+ * Every active ISO 4217 currency (the `currency-codes` package: the ISO maintenance agency's list), without precious
+ * metals, test / special drawing codes and fund codes, which are never what a person pays or earns in.
+ */
+const NOT_MONEY = new Set(["XAG", "XAU", "XBA", "XBB", "XBC", "XBD", "XDR", "XPD", "XPT", "XSU", "XTS", "XUA", "XXX", "BOV", "CHE", "CHW", "CLF", "COU", "MXV", "USN", "UYI", "UYW"]);
 
+export interface CurrencyInfo {
+  code: string;
+  /** English ISO name ("Forint"); apps localise with Intl.DisplayNames. */
+  name: string;
+  /** ISO 4217 minor-unit exponent. */
+  digits: number;
+  countries: string[];
+}
+
+export const CURRENCIES: readonly CurrencyInfo[] = currencyCodes
+  .data.filter((c) => !NOT_MONEY.has(c.code) && Number.isInteger(c.digits))
+  .map((c) => ({ code: c.code, name: c.currency, digits: c.digits, countries: c.countries }))
+  .sort((a, b) => a.code.localeCompare(b.code));
+
+/** ISO 4217 minor-unit exponents of every currency Kassa knows. HUF is 2 in ISO 4217. */
+export const CURRENCY_EXPONENTS: Readonly<Record<string, number>> = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.digits]));
+
+/**
+ * The demo's own currencies: the simulated wallet and bank rails hold balances in these, and the offline example
+ * rate table covers them. Any other known currency works for records, bills, budgets and cards.
+ */
 export const SupportedCurrency = z.enum(["KZT", "HUF", "EUR", "USD", "CNY"]);
 export type SupportedCurrency = z.infer<typeof SupportedCurrency>;
 
 export function isSupportedCurrency(code: string): code is SupportedCurrency {
+  return (SupportedCurrency.options as readonly string[]).includes(code);
+}
+
+/** Any active ISO 4217 currency (see CURRENCIES). */
+export function isKnownCurrency(code: string): boolean {
   return Object.prototype.hasOwnProperty.call(CURRENCY_EXPONENTS, code);
 }
 
 /** Minor-unit exponent; throws for currencies Kassa does not know. */
 export function currencyExponent(currency: string): number {
-  if (!isSupportedCurrency(currency)) throw new RangeError(`Unsupported currency: ${currency}`);
-  return CURRENCY_EXPONENTS[currency];
+  if (!isKnownCurrency(currency)) throw new RangeError(`Unsupported currency: ${currency}`);
+  return CURRENCY_EXPONENTS[currency]!;
 }
 
 const DECIMAL = /^(-)?(\d+)(?:\.(\d+))?$/;

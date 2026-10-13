@@ -1,4 +1,4 @@
-import { isSupportedCurrency } from "@kassa/shared";
+import { isKnownCurrency } from "@kassa/shared";
 import { z } from "zod";
 
 import { currencyFromText, parseAmountString } from "../amount.ts";
@@ -68,7 +68,7 @@ export function parseShortcut(p: ShortcutPayload, fallbackCurrency?: string): Pa
     if (around === "UNKNOWN") return null;
     currency = p.currency?.toUpperCase() ?? around ?? fallbackCurrency ?? null;
   }
-  if (!currency || !isSupportedCurrency(currency)) return null;
+  if (!currency || !isKnownCurrency(currency)) return null;
   const negative = MINUS.test(amountText) || /^\(.*\)$/.test(amountText.trim());
   const numeric = NUMERIC.exec(amountText)?.[0]
     ?.trim()

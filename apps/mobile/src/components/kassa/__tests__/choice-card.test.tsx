@@ -4,7 +4,13 @@ import type { DataChoices } from "@kassa/shared";
 
 import { ThemeProvider } from "@/components/ui";
 
-import { ChoiceCard, shiftDate, type ChoiceCardProps } from "../choice-card";
+import {
+  ChoiceCard,
+  searchCurrencies,
+  shiftDate,
+  withReplyAnswers,
+  type ChoiceCardProps,
+} from "../choice-card";
 
 const base: DataChoices = {
   id: "pick1",
@@ -161,9 +167,46 @@ describe("ChoiceCard", () => {
     expect(other).not.toHaveBeenCalled();
   });
 
-  it("hints that typing works with allowOther", async () => {
-    await wrap({ ...base, allowOther: true });
-    expect(screen.getByText("Or type your own answer below.")).toBeTruthy();
+  it('allowOther: "Other…" sends a typed answer without a choice', async () => {
+    const onAnswer = jest.fn();
+    await wrap({ ...base, allowOther: true }, onAnswer);
+    fireEvent.press(screen.getByText("Other…"));
+    fireEvent.changeText(await screen.findByLabelText("Type your answer"), "Revolut");
+    await waitFor(() => {
+      fireEvent.press(screen.getByText("Confirm"));
+      expect(onAnswer).toHaveBeenCalledWith({ text: "Revolut" });
+    });
+  });
+
+  it("a currency question searches every ISO 4217 currency", async () => {
+    const onAnswer = jest.fn();
+    await wrap(
+      { ...base, prompt: "Home currency?", allowOther: true, otherKind: "currency" },
+      onAnswer
+    );
+    fireEvent.press(screen.getByText("Other…"));
+    fireEvent.changeText(
+      await screen.findByLabelText("Search any currency (code, name or country)"),
+      "lari"
+    );
+    fireEvent.press(await screen.findByText(/^GEL · /));
+    expect(onAnswer).toHaveBeenCalledWith({ text: "GEL" });
+    expect(searchCurrencies("hungary", (c) => c)).toEqual(["HUF"]);
+    expect(searchCurrencies("jp", (c) => c)[0]).toBe("JPY");
+  });
+
+  it("two pickers in a turn: the reply answers the one it matches", () => {
+    const other: DataChoices = {
+      ...base,
+      id: "pick2",
+      options: [
+        { id: "smart", label: "Smart", value: "smart" },
+        { id: "auto", label: "Autopilot", value: "auto" },
+      ],
+    };
+    const [a, b] = withReplyAnswers([base, other], "Smart");
+    expect(a!.answer).toEqual({ optionIds: [], label: "" });
+    expect(b!.answer).toEqual({ optionIds: ["smart"], label: "Smart" });
   });
 
   it("a budgets card passes the limits along, and unlocks when they could not be applied", async () => {

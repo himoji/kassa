@@ -7,7 +7,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 
 import { fetchOnboardingConversation } from "@/api/hooks/chat";
 import { useOnboardingMessage } from "@/api/hooks/onboarding";
-import { ChoiceCard, withReplyAnswer } from "@/components/kassa/choice-card";
+import { ChoiceCard, withReplyAnswers } from "@/components/kassa/choice-card";
 import { errorText } from "@/components/kassa/error-text";
 import { Markdown } from "@/components/kassa/markdown";
 import { Box, Button, Card, Icon, Loading, Text, useTheme } from "@/components/ui";
@@ -183,10 +183,10 @@ export function OnboardingChatScreen() {
                 <Markdown>{turn.text}</Markdown>
               )}
             </View>
-            {turn.ui.map((part) => (
+            {withReplyAnswers(turn.ui, laterUserText(turns, index)).map((part) => (
               <ChoiceCard
                 key={part.id}
-                part={withReplyAnswer(part, laterUserText(turns, index))}
+                part={part}
                 disabled={send.isPending}
                 onAnswer={(a) => void submit(a.text, a.choice)}
               />

@@ -1,4 +1,4 @@
-import { isSupportedCurrency, toMinor, type FieldCheck } from "@kassa/shared";
+import { isKnownCurrency, toMinor, type FieldCheck } from "@kassa/shared";
 
 import { isValidIban } from "../agent/redact.ts";
 
@@ -70,7 +70,7 @@ function sameDecimal(a: string, b: string): boolean {
 export function checkAmount(value: string, evidence: string, currency: string | null): { ok: boolean; amountMinor?: number; why?: string } {
   if (!/^-?\d+(\.\d+)?$/.test(value.trim())) return { ok: false, why: "amount is not a plain decimal" };
   if (!numberReadings(evidence).some((r) => sameDecimal(r, value.trim()))) return { ok: false, why: "number differs from evidence" };
-  if (!currency || !isSupportedCurrency(currency)) return { ok: true };
+  if (!currency || !isKnownCurrency(currency)) return { ok: true };
   try {
     return { ok: true, amountMinor: toMinor(value.trim(), currency) };
   } catch {
