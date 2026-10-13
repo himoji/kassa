@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # One-shot Vercel deploy (README "Deploy on Vercel"). Run from the repo root:
-#   bash scripts/deploy-vercel.sh kassa-demo.vercel.app            # first time: link, Postgres, env, deploy, seed
-#   bash scripts/deploy-vercel.sh kassa-demo.vercel.app --redeploy  # later: just deploy
-# DOMAIN is the production host people open (passkeys are bound to it). Set AGENT_MODE=LIVE and
-# ANTHROPIC_API_KEY in your shell to use a live model instead of the recorded replay.
+#   bash scripts/deploy-vercel.sh              # first time: link, Postgres, secrets, deploy
+#   bash scripts/deploy-vercel.sh --redeploy   # later: just deploy
+# No domain to type: the function uses the project's production domain (VERCEL_PROJECT_PRODUCTION_URL) for the
+# passkey origin and RP ID, and loads the demo data into an empty database on its first start.
+# Set AGENT_MODE=LIVE and ANTHROPIC_API_KEY in your shell to use a live model instead of the recorded replay.
 set -euo pipefail
 
-DOMAIN="${1:?usage: bash scripts/deploy-vercel.sh <production-domain> [--redeploy]}"
 cd "$(dirname "$0")/.."
 command -v vercel >/dev/null || npm i -g vercel
 
-if [[ "${2:-}" != "--redeploy" ]]; then
+if [[ "${1:-}" != "--redeploy" ]]; then
   vercel whoami >/dev/null 2>&1 || vercel login
   [[ -f .vercel/project.json ]] || vercel link
 
@@ -27,22 +27,19 @@ if [[ "${2:-}" != "--redeploy" ]]; then
     put "${line%%=*}" "${line#*=}"
   done < .env.vercel
 
-  put PUBLIC_ORIGIN "https://$DOMAIN"
-  put RP_ID "$DOMAIN"
-  put MOCK_PUBLIC_URL "https://$DOMAIN"
-  put KASSA_APP_URL "https://$DOMAIN"
   put DEMO_ENABLED true
   put ISSUING_PROVIDER fake
   put AGENT_MODE "${AGENT_MODE:-REPLAY}"
   [[ -n "${ANTHROPIC_API_KEY:-}" ]] && put ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
+
+  # The domain comes from Vercel now; drop values an earlier version of this script set by hand.
+  for name in PUBLIC_ORIGIN RP_ID MOCK_PUBLIC_URL KASSA_APP_URL; do
+    vercel env rm "$name" production -y >/dev/null 2>&1 && echo "env $name removed (derived from the project domain)" || true
+  done
 fi
 
 vercel deploy --prod
-
-if [[ "${2:-}" != "--redeploy" ]]; then
-  # shellcheck disable=SC1091
-  . ./.env.vercel
-  curl -fsS -X POST "https://$DOMAIN/api/demo/reset" -H "x-kassa-demo-token: $DEMO_ADMIN_TOKEN" \
-    -H 'content-type: application/json' -d '{}' >/dev/null && echo "demo data seeded"
-fi
-curl -fsS "https://$DOMAIN/api/health" && echo
+echo
+echo "Open the production domain shown above (\"Aliased\"), e.g. https://<project>.vercel.app"
+echo "Health check: https://<project>.vercel.app/api/health"
+echo "If it asks you to log in to Vercel: Project → Settings → Deployment Protection → turn off Vercel Authentication."

@@ -147,7 +147,7 @@ Files: `vercel.json`, `api/index.ts`, `scripts/vercel-build.ts` (build command: 
 
 Needs a Postgres database (PGlite needs a writable disk, which a function does not have). Any `postgres://` URL in `DATABASE_URL` works, for example Neon from the Vercel Marketplace.
 
-Shortcut: `bash scripts/deploy-vercel.sh <your-domain>` runs every step below (later deploys: add `--redeploy`). The Vercel build never starts cloudflared or the dev proxy; those are only in `bun run dev:all` and `bun run phone`.
+Shortcut: `bash scripts/deploy-vercel.sh` runs every step below (later deploys: `--redeploy`). The Vercel build never starts cloudflared or the dev proxy; those are only in `bun run dev:all` and `bun run phone`.
 
 ```bash
 npm i -g vercel
@@ -158,31 +158,20 @@ vercel integration add neon                   # or Dashboard → Storage; connec
 # Secrets: generated locally into a gitignored file, then sent to Vercel
 bun run keys:generate > .env.vercel
 grep -v '^#' .env.vercel | while IFS= read -r line; do
-  printf '%s' "${line#*=}" | vercel env add "${line%%=*}" production
+  printf '%s' "${line#*=}" | vercel env add "${line%%=*}" production --force
 done
+printf '%s' true   | vercel env add DEMO_ENABLED production
+printf '%s' REPLAY | vercel env add AGENT_MODE production        # or LIVE plus ANTHROPIC_API_KEY (etc.)
+printf '%s' fake   | vercel env add ISSUING_PROVIDER production
 
-# Settings (replace kassa-demo.vercel.app with your production domain)
-DOMAIN=kassa-demo.vercel.app
-printf '%s' "https://$DOMAIN" | vercel env add PUBLIC_ORIGIN production
-printf '%s' "$DOMAIN"         | vercel env add RP_ID production
-printf '%s' "https://$DOMAIN" | vercel env add MOCK_PUBLIC_URL production
-printf '%s' "https://$DOMAIN" | vercel env add KASSA_APP_URL production
-printf '%s' "true"            | vercel env add DEMO_ENABLED production
-printf '%s' "REPLAY"          | vercel env add AGENT_MODE production      # or LIVE plus ANTHROPIC_API_KEY (etc.)
-printf '%s' "fake"            | vercel env add ISSUING_PROVIDER production
-
-vercel deploy --prod                          # build runs the migrations, then exports the web app
-
-# Seed the demo data (Dana) once, through the deployed API
-. ./.env.vercel
-curl -X POST "https://$DOMAIN/api/demo/reset" -H "x-kassa-demo-token: $DEMO_ADMIN_TOKEN" \
-  -H 'content-type: application/json' -d '{}'
-curl "https://$DOMAIN/api/health"
+vercel deploy --prod                          # migrations run in the build
 ```
+
+No domain to configure: the function takes the project's production domain (`VERCEL_PROJECT_PRODUCTION_URL`, e.g. `kassa-sand.vercel.app`, or your primary custom domain) as the passkey origin and RP ID and as the base of mock-world links (`PUBLIC_ORIGIN`, `RP_ID`, `MOCK_PUBLIC_URL`, `KASSA_APP_URL` still override it). With `DEMO_ENABLED=true` the first start loads the demo data into an empty database. If the server cannot start, every `/api` call answers 500 `STARTUP_FAILED` with the reason (also in `vercel logs`).
 
 Notes:
 
-- `RP_ID` must be the host the app is opened on. Passkeys made on one host do not work on another, so use the production domain, not a per-deployment preview URL.
+- Passkeys are bound to the production domain: open the app there, not on a per-deployment URL. With Deployment Protection (Vercel Authentication) on, visitors must log in to Vercel first; turn it off under Project → Settings → Deployment Protection for a public demo.
 - Migrations run only on production builds (`VERCEL_ENV=production`). Set `MIGRATE_ON_BUILD=true` for a preview environment that has its own database.
 - The mock world keeps its state (bank transfers, QR payments, shop orders) in memory. A cold start, or a second instance under load, starts it empty; `POST /api/demo/reset` puts the API and the mock world back in step.
 - Function timers only run while an instance is awake, so the 15 s scheduler and the mock bank tick also run, at most once per interval, after incoming requests.

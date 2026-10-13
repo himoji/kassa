@@ -33,6 +33,15 @@ const SCHEDULER_TICK_MS = 15_000;
 process.env.MOCK_WORLD_URL = `http://127.0.0.1:${MOCK_PORT}`;
 process.env.API_URL = `http://127.0.0.1:${API_PORT}`;
 process.env.TRUST_PROXY ??= "true";
+// The production domain Vercel gives the project (kassa-xyz.vercel.app, or your custom domain): the WebAuthn origin
+// and RP ID, and the base of mock-world links, unless set explicitly (a custom domain set as the primary one).
+const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+if (host) {
+  process.env.PUBLIC_ORIGIN ??= `https://${host}`;
+  process.env.RP_ID ??= host;
+  process.env.MOCK_PUBLIC_URL ??= `https://${host}`;
+  process.env.KASSA_APP_URL ??= `https://${host}`;
+}
 
 type Instance = { schedulerTick: () => Promise<void>; mockTick: () => Promise<void>; mockTickMs: number };
 
@@ -57,6 +66,7 @@ async function start(): Promise<Instance> {
   const mock = await buildMockWorld({ config: mockConfig });
   await mock.app.listen({ host: "127.0.0.1", port: MOCK_PORT });
 
+  if (e.DEMO_ENABLED) await seedIfEmpty();
   const api = await buildServer();
   await clock.load().catch((err: unknown) => api.log.warn({ err }, "demo_state not readable yet (run bun run db:migrate)"));
   const log = (msg: string, err?: unknown) => api.log.error({ err }, msg);
@@ -70,6 +80,34 @@ async function start(): Promise<Instance> {
     },
     mockTickMs: mockConfig.bankTickMs,
   };
+}
+
+/**
+ * Demo deployments: load the demo data once, into an empty database. Two instances starting at the same moment can
+ * both try; the loser fails on the seeded rows' primary keys and simply finds the data there.
+ */
+async function seedIfEmpty(): Promise<void> {
+  const { getDb } = await import("../apps/api/src/db/client.ts");
+  const { users } = await import("../apps/api/src/db/schema.ts");
+  const { loadSeedData, seedDatabase } = await import("../apps/api/src/modules/demo/seed.ts");
+  const empty = async () => (await getDb().select({ id: users.id }).from(users).limit(1)).length === 0;
+  if (!(await empty())) return;
+  console.log("kassa: empty database, loading the demo data");
+  try {
+    await seedDatabase(getDb(), await loadSeedData(), { reset: false, personas: true });
+  } catch (err) {
+    if (await empty()) throw err;
+  }
+}
+
+/** A start failure as problem+json, so the reason shows in the browser too (credentials in URLs masked). */
+function startFailure(err: unknown): Response {
+  console.error("kassa: start failed", err);
+  const detail = (err instanceof Error ? err.message : String(err)).replace(/\/\/[^@\s/]+@/g, "//***@");
+  return Response.json(
+    { type: "/problems/STARTUP_FAILED", title: "The server could not start", status: 500, detail },
+    { status: 500, headers: { "content-type": "application/problem+json" } },
+  );
 }
 
 function catchUpTimers(inst: Instance): void {
@@ -90,7 +128,12 @@ export default {
       started = null; // retry the start on the next request
       throw err;
     });
-    const inst = await started;
+    let inst: Instance;
+    try {
+      inst = await started;
+    } catch (err) {
+      return startFailure(err);
+    }
 
     const url = new URL(request.url);
     const port = url.pathname === "/mock" || url.pathname.startsWith("/mock/") ? MOCK_PORT : API_PORT;
