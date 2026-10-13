@@ -17,6 +17,11 @@ export async function registerPaymentsCredential(
   await tx.insert(webauthnCredentialsPayments).values(c);
 }
 
+/** Account recovery (auth/recovery.ts): a backup code replaced every passkey, so payments forgets the old ones. */
+export async function removePaymentsCredentials(tx: DbOrTx, userId: string): Promise<number> {
+  return (await tx.delete(webauthnCredentialsPayments).where(eq(webauthnCredentialsPayments.userId, userId)).returning({ id: webauthnCredentialsPayments.id })).length;
+}
+
 function clientChallenge(a: AuthenticationResponseJSON): string | null {
   try {
     const cd = JSON.parse(Buffer.from(a.response.clientDataJSON, "base64url").toString("utf8")) as { challenge?: unknown };

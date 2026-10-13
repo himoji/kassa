@@ -2,20 +2,21 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { isSupportedCurrency } from "@kassa/shared";
+import { isKnownCurrency } from "@kassa/shared";
 
 import { addBusinessDays, isoDate, withinOneBusinessDay } from "./dates.ts";
 import { convertMinor, div, parseDecimal, rat, toDecimalString, type Rational } from "./rational.ts";
 
 /*
  * Daily FX rates (spec §12 "Rates").
- *  - EUR/USD/HUF/CNY cross rates: ECB reference rates via Frankfurter. Verified 2026-10-10:
+ *  - Cross rates of the ~30 ECB currencies (EUR, USD, HUF, CNY, GBP, ...): ECB reference rates via Frankfurter. Verified 2026-10-10:
  *    `GET https://api.frankfurter.dev/v1/{YYYY-MM-DD}?base=EUR&symbols=...` returns the last published
  *    business day on or before the date (api.frankfurter.app 301-redirects there).
  *  - KZT: National Bank of Kazakhstan official rates. Verified 2026-10-10:
  *    `GET https://nationalbank.kz/rss/get_rates.cfm?fdate=DD.MM.YYYY` → XML <item><title>ISO</title>
  *    <description>KZT per quant units</description><quant>n</quant>.
- *  - Fallback (labelled `FALLBACK_ER_API` in the UI): open.er-api.com latest, which includes KZT.
+ *  - Fallback (labelled `FALLBACK_ER_API` in the UI): open.er-api.com latest, which covers KZT and almost every other
+ *    ISO 4217 currency (the only live source for most of them).
  *  - Last resort (labelled `STATIC_EXAMPLE`): `fixtures/fx-rates.json` (Track D's example table, EUR
  *    base) or, if absent, the built-in table below (ECB/NBK 2026-10-09). Used offline (FX_OFFLINE=1,
  *    NODE_ENV=test, CI) so the demo never blocks on the network.
@@ -78,7 +79,7 @@ export class RatesService {
 
   /** Rate for converting `from` → `to` on `date` (purchase / due date), ±1 business day. */
   async getRate(from: string, to: string, date: string): Promise<RateQuote> {
-    for (const c of [from, to]) if (!isSupportedCurrency(c)) throw new RangeError(`Unsupported currency: ${c}`);
+    for (const c of [from, to]) if (!isKnownCurrency(c)) throw new RangeError(`Unsupported currency: ${c}`);
     if (from === to) return quote(from, to, rat(1n), date, "STATIC_EXAMPLE");
     const kzt = from === "KZT" || to === "KZT";
     const tables: Array<() => Promise<DayTable | null>> = this.offline
@@ -122,7 +123,7 @@ export class RatesService {
 
   private async load(source: RateSource, date: string): Promise<DayTable | null> {
     if (source === "ECB_FRANKFURTER") {
-      const res = await this.fetchFn(`${this.frankfurterBase}/${date}?base=EUR&symbols=USD,HUF,CNY`);
+      const res = await this.fetchFn(`${this.frankfurterBase}/${date}?base=EUR`);
       if (!res.ok) return null;
       const body = (await res.json()) as { date: string; rates: Record<string, number> };
       const perUnit = new Map<string, Rational>([["EUR", rat(1n)]]);
@@ -147,9 +148,13 @@ export class RatesService {
       const body = (await res.json()) as { result: string; time_last_update_unix: number; rates: Record<string, number> };
       if (body.result !== "success") return null;
       const perUnit = new Map<string, Rational>();
-      for (const c of ["EUR", "USD", "HUF", "CNY", "KZT"]) {
-        const v = body.rates[c];
-        if (typeof v === "number") perUnit.set(c, div(rat(1n), parseDecimal(String(v))));
+      for (const [c, v] of Object.entries(body.rates)) {
+        if (!isKnownCurrency(c) || typeof v !== "number" || !(v > 0)) continue;
+        try {
+          perUnit.set(c, div(rat(1n), parseDecimal(String(v))));
+        } catch {
+          // a value String() writes in exponent form: skip that currency, keep the table
+        }
       }
       return { date: isoDate(new Date(body.time_last_update_unix * 1000)), quote: "EUR", perUnit, source };
     }

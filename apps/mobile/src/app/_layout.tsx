@@ -92,6 +92,10 @@ function RootStack() {
         options={{ ...largeTitleOptions, headerShown: true, title: t("credit:title") }}
       />
       <Stack.Screen
+        name="data"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("settings:data.title") }}
+      />
+      <Stack.Screen
         name="shortcut"
         options={{ ...largeTitleOptions, headerShown: true, title: t("shortcut:title") }}
       />

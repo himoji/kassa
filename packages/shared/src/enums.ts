@@ -54,6 +54,8 @@ export const TransactionSource = z.enum([
   "SCREENSHOT",
   "SETTLEMENT",
   "KASSA_PAYMENT",
+  // (added, migration 0010) rows from a data import (POST /import/commit)
+  "IMPORT",
 ]);
 export type TransactionSource = z.infer<typeof TransactionSource>;
 

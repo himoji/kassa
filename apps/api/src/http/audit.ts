@@ -32,7 +32,9 @@ export type AuditType =
   // (added 2026-10-13) KassaLite pairing (auth/pair.ts)
   | "DEVICE_PAIRING_STARTED"
   | "DEVICE_PAIRING_FAILED"
-  | "DEVICE_PAIRED";
+  | "DEVICE_PAIRED"
+  // (added) backup codes (auth/recovery.ts)
+  | "AUTH_RECOVERY_FAILED";
 
 export async function audit(type: AuditType, payload: Record<string, unknown>, tx?: DbOrTx): Promise<void> {
   await ledger.append(type, payload, tx);

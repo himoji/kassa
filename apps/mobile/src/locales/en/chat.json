@@ -39,6 +39,9 @@
   "working": "Working on it",
   "choice": {
     "allowOther": "Or type your own answer below.",
+    "other": "Other…",
+    "otherPlaceholder": "Type your answer",
+    "searchCurrency": "Search any currency (code, name or country)",
     "confirm": "Confirm",
     "answered": "Answered: {{label}}",
     "amountA11y": "Amount",

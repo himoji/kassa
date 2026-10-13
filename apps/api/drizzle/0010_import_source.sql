@@ -1,0 +1,1 @@
+ALTER TYPE "public"."transaction_source" ADD VALUE 'IMPORT';
