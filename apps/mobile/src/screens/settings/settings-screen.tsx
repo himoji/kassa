@@ -197,6 +197,19 @@ function SettingsBody({ me }: { me: MeResponse }) {
           onPress={() => router.push("/bills")}
         />
         <Row
+          leading={
+            <Icon
+              name="arrow.up.arrow.down"
+              fallback="import_export"
+              size={20}
+              color="foreground"
+            />
+          }
+          title={t("settings:data.title")}
+          subtitle={t("settings:data.rowHint")}
+          onPress={() => router.push("/data")}
+        />
+        <Row
           leading={<Icon name="wave.3.right" fallback="contactless" size={20} color="foreground" />}
           title={t("shortcut:title")}
           subtitle={t("shortcut:settingsHint")}
