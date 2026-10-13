@@ -3,9 +3,9 @@
  * amount slider, several amounts at once (budgets: one slider per category, one confirm) or a day picker). A tap answers with the option label as the user's message plus
  * the structured `choice` the server validates against the stored picker. Read-only once answered.
  */
-import { currencyExponent, type ChoiceAnswer, type DataChoices } from "@kassa/shared";
-import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { CURRENCIES, currencyExponent, type ChoiceAnswer, type DataChoices } from "@kassa/shared";
+import { useMemo, useState } from "react";
+import { Pressable, TextInput, View } from "react-native";
 
 import { Box, Button, Card, Text, useTheme } from "@/components/ui";
 import { amountRange, snapAmount } from "@/lib/amount-slider";
@@ -18,7 +18,8 @@ import { AmountSlider } from "./native-controls";
 export interface ChoiceAnswerInput {
   /** The user message text: the option label / formatted amount / date. */
   text: string;
-  choice: ChoiceAnswer;
+  /** Absent for a typed "Other" answer (`allowOther`): the text goes to the model as it is. */
+  choice?: ChoiceAnswer;
   /** A budgets card (`amounts.purpose` "budgets"): the limits to apply before the answer is sent. */
   budgets?: { category: string; limitHomeMinor: number }[];
 }
@@ -48,6 +49,105 @@ export function withReplyAnswer(part: DataChoices, answerText: string | undefine
   const picked = answerText.split(", ");
   const optionIds = part.options.filter((o) => picked.includes(o.label)).map((o) => o.id);
   return { ...part, answer: { optionIds, label: answerText } };
+}
+
+const norm = (s: string) => s.trim().toLowerCase();
+
+/**
+ * Several pickers in one turn (a reply that asks two things): the user message answers the one it matches (else
+ * the first); the others turn read-only without an answer.
+ */
+export function withReplyAnswers(parts: DataChoices[], answerText: string | undefined): DataChoices[] {
+  if (parts.length < 2 || answerText === undefined) return parts.map((p) => withReplyAnswer(p, answerText));
+  const t = norm(answerText);
+  const hit = parts.findIndex((p) =>
+    p.options.some((o) => [o.label, o.value, ...(o.spoken ?? [])].some((x) => norm(x) === t))
+  );
+  const target = hit >= 0 ? hit : 0;
+  return parts.map((p, i) =>
+    i === target ? withReplyAnswer(p, answerText) : p.answer ? p : { ...p, answer: { optionIds: [], label: "" } }
+  );
+}
+
+/** ISO 4217 currencies matching a typed code or name (English ISO name or the localised one). */
+export function searchCurrencies(query: string, localName: (code: string) => string, limit = 8): string[] {
+  const q = norm(query);
+  if (!q) return [];
+  const scored = CURRENCIES.map((c) => {
+    const names = [c.code, c.name, localName(c.code), ...c.countries].map(norm);
+    const score = names[0] === q ? 0 : names[0]!.startsWith(q) ? 1 : names.some((n) => n.startsWith(q)) ? 2 : names.some((n) => n.includes(q)) ? 3 : 9;
+    return { code: c.code, score };
+  }).filter((c) => c.score < 9);
+  return scored.sort((a, b) => a.score - b.score || a.code.localeCompare(b.code)).slice(0, limit).map((c) => c.code);
+}
+
+/** "Other…": a typed answer; for a currency question, a search over every ISO 4217 currency. */
+function OtherAnswer({
+  part,
+  disabled,
+  onSend,
+}: {
+  part: DataChoices;
+  disabled: boolean;
+  onSend: (text: string) => void;
+}) {
+  const t = useKassaT();
+  const f = useFormat();
+  const { colors } = useTheme();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const currency = part.otherKind === "currency";
+  const matches = useMemo(
+    () => (currency ? searchCurrencies(text, f.currencyName) : []),
+    [currency, text, f]
+  );
+  if (!open) {
+    return <Chip label={t("chat:choice.other")} disabled={disabled} onPress={() => setOpen(true)} />;
+  }
+  return (
+    <Box gap={2}>
+      <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+        <TextInput
+          autoFocus
+          value={text}
+          onChangeText={setText}
+          editable={!disabled}
+          placeholder={t(currency ? "chat:choice.searchCurrency" : "chat:choice.otherPlaceholder")}
+          placeholderTextColor={colors.mutedForeground}
+          accessibilityLabel={t(currency ? "chat:choice.searchCurrency" : "chat:choice.otherPlaceholder")}
+          autoCapitalize={currency ? "characters" : "sentences"}
+          onSubmitEditing={() => (text.trim() && !currency ? onSend(text.trim()) : undefined)}
+          style={{
+            flex: 1,
+            minHeight: 40,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            color: colors.foreground,
+            fontSize: 16,
+          }}
+        />
+        {!currency ? (
+          <Button size="sm" disabled={disabled || !text.trim()} onPress={() => onSend(text.trim())}>
+            {t("chat:choice.confirm")}
+          </Button>
+        ) : null}
+      </View>
+      {currency ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {matches.map((code) => (
+            <Chip
+              key={code}
+              label={`${code} · ${f.currencyName(code)}`}
+              disabled={disabled}
+              onPress={() => onSend(code)}
+            />
+          ))}
+        </View>
+      ) : null}
+    </Box>
+  );
 }
 
 function Chip({
@@ -131,7 +231,9 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
             ))}
           </View>
         ) : null}
-        <Text variant="caption">{t("chat:choice.answered", { label: answered.label })}</Text>
+        {answered.label ? (
+          <Text variant="caption">{t("chat:choice.answered", { label: answered.label })}</Text>
+        ) : null}
       </Box>
     );
   } else if (part.kind === "confirm") {
@@ -301,8 +403,12 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
       <Box gap={3}>
         <Text weight="semibold">{part.prompt}</Text>
         {body}
-        {part.allowOther && !answered ? (
-          <Text variant="caption">{t("chat:choice.allowOther")}</Text>
+        {part.allowOther && !answered && (part.kind === "choice" || part.kind === "confirm") ? (
+          <OtherAnswer
+            part={part}
+            disabled={locked}
+            onSend={(text) => answer({ text }, [])}
+          />
         ) : null}
       </Box>
     </Card>

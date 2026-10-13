@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import { ChoiceError } from "../../src/modules/agent/choices.ts";
 import { loadHistory } from "../../src/modules/agent/history.ts";
 import { replayModel } from "../../src/modules/agent/replay.ts";
-import { budgetPairs, fallbackPicker } from "../../src/modules/onboarding/pickers.ts";
-import { onboardingTurn } from "../../src/modules/onboarding/service.ts";
+import { budgetPairs, contextCurrencies, fallbackPicker, inlineOptions } from "../../src/modules/onboarding/pickers.ts";
+import { answeredParts, CARDS_QUESTION, onboardingTurn } from "../../src/modules/onboarding/service.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { createUserWithPasskey } from "../helpers/fixtures.ts";
 import { ensureIntelTables } from "./intelTables.ts";
@@ -84,5 +84,72 @@ describe("onboarding fallback pickers", () => {
     const ask = { kind: "amounts", prompt: "Budgets?", currency: "EUR", items: [{ id: "groceries", label: "Groceries", emoji: "🥦", amount: 250 }] };
     const res = await onboardingTurn({ userId, conversationId: randomUUID(), text: "ok", mode: "LIVE", model: step({ reply: "Budgets:", draft, complete: false, ask }) });
     expect(res.ui[0]?.amounts?.items[0]).toMatchObject({ id: "groceries", emoji: "🥦", defaultMinor: 25000 });
+  });
+
+  it("a reply with two questions gets a picker for each (bill purpose from its own list, the hands-on preset)", async () => {
+    await ensureIntelTables(t.db());
+    const { userId } = await createUserWithPasskey();
+    const reply =
+      "Added 20,000 HUF/month as a recurring bill 📌 — what's it for (dorm, phone, transit…)?\n\nAnd how hands-on do you want the app to be with your money?";
+    const res = await onboardingTurn({ userId, conversationId: randomUUID(), text: "20000 huf monthly", mode: "LIVE", model: step({ reply, draft: { ...draft, homeCurrency: "KZT" }, complete: false, ask: null }) });
+    expect(res.ui).toHaveLength(2);
+    expect(res.ui[0]).toMatchObject({ kind: "choice", allowOther: true });
+    expect(res.ui[0]!.options.map((o) => o.label)).toEqual(["Dorm", "Phone", "Transit"]);
+    expect(res.ui[1]!.options.map((o) => o.label)).toEqual(["Ask me", "Smart", "Autopilot"]);
+    // Answering one marks only that one; the other turns read-only without an answer.
+    const answered = answeredParts(res.ui, "Smart");
+    expect(answered.map((p) => p.answer)).toEqual([{ optionIds: [], label: "" }, { optionIds: ["smart"], label: "Smart" }]);
+  });
+
+  it("the model's picker is kept and not repeated by a fallback for the same question", async () => {
+    await ensureIntelTables(t.db());
+    const { userId } = await createUserWithPasskey();
+    const ask = { kind: "choice", prompt: "How hands-on?", options: [{ id: "ask_me", label: "Ask me" }, { id: "smart", label: "Smart" }, { id: "autopilot", label: "Autopilot" }] };
+    const res = await onboardingTurn({ userId, conversationId: randomUUID(), text: "ok", mode: "LIVE", model: step({ reply: "How hands-on should Kassa be with your money?", draft, complete: false, ask }) });
+    expect(res.ui).toHaveLength(1);
+  });
+
+  it("lists in questions become options; prose without a list does not", () => {
+    expect(inlineOptions("What's it for (dorm, phone, transit…)?")).toEqual(["dorm", "phone", "transit"]);
+    expect(inlineOptions("Is that for rent, tuition or insurance?")).toEqual([]);
+    expect(inlineOptions("What kind of bill is it: rent, tuition or insurance?")).toEqual(["rent", "tuition", "insurance"]);
+    expect(inlineOptions("When is it due?")).toEqual([]);
+  });
+
+  it("the home-currency picker offers the currencies the conversation suggests, and any other", async () => {
+    expect(contextCurrencies("I'm from Kazakhstan, studying in Hungary, parents send dollars", draft).slice(0, 2)).toEqual(["KZT", "HUF"]);
+    await ensureIntelTables(t.db());
+    const { userId } = await createUserWithPasskey();
+    const res = await onboardingTurn({
+      userId,
+      conversationId: randomUUID(),
+      text: "I'm Georgian, I study in Poland",
+      mode: "LIVE",
+      model: step({ reply: "Welcome! What's your home currency?", draft, complete: false, ask: null }),
+    });
+    expect(res.ui[0]).toMatchObject({ allowOther: true, otherKind: "currency" });
+    expect(res.ui[0]!.options.map((o) => o.value)).toEqual(["GEL", "PLN", "EUR"]);
+  });
+
+  it("never finishes without asking about cards, and says why it needs the last 4 digits", async () => {
+    await ensureIntelTables(t.db());
+    const { userId } = await createUserWithPasskey();
+    const full = {
+      ...draft,
+      homeCurrency: "KZT",
+      region: "EU",
+      preset: "SMART",
+      notificationMode: "DIGEST",
+      incomes: [{ source: "Parents", currency: "KZT", amountMinor: 30000000, cadence: "MONTHLY", nextDate: null }],
+      budgets: [{ category: "groceries", limitHomeMinor: 10000000 }],
+    };
+    const conversationId = randomUUID();
+    const res = await onboardingTurn({ userId, conversationId, text: "digest", mode: "LIVE", model: step({ reply: "All set!", draft: full, complete: true, ask: null }) });
+    expect(res.complete).toBe(false);
+    expect(res.reply).toContain(CARDS_QUESTION);
+    expect(res.reply).toMatch(/last 4 digits/);
+    // Asked once: a "no cards" answer then finishes.
+    const next = await onboardingTurn({ userId, conversationId, text: "no cards for now", mode: "LIVE", model: step({ reply: "Okay, all set!", draft: full, complete: true, ask: null }) });
+    expect(next.complete).toBe(true);
   });
 });

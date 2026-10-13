@@ -21,7 +21,7 @@ import { replayModel, selectTurn, StepRecorder } from "../agent/replay.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { screenName } from "../screening/index.ts";
-import { budgetsPicker, fallbackPicker } from "./pickers.ts";
+import { budgetsPicker, fallbackPickers, pickerTopic } from "./pickers.ts";
 
 /*
  * Onboarding chat (spec §8 POST /onboarding/message): one planner call per turn with structured output
@@ -39,13 +39,21 @@ Rules:
 - Update "draft" with every fact the user states; keep facts from the current draft unless the user corrects them. Never invent values: leave unknown fields null or lists empty.
 - Amounts are integer minor units (cents): ₸600,000 = 60000000 KZT; €2,400 = 240000 EUR.
 - Placeholders like person_1 or iban_1 stand for personal data; copy them as they are.
-- Ask one or two questions per reply. Set "complete" true only when home currency, region, preset, notification mode, at least one income and at least one budget are known.
-- When the answer is one of a few options (home currency, region, income cadence, rent yes/no, preset, money mode, notification mode), ALWAYS set "ask" to a picker: kind "choice" with 2-8 options (id, label, spoken synonyms). Preset options: Ask me, Smart, Autopilot. Notification options: Each payment, Above thresholds, Daily digest.
+- Ask ONE question per reply, so the user can answer it with one tap. Set "complete" true only when home currency, region, preset, notification mode, at least one income and at least one budget are known, and you have asked about cards.
+- When the answer is one of a few options (home currency, region, income cadence, rent yes/no, what a bill is for, preset, money mode, notification mode), ALWAYS set "ask" to a picker: kind "choice" with 2-8 options (id, label, spoken synonyms). Preset options: Ask me, Smart, Autopilot (this is the "how hands-on should Kassa be with your money" question). Notification options: Each payment, Above thresholds, Daily digest.
+- Options come from the context: for the home currency offer the 2-5 currencies that fit what the user said (where they are from, where they study, currencies they mentioned; id = lower-case ISO code, label like "KZT · Tenge") and set "allowOther" true, since any ISO 4217 currency is accepted. For what a bill is for, offer the likely purposes for that payee and amount, with "allowOther" true.
+- Cards: before finishing, always ask which cards the user pays with: a name, the LAST 4 DIGITS only and the billing currency. Say why in one sentence: the last 4 digits let Kassa tell the cards apart, match bank notifications and Apple Pay taps to the right card and show each card's hidden conversion fees; Kassa never needs the full number, expiry or CVV. Card kind: HOME_KZT (home-currency card), USD, LOCAL_HUF (local card where they live) or MULTI (multi-currency). If they have none or want to skip, accept that.
 - For one amount set "ask" to kind "amount" with a currency. When you suggest monthly budgets, set "ask" to kind "amounts" with "currency" (the home currency) and one item per category (id like "groceries", label, one emoji, amount in MAJOR units, e.g. 150000 for ₸150,000): the user adjusts every category at once with sliders, so do not ask them to adjust categories one by one.
 - Otherwise set "ask" to null.
 - Keep "reply" short; markdown bold is fine.`;
 
 const AskOption = z.object({ id: z.string().regex(/^[a-z0-9_-]{1,32}$/), label: z.string().min(1).max(60), spoken: z.array(z.string()).nullish() });
+/** The question every onboarding asks before it may finish (CARDS_RE finds it in earlier replies). */
+export const CARDS_QUESTION =
+  "One more thing: **which cards do you pay with?** For each, tell me a name, the **last 4 digits** and its currency (e.g. \"Kaspi Gold, 4821, KZT\"). " +
+  "Why the last 4 digits: they let me tell your cards apart, match bank notifications and Apple Pay taps to the right card, and show the hidden conversion fees each card charges. " +
+  "I never need the full card number, expiry date or CVV.";
+const CARDS_RE = /\bcards?\b/i;
 const AskAmountsItem = z.object({ id: z.string().min(1).max(32), label: z.string().min(1).max(60), emoji: z.string().max(16).nullish(), amount: z.number().nonnegative() });
 /** ask_choice / ask_amount / several amounts at once (budgets) as structured output (see the header comment). */
 const Ask = z.object({
@@ -53,6 +61,7 @@ const Ask = z.object({
   prompt: z.string().min(1).max(200),
   options: z.array(AskOption).max(8).nullish(),
   multi: z.boolean().nullish(),
+  allowOther: z.boolean().nullish(),
   currency: z.string().regex(/^[A-Z]{3}$/).nullish(),
   items: z.array(AskAmountsItem).max(12).nullish(),
 });
@@ -71,7 +80,9 @@ function askPart(ask: z.infer<typeof Ask> | null | undefined, id: string): DataC
   if (ask.kind === "amounts") return ask.currency ? budgetsPicker(id, ask.prompt, ask.currency, ask.items ?? []) : null;
   const options = (ask.options ?? []).map((o) => ({ id: o.id, label: o.label, value: o.id, ...(o.spoken?.length ? { spoken: o.spoken } : {}) }));
   if (options.length < 2) return null;
-  return { id, kind: "choice", prompt: ask.prompt, options, ...(ask.multi ? { multi: true } : {}) };
+  const part: DataChoices = { id, kind: "choice", prompt: ask.prompt, options, ...(ask.multi ? { multi: true } : {}), ...(ask.allowOther ? { allowOther: true } : {}) };
+  // A currency question always lets the user pick any other ISO 4217 currency.
+  return pickerTopic(part) === "currency" ? { ...part, allowOther: true, otherKind: "currency" } : part;
 }
 
 /** Stored assistant turn: the structured answer plus the pickers it showed (`ui`). */
@@ -94,8 +105,31 @@ function onboardingAnswer(history: ModelMessage[], text: string, choice: ChoiceA
     if (!part) throw new ChoiceError("CHOICE_NOT_FOUND", "No such picker in this conversation");
     return resolveAnswer(part, choice).label;
   }
-  const pending = ui.find((p) => p.options.length > 0);
-  return (pending && matchChoice(text, pending)?.label) || text;
+  for (const p of ui) {
+    const hit = p.options.length > 0 ? matchChoice(text, p) : null;
+    if (hit) return hit.label;
+  }
+  return text;
+}
+
+/** Did an earlier assistant turn (or this reply) already ask about cards? */
+function askedAboutCards(history: ModelMessage[], reply: string): boolean {
+  if (CARDS_RE.test(reply)) return true;
+  return history.some((m) => m.role === "assistant" && CARDS_RE.test(parseAssistant(m.content)?.reply ?? ""));
+}
+
+/**
+ * A turn's pickers once the user replied with `text`: the picker the text answers shows that answer; the others
+ * (a turn can ask two things) turn read-only without one. Free text that matches none answers the first.
+ */
+export function answeredParts(parts: DataChoices[], text: string): DataChoices[] {
+  const hits = parts.map((p) => (p.options.length ? matchChoice(text, p) : null));
+  const target = hits.some(Boolean) ? hits.findIndex(Boolean) : 0;
+  return parts.map((p, i) => {
+    if (i !== target) return { ...p, answer: { optionIds: [], label: "" } };
+    const o = hits[i];
+    return { ...p, answer: o ? { optionIds: [o.id], label: o.label } : { optionIds: [], label: text } };
+  });
 }
 
 export function emptyDraft(): OnboardingProfileDraft {
@@ -174,17 +208,32 @@ export async function onboardingTurn(o: {
   }
   // History keeps the answer as plain assistant JSON whatever the mode (a tool-mode call would leave an
   // orphan tool call in the next turn's prompt). This is also the recording format replay serves.
-  const answer = JSON.stringify(out);
-  const askId = `ob_${randomUUID().slice(0, 8)}`;
-  // The model's own picker, else the buttons its reply calls for (pickers.ts): it often asks in prose only.
-  const part = askPart(out.ask, askId) ?? fallbackPicker(out.reply, out.draft, askId);
-  const ui = part ? [{ ...part, prompt: redactor.rehydrateForUser(part.prompt) }] : [];
-  // The stored turn also carries the picker it showed, so the next answer is validated against it.
-  const responseMessages: ModelMessage[] = [{ role: "assistant", content: ui.length ? JSON.stringify({ ...out, ui: part ? [part] : [] }) : answer }];
-  recorder?.steps.push({ text: answer });
+  const newId = () => `ob_${randomUUID().slice(0, 8)}`;
   const entries = [...redactor.entries()];
   const draft = OnboardingProfileDraft.parse(restore(out.draft, entries));
-  const complete = out.complete && isComplete(draft);
+  let complete = out.complete && isComplete(draft);
+  let reply = out.reply;
+  let parts: DataChoices[];
+  if (complete && draft.cards.length === 0 && !askedAboutCards(history, reply)) {
+    // Never finish without the cards question (the model sometimes skips it): ask it now, with its reason.
+    complete = false;
+    reply = `${reply.trim()}\n\n${CARDS_QUESTION}`;
+    parts = [];
+  } else {
+    // The model's own picker, plus the buttons its other questions call for (pickers.ts): it often asks in prose only.
+    const context = history
+      .filter((m) => m.role === "user" && typeof m.content === "string")
+      .map((m) => (m.content as string).replace(/^Current draft \(JSON\):[\s\S]*?\n\nUser: /, ""))
+      .concat(redactor.redactText(text))
+      .join("\n");
+    parts = fallbackPickers({ reply: out.reply, draft: out.draft, context, newId, modelPicker: askPart(out.ask, newId()) });
+  }
+  const turnOut = { ...out, reply };
+  const answer = JSON.stringify(turnOut);
+  const ui = parts.map((p) => ({ ...p, prompt: redactor.rehydrateForUser(p.prompt) }));
+  // The stored turn also carries the pickers it showed, so the next answer is validated against them.
+  const responseMessages: ModelMessage[] = [{ role: "assistant", content: parts.length ? JSON.stringify({ ...turnOut, ui: parts }) : answer }];
+  recorder?.steps.push({ text: JSON.stringify(out) });
   const now = clock.now();
   await db
     .insert(onboardingDrafts)
@@ -193,7 +242,7 @@ export async function onboardingTurn(o: {
   await appendHistory(o.conversationId, o.userId, "onboarding", [userMsg, ...responseMessages]);
   await savePlaceholders(o.conversationId, o.userId, redactor.drainNew());
   if (recorder) recorder.save("onboarding", redactor.redactText(text), recordedWith);
-  return { reply: redactor.rehydrateForUser(out.reply), draft, complete, ui };
+  return { reply: redactor.rehydrateForUser(reply), draft, complete, ui };
 }
 
 /** GET /onboarding/conversation: the caller's latest onboarding draft and its turns (rehydrated for the user). */
@@ -220,11 +269,7 @@ export async function latestOnboardingConversation(userId: string): Promise<Onbo
   // Answered pickers turn read-only: the next user turn is the answer.
   turns.forEach((t, i) => {
     const next = turns.slice(i + 1).find((x) => x.role === "user");
-    if (!next) return;
-    t.ui = t.ui.map((p) => {
-      const o = p.options.length ? matchChoice(next.text, p) : null;
-      return { ...p, answer: o ? { optionIds: [o.id], label: o.label } : { optionIds: [], label: next.text } };
-    });
+    if (next) t.ui = answeredParts(t.ui, next.text);
   });
   return { conversationId: row.conversationId, draft: row.draft, complete: row.complete, turns };
 }

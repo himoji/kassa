@@ -3,14 +3,14 @@
  * no money maths in the client beyond formatting); dates take ISO 8601 / RFC 3339 strings in and
  * come out localised through Intl with the active BCP 47 locale tag.
  */
-import { formatMoney, isSupportedCurrency } from "@kassa/shared";
+import { CURRENCIES, formatMoney, isKnownCurrency, SupportedCurrency } from "@kassa/shared";
 import { useMemo } from "react";
 
 import { useLocaleTag } from "@/lib/i18n";
 
 /** Money in its own ISO 4217 currency. Unknown currencies show the code instead of throwing. */
 export function formatAmount(amountMinor: number, currency: string, locale: string): string {
-  if (isSupportedCurrency(currency)) return formatMoney(amountMinor, currency, locale);
+  if (isKnownCurrency(currency)) return formatMoney(amountMinor, currency, locale);
   // Outside Kassa's currency table: still never guess an exponent - show the raw minor units.
   return `${new Intl.NumberFormat(locale).format(amountMinor)} ${currency} (minor units)`;
 }
@@ -51,6 +51,12 @@ export function formatPercent(ratio: number, locale: string): string {
 }
 
 /** Localised ISO 4217 currency name ("Kazakhstani Tenge"); falls back to the code. */
+/** Every ISO 4217 currency for a picker: the demo's own currencies first, then the rest by code. */
+export function currencyCodes(): string[] {
+  const featured: readonly string[] = SupportedCurrency.options;
+  return [...featured, ...CURRENCIES.map((c) => c.code).filter((c) => !featured.includes(c))];
+}
+
 export function currencyName(code: string, locale: string): string {
   try {
     const names = new Intl.DisplayNames([locale], { type: "currency" });
