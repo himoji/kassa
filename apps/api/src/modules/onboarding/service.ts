@@ -21,6 +21,7 @@ import { replayModel, selectTurn, StepRecorder } from "../agent/replay.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { screenName } from "../screening/index.ts";
+import { budgetsPicker, fallbackPicker } from "./pickers.ts";
 
 /*
  * Onboarding chat (spec §8 POST /onboarding/message): one planner call per turn with structured output
@@ -39,17 +40,21 @@ Rules:
 - Amounts are integer minor units (cents): ₸600,000 = 60000000 KZT; €2,400 = 240000 EUR.
 - Placeholders like person_1 or iban_1 stand for personal data; copy them as they are.
 - Ask one or two questions per reply. Set "complete" true only when home currency, region, preset, notification mode, at least one income and at least one budget are known.
-- When the answer is one of a few options (home currency, region, income cadence, rent yes/no, preset, notification mode), set "ask" to a picker: kind "choice" with 2-8 options (id, label, spoken synonyms), or kind "amount" with a currency. Otherwise set "ask" to null.
+- When the answer is one of a few options (home currency, region, income cadence, rent yes/no, preset, money mode, notification mode), ALWAYS set "ask" to a picker: kind "choice" with 2-8 options (id, label, spoken synonyms). Preset options: Ask me, Smart, Autopilot. Notification options: Each payment, Above thresholds, Daily digest.
+- For one amount set "ask" to kind "amount" with a currency. When you suggest monthly budgets, set "ask" to kind "amounts" with "currency" (the home currency) and one item per category (id like "groceries", label, one emoji, amount in MAJOR units, e.g. 150000 for ₸150,000): the user adjusts every category at once with sliders, so do not ask them to adjust categories one by one.
+- Otherwise set "ask" to null.
 - Keep "reply" short; markdown bold is fine.`;
 
 const AskOption = z.object({ id: z.string().regex(/^[a-z0-9_-]{1,32}$/), label: z.string().min(1).max(60), spoken: z.array(z.string()).nullish() });
-/** ask_choice / ask_amount as structured output (see the header comment). */
+const AskAmountsItem = z.object({ id: z.string().min(1).max(32), label: z.string().min(1).max(60), emoji: z.string().max(16).nullish(), amount: z.number().nonnegative() });
+/** ask_choice / ask_amount / several amounts at once (budgets) as structured output (see the header comment). */
 const Ask = z.object({
-  kind: z.enum(["choice", "amount"]),
+  kind: z.enum(["choice", "amount", "amounts"]),
   prompt: z.string().min(1).max(200),
   options: z.array(AskOption).max(8).nullish(),
   multi: z.boolean().nullish(),
   currency: z.string().regex(/^[A-Z]{3}$/).nullish(),
+  items: z.array(AskAmountsItem).max(12).nullish(),
 });
 
 const TurnOutput = z.object({
@@ -63,6 +68,7 @@ const TurnOutput = z.object({
 function askPart(ask: z.infer<typeof Ask> | null | undefined, id: string): DataChoices | null {
   if (!ask) return null;
   if (ask.kind === "amount") return ask.currency ? { id, kind: "amount", prompt: ask.prompt, options: [], amount: { currency: ask.currency } } : null;
+  if (ask.kind === "amounts") return ask.currency ? budgetsPicker(id, ask.prompt, ask.currency, ask.items ?? []) : null;
   const options = (ask.options ?? []).map((o) => ({ id: o.id, label: o.label, value: o.id, ...(o.spoken?.length ? { spoken: o.spoken } : {}) }));
   if (options.length < 2) return null;
   return { id, kind: "choice", prompt: ask.prompt, options, ...(ask.multi ? { multi: true } : {}) };
@@ -169,7 +175,9 @@ export async function onboardingTurn(o: {
   // History keeps the answer as plain assistant JSON whatever the mode (a tool-mode call would leave an
   // orphan tool call in the next turn's prompt). This is also the recording format replay serves.
   const answer = JSON.stringify(out);
-  const part = askPart(out.ask, `ob_${randomUUID().slice(0, 8)}`);
+  const askId = `ob_${randomUUID().slice(0, 8)}`;
+  // The model's own picker, else the buttons its reply calls for (pickers.ts): it often asks in prose only.
+  const part = askPart(out.ask, askId) ?? fallbackPicker(out.reply, out.draft, askId);
   const ui = part ? [{ ...part, prompt: redactor.rehydrateForUser(part.prompt) }] : [];
   // The stored turn also carries the picker it showed, so the next answer is validated against it.
   const responseMessages: ModelMessage[] = [{ role: "assistant", content: ui.length ? JSON.stringify({ ...out, ui: part ? [part] : [] }) : answer }];

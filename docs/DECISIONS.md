@@ -683,3 +683,16 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   the stored owner assertion (`stored` mode, like `verifyMandate`), payee + account = the PO's supplier, amount ≤ total,
   PO not PAID. The PO goes PAYING when the payment row is created, PAID on SENT (`payments/status.ts`, ledger `PO_PAID`),
   back to INVOICED on FAILED/CANCELED.
+
+## 2026-10-13: Limits and budgets apply on the passkey, no 24 h wait
+
+- **Raised caps** (`PATCH /settings` caps: per payment / day / month, small-auto, a lowered reserve) still need a
+  passkey assertion over the change hash (428 round trip, I8), but then apply at once: rule_changes LOOSEN with
+  `appliedAt = effectiveAt = now`, ledger `RULES_LOOSENED`. Autonomy loosenings (preset, payment policy, money mode,
+  agent, region), unfreeze and mandates keep the 24 h delay.
+- **Budgets** (`PUT /budgets`, the chat's budgets card via the `ask_budgets` UI tool): new or lowered limits tighten
+  and apply at once without a passkey; a raised limit (a bigger budget lowers the risk score) needs the passkey and
+  then applies at once (rule_changes kind `BUDGETS`). Denied to KassaLite sessions.
+- Why: limits are numbers the user sets deliberately; the passkey already proves it is them, and waiting a day to use a
+  raised limit made the review sheet and the chat card feel broken. The agent still cannot change either (I1): the app
+  applies the user's own confirmed values.

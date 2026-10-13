@@ -16,7 +16,7 @@
     "smallAutoMinor": "Auto-pay limit",
     "reserveMinor": "Protected reserve"
   },
-  "capsFooter": "Lowering a limit applies immediately. Raising a limit needs your passkey and takes effect after 24 hours.",
+  "capsFooter": "Lowering a limit applies immediately. Raising a limit needs your passkey, then applies immediately too.",
   "capsTitle": "Limits",
   "currencyOption": "{{code}} · {{name}}",
   "customise": "Customise",

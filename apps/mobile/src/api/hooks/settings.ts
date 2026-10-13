@@ -36,8 +36,9 @@ export function usePendingRuleChanges() {
 export type SettingsUpdate = SettingsPatch & { caps?: CapsPatch };
 
 /**
- * PATCH /settings. Tightening applies at once; loosening comes back 428 PASSKEY_REQUIRED, is
- * signed with a passkey and then lands as a pending rule change effective in 24 h (I8).
+ * PATCH /settings. Tightening applies at once; loosening comes back 428 PASSKEY_REQUIRED and is
+ * signed with a passkey. Raised caps then apply at once; other loosenings land as a pending rule
+ * change effective in 24 h (I8).
  */
 export function useUpdateSettings() {
   const qc = useQueryClient();

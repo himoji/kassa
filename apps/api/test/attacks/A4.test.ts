@@ -1,8 +1,9 @@
 /*
- * A4 — loosen a cap without a passkey; with a passkey before 24 h.
+ * A4 — loosen a cap without a passkey; loosen the preset with a passkey before 24 h.
  * Expected: without passkey → rejected (428 PASSKEY_REQUIRED, nothing stored or applied);
- * with passkey → pending until effectiveAt (+24 h on the demo clock), then applied by the scheduler.
- * Tightening applies instantly (I8).
+ * a raised cap with the passkey → applied at once (limits need the passkey, no waiting: DECISIONS);
+ * a preset loosening with the passkey → pending until effectiveAt (+24 h on the demo clock), then applied by the
+ * scheduler. Tightening applies instantly (I8).
  */
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -25,7 +26,7 @@ async function caps(userId: string) {
   return (await getDb().select().from(profiles).where(eq(profiles.userId, userId)))[0]!.caps!;
 }
 
-describe("A4: loosening is slow, tightening is instant", () => {
+describe("A4: loosening needs the passkey, tightening is instant", () => {
   beforeEach(async () => {
     await t.reset();
     clock.setOffsetInMemoryForTests(0);
@@ -59,10 +60,30 @@ describe("A4: loosening is slow, tightening is instant", () => {
     recordGuarded("A4", { case: "cap raise without passkey (428) and with a forged assertion (403)", outcome: "BLOCKED", decision: null, reasonCodes: ["PASSKEY_REQUIRED"], ledger: ["AUTH_ASSERTION_FAILED"] });
   });
 
-  it("with a passkey: pending for 24 h, then applied", async () => {
+  it("a raised cap with a passkey applies at once", async () => {
     const { userId, auth } = await createUserWithPasskey();
     const before = await caps(userId);
     const body = { caps: { perPaymentMinor: before.perPaymentMinor * 2 } };
+    const first = await app().inject({ method: "PATCH", url: "/api/settings", headers: await bearer(userId), payload: body });
+    expect(first.statusCode).toBe(428);
+    const { challengeId, webauthnOptions } = first.json().details;
+    const signed = await app().inject({
+      method: "PATCH",
+      url: "/api/settings",
+      headers: await bearer(userId),
+      payload: { ...body, challengeId, assertion: auth.assert(webauthnOptions.challenge) },
+    });
+    expect(signed.statusCode).toBe(200);
+    expect(signed.json().pending).toEqual([]);
+    expect((await caps(userId)).perPaymentMinor).toBe(before.perPaymentMinor * 2);
+    expect(await ledgerOf("RULES_LOOSENED")).toHaveLength(1);
+    expect((await getDb().select().from(ruleChanges))[0]).toMatchObject({ direction: "LOOSEN", appliedAt: expect.any(Date) });
+  });
+
+  it("a preset loosening with a passkey: pending for 24 h, then applied", async () => {
+    const { userId, auth } = await createUserWithPasskey({ preset: "ASK_ME" });
+    const preset = async () => (await getDb().select().from(users).where(eq(users.id, userId)))[0]!.preset;
+    const body = { preset: "SMART" };
     const first = await app().inject({ method: "PATCH", url: "/api/settings", headers: await bearer(userId), payload: body });
     const { challengeId, webauthnOptions } = first.json().details;
     const signed = await app().inject({
@@ -76,15 +97,15 @@ describe("A4: loosening is slow, tightening is instant", () => {
     expect(pending).toHaveLength(1);
     expect(await ledgerOf("RULES_LOOSEN_PENDING")).toHaveLength(1);
     expect(Date.parse(pending[0].effectiveAt) - clock.nowMs()).toBeGreaterThan(23.9 * 3_600_000);
-    expect(await caps(userId)).toEqual(before); // not yet
+    expect(await preset()).toBe("ASK_ME"); // not yet
 
     clock.setOffsetInMemoryForTests(23 * 3_600_000);
     expect(await applyDueRuleChanges()).toBe(0);
-    expect((await caps(userId)).perPaymentMinor).toBe(before.perPaymentMinor);
+    expect(await preset()).toBe("ASK_ME");
 
     clock.setOffsetInMemoryForTests(24 * 3_600_000 + 1000);
     expect(await applyDueRuleChanges()).toBe(1);
-    expect((await caps(userId)).perPaymentMinor).toBe(before.perPaymentMinor * 2);
+    expect(await preset()).toBe("SMART");
     const log = await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "RULES_LOOSENED"));
     expect(log).toHaveLength(1);
   });
@@ -136,21 +157,14 @@ describe("A4: loosening is slow, tightening is instant", () => {
     expect(res.statusCode).toBe(422);
   });
 
-  it("with a passkey: a loosened per-payment cap is not effective before 24 h; the same order is refused, then allowed", async () => {
+  it("a raised per-payment cap counts only once signed: the same order is refused before, allowed right after", async () => {
     offlineEnvironment();
     const { userId, auth } = await createUserWithPasskey();
     const payee = await addPayee(userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "KZT" });
     const before = await caps(userId);
     const body = { caps: { perPaymentMinor: before.perPaymentMinor * 10 } };
     const first = await app().inject({ method: "PATCH", url: "/api/settings", headers: await bearer(userId), payload: body });
-    const { challengeId, webauthnOptions } = first.json().details;
-    const signed = await app().inject({
-      method: "PATCH",
-      url: "/api/settings",
-      headers: await bearer(userId),
-      payload: { ...body, challengeId, assertion: auth.assert(webauthnOptions.challenge) },
-    });
-    expect(signed.statusCode).toBe(200);
+    expect(first.statusCode).toBe(428);
     expect(await caps(userId)).toEqual(before);
 
     // 2.5x the old per-payment cap: above 2x it is refused outright (SMART asks only within 2x). It stays
@@ -162,10 +176,16 @@ describe("A4: loosening is slow, tightening is instant", () => {
     expect(await ledgerWithReason("PROPOSAL_CREATED", "REFUSE_CAP")).toHaveLength(1);
     expect(await getDb().select().from(payments)).toHaveLength(0);
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
-    recordGuarded("A4", { case: "loosened cap not yet effective (before 24 h): order still refused", outcome: "BLOCKED", decision: "REFUSE", reasonCodes: ["REFUSE_CAP"], ledger: ["PROPOSAL_CREATED"] });
+    recordGuarded("A4", { case: "cap raise not signed with the passkey: order still refused", outcome: "BLOCKED", decision: "REFUSE", reasonCodes: ["REFUSE_CAP"], ledger: ["PROPOSAL_CREATED"] });
 
-    clock.setOffsetInMemoryForTests(24 * 3_600_000 + 1000);
-    expect(await applyDueRuleChanges()).toBe(1);
+    const { challengeId, webauthnOptions } = first.json().details;
+    const signed = await app().inject({
+      method: "PATCH",
+      url: "/api/settings",
+      headers: await bearer(userId),
+      payload: { ...body, challengeId, assertion: auth.assert(webauthnOptions.challenge) },
+    });
+    expect(signed.statusCode).toBe(200);
     expect((await caps(userId)).perPaymentMinor).toBe(before.perPaymentMinor * 10);
     // X2: ₸3.75M is above payments' own daily cap (₸2M), so rules now refuse it before signing; raise that
     // independent cap for this step, which is only about the rules cap loosening (I8).

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 
 import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { ThemeProvider } from "@/components/ui";
@@ -29,23 +29,24 @@ describe("PasskeyButton", () => {
 
   it("dev build + dev sign-in server: the Dev button arms the dev passkey, then runs the same action", async () => {
     await renderButton();
-    fireEvent.press(screen.getByText("Dev"));
+    await fireEvent.press(screen.getByText("Dev"));
     expect(mockArm).toHaveBeenCalledTimes(1);
     expect(onPress).toHaveBeenCalledTimes(1);
 
-    fireEvent.press(screen.getByText("Approve with passkey"));
+    await fireEvent.press(screen.getByText("Approve with passkey"));
     expect(mockArm).toHaveBeenCalledTimes(1);
     expect(onPress).toHaveBeenCalledTimes(2);
   });
 
-  it("no Dev button without dev sign-in on the server, or in a dev-login session", async () => {
+  it("no Dev button without dev sign-in on the server", async () => {
     mockDevLogin = false;
     await renderButton();
     expect(screen.queryByText("Dev")).toBeNull();
+  });
 
-    mockDevLogin = true;
-    useSessionStore.getState().setDev(true);
+  it("dev-login sessions (dev mode and demo mode) keep the Dev button too", async () => {
+    await act(async () => useSessionStore.getState().setDev(true));
     await renderButton();
-    expect(screen.queryByText("Dev")).toBeNull();
+    expect(screen.getByText("Dev")).toBeTruthy();
   });
 });
