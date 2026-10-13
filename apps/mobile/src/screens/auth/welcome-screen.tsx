@@ -1,7 +1,7 @@
 import type { AuthSessionResponse } from "@kassa/shared";
 import { type Href, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KassaApiError } from "@/api/errors";
@@ -43,11 +43,11 @@ function continueSignedIn(session: AuthSessionResponse): void {
 }
 
 /**
- * "Continue as dev user": shown only when GET /auth/demo reports `devLogin` (server dev/demo builds).
- * POST /auth/dev/login starts a dev session with no passkey ceremony; its later passkey signing is
- * done by the server (api/passkey-sign).
+ * Dev mode: shown only when GET /auth/demo reports `devLogin` (server dev/demo builds). POST /auth/dev/login
+ * with `fresh` starts a brand-new account every time (onboarding from the start), no passkey ceremony; its
+ * later passkey signing is done by the server (api/passkey-sign).
  */
-function DevLoginButton() {
+function DevModeButton() {
   const t = useKassaT();
   const demo = useDemoAvailability();
   const devLogin = useDevLogin();
@@ -57,7 +57,7 @@ function DevLoginButton() {
   const start = async () => {
     setError(null);
     try {
-      continueSignedIn(await devLogin.mutateAsync());
+      continueSignedIn(await devLogin.mutateAsync({ fresh: true }));
     } catch (err) {
       haptics.error();
       setError(errorText(t, err));
@@ -66,9 +66,11 @@ function DevLoginButton() {
 
   return (
     <Box gap={2}>
+      <Text variant="label">{t("auth:welcome.devModeLabel")}</Text>
       <Button size="lg" variant="outline" onPress={() => void start()} loading={devLogin.isPending}>
         {t("auth:welcome.devLogin")}
       </Button>
+      <Text variant="caption">{t("auth:welcome.devModeNote")}</Text>
       {error ? (
         <Text color="destructive" align="center">
           {error}
@@ -79,28 +81,33 @@ function DevLoginButton() {
 }
 
 /**
- * "Try the demo": shown only when the API runs in demo mode (GET /auth/demo). It is the normal
+ * Demo mode: shown only when the API runs in demo mode (GET /auth/demo). "Try the demo" is the normal
  * passkey registration with `demoClaim`, so the new passkey owns the seeded demo account and every
- * payment still needs that passkey (same security model as a real sign-up). The persona chips pick
- * which seeded account to claim (default Dana); `/welcome?persona=<key>` preselects one, validated
- * against the allow-list in `lib/demo-personas`.
+ * payment still needs that passkey (same security model as a real sign-up). With dev sign-in on, a "Dev"
+ * button next to it enters the same account with no passkey (POST /auth/dev/login `demoClaim`). The
+ * persona chips pick which seeded account (default Dana); `/welcome?persona=<key>` preselects one,
+ * validated against the allow-list in `lib/demo-personas`.
  */
 function DemoButton() {
   const t = useKassaT();
   const demo = useDemoAvailability();
   const register = useRegister();
+  const devLogin = useDevLogin();
   const params = useLocalSearchParams<{ persona?: string }>();
   const [persona, setPersona] = useState<DemoPersona>(() => parseDemoPersona(params.persona));
   const [error, setError] = useState<string | null>(null);
   if (!demo.data?.enabled) return null;
+  const pending = register.isPending || devLogin.isPending;
 
-  const start = async () => {
+  const start = async (dev: boolean) => {
     setError(null);
     try {
-      const session = await register.mutateAsync({
-        displayName: t(`auth:welcome.personas.${persona}.name`),
-        demoClaim: demoClaimFor(persona),
-      });
+      const session = dev
+        ? await devLogin.mutateAsync({ demoClaim: demoClaimFor(persona) })
+        : await register.mutateAsync({
+            displayName: t(`auth:welcome.personas.${persona}.name`),
+            demoClaim: demoClaimFor(persona),
+          });
       continueSignedIn(session);
     } catch (err) {
       if (err instanceof PasskeyCancelledError) return;
@@ -111,6 +118,7 @@ function DemoButton() {
 
   return (
     <Box gap={2}>
+      <Text variant="label">{t("auth:welcome.demoModeLabel")}</Text>
       <Text variant="caption">{t("auth:welcome.demoPersonaLabel")}</Text>
       <Box row gap={2} style={{ flexWrap: "wrap" }}>
         {DEMO_PERSONAS.map((p) => (
@@ -118,7 +126,7 @@ function DemoButton() {
             key={p}
             size="sm"
             variant={p === persona ? "secondary" : "outline"}
-            disabled={register.isPending}
+            disabled={pending}
             onPress={() => {
               setError(null);
               setPersona(p);
@@ -128,14 +136,32 @@ function DemoButton() {
           </Button>
         ))}
       </Box>
-      <Button
-        size="lg"
-        variant="secondary"
-        onPress={() => void start()}
-        loading={register.isPending}
-      >
-        {t("auth:welcome.demo")}
-      </Button>
+      <Box row gap={2}>
+        <View style={{ flex: 1 }}>
+          <Button
+            size="lg"
+            variant="secondary"
+            onPress={() => void start(false)}
+            loading={register.isPending}
+            disabled={devLogin.isPending}
+          >
+            {t("auth:welcome.demo")}
+          </Button>
+        </View>
+        {demo.data.devLogin ? (
+          <View accessibilityLabel={t("common:devPasskeyLabel")} testID="demo-dev-button">
+            <Button
+              size="lg"
+              variant="outline"
+              onPress={() => void start(true)}
+              loading={devLogin.isPending}
+              disabled={register.isPending}
+            >
+              {t("common:devPasskey")}
+            </Button>
+          </View>
+        ) : null}
+      </Box>
       {error ? (
         <Text color="destructive" align="center">
           {error}
@@ -150,7 +176,14 @@ export function WelcomeScreen() {
   const { colors } = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flex: 1, padding: 24, justifyContent: "space-between" }}>
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          padding: 24,
+          gap: 24,
+          justifyContent: "space-between",
+        }}
+      >
         <Box gap={6} style={{ paddingTop: 48 }}>
           <Text variant="title" style={{ fontSize: 40, lineHeight: 46 }}>
             {t("auth:welcome.title")}
@@ -173,12 +206,12 @@ export function WelcomeScreen() {
             {t("auth:welcome.signIn")}
           </Button>
           <DemoButton />
-          <DevLoginButton />
+          <DevModeButton />
           <Text variant="caption" align="center">
             {t("auth:welcome.demoNote")}
           </Text>
         </Box>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

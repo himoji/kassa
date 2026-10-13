@@ -45,7 +45,13 @@
     "dayMinus": "-1 day",
     "dayPlus": "+1 day",
     "weekMinus": "-7 days",
-    "weekPlus": "+7 days"
+    "weekPlus": "+7 days",
+    "total": "Total per month",
+    "confirmAll": "Set these"
   },
-  "loadingHistory": "Loading your conversation"
+  "loadingHistory": "Loading your conversation",
+  "budgets": {
+    "applied": "Budgets updated",
+    "failed": "Budgets not updated"
+  }
 }

@@ -56,8 +56,8 @@
       }
     },
     "A4": {
-      "attack": "Loosen a cap without passkey; with passkey before 24 h",
-      "expected": "Rejected; pending until effectiveAt",
+      "attack": "Loosen a cap without passkey; use it before it is signed",
+      "expected": "Rejected; refused until signed, then applied at once",
       "outcome": "PAID",
       "paid": true,
       "railCalls": 1,

@@ -1,4 +1,4 @@
-import { BudgetsResponse, CardFeesResponse, ForecastResponse } from "@kassa/shared";
+import { BudgetsResponse, BudgetsSetRequest, BudgetsSetResponse, CardFeesResponse, ForecastResponse } from "@kassa/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 
@@ -6,8 +6,9 @@ import { requireUser, userIdOf } from "../auth/session.ts";
 import { forecastCoverage } from "../fx/index.ts";
 import { cardFees } from "./fees.ts";
 import { listBudgets } from "./service.ts";
+import { setBudgets } from "./set.ts";
 
-/** B-owned money endpoints (PHASE1_COORDINATION): GET /budgets, GET /forecast, GET /cards/fees. */
+/** B-owned money endpoints (PHASE1_COORDINATION): GET /budgets, PUT /budgets (set.ts), GET /forecast, GET /cards/fees. */
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
 
@@ -16,6 +17,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     { schema: { querystring: z.object({ category: z.string().min(1).max(64).optional() }), response: { 200: BudgetsResponse } } },
     async (req) => listBudgets(userIdOf(req), req.query.category),
   );
+
+  app.put("/budgets", { schema: { body: BudgetsSetRequest, response: { 200: BudgetsSetResponse } } }, async (req) => setBudgets(userIdOf(req), req.body));
 
   app.get("/forecast", { schema: { response: { 200: ForecastResponse } } }, async (req) => forecastCoverage(userIdOf(req)));
 

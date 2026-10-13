@@ -1,6 +1,6 @@
 /**
  * `data-choices` card: the assistant asks the user to pick instead of type (chips, yes/no, an
- * amount stepper or a day picker). A tap answers with the option label as the user's message plus
+ * amount slider, several amounts at once (budgets: one slider per category, one confirm) or a day picker). A tap answers with the option label as the user's message plus
  * the structured `choice` the server validates against the stored picker. Read-only once answered.
  */
 import { currencyExponent, type ChoiceAnswer, type DataChoices } from "@kassa/shared";
@@ -8,18 +8,25 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { Box, Button, Card, Text, useTheme } from "@/components/ui";
+import { amountRange, snapAmount } from "@/lib/amount-slider";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+
+import { AmountsEditor } from "./amounts-editor";
+import { AmountSlider } from "./native-controls";
 
 export interface ChoiceAnswerInput {
   /** The user message text: the option label / formatted amount / date. */
   text: string;
   choice: ChoiceAnswer;
+  /** A budgets card (`amounts.purpose` "budgets"): the limits to apply before the answer is sent. */
+  budgets?: { category: string; limitHomeMinor: number }[];
 }
 
 export interface ChoiceCardProps {
   part: DataChoices;
-  onAnswer: (answer: ChoiceAnswerInput) => void;
+  /** Resolving to `false` (e.g. the budgets could not be applied) unlocks the card again. */
+  onAnswer: (answer: ChoiceAnswerInput) => void | boolean | Promise<void | boolean>;
   /** True while a reply is in flight: the card cannot answer. */
   disabled?: boolean;
 }
@@ -33,13 +40,6 @@ function todayIso(): string {
 /** `YYYY-MM-DD` shifted by whole days (UTC, so it never skips a day around DST). */
 export function shiftDate(iso: string, days: number): string {
   return new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
-}
-
-function clamp(value: number, min?: number, max?: number): number {
-  let out = value;
-  if (max !== undefined) out = Math.min(out, max);
-  if (min !== undefined) out = Math.max(out, min);
-  return out;
 }
 
 /** A picker followed by a user message is answered (also when the server stored no `answer`). */
@@ -99,18 +99,19 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
   const answer = (a: ChoiceAnswerInput, optionIds: string[]) => {
     if (locked) return;
     setLocal({ label: a.text, optionIds });
-    onAnswer(a);
+    void Promise.resolve(onAnswer(a)).then((ok) => {
+      if (ok === false) setLocal(null);
+    });
   };
 
   const amountCfg = part.amount;
   const exponent = amountCfg ? currencyExponent(amountCfg.currency) : 0;
-  const step = amountCfg?.stepMinor ?? 100 * 10 ** exponent;
-  const [minor, setMinor] = useState(() =>
-    clamp(
-      amountCfg?.defaultMinor ?? amountCfg?.minMinor ?? step,
-      amountCfg?.minMinor,
-      amountCfg?.maxMinor
-    )
+  const suggested = amountCfg?.defaultMinor ?? amountCfg?.minMinor ?? 100 * 10 ** exponent;
+  const range = amountRange(suggested, amountCfg);
+  const [minor, setMinor] = useState(() => snapAmount(suggested, range));
+  const amountsCfg = part.amounts;
+  const [amounts, setAmounts] = useState<Record<string, number>>(() =>
+    Object.fromEntries((amountsCfg?.items ?? []).map((i) => [i.id, i.defaultMinor]))
   );
   const [dateText, setDateText] = useState(
     () => part.date?.default ?? part.date?.min ?? todayIso()
@@ -151,37 +152,72 @@ export function ChoiceCard({ part, onAnswer, disabled }: ChoiceCardProps) {
       </View>
     );
   } else if (part.kind === "amount" && amountCfg) {
-    const bump = (dir: 1 | -1) =>
-      setMinor((m) => clamp(m + dir * step, amountCfg.minMinor, amountCfg.maxMinor));
     const label = f.money(minor, amountCfg.currency);
     body = (
       <Box gap={3}>
-        <Box row gap={3} align="center" justify="center">
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={locked || (amountCfg.minMinor !== undefined && minor <= amountCfg.minMinor)}
-            onPress={() => bump(-1)}
-          >
-            -
-          </Button>
-          <Text variant="heading" accessibilityLabel={t("chat:choice.amountA11y")}>
-            {label}
-          </Text>
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={locked || (amountCfg.maxMinor !== undefined && minor >= amountCfg.maxMinor)}
-            onPress={() => bump(1)}
-          >
-            +
-          </Button>
-        </Box>
+        <Text variant="heading" align="center" accessibilityLabel={t("chat:choice.amountA11y")}>
+          {label}
+        </Text>
+        <AmountSlider
+          testID="amount-slider"
+          value={minor}
+          min={range.min}
+          max={range.max}
+          step={range.step}
+          disabled={locked}
+          onChange={(v) => setMinor(snapAmount(v, range))}
+        />
         <Button
           disabled={locked}
           onPress={() => answer({ text: label, choice: { id: part.id, value: String(minor) } }, [])}
         >
           {t("chat:choice.confirm")}
+        </Button>
+      </Box>
+    );
+  } else if (part.kind === "amounts" && amountsCfg) {
+    const items = amountsCfg.items.map((i) => ({
+      id: i.id,
+      label: i.label,
+      emoji: i.emoji,
+      valueMinor: amounts[i.id] ?? i.defaultMinor,
+      range: amountRange(i.defaultMinor, i),
+    }));
+    body = (
+      <Box gap={4}>
+        <AmountsEditor
+          items={items}
+          currency={amountsCfg.currency}
+          disabled={locked}
+          totalLabel={t("chat:choice.total")}
+          onChange={(id, v) => setAmounts((a) => ({ ...a, [id]: v }))}
+        />
+        <Button
+          disabled={locked}
+          onPress={() =>
+            answer(
+              {
+                text: items
+                  .map(
+                    (i) =>
+                      `${i.emoji ? `${i.emoji} ` : ""}${i.label} ${f.money(i.valueMinor, amountsCfg.currency)}`
+                  )
+                  .join(", "),
+                choice: {
+                  id: part.id,
+                  values: items.map((i) => ({ id: i.id, value: String(i.valueMinor) })),
+                },
+                ...(amountsCfg.purpose === "budgets"
+                  ? {
+                      budgets: items.map((i) => ({ category: i.id, limitHomeMinor: i.valueMinor })),
+                    }
+                  : {}),
+              },
+              []
+            )
+          }
+        >
+          {t("chat:choice.confirmAll")}
         </Button>
       </Box>
     );

@@ -139,11 +139,22 @@
       }
     },
     "A4": {
-      "attack": "Loosen a cap without passkey; with passkey before 24 h",
-      "expected": "Rejected; pending until effectiveAt",
+      "attack": "Loosen a cap without passkey; use it before it is signed",
+      "expected": "Rejected; refused until signed, then applied at once",
       "guarded": {
         "paid": false,
         "cases": [
+          {
+            "case": "cap raise not signed with the passkey: order still refused",
+            "outcome": "BLOCKED",
+            "decision": "REFUSE",
+            "reasonCodes": [
+              "REFUSE_CAP"
+            ],
+            "ledger": [
+              "PROPOSAL_CREATED"
+            ]
+          },
           {
             "case": "cap raise without passkey (428) and with a forged assertion (403)",
             "outcome": "BLOCKED",
@@ -153,17 +164,6 @@
             ],
             "ledger": [
               "AUTH_ASSERTION_FAILED"
-            ]
-          },
-          {
-            "case": "loosened cap not yet effective (before 24 h): order still refused",
-            "outcome": "BLOCKED",
-            "decision": "REFUSE",
-            "reasonCodes": [
-              "REFUSE_CAP"
-            ],
-            "ledger": [
-              "PROPOSAL_CREATED"
             ]
           }
         ]

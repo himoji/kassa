@@ -120,6 +120,21 @@ export const AskAmountInput = z.object({
   maxMinor: AmountMinor.optional(),
   stepMinor: AmountMinor.optional(),
 });
+export const AskBudgetsInput = z.object({
+  prompt: z.string().min(1).max(200),
+  currency: Currency.describe("The user's home currency"),
+  items: z
+    .array(
+      z.object({
+        category: z.string().regex(/^[a-z0-9_]{1,32}$/).describe("Budget category, e.g. groceries, eating_out, transport"),
+        label: z.string().min(1).max(60),
+        emoji: z.string().max(16).optional().describe("One emoji for the category"),
+        amountMinor: AmountMinor.describe("Suggested monthly limit, home currency minor units"),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
 export const AskDateInput = z.object({
   prompt: z.string().min(1).max(200),
   min: z.iso.date().optional(),
@@ -135,6 +150,7 @@ export const AskConfirmInput = z.object({
 export const UI_TOOL_INPUT_SCHEMAS = {
   ask_choice: AskChoiceInput,
   ask_amount: AskAmountInput,
+  ask_budgets: AskBudgetsInput,
   ask_date: AskDateInput,
   ask_confirm: AskConfirmInput,
 } as const;

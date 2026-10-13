@@ -1,9 +1,8 @@
-import { ActivityIndicator } from "react-native";
-
 import type { ButtonProps, ButtonSize, ButtonVariant } from "@/components/ui/types";
 
 import { Button as RnrButton } from "./rnr-button";
 import { Text as RnrText } from "./rnr-text";
+import { Spinner } from "./spinner";
 import { useTheme } from "./theme-provider";
 
 type RnrVariant = NonNullable<React.ComponentProps<typeof RnrButton>["variant"]>;
@@ -53,7 +52,7 @@ export function Button({
       aria-busy={loading}
       style={style}
     >
-      {loading ? <ActivityIndicator size="small" color={spinnerColor} /> : leftIcon}
+      {loading ? <Spinner color={spinnerColor} /> : leftIcon}
       {typeof children === "string" ? <RnrText>{children}</RnrText> : children}
       {rightIcon}
     </RnrButton>

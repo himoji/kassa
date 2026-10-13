@@ -5,20 +5,33 @@
  * mandate comes from the confirm response: a new user's rent bill only exists once the signed draft is
  * applied, so the review (built before) usually has none. Rules → mandate (sign or skip) → home.
  * Presented as a form sheet over the onboarding chat (onboarding/_layout.tsx), like the order sheet.
+ * The caps and budgets are editable with sliders: edits go back to the server (debounced), which rebuilds
+ * the core, so the signed rules are still exactly the server's.
  */
-import { effectiveSettings } from "@kassa/shared";
+import {
+  effectiveSettings,
+  type CapsPatch,
+  type OnboardingConfirmOptionsResponse,
+} from "@kassa/shared";
 import { router } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 
 import { fetchOnboardingConversation } from "@/api/hooks/chat";
-import { useConfirmOnboarding, useOnboardingReview } from "@/api/hooks/onboarding";
+import {
+  type OnboardingReviewEdits,
+  useConfirmOnboarding,
+  useOnboardingReview,
+} from "@/api/hooks/onboarding";
 import { useCreateMandate } from "@/api/hooks/payees";
+import { AmountsEditor } from "@/components/kassa/amounts-editor";
 import { errorText } from "@/components/kassa/error-text";
 import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { QueryView } from "@/components/kassa/query-view";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { Box, Button, Divider, Loading, Text, useTheme } from "@/components/ui";
+import { amountRange } from "@/lib/amount-slider";
+import { categoryEmoji } from "@/lib/category-emoji";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
@@ -86,11 +99,45 @@ function SheetBody({
   );
 }
 
+type CapKey = keyof CapsPatch;
+/** `positive`: the server refuses 0 (the limits); the auto-pay limit and the reserve may be 0. */
+const CAP_ROWS: { key: CapKey; emoji: string; positive?: true }[] = [
+  { key: "perPaymentMinor", emoji: "💳", positive: true },
+  { key: "perDayMinor", emoji: "📅", positive: true },
+  { key: "perMonthMinor", emoji: "🗓️", positive: true },
+  { key: "smallAutoMinor", emoji: "⚡" },
+  { key: "reserveMinor", emoji: "🛟" },
+];
+
+/** Slider range around the first review's value; positive amounts start at one step. */
+function reviewRange(initialMinor: number, positive?: boolean) {
+  const r = amountRange(initialMinor);
+  return positive ? amountRange(initialMinor, { minMinor: r.step }) : r;
+}
+
+/** Local slider values, sent to the server this long after the last change. */
+const EDIT_DEBOUNCE_MS = 350;
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [out, setOut] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setOut(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return out;
+}
+
 function OnboardingReview() {
   const t = useKassaT();
   const f = useFormat();
   const conversationId = useChatStore((s) => s.onboardingConversationId);
-  const review = useOnboardingReview(conversationId);
+  const [edits, setEdits] = useState<OnboardingReviewEdits>({});
+  const sentEdits = useDebounced(edits, EDIT_DEBOUNCE_MS);
+  const review = useOnboardingReview(conversationId, sentEdits);
+  // Slider ranges come from the first (unedited) review, so they do not move while the user drags.
+  const [baseline, setBaseline] = useState<OnboardingConfirmOptionsResponse | null>(null);
+  if (review.data && !baseline) setBaseline(review.data);
+  const syncing = edits !== sentEdits || !!review.isFetching;
   const confirmRules = useConfirmOnboarding(conversationId);
   const createMandate = useCreateMandate();
   // Set once the rules are signed and the server offers a mandate: step 2. Rendered without the review
@@ -167,7 +214,7 @@ function OnboardingReview() {
         const s = r.core.settings;
         const eff = effectiveSettings(s.preset, s.overrides);
         const caps = r.core.caps;
-        const money = (minor: number) => f.money(minor, caps.currency);
+        const base = baseline ?? r;
 
         const signRules = async () => {
           setError(null);
@@ -189,7 +236,11 @@ function OnboardingReview() {
             testID="onboarding-review-step"
             actions={
               <>
-                <PasskeyButton onPress={() => void signRules()} loading={confirmRules.isPending}>
+                <PasskeyButton
+                  onPress={() => void signRules()}
+                  loading={confirmRules.isPending}
+                  disabled={syncing}
+                >
                   {t("onboarding:signRules")}
                 </PasskeyButton>
                 <Button size="lg" variant="ghost" onPress={() => router.back()}>
@@ -225,30 +276,56 @@ function OnboardingReview() {
 
             <Divider spacing={0} />
 
-            <Box gap={2}>
+            <Box gap={3}>
               <Text variant="label">{t("settings:capsTitle")}</Text>
-              <Field
-                label={t("settings:caps.perPaymentMinor")}
-                value={money(caps.perPaymentMinor)}
+              <AmountsEditor
+                currency={caps.currency}
+                disabled={confirmRules.isPending}
+                items={CAP_ROWS.map(({ key, emoji, positive }) => ({
+                  id: key,
+                  label: t(`settings:caps.${key}`),
+                  emoji,
+                  valueMinor: edits.caps?.[key] ?? caps[key],
+                  range: reviewRange(base.core.caps[key], positive),
+                }))}
+                onChange={(id, v) =>
+                  setEdits((e) => ({ ...e, caps: { ...e.caps, [id as CapKey]: v } }))
+                }
               />
-              <Field label={t("settings:caps.perDayMinor")} value={money(caps.perDayMinor)} />
-              <Field label={t("settings:caps.perMonthMinor")} value={money(caps.perMonthMinor)} />
-              <Field label={t("settings:caps.smallAutoMinor")} value={money(caps.smallAutoMinor)} />
-              <Field label={t("settings:caps.reserveMinor")} value={money(caps.reserveMinor)} />
             </Box>
 
             {r.draft.budgets.length > 0 ? (
               <>
                 <Divider spacing={0} />
-                <Box gap={2}>
+                <Box gap={3}>
                   <Text variant="label">{t("home:budgets")}</Text>
-                  {r.draft.budgets.map((b) => (
-                    <Field
-                      key={b.category}
-                      label={t(`common:category.${b.category}`, { defaultValue: b.category })}
-                      value={f.money(b.limitHomeMinor, s.homeCurrency)}
-                    />
-                  ))}
+                  <AmountsEditor
+                    currency={s.homeCurrency}
+                    disabled={confirmRules.isPending}
+                    totalLabel={t("chat:choice.total")}
+                    items={r.draft.budgets.map((b) => {
+                      const edited = edits.budgets?.find((x) => x.category === b.category);
+                      const initial =
+                        base.draft.budgets.find((x) => x.category === b.category)?.limitHomeMinor ??
+                        b.limitHomeMinor;
+                      return {
+                        id: b.category,
+                        label: t(`common:category.${b.category}`, { defaultValue: b.category }),
+                        emoji: categoryEmoji(b.category),
+                        valueMinor: edited?.limitHomeMinor ?? b.limitHomeMinor,
+                        range: reviewRange(initial, true),
+                      };
+                    })}
+                    onChange={(category, v) =>
+                      setEdits((e) => ({
+                        ...e,
+                        budgets: [
+                          ...(e.budgets ?? []).filter((x) => x.category !== category),
+                          { category, limitHomeMinor: v },
+                        ],
+                      }))
+                    }
+                  />
                 </Box>
               </>
             ) : null}

@@ -69,6 +69,23 @@ describe("dev sign-in", () => {
     expect(pair.code).toMatch(/^[A-Z2-9]{8}$/);
   });
 
+  it("dev mode (`fresh`) starts a brand-new, not onboarded user every time; demo mode (`demoClaim`) needs the seed", async () => {
+    devEnv();
+    const login = async (payload: Record<string, unknown>) => {
+      const res = await app().inject({ method: "POST", url: "/api/auth/dev/login", payload: { client: "native", ...payload } });
+      return { status: res.statusCode, body: res.json() };
+    };
+    const a = await login({ fresh: true });
+    const b = await login({ fresh: true });
+    expect(a.status).toBe(200);
+    expect(a.body.user.id).not.toBe(b.body.user.id);
+    expect(a.body.onboarded).toBe(false);
+    const reused = await login({});
+    expect((await login({})).body.user.id).toBe(reused.body.user.id);
+    expect(reused.body.user.id).not.toBe(a.body.user.id);
+    expect((await login({ demoClaim: true })).status).toBe(409);
+  });
+
   it("/auth/dev/assert also signs for a passkey user's session (the app's Dev button), only while dev sign-in is on", async () => {
     const { userId } = await createUserWithPasskey();
     const off = await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: await bearer(userId), payload: { challenge: "a".repeat(43) } });
