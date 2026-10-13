@@ -34,6 +34,7 @@ import {
   transactions,
   userKeys,
   users,
+  recoveryCodes,
   webauthnCredentialsPayments,
   webauthnCredentialsRules,
 } from "../../db/schema.ts";
@@ -265,6 +266,7 @@ export async function eraseUser(userId: string): Promise<{ erasedAt: Date }> {
     await tx.delete(devices).where(eq(devices.userId, userId));
     await tx.delete(webauthnCredentialsRules).where(eq(webauthnCredentialsRules.userId, userId));
     await tx.delete(webauthnCredentialsPayments).where(eq(webauthnCredentialsPayments.userId, userId));
+    await tx.delete(recoveryCodes).where(eq(recoveryCodes.userId, userId));
     await tx.delete(transactions).where(eq(transactions.userId, userId));
     await tx.delete(budgets).where(eq(budgets.userId, userId));
     await tx.delete(obligations).where(eq(obligations.userId, userId));

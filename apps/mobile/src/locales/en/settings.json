@@ -147,5 +147,17 @@
     "dark": "Dark"
   },
   "themeLabel": "Theme",
-  "title": "Settings"
+  "title": "Settings",
+  "backupCodes": {
+    "title": "Backup codes",
+    "footer": "If you lose every device with your passkey, a backup code lets you set up a new passkey. Each code works once. Store them somewhere safe, like a password manager or on paper.",
+    "status": "{{remaining}} of {{total}} codes left",
+    "none": "No backup codes yet",
+    "create": "Create backup codes",
+    "regenerate": "Create new codes (old ones stop working)",
+    "shownOnce": "Save these now. They will not be shown again.",
+    "copyAll": "Copy all codes",
+    "copied": "Backup codes copied",
+    "done": "I saved them"
+  }
 }

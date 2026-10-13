@@ -13,11 +13,13 @@ export const CHALLENGE_TTL_MS = 5 * MINUTE_MS;
 
 export type PendingChallenge =
   | { purpose: "register"; userId: string; displayName: string; existingUser: boolean; challenge: string; expiresAtMs: number }
-  | { purpose: "login"; challenge: string; expiresAtMs: number };
+  | { purpose: "login"; challenge: string; expiresAtMs: number }
+  | { purpose: "recover"; userId: string; codeId: string; challenge: string; expiresAtMs: number };
 
 type NewChallenge =
   | { purpose: "register"; userId: string; displayName: string; existingUser: boolean }
-  | { purpose: "login" };
+  | { purpose: "login" }
+  | { purpose: "recover"; userId: string; codeId: string };
 
 const store = new Map<string, PendingChallenge>();
 

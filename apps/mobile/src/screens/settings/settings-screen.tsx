@@ -23,6 +23,7 @@ import { env } from "@/lib/env";
 import { currencyCodes, useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
+import { BackupCodesSection } from "./backup-codes-section";
 import { CapsSection } from "./caps-section";
 import { MandatesSection } from "./mandates-section";
 import { PendingChanges } from "./pending-changes";
@@ -170,6 +171,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
       <PendingChanges />
       <CapsSection />
       <MandatesSection />
+      <BackupCodesSection />
 
       <RowGroup title={t("settings:appearanceTitle")}>
         <SettingPicker<ThemeMode>

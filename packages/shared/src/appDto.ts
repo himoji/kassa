@@ -120,6 +120,41 @@ export const AuthSessionResponse = z.object({
 });
 export type AuthSessionResponse = z.infer<typeof AuthSessionResponse>;
 
+// ---------- Backup (recovery) codes: sign in again when every passkey is lost ----------
+
+/** GET /auth/recovery-codes: how many unused codes are left (the codes themselves are shown once). */
+export const RecoveryCodesStatus = z.object({
+  remaining: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  createdAt: IsoDateTime.nullable(),
+});
+export type RecoveryCodesStatus = z.infer<typeof RecoveryCodesStatus>;
+
+/** POST /auth/recovery-codes: a new set (the old one stops working). Passkey round trip (HTTP 428) first. */
+export const RecoveryCodesGenerateRequest = z.object({
+  challengeId: z.string().optional(),
+  assertion: AuthenticationResponseJSON.optional(),
+});
+export type RecoveryCodesGenerateRequest = z.infer<typeof RecoveryCodesGenerateRequest>;
+export const RecoveryCodesResponse = z.object({ codes: z.array(z.string()), createdAt: IsoDateTime });
+export type RecoveryCodesResponse = z.infer<typeof RecoveryCodesResponse>;
+
+/** POST /auth/recovery/options: a backup code → options to register a new passkey for that account. */
+export const RecoveryOptionsRequest = z.object({ code: z.string().trim().min(8).max(32) });
+export type RecoveryOptionsRequest = z.infer<typeof RecoveryOptionsRequest>;
+
+/** POST /auth/recovery/verify: the new passkey replaces every old one; payments freeze (unfreeze: passkey + 24 h). */
+export const RecoveryVerifyRequest = z.object({
+  challengeId: z.string().min(1),
+  response: RegistrationResponseJSON,
+  client: ClientKind,
+});
+export type RecoveryVerifyRequest = z.infer<typeof RecoveryVerifyRequest>;
+export const RecoveryVerifyResponse = AuthSessionResponse.extend({
+  recovery: z.object({ codesLeft: z.number().int().nonnegative(), paymentsFrozen: z.boolean() }),
+});
+export type RecoveryVerifyResponse = z.infer<typeof RecoveryVerifyResponse>;
+
 /** POST /auth/refresh (native). Refresh tokens rotate on every use (OAuth 2.0 Security BCP, RFC 9700 §4.14). */
 export const RefreshRequest = z.object({ refreshToken: z.string().min(1) });
 export type RefreshRequest = z.infer<typeof RefreshRequest>;
