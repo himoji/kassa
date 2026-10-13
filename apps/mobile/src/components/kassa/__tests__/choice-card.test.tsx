@@ -1,10 +1,10 @@
 import { describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { DataChoices } from "@kassa/shared";
 
 import { ThemeProvider } from "@/components/ui";
 
-import { ChoiceCard, shiftDate } from "../choice-card";
+import { ChoiceCard, shiftDate, type ChoiceCardProps } from "../choice-card";
 
 const base: DataChoices = {
   id: "pick1",
@@ -16,10 +16,14 @@ const base: DataChoices = {
   ],
 };
 
-const wrap = (part: DataChoices, onAnswer = jest.fn(), disabled = false) =>
+const wrap = (part: DataChoices, onAnswer: (a: never) => unknown = jest.fn(), disabled = false) =>
   render(
     <ThemeProvider>
-      <ChoiceCard part={part} onAnswer={onAnswer} disabled={disabled} />
+      <ChoiceCard
+        part={part}
+        onAnswer={onAnswer as ChoiceCardProps["onAnswer"]}
+        disabled={disabled}
+      />
     </ThemeProvider>
   );
 
@@ -65,7 +69,7 @@ describe("ChoiceCard", () => {
     expect(onAnswer).toHaveBeenCalledWith({ text: "No", choice: { id: "pick1", optionId: "n" } });
   });
 
-  it("amount steps by stepMinor and sends integer minor units", async () => {
+  it("amount is picked on a slider (snapped to stepMinor, clamped) and sends integer minor units", async () => {
     const onAnswer = jest.fn();
     await wrap(
       {
@@ -76,11 +80,47 @@ describe("ChoiceCard", () => {
       },
       onAnswer
     );
-    await fireEvent.press(screen.getByText("+"));
-    await fireEvent.press(screen.getByText("+")); // clamped at max
+    await fireEvent(screen.getByTestId("amount-slider"), "valueChange", 1320);
+    expect(screen.getByText("€15.00")).toBeTruthy();
+    await fireEvent(screen.getByTestId("amount-slider"), "valueChange", 9999); // clamped at max
     await fireEvent.press(screen.getByText("Confirm"));
     const call = onAnswer.mock.calls[0]![0] as { choice: { value: string } };
     expect(call.choice).toEqual({ id: "pick1", value: "1500" });
+  });
+
+  it("amounts: every category on its own slider with an emoji badge, all answered at once", async () => {
+    const onAnswer = jest.fn();
+    await wrap(
+      {
+        ...base,
+        kind: "amounts",
+        prompt: "Monthly budgets",
+        options: [],
+        amounts: {
+          currency: "EUR",
+          items: [
+            { id: "groceries", label: "Groceries", emoji: "🛒", defaultMinor: 20000 },
+            { id: "fun", label: "Fun", emoji: "🎉", defaultMinor: 5000 },
+          ],
+        },
+      },
+      onAnswer
+    );
+    expect(screen.getByText("🛒")).toBeTruthy();
+    expect(screen.getByText("€250.00")).toBeTruthy();
+    await fireEvent(screen.getByTestId("amount-slider-groceries"), "valueChange", 31_234);
+    expect(screen.getByText("€310.00")).toBeTruthy();
+    await fireEvent.press(screen.getByText("Set these"));
+    expect(onAnswer).toHaveBeenCalledWith({
+      text: "🛒 Groceries €310.00, 🎉 Fun €50.00",
+      choice: {
+        id: "pick1",
+        values: [
+          { id: "groceries", value: "31000" },
+          { id: "fun", value: "5000" },
+        ],
+      },
+    });
   });
 
   it("date moves by days and sends YYYY-MM-DD", async () => {
@@ -124,5 +164,29 @@ describe("ChoiceCard", () => {
   it("hints that typing works with allowOther", async () => {
     await wrap({ ...base, allowOther: true });
     expect(screen.getByText("Or type your own answer below.")).toBeTruthy();
+  });
+
+  it("a budgets card passes the limits along, and unlocks when they could not be applied", async () => {
+    const onAnswer = jest.fn(async () => false);
+    await wrap(
+      {
+        ...base,
+        kind: "amounts",
+        prompt: "Budgets",
+        options: [],
+        amounts: {
+          currency: "EUR",
+          purpose: "budgets",
+          items: [{ id: "groceries", label: "Groceries", emoji: "🛒", defaultMinor: 20000 }],
+        },
+      },
+      onAnswer
+    );
+    await fireEvent.press(screen.getByText("Set these"));
+    expect(onAnswer).toHaveBeenCalledWith(
+      expect.objectContaining({ budgets: [{ category: "groceries", limitHomeMinor: 20000 }] })
+    );
+    await waitFor(() => expect(screen.queryByText(/^Answered/)).toBeNull());
+    expect(screen.getByText("Set these")).toBeTruthy();
   });
 });

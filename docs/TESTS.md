@@ -25,7 +25,7 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | A1.test.ts | Hidden instruction in supplier price list (end to end) | no proposal for hidden account; REFUSE_SOURCE_MISMATCH; nothing paid | 4 passed | A1; I10 |
 | A2.test.ts | "Landlord new IBAN" email | new COOLING payee; rent stays on verified account | 2 passed | A2; I7, I10 |
 | A3.test.ts | Payment without approval, forged approval, replay | NO_APPROVAL, BAD_SIGNATURE, NONCE_USED; no money; ledgered | 4 passed | A3; I2, I4 |
-| A4.test.ts | Loosen caps without passkey / before 24 h | passkey required; REFUSE_CAP until effective; tightening instant | 8 passed | A4; I8 |
+| A4.test.ts | Loosen caps without passkey / before signing | passkey required; REFUSE_CAP until signed; signed raise instant; preset loosening 24 h; tightening instant | 9 passed | A4; I8 |
 | A5.test.ts | Swapped QR (checked when shown, X7) | QR_PAYEE_MISMATCH up front; approve refused; no pay action | 3 passed | A5; I2, I3 |
 | A6.test.ts | Sanctions (Cyrillic, transliterated, fuzzy) | REFUSE_SANCTIONS | 6 passed | A6; I9 |
 | A7.test.ts | Fake POS trigger 10× (end to end) | logged only; ASK TRIGGER_ORIGIN; REFUSE_CAP | 4 passed | A7; I6 |

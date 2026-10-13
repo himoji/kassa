@@ -6,7 +6,7 @@ import {
 } from "@kassa/shared";
 import { router } from "expo-router";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
+import { FlatList, Pressable, View } from "react-native";
 
 import { useLedger, useMarkNotificationRead, useNotifications } from "@/api/hooks/activity";
 import { useMe } from "@/api/hooks/me";
@@ -23,6 +23,7 @@ import {
   ErrorState,
   Icon,
   Skeleton,
+  Spinner,
   Text,
   useTheme,
 } from "@/components/ui";
@@ -247,7 +248,7 @@ export function ActivityScreen() {
             <EmptyState title={t("activity:emptyTimeline")} />
           )
         }
-        ListFooterComponent={ledger.isFetchingNextPage ? <ActivityIndicator /> : null}
+        ListFooterComponent={ledger.isFetchingNextPage ? <Spinner /> : null}
       />
     );
   }
@@ -270,7 +271,7 @@ export function ActivityScreen() {
             <EmptyState title={t("activity:emptySpending")} />
           )
         }
-        ListFooterComponent={txs.isFetchingNextPage ? <ActivityIndicator /> : null}
+        ListFooterComponent={txs.isFetchingNextPage ? <Spinner /> : null}
       />
     );
   }

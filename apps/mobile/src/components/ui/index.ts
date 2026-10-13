@@ -18,6 +18,7 @@ import { Row } from "./row";
 import { Screen } from "./screen";
 import { Sheet } from "./sheet";
 import { Skeleton } from "./skeleton";
+import { Spinner } from "./spinner";
 import { Switch } from "./switch";
 import { Text } from "./text";
 import { ForcedMode, ThemeProvider, useTheme } from "./theme-provider";
@@ -40,6 +41,7 @@ export {
   Screen,
   Sheet,
   Skeleton,
+  Spinner,
   Switch,
   Text,
   ThemeProvider,

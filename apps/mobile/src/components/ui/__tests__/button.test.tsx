@@ -40,6 +40,6 @@ describe("@/components/ui Button", () => {
     );
 
     expect(screen.getByRole("button", { busy: true })).toBeTruthy();
-    expect(JSON.stringify(screen.toJSON())).toContain("ActivityIndicator");
+    expect(JSON.stringify(screen.toJSON())).toContain("progressbar");
   });
 });

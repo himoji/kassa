@@ -6,6 +6,7 @@ import { RowGroup } from "@/components/row-group";
 import { SettingSlider } from "@/components/kassa/native-controls";
 import { QueryView } from "@/components/kassa/query-view";
 import { Box, Button, Row, Text } from "@/components/ui";
+import { sliderMax, sliderStep } from "@/lib/amount-slider";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
@@ -19,19 +20,6 @@ const CAP_KEYS: CapKey[] = [
   "smallAutoMinor",
   "reserveMinor",
 ];
-
-/**
- * Slider quantisation for an amount in minor units: a power of ten about a tenth of the current
- * value, so the slider has 10-30 stops. Input granularity only - the server validates the cap.
- */
-export function sliderStep(currentMinor: number): number {
-  const base = Math.max(1, Math.abs(currentMinor) / 10);
-  return 10 ** Math.floor(Math.log10(base));
-}
-
-function sliderMax(currentMinor: number, step: number): number {
-  return Math.max(step * 30, Math.ceil((currentMinor * 3) / step) * step);
-}
 
 /** Lowering applies instantly; raising needs a passkey and waits 24 h (I8). */
 export function CapsSection() {

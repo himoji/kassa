@@ -31,13 +31,17 @@ const mockConfirm =
   jest.fn<(r: OnboardingConfirmOptionsResponse) => Promise<OnboardingConfirmResponse>>();
 const mockCreateMandate = jest.fn<(m: MandateOptionsRequest) => Promise<unknown>>();
 let mockReview: OnboardingConfirmOptionsResponse;
+const mockReviewArgs = jest.fn();
 jest.mock("@/api/hooks/onboarding", () => ({
-  useOnboardingReview: () => ({
-    data: mockReview,
-    error: null,
-    isPending: false,
-    refetch: jest.fn(),
-  }),
+  useOnboardingReview: (...a: unknown[]) => (
+    mockReviewArgs(...a),
+    {
+      data: mockReview,
+      error: null,
+      isPending: false,
+      refetch: jest.fn(),
+    }
+  ),
   useConfirmOnboarding: () => ({
     mutateAsync: (r: OnboardingConfirmOptionsResponse) => mockConfirm(r),
     isPending: false,
@@ -190,5 +194,20 @@ describe("onboarding review → mandate → home", () => {
     await signRules();
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith("/home"));
     expect(screen.queryByTestId("onboarding-mandate-step")).toBeNull();
+  });
+
+  it("caps are edited with sliders; the edits go to the server, which rebuilds the rules to sign", async () => {
+    await render(wrap(<OnboardingReviewScreen />));
+    await waitFor(() => expect(screen.getByTestId("amount-slider-perPaymentMinor")).toBeTruthy());
+    await fireEvent(
+      screen.getByTestId("amount-slider-perPaymentMinor"),
+      "valueChange",
+      121_000_000
+    );
+    await waitFor(() =>
+      expect(mockReviewArgs).toHaveBeenLastCalledWith(expect.any(String), {
+        caps: { perPaymentMinor: 120_000_000 },
+      })
+    );
   });
 });
