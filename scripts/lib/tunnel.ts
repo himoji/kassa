@@ -3,7 +3,12 @@
  *  - `name` + `hostname` given: `cloudflared tunnel run <name>`, a named tunnel with a stable hostname (route it once with
  *    `cloudflared tunnel route dns <name> <host>`). RP_ID stays the same across restarts, so passkeys keep working.
  *  - otherwise a quick tunnel (`cloudflared tunnel --url ...`) on a random trycloudflare.com host that changes per run.
+ * cloudflared's output is mirrored to our stderr, or with `logFile` written only to that file (`dev:all`: a stray
+ * cloudflared line would draw over the turbo TUI; the `//#dev:tunnel` task shows the file in its own pane).
  */
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+
 export interface TunnelOptions {
   port: number;
   /** Named tunnel (requires hostname). */
@@ -13,6 +18,8 @@ export interface TunnelOptions {
   onExit?: (code: number | null) => void;
   /** Max ms to wait for the quick-tunnel URL / named-tunnel connection. */
   timeoutMs?: number;
+  /** Write cloudflared's output (stdout + stderr) to this file, truncated per run, instead of our stderr. */
+  logFile?: string;
 }
 
 export interface Tunnel {
@@ -24,13 +31,13 @@ export interface Tunnel {
 
 type Child = ReturnType<typeof Bun.spawn>;
 
-/** Reads a child's stderr, mirrors it to ours, and calls `onText` for each chunk. */
-function pumpStderr(child: Child, onText: (text: string) => void): void {
+/** Reads a child's output stream, hands each chunk to `write`, and calls `onText` for it. */
+function pump(stream: ReadableStream<Uint8Array>, write: (text: string) => void, onText: (text: string) => void): void {
   const decoder = new TextDecoder();
   void (async () => {
-    for await (const chunk of child.stderr as ReadableStream<Uint8Array>) {
-      const text = decoder.decode(chunk);
-      process.stderr.write(text);
+    for await (const chunk of stream) {
+      const text = decoder.decode(chunk, { stream: true });
+      write(text);
       onText(text);
     }
   })();
@@ -46,8 +53,16 @@ export async function startTunnel(opts: TunnelOptions): Promise<Tunnel> {
     named
       ? ["cloudflared", "tunnel", "--no-autoupdate", "run", "--url", target, opts.name!]
       : ["cloudflared", "tunnel", "--no-autoupdate", "--url", target],
-    { stdout: "inherit", stderr: "pipe" },
+    { stdout: opts.logFile ? "pipe" : "inherit", stderr: "pipe" },
   );
+  let write = (text: string) => void process.stderr.write(text);
+  if (opts.logFile) {
+    const file = opts.logFile;
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, "");
+    write = (text) => appendFileSync(file, text);
+    pump(child.stdout as ReadableStream<Uint8Array>, write, () => {});
+  }
   let stopped = false;
   const stop = () => {
     stopped = true;
@@ -57,10 +72,11 @@ export async function startTunnel(opts: TunnelOptions): Promise<Tunnel> {
     if (!stopped) opts.onExit?.(code);
   });
 
+  const logHint = opts.logFile ? `; log: ${opts.logFile}` : "";
   const host = await new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
       stop();
-      reject(new Error(`cloudflared did not become ready within ${timeoutMs / 1000}s`));
+      reject(new Error(`cloudflared did not become ready within ${timeoutMs / 1000}s${logHint}`));
     }, timeoutMs);
     const done = (h: string) => {
       clearTimeout(timer);
@@ -68,11 +84,11 @@ export async function startTunnel(opts: TunnelOptions): Promise<Tunnel> {
     };
     void child.exited.then((code) => {
       clearTimeout(timer);
-      reject(new Error(`cloudflared exited early (${code})`));
+      reject(new Error(`cloudflared exited early (${code})${logHint}`));
     });
     let settled = false;
     let urlHost: string | null = null;
-    pumpStderr(child, (text) => {
+    pump(child.stderr as ReadableStream<Uint8Array>, write, (text) => {
       if (settled) return;
       if (named) {
         // Named tunnels log "Registered tunnel connection" once an edge connection is up.
