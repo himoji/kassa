@@ -1,6 +1,8 @@
 import {
   BalancesResponse,
   BudgetsResponse,
+  BudgetsSetResponse,
+  type BudgetsSetRequest,
   CardFeesResponse,
   CardsResponse,
   ForecastResponse,
@@ -15,6 +17,7 @@ import { useSessionStore } from "@/stores/session";
 
 import { api } from "../client";
 import { keys } from "../keys";
+import { withPasskeyGate } from "../passkey-gate";
 
 function useAuthed() {
   return useSessionStore((s) => s.status) === "authenticated";
@@ -101,5 +104,24 @@ export function useSetCategory() {
         qc.invalidateQueries({ queryKey: keys.transactions }),
         qc.invalidateQueries({ queryKey: keys.budgets }),
       ]),
+  });
+}
+
+/**
+ * PUT /budgets: this month's limits. New or lower limits apply at once; raising one loosens the rules, so the
+ * server answers 428 and the passkey signs it (withPasskeyGate); raises then wait 24 hours (`pending`).
+ */
+export function useSetBudgets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (budgets: BudgetsSetRequest["budgets"]) =>
+      withPasskeyGate((proof) =>
+        api.request("/budgets", {
+          method: "PUT",
+          json: { budgets, ...proof },
+          schema: BudgetsSetResponse,
+        })
+      ),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.budgets }),
   });
 }

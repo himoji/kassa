@@ -18,11 +18,12 @@ import {
   type SettingsPatch,
   type UserSettings,
 } from "@kassa/shared";
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { profiles, ruleChanges, users, type CapsJson } from "../../db/schema.ts";
 import { auditAssertionFailure } from "../../http/audit.ts";
+import { applyBudgetChange, BUDGETS_RULE_KIND } from "../budget/set.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
@@ -250,7 +251,7 @@ export async function patchSettings(
   };
 }
 
-/** Scheduler (spec §15): apply signed loosenings whose effectiveAt has passed. */
+/** Scheduler (spec §15): apply signed loosenings whose effectiveAt has passed (settings, and budgets: budget/set.ts). */
 export async function applyDueRuleChanges(): Promise<number> {
   const db = getDb();
   const now = clock.now();
@@ -259,7 +260,7 @@ export async function applyDueRuleChanges(): Promise<number> {
     .from(ruleChanges)
     .where(
       and(
-        eq(ruleChanges.kind, "SETTINGS"),
+        inArray(ruleChanges.kind, ["SETTINGS", BUDGETS_RULE_KIND]),
         eq(ruleChanges.direction, "LOOSEN"),
         isNull(ruleChanges.appliedAt),
         isNull(ruleChanges.canceledAt),
@@ -269,11 +270,13 @@ export async function applyDueRuleChanges(): Promise<number> {
   let applied = 0;
   for (const rc of due) {
     if (!rc.assertion) continue; // never apply an unsigned loosening (I8)
-    const { user, profile, caps } = await loadUser(db, rc.userId);
-    const current = settingsOf(user, profile.notificationMode);
     try {
       await db.transaction(async (tx) => {
-        await applyChangeSet(tx, rc.userId, current, caps, rc.after as ChangeSet);
+        if (rc.kind === BUDGETS_RULE_KIND) await applyBudgetChange(tx, rc.userId, rc.after as Record<string, number>, now);
+        else {
+          const { user, profile, caps } = await loadUser(tx, rc.userId);
+          await applyChangeSet(tx, rc.userId, settingsOf(user, profile.notificationMode), caps, rc.after as ChangeSet);
+        }
         await tx.update(ruleChanges).set({ appliedAt: now }).where(eq(ruleChanges.id, rc.id));
         await ledger.append("RULES_LOOSENED", { userId: rc.userId, ruleChangeId: rc.id, after: rc.after }, tx);
       });

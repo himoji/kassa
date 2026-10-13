@@ -7,20 +7,24 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
 import { fetchConversationMessages } from "@/api/hooks/chat";
 import { useMe } from "@/api/hooks/me";
+import { useSetBudgets } from "@/api/hooks/money";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
 import {
   ChoiceCard,
   withReplyAnswer,
   type ChoiceAnswerInput,
+  type ChoiceCardProps,
 } from "@/components/kassa/choice-card";
+import { errorText } from "@/components/kassa/error-text";
 import { Markdown } from "@/components/kassa/markdown";
 import { ProposalCard } from "@/components/kassa/proposal-card";
 import { RouteComparison } from "@/components/kassa/route-comparison";
-import { Box, Button, Card, Icon, Loading, Text, useTheme } from "@/components/ui";
+import { Box, Button, Card, Icon, Loading, Text, toast, useTheme } from "@/components/ui";
 import { readCachedMessages, writeCachedMessages } from "@/lib/chat-cache";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
+import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useChatHydrated, useChatStore } from "@/stores/chat";
 
 import { consentNeeded } from "./consent";
@@ -73,7 +77,7 @@ function MessageParts({
   /** Text of the user message that followed this one: a picker in this message was answered. */
   answerText?: string;
   busy?: boolean;
-  onChoice: (a: ChoiceAnswerInput) => void;
+  onChoice: ChoiceCardProps["onAnswer"];
 }) {
   const t = useKassaT();
   const { colors } = useTheme();
@@ -263,6 +267,7 @@ function ChatSession({
   const [input, setInput] = useState("");
   const scroll = useRef<ScrollView>(null);
   const busy = status === "submitted" || status === "streaming";
+  const setBudgets = useSetBudgets();
   const replay = useMe().data?.demo?.agentMode === "REPLAY";
 
   const send = (text: string) => {
@@ -274,11 +279,35 @@ function ChatSession({
     void sendMessage({ text: trimmed });
   };
 
-  const choose = (a: ChoiceAnswerInput) => {
-    if (busy) return;
+  const choose = async (a: ChoiceAnswerInput): Promise<boolean> => {
+    if (busy) return false;
     haptics.selection();
+    if (a.budgets) {
+      // The budgets card sets the limits itself (raises: passkey, then 24 h); the answer only tells the agent.
+      try {
+        const res = await setBudgets.mutateAsync(a.budgets);
+        toast.show({
+          kind: "success",
+          title: t("chat:budgets.applied"),
+          ...(res.pending.length > 0
+            ? { description: t("chat:budgets.pending", { count: res.pending.length }) }
+            : {}),
+        });
+      } catch (err) {
+        if (!(err instanceof PasskeyCancelledError)) {
+          haptics.error();
+          toast.show({
+            kind: "error",
+            title: t("chat:budgets.failed"),
+            description: errorText(t, err),
+          });
+        }
+        return false;
+      }
+    }
     touched.current = true;
     void sendMessage({ text: a.text }, { body: { choice: a.choice } });
+    return true;
   };
 
   return (

@@ -1,10 +1,10 @@
 import { describe, expect, it, jest } from "@jest/globals";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { DataChoices } from "@kassa/shared";
 
 import { ThemeProvider } from "@/components/ui";
 
-import { ChoiceCard, shiftDate } from "../choice-card";
+import { ChoiceCard, shiftDate, type ChoiceCardProps } from "../choice-card";
 
 const base: DataChoices = {
   id: "pick1",
@@ -16,10 +16,14 @@ const base: DataChoices = {
   ],
 };
 
-const wrap = (part: DataChoices, onAnswer = jest.fn(), disabled = false) =>
+const wrap = (part: DataChoices, onAnswer: (a: never) => unknown = jest.fn(), disabled = false) =>
   render(
     <ThemeProvider>
-      <ChoiceCard part={part} onAnswer={onAnswer} disabled={disabled} />
+      <ChoiceCard
+        part={part}
+        onAnswer={onAnswer as ChoiceCardProps["onAnswer"]}
+        disabled={disabled}
+      />
     </ThemeProvider>
   );
 
@@ -160,5 +164,29 @@ describe("ChoiceCard", () => {
   it("hints that typing works with allowOther", async () => {
     await wrap({ ...base, allowOther: true });
     expect(screen.getByText("Or type your own answer below.")).toBeTruthy();
+  });
+
+  it("a budgets card passes the limits along, and unlocks when they could not be applied", async () => {
+    const onAnswer = jest.fn(async () => false);
+    await wrap(
+      {
+        ...base,
+        kind: "amounts",
+        prompt: "Budgets",
+        options: [],
+        amounts: {
+          currency: "EUR",
+          purpose: "budgets",
+          items: [{ id: "groceries", label: "Groceries", emoji: "🛒", defaultMinor: 20000 }],
+        },
+      },
+      onAnswer
+    );
+    await fireEvent.press(screen.getByText("Set these"));
+    expect(onAnswer).toHaveBeenCalledWith(
+      expect.objectContaining({ budgets: [{ category: "groceries", limitHomeMinor: 20000 }] })
+    );
+    await waitFor(() => expect(screen.queryByText(/^Answered/)).toBeNull());
+    expect(screen.getByText("Set these")).toBeTruthy();
   });
 });
