@@ -304,6 +304,8 @@ export const DataChoices = z.object({
   options: z.array(ChoiceOption),
   multi: z.boolean().optional(),
   allowOther: z.boolean().optional(),
+  /** With `allowOther`: what the typed answer is ("currency": the app offers every ISO 4217 code to pick from). */
+  otherKind: z.enum(["text", "currency"]).optional(),
   amount: z
     .object({ currency: CurrencyCode, defaultMinor: z.number().int().optional(), minMinor: z.number().int().optional(), maxMinor: z.number().int().optional(), stepMinor: z.number().int().optional() })
     .optional(),

@@ -1,4 +1,4 @@
-import { CurrencyCode, PayeeKind, SupportedCurrency, type PayeeDto } from "@kassa/shared";
+import { CurrencyCode, PayeeKind, type PayeeDto } from "@kassa/shared";
 import { Link, Stack } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
@@ -12,6 +12,7 @@ import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Box, Button, Card, Icon, Input, Sheet, Text, toast } from "@/components/ui";
 import { copyToClipboard } from "@/lib/clipboard";
+import { currencyCodes } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 
@@ -138,7 +139,7 @@ function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose: () => 
         <SettingPicker
           label={t("payees:add.currency")}
           value={currency}
-          options={SupportedCurrency.options.map((c) => ({ value: c, label: c }))}
+          options={currencyCodes().map((c) => ({ value: c, label: c }))}
           onChange={setCurrency}
         />
         {error ? <Text color="destructive">{error}</Text> : null}

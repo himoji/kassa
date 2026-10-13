@@ -5,7 +5,6 @@ import {
   PaymentPolicy,
   PRESET_DEFAULTS,
   Region,
-  SupportedCurrency,
   type MeResponse,
   type SettingsOverrides,
 } from "@kassa/shared";
@@ -21,7 +20,7 @@ import { Box, Icon, Row, Text, setThemeMode, useThemeMode, type ThemeMode } from
 import { auth } from "@/lib/auth";
 import { confirm } from "@/lib/confirm";
 import { env } from "@/lib/env";
-import { useFormat } from "@/lib/format";
+import { currencyCodes, useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
 import { CapsSection } from "./caps-section";
@@ -94,7 +93,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
         <SettingPicker
           label={t("settings:homeCurrencyLabel")}
           value={s.homeCurrency}
-          options={SupportedCurrency.options.map((c) => ({
+          options={currencyCodes().map((c) => ({
             value: c,
             label: t("settings:currencyOption", { code: c, name: f.currencyName(c) }),
           }))}
