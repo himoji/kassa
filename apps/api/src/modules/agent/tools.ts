@@ -4,6 +4,7 @@ import { tool, type ToolSet, type UIMessageChunk } from "ai";
 
 import {
   AskAmountInput,
+  AskBudgetsInput,
   AskChoiceInput,
   AskConfirmInput,
   AskDateInput,
@@ -81,6 +82,7 @@ export type ToolName =
   | "get_fx_rate"
   | "ask_choice"
   | "ask_amount"
+  | "ask_budgets"
   | "ask_date"
   | "ask_confirm";
 
@@ -88,7 +90,7 @@ export type ToolName =
 export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate"];
 
 /** UI tools: each emits a `data-choices` part and ends the turn (loop.ts stopWhen). */
-export const UI_TOOLS: readonly ToolName[] = ["ask_choice", "ask_amount", "ask_date", "ask_confirm"];
+export const UI_TOOLS: readonly ToolName[] = ["ask_choice", "ask_amount", "ask_budgets", "ask_date", "ask_confirm"];
 
 const FX_SOURCE: Record<RateSource, "ECB" | "NBK" | "fallback" | "static"> = { ECB_FRANKFURTER: "ECB", NBK: "NBK", FALLBACK_ER_API: "fallback", STATIC_EXAMPLE: "static" };
 
@@ -136,6 +138,20 @@ export function choicePart(toolName: string, input: Record<string, unknown>, cho
       const i = AskAmountInput.parse(input);
       const { prompt, ...amount } = i;
       return { id: choiceId, kind: "amount", prompt, options: [], amount };
+    }
+    case "ask_budgets": {
+      const i = AskBudgetsInput.parse(input);
+      return {
+        id: choiceId,
+        kind: "amounts",
+        prompt: i.prompt,
+        options: [],
+        amounts: {
+          currency: i.currency,
+          purpose: "budgets",
+          items: i.items.map((b) => ({ id: b.category, label: b.label, ...(b.emoji ? { emoji: b.emoji } : {}), defaultMinor: b.amountMinor, minMinor: 1 })),
+        },
+      };
     }
     case "ask_date": {
       const i = AskDateInput.parse(input);
@@ -507,11 +523,11 @@ export function buildTools(ctx: ToolContext): ToolSet {
 }
 
 /**
- * ask_choice / ask_amount / ask_date / ask_confirm: emit a `data-choices` part and end the turn. The output tells the
+ * ask_choice / ask_amount / ask_budgets / ask_date / ask_confirm: emit a `data-choices` part and end the turn. The output tells the
  * model the picker is shown; the user's answer arrives as the next user message (validated in choices.ts).
  */
 export function uiTools(ctx: Pick<ToolContext, "emit" | "awaitingUser">, only: readonly string[] = UI_TOOLS): ToolSet {
-  const make = (name: string, description: string, inputSchema: typeof AskChoiceInput | typeof AskAmountInput | typeof AskDateInput | typeof AskConfirmInput) =>
+  const make = (name: string, description: string, inputSchema: typeof AskChoiceInput | typeof AskAmountInput | typeof AskBudgetsInput | typeof AskDateInput | typeof AskConfirmInput) =>
     tool({
       description,
       inputSchema: inputSchema as typeof AskChoiceInput,
@@ -526,7 +542,12 @@ export function uiTools(ctx: Pick<ToolContext, "emit" | "awaitingUser">, only: r
     });
   const all: ToolSet = {
     ask_choice: make("ask_choice", "Show the user tappable options (chips) instead of asking them to type. Ends your turn.", AskChoiceInput),
-    ask_amount: make("ask_amount", "Show an amount stepper in a currency (minor units). Ends your turn.", AskAmountInput),
+    ask_amount: make("ask_amount", "Show an amount slider in a currency (minor units). Ends your turn.", AskAmountInput),
+    ask_budgets: make(
+      "ask_budgets",
+      "Show monthly budgets to set or change: one slider per category (emoji, label, suggested limit in home-currency minor units), confirmed together. The app applies the user's numbers itself (raising one needs their passkey), so only acknowledge them. Ends your turn.",
+      AskBudgetsInput,
+    ),
     ask_date: make("ask_date", "Show a date picker. Ends your turn.", AskDateInput),
     ask_confirm: make("ask_confirm", "Show Yes / No buttons. Ends your turn.", AskConfirmInput),
   };

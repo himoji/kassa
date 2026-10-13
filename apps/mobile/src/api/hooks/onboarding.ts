@@ -1,11 +1,12 @@
 import {
+  type CapsPatch,
   type ChoiceAnswer,
   jcsHash,
   OnboardingConfirmOptionsResponse,
   OnboardingConfirmResponse,
   OnboardingMessageResponse,
 } from "@kassa/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../client";
 import { keys } from "../keys";
@@ -18,17 +19,27 @@ export function useOnboardingMessage() {
   });
 }
 
-/** The server-built base rules to review; the review screen renders only this. */
-export function useOnboardingReview(conversationId: string) {
+/** Changes made on the review sheet; the server rebuilds (and re-hashes) the rules with them. */
+export interface OnboardingReviewEdits {
+  caps?: CapsPatch;
+  budgets?: { category: string; limitHomeMinor: number }[];
+}
+
+/**
+ * The server-built base rules to review; the review screen renders only this. With `edits`, the
+ * server builds the core from them, so what is signed is still exactly what the server returned.
+ */
+export function useOnboardingReview(conversationId: string, edits: OnboardingReviewEdits = {}) {
   return useQuery({
-    queryKey: ["onboarding", "review", conversationId],
+    queryKey: ["onboarding", "review", conversationId, edits],
     queryFn: ({ signal }) =>
       api.request("/onboarding/confirm/options", {
-        json: { conversationId },
+        json: { conversationId, ...edits },
         schema: OnboardingConfirmOptionsResponse,
         signal,
       }),
     staleTime: 0,
+    placeholderData: keepPreviousData,
   });
 }
 

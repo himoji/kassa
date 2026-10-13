@@ -65,16 +65,23 @@ export function useRegister() {
   });
 }
 
+export interface DevLoginInput {
+  /** Dev mode: a brand-new account every time, so onboarding starts from scratch. */
+  fresh?: boolean;
+  /** Demo mode: enter this seeded demo account (as `RegisterInput.demoClaim`) without a platform passkey. */
+  demoClaim?: true | string;
+}
+
 /**
- * POST /auth/dev/login: a dev session for the seeded dev user, no passkey ceremony. Gated by the
- * server's `devLogin` flag (see useDemoAvailability). The session is marked `dev`, so its passkey
- * assertions come from the server-held dev key (api/passkey-sign).
+ * POST /auth/dev/login: a dev session with no passkey ceremony, for a fresh account (dev mode) or a seeded
+ * demo persona (demo mode). Gated by the server's `devLogin` flag (see useDemoAvailability). The session is
+ * marked `dev`, so its passkey assertions come from the server-held dev key (api/passkey-sign).
  */
 export function useDevLogin() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (input: DevLoginInput = {}) => {
       const session = await api.request("/auth/dev/login", {
-        json: { client },
+        json: { client, ...input },
         schema: AuthSessionResponse,
         auth: false,
       });

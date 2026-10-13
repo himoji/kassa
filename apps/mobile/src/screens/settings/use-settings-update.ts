@@ -8,8 +8,8 @@ import { useKassaT } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 
 /**
- * Apply a settings change and tell the user what happened: tightening applies now, loosening was
- * passkey-signed and waits 24 h (I8). Errors are toasts; the controls stay bound to server state,
+ * Apply a settings change and tell the user what happened: tightening and raised caps apply now,
+ * other loosenings were passkey-signed and wait 24 h (I8). Errors are toasts; the controls stay bound to server state,
  * so a refused change snaps back by itself.
  */
 export function useApplySettings() {

@@ -27,17 +27,17 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { demoState, users, webauthnCredentialsRules } from "../../db/schema.ts";
+import { users, webauthnCredentialsRules } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
-import { loadSeedData } from "../demo/seed.ts";
 import { ledger } from "../ledger/index.ts";
 import { registerPaymentsCredential } from "../payments/credentials.ts";
 import { setAiConsent } from "../privacy/service.ts";
 import { verifyRulesAssertion } from "../rules/webauthn.ts";
 import { createUser } from "../users/service.ts";
 import { putChallenge, takeChallenge } from "./challenges.ts";
+import { demoClaimUserId } from "./demoClaim.ts";
 import devRoutes, { devLoginAllowed } from "./dev.ts";
 import pairRoutes from "./pair.ts";
 import { authenticate, endSession, refreshSession, revokeRefresh, sessionBody, startSession } from "./session.ts";
@@ -79,17 +79,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         userId = current;
         existingUser = true;
       } else if (req.body.demoClaim && e.DEMO_ENABLED) {
-        const ds = (await db.select().from(demoState).where(eq(demoState.id, 1)))[0];
-        if (!ds?.demoUserId) throw new HttpProblem(409, "DEMO_NOT_SEEDED", "Run the seed first");
-        let claimId = ds.demoUserId;
-        if (typeof req.body.demoClaim === "string") {
-          const key = req.body.demoClaim;
-          const persona = (await loadSeedData()).personas?.find((p) => p.persona === key);
-          if (!persona) throw new HttpProblem(404, "DEMO_PERSONA_UNKNOWN", `No seeded demo persona "${key}"`);
-          const seeded = (await db.select({ id: users.id }).from(users).where(eq(users.id, persona.user.id)))[0];
-          if (!seeded) throw new HttpProblem(409, "DEMO_NOT_SEEDED", "Seed with personas first (bun run seed, sim up, or demo reset)");
-          claimId = persona.user.id;
-        }
+        const claimId = await demoClaimUserId(req.body.demoClaim);
         const creds = await db
           .select({ id: webauthnCredentialsRules.id })
           .from(webauthnCredentialsRules)

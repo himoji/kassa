@@ -3,6 +3,11 @@
  * react-native-passkeys (spec §3). The app only signs server-issued options: the challenge is
  * the orderHash / mandateHash / rules hash the server computed (spec §7, W3C WebAuthn L3).
  * Needs a development build with associated domains for the RP ID (not Expo Go).
+ *
+ * The package is loaded lazily: it throws on import when its native half is not in the binary (Expo Go, a dev
+ * client built before it was added). A top-level import would take down every route that imports this file
+ * ("Cannot find native module 'ReactNativePasskeys'"); lazily it is just "passkeys unsupported", and the Dev
+ * passkey button still works.
  */
 import type {
   AuthenticationResponseJSON,
@@ -10,7 +15,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from "@kassa/shared";
-import * as Passkeys from "react-native-passkeys";
+import type * as PasskeysModule from "react-native-passkeys";
 
 import {
   isUnassociableRpId,
@@ -35,9 +40,23 @@ function assertAssociableRpId(rpId: string | undefined): void {
   if (isUnassociableRpId(rpId)) throw new PasskeyDomainError(rpId);
 }
 
+let loaded: typeof PasskeysModule | null | undefined;
+
+function passkeys(): typeof PasskeysModule | null {
+  if (loaded === undefined) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy on purpose, see the header
+      loaded = require("react-native-passkeys") as typeof PasskeysModule;
+    } catch {
+      loaded = null;
+    }
+  }
+  return loaded;
+}
+
 export function passkeysSupported(): boolean {
   try {
-    return Passkeys.isSupported();
+    return passkeys()?.isSupported() ?? false;
   } catch {
     return false;
   }
@@ -50,10 +69,10 @@ export async function signWithPasskey(
   if (!passkeysSupported()) throw new PasskeyUnsupportedError();
   assertAssociableRpId(options.rpId);
   try {
-    const result = await Passkeys.get({
+    const result = await passkeys()!.get({
       ...options,
       userVerification: "required",
-    } as Parameters<typeof Passkeys.get>[0]);
+    } as Parameters<typeof PasskeysModule.get>[0]);
     if (!result) throw new PasskeyCancelledError();
     return result as unknown as AuthenticationResponseJSON;
   } catch (err) {
@@ -68,7 +87,7 @@ export async function createPasskey(
   if (!passkeysSupported()) throw new PasskeyUnsupportedError();
   assertAssociableRpId(options.rp.id);
   try {
-    const result = await Passkeys.create(options as Parameters<typeof Passkeys.create>[0]);
+    const result = await passkeys()!.create(options as Parameters<typeof PasskeysModule.create>[0]);
     if (!result) throw new PasskeyCancelledError();
     return result as unknown as RegistrationResponseJSON;
   } catch (err) {
