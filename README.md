@@ -147,6 +147,8 @@ Files: `vercel.json`, `api/index.ts`, `scripts/vercel-build.ts` (build command: 
 
 Needs a Postgres database (PGlite needs a writable disk, which a function does not have). Any `postgres://` URL in `DATABASE_URL` works, for example Neon from the Vercel Marketplace.
 
+Shortcut: `bash scripts/deploy-vercel.sh <your-domain>` runs every step below (later deploys: add `--redeploy`). The Vercel build never starts cloudflared or the dev proxy; those are only in `bun run dev:all` and `bun run phone`.
+
 ```bash
 npm i -g vercel
 vercel login
