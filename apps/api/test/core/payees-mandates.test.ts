@@ -33,7 +33,7 @@ describe("payees (I7)", () => {
     expect(res.statusCode).toBe(201);
     const dto = res.json();
     expect(dto.status).toBe("COOLING");
-    expect(dto.accountMasked).toBe("•••• 0000");
+    expect(dto.accountMasked).toBe("HU •••• 0000");
     const row = (await getDb().select().from(payees).where(eq(payees.id, dto.id)))[0]!;
     expect(row.accountEnc).not.toContain("HU03");
     expect(decryptAccount(userId, row.accountEnc!)).toBe(IBAN_OTHER);

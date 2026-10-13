@@ -3,7 +3,7 @@
  * 24 h on the Clock. Cooling payees are never usable on autopilot (T1) and need a passkey (T2) after
  * coolingUntil. The account is stored AES-256-GCM encrypted plus its hash (payees/crypto.ts).
  */
-import { jcsHash, type CreatePayeeRequest, type PayeeDto } from "@kassa/shared";
+import { decodePayeeAccount, jcsHash, validatePayeeAccount, type CreatePayeeRequest, type PayeeDto } from "@kassa/shared";
 import { and, eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 
@@ -18,10 +18,18 @@ import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { screenName } from "../screening/index.ts";
-import { isValidIban, looksLikeIban } from "../screening/iban.ts";
 import { accountHash, decryptAccount, encryptAccount, maskAccount, normalizeAccount } from "./crypto.ts";
 
 export const COOLING_MS = DAY_MS;
+
+const ACCOUNT_PROBLEM_TEXT: Record<string, string> = {
+  ALIPAY_ID_INVALID: "An Alipay ID is the account's email or its mainland China mobile number",
+  UNIONPAY_CARD_INVALID: "A UnionPay card number starts with 62, has 16 to 19 digits and a valid check digit",
+  ACH_ROUTING_INVALID: "The ABA routing number must be 9 digits with a valid checksum",
+  ACH_ACCOUNT_INVALID: "The US account number must be 4 to 17 digits",
+  ACCOUNT_TOO_SHORT: "The account must have at least 4 characters",
+  SCHEME_CURRENCY_MISMATCH: "This kind of account cannot receive that currency (Alipay and UnionPay take CNY, ACH takes USD)",
+};
 
 export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
   const accountMissing = p.accountEnc === null;
@@ -52,9 +60,13 @@ export async function listPayees(userId: string) {
 
 export async function createPayee(userId: string, req: CreatePayeeRequest & { source?: string }) {
   const db = getDb();
-  if (looksLikeIban(req.account) && !isValidIban(req.account)) {
-    throw new HttpProblem(422, "INVALID_IBAN", "IBAN check digits are wrong (ISO 13616 / ISO 7064 MOD 97-10)");
+  // Per-scheme checks (shared/payeeAccount.ts): IBAN check digits, Alipay ID shape, UnionPay Luhn, ABA routing
+  // checksum, and a currency the scheme can actually pay out in (Alipay/UnionPay → CNY, ACH → USD).
+  const problem = validatePayeeAccount(decodePayeeAccount(req.account), req.currency);
+  if (problem?.code === "IBAN_INVALID") {
+    throw new HttpProblem(422, "INVALID_IBAN", "IBAN check digits are wrong (ISO 13616 / ISO 7064 MOD 97-10)", { details: { field: problem.field } });
   }
+  if (problem) throw new HttpProblem(422, problem.code, ACCOUNT_PROBLEM_TEXT[problem.code], { details: { field: problem.field } });
   if (!/^[A-Z]{2}$/.test(req.country)) throw new HttpProblem(422, "INVALID_COUNTRY", "country must be ISO 3166-1 alpha-2");
   // I9 / X4: screen the name at creation. A hit is refused and not stored (a payee that can never be paid is no
   // use); the hit is ledgered with the name sealed under the user's key (GDPR Art. 17 crypto-shredding).

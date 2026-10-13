@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import type { MockBank } from "../bank/bank.ts";
+import { currencyExponent, toMinor } from "@kassa/shared";
+
+import type { MockBank, RecipientAccount } from "../bank/bank.ts";
 import { BankError } from "../bank/bank.ts";
 
 /*
@@ -20,26 +22,49 @@ const Minor = z.number().int().positive().refine(Number.isSafeInteger);
 const ProfileParam = z.object({ p: z.string().min(1).max(64) });
 const IdParam = z.object({ id: z.coerce.number().int().positive() });
 
+// Wise sends decimal major units (sourceAmount / targetAmount); Kassa's own client also sends minor units.
+const Decimal = z.union([z.number().positive(), z.string().regex(/^\d+(\.\d+)?$/)]);
 const QuoteBody = z.object({
   sourceCurrency: Currency,
   targetCurrency: Currency,
   sourceAmountMinor: Minor.optional(),
   targetAmountMinor: Minor.optional(),
+  sourceAmount: Decimal.nullish(),
+  targetAmount: Decimal.nullish(),
   routeId: z.string().min(1).max(64).optional(),
   payOut: z.literal("BANK_TRANSFER").optional(),
   preferredPayIn: z.literal("BALANCE").optional(),
 });
 
-const AccountBody = z.object({
+/** A decimal amount in minor units (rounded to the currency exponent, as Wise does). */
+function minorFrom(value: number | string, currency: string): number {
+  const n = Number(value);
+  try {
+    return toMinor(n.toFixed(currencyExponent(currency)), currency);
+  } catch {
+    throw new BankError(422, "NOT_VALID", "Amount is not valid", "targetAmount");
+  }
+}
+
+const Holder = {
   currency: Currency,
-  type: z.literal("iban"),
   profile: z.union([z.number().int().positive(), z.string().min(1).max(64)]),
   accountHolderName: z.string().min(1).max(140),
-  details: z.object({
-    legalType: z.enum(["PRIVATE", "BUSINESS"]).default("BUSINESS"),
-    iban: z.string().min(15).max(42),
+};
+const Legal = { legalType: z.enum(["PRIVATE", "BUSINESS"]).default("BUSINESS") };
+const Digits = (min: number, max: number) => z.string().transform((v) => v.replace(/[\s-]+/g, "")).pipe(z.string().regex(new RegExp(`^\\d{${min},${max}}$`)));
+
+// Wise recipient types: iban (SEPA etc.), chinese_alipay and chinese_card (CNY), aba (USD ACH).
+const AccountBody = z.discriminatedUnion("type", [
+  z.object({ ...Holder, type: z.literal("iban"), details: z.object({ ...Legal, iban: z.string().min(15).max(42) }) }),
+  z.object({ ...Holder, type: z.literal("chinese_alipay"), details: z.object({ ...Legal, accountNumber: z.string().min(5).max(64) }) }),
+  z.object({ ...Holder, type: z.literal("chinese_card"), details: z.object({ ...Legal, cardNumber: Digits(16, 19) }) }),
+  z.object({
+    ...Holder,
+    type: z.literal("aba"),
+    details: z.object({ ...Legal, abartn: Digits(9, 9), accountNumber: Digits(4, 17), accountType: z.enum(["CHECKING", "SAVINGS"]).default("CHECKING") }),
   }),
-});
+]);
 
 const TransferBody = z.object({
   targetAccount: z.number().int().positive(),
@@ -65,11 +90,13 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
   app.post("/v3/profiles/:p/quotes", async (req, reply) => {
     const p = bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
     const body = wiseParse(QuoteBody, req.body);
+    const sourceAmountMinor = body.sourceAmountMinor ?? (body.sourceAmount != null ? minorFrom(body.sourceAmount, body.sourceCurrency) : undefined);
+    const targetAmountMinor = body.targetAmountMinor ?? (body.targetAmount != null ? minorFrom(body.targetAmount, body.targetCurrency) : undefined);
     const quote = await bank.createQuote(p, {
       sourceCurrency: body.sourceCurrency,
       targetCurrency: body.targetCurrency,
-      ...(body.sourceAmountMinor !== undefined ? { sourceAmountMinor: body.sourceAmountMinor } : {}),
-      ...(body.targetAmountMinor !== undefined ? { targetAmountMinor: body.targetAmountMinor } : {}),
+      ...(sourceAmountMinor !== undefined ? { sourceAmountMinor } : {}),
+      ...(targetAmountMinor !== undefined ? { targetAmountMinor } : {}),
       ...(body.routeId !== undefined ? { routeId: body.routeId } : {}),
     });
     return reply.code(200).send(quote);
@@ -83,12 +110,13 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
 
   app.post("/v1/accounts", async (req) => {
     const body = wiseParse(AccountBody, req.body);
+    const { legalType, ...fields } = body.details;
     return bank.createRecipient({
       currency: body.currency,
       profile: bank.resolveProfile(body.profile),
       accountHolderName: body.accountHolderName,
-      legalType: body.details.legalType,
-      iban: body.details.iban,
+      legalType,
+      account: { type: body.type, ...fields } as RecipientAccount,
     });
   });
 
