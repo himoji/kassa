@@ -1,6 +1,6 @@
 import { CurrencyCode, PayeeKind, type PayeeDto } from "@kassa/shared";
 import { Link, Stack } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { useCreatePayee, usePayees } from "@/api/hooks/payees";
@@ -12,7 +12,8 @@ import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Box, Button, Card, Icon, Input, Sheet, Text, toast } from "@/components/ui";
 import { copyToClipboard } from "@/lib/clipboard";
-import { currencyCodes } from "@/lib/format";
+import { countryOptions } from "@/lib/countries";
+import { currencyCodes, useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 
@@ -76,6 +77,12 @@ function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose: () => 
   const [country, setCountry] = useState("HU");
   const [currency, setCurrency] = useState<string>("HUF");
   const [error, setError] = useState<string | null>(null);
+  const f = useFormat();
+  const countries = useMemo(() => countryOptions(), []);
+  const currencies = useMemo(
+    () => currencyCodes().map((c) => ({ value: c, label: `${c} · ${f.currencyName(c)}` })),
+    [f]
+  );
 
   const submit = async () => {
     setError(null);
@@ -130,18 +137,22 @@ function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose: () => 
           onChangeText={setAccount}
           autoCapitalize="characters"
         />
-        <Input
-          label={t("payees:add.country")}
-          value={country}
-          onChangeText={setCountry}
-          autoCapitalize="characters"
-        />
-        <SettingPicker
-          label={t("payees:add.currency")}
-          value={currency}
-          options={currencyCodes().map((c) => ({ value: c, label: c }))}
-          onChange={setCurrency}
-        />
+        <View style={{ marginHorizontal: -16 }}>
+          <SettingPicker
+            label={t("payees:add.country")}
+            value={country}
+            options={countries}
+            onChange={setCountry}
+            testID="payee-country"
+          />
+          <SettingPicker
+            label={t("payees:add.currency")}
+            value={currency}
+            options={currencies}
+            onChange={setCurrency}
+            testID="payee-currency"
+          />
+        </View>
         {error ? <Text color="destructive">{error}</Text> : null}
         <Button size="lg" onPress={() => void submit()} loading={create.isPending}>
           {t("payees:add.submit")}

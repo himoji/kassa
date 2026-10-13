@@ -6,7 +6,9 @@
  * applied, so the review (built before) usually has none. Rules → mandate (sign or skip) → home.
  * Presented as a form sheet over the onboarding chat (onboarding/_layout.tsx), like the order sheet.
  * The caps and budgets are editable with sliders: edits go back to the server (debounced), which rebuilds
- * the core, so the signed rules are still exactly the server's.
+ * the core, so the signed rules are still exactly the server's. On top, the savings planner: salary, bills and
+ * budgets against a goal, recomputed on every change, with suggested budget trims (AI when allowed); budgets can
+ * also be added by hand here.
  */
 import {
   effectiveSettings,
@@ -24,10 +26,12 @@ import {
   useOnboardingReview,
 } from "@/api/hooks/onboarding";
 import { useCreateMandate } from "@/api/hooks/payees";
+import { AddBudgetForm } from "@/components/kassa/add-budget-form";
 import { AmountsEditor } from "@/components/kassa/amounts-editor";
 import { errorText } from "@/components/kassa/error-text";
 import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { QueryView } from "@/components/kassa/query-view";
+import { SavingsPlanner } from "@/components/kassa/savings-planner";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { Box, Button, Divider, Loading, Text, useTheme } from "@/components/ui";
 import { amountRange } from "@/lib/amount-slider";
@@ -140,6 +144,27 @@ function OnboardingReview() {
   const syncing = edits !== sentEdits || !!review.isFetching;
   const confirmRules = useConfirmOnboarding(conversationId);
   const createMandate = useCreateMandate();
+  const [addingBudget, setAddingBudget] = useState(false);
+  // Slider range of each budget added by hand: around the amount it was added with.
+  const [addedInitial, setAddedInitial] = useState<Record<string, number>>({});
+  /** A budget limit edit: an added budget keeps its own list (the server applies `budgets` to drafted ones only). */
+  const setBudget = (category: string, limitHomeMinor: number) =>
+    setEdits((e) =>
+      e.addedBudgets?.some((x) => x.category === category)
+        ? {
+            ...e,
+            addedBudgets: e.addedBudgets.map((x) =>
+              x.category === category ? { category, limitHomeMinor } : x
+            ),
+          }
+        : {
+            ...e,
+            budgets: [
+              ...(e.budgets ?? []).filter((x) => x.category !== category),
+              { category, limitHomeMinor },
+            ],
+          }
+    );
   // Set once the rules are signed and the server offers a mandate: step 2. Rendered without the review
   // query, so a refetch of the (now signed) review cannot take the user back to step 1.
   const [offer, setOffer] = useState<MandateOffer | null>(null);
@@ -215,6 +240,23 @@ function OnboardingReview() {
         const eff = effectiveSettings(s.preset, s.overrides);
         const caps = r.core.caps;
         const base = baseline ?? r;
+        // The budgets as the user sees them now: the server's draft with the not-yet-sent edits on top, and budgets
+        // added by hand that the next review has not echoed back yet.
+        const local = new Map(
+          [...(edits.budgets ?? []), ...(edits.addedBudgets ?? [])].map((b) => [
+            b.category,
+            b.limitHomeMinor,
+          ])
+        );
+        const budgetsNow = [
+          ...r.draft.budgets,
+          ...(edits.addedBudgets ?? []).filter(
+            (a) => !r.draft.budgets.some((b) => b.category === a.category)
+          ),
+        ].map((b) => ({
+          category: b.category,
+          limitHomeMinor: local.get(b.category) ?? b.limitHomeMinor,
+        }));
 
         const signRules = async () => {
           setError(null);
@@ -255,23 +297,68 @@ function OnboardingReview() {
               <Text variant="caption">{t("onboarding:reviewIntro")}</Text>
             </Box>
 
-            <Box gap={2}>
-              <Field
-                label={t("settings:moneyModeLabel")}
-                value={t(`settings:moneyMode.${eff.moneyMode}`)}
-              />
-              <Field
-                label={t("settings:paymentPolicyLabel")}
-                value={t(`settings:paymentPolicy.${eff.paymentPolicy}`)}
-              />
-              <Field
-                label={t("settings:regionLabel")}
-                value={`${t(`settings:region.${s.region}`)} · ${s.homeCurrency}`}
-              />
-              <Field
-                label={t("settings:notificationModeLabel")}
-                value={t(`settings:notificationMode.${s.notificationMode}`)}
-              />
+            <SavingsPlanner
+              currency={s.homeCurrency}
+              incomeMinor={edits.monthlyIncomeMinor ?? r.planBasis?.monthlyIncomeMinor ?? 0}
+              onIncomeChange={(v) => setEdits((e) => ({ ...e, monthlyIncomeMinor: v }))}
+              fixedMinor={r.planBasis?.fixedMonthlyMinor ?? 0}
+              budgets={budgetsNow}
+              onApplyBudgets={(changes) =>
+                changes.forEach((c) => setBudget(c.category, c.limitHomeMinor))
+              }
+              disabled={confirmRules.isPending}
+            />
+
+            <Divider spacing={0} />
+
+            <Box gap={3}>
+              <Text variant="label">{t("home:budgets")}</Text>
+              {budgetsNow.length > 0 ? (
+                <AmountsEditor
+                  currency={s.homeCurrency}
+                  disabled={confirmRules.isPending}
+                  totalLabel={t("chat:choice.total")}
+                  items={budgetsNow.map((b) => {
+                    const initial =
+                      base.draft.budgets.find((x) => x.category === b.category)?.limitHomeMinor ??
+                      addedInitial[b.category] ??
+                      b.limitHomeMinor;
+                    return {
+                      id: b.category,
+                      label: t(`common:category.${b.category}`, {
+                        defaultValue: b.category.replace(/_/g, " "),
+                      }),
+                      emoji: categoryEmoji(b.category),
+                      valueMinor: b.limitHomeMinor,
+                      range: reviewRange(initial, true),
+                    };
+                  })}
+                  onChange={setBudget}
+                />
+              ) : (
+                <Text variant="caption">{t("onboarding:noBudgetsYet")}</Text>
+              )}
+              {addingBudget ? (
+                <AddBudgetForm
+                  currency={s.homeCurrency}
+                  existing={budgetsNow.map((b) => b.category)}
+                  disabled={confirmRules.isPending}
+                  onCancel={() => setAddingBudget(false)}
+                  onAdd={(b) => {
+                    setAddedInitial((m) => ({ ...m, [b.category]: b.limitHomeMinor }));
+                    setEdits((e) => ({ ...e, addedBudgets: [...(e.addedBudgets ?? []), b] }));
+                    setAddingBudget(false);
+                  }}
+                />
+              ) : (
+                <Button
+                  variant="outline"
+                  disabled={confirmRules.isPending || budgetsNow.length >= 20}
+                  onPress={() => setAddingBudget(true)}
+                >
+                  {t("home:addBudget.open")}
+                </Button>
+              )}
             </Box>
 
             <Divider spacing={0} />
@@ -294,41 +381,26 @@ function OnboardingReview() {
               />
             </Box>
 
-            {r.draft.budgets.length > 0 ? (
-              <>
-                <Divider spacing={0} />
-                <Box gap={3}>
-                  <Text variant="label">{t("home:budgets")}</Text>
-                  <AmountsEditor
-                    currency={s.homeCurrency}
-                    disabled={confirmRules.isPending}
-                    totalLabel={t("chat:choice.total")}
-                    items={r.draft.budgets.map((b) => {
-                      const edited = edits.budgets?.find((x) => x.category === b.category);
-                      const initial =
-                        base.draft.budgets.find((x) => x.category === b.category)?.limitHomeMinor ??
-                        b.limitHomeMinor;
-                      return {
-                        id: b.category,
-                        label: t(`common:category.${b.category}`, { defaultValue: b.category }),
-                        emoji: categoryEmoji(b.category),
-                        valueMinor: edited?.limitHomeMinor ?? b.limitHomeMinor,
-                        range: reviewRange(initial, true),
-                      };
-                    })}
-                    onChange={(category, v) =>
-                      setEdits((e) => ({
-                        ...e,
-                        budgets: [
-                          ...(e.budgets ?? []).filter((x) => x.category !== category),
-                          { category, limitHomeMinor: v },
-                        ],
-                      }))
-                    }
-                  />
-                </Box>
-              </>
-            ) : null}
+            <Divider spacing={0} />
+
+            <Box gap={2}>
+              <Field
+                label={t("settings:moneyModeLabel")}
+                value={t(`settings:moneyMode.${eff.moneyMode}`)}
+              />
+              <Field
+                label={t("settings:paymentPolicyLabel")}
+                value={t(`settings:paymentPolicy.${eff.paymentPolicy}`)}
+              />
+              <Field
+                label={t("settings:regionLabel")}
+                value={`${t(`settings:region.${s.region}`)} · ${s.homeCurrency}`}
+              />
+              <Field
+                label={t("settings:notificationModeLabel")}
+                value={t(`settings:notificationMode.${s.notificationMode}`)}
+              />
+            </Box>
 
             <Text variant="caption" selectable>
               {t("onboarding:rulesHash", { hash: r.rulesHash.slice(0, 8) })}

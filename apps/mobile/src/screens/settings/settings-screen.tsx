@@ -24,6 +24,7 @@ import { currencyCodes, useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
 import { BackupCodesSection } from "./backup-codes-section";
+import { BudgetsSection } from "./budgets-section";
 import { CapsSection } from "./caps-section";
 import { MandatesSection } from "./mandates-section";
 import { PendingChanges } from "./pending-changes";
@@ -169,6 +170,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
       </RowGroup>
 
       <PendingChanges />
+      <BudgetsSection />
       <CapsSection />
       <MandatesSection />
       <BackupCodesSection />

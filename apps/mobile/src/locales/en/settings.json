@@ -158,7 +158,10 @@
     "shownOnce": "Save these now. They will not be shown again.",
     "copyAll": "Copy all codes",
     "copied": "Backup codes copied",
-    "done": "I saved them"
+    "done": "I saved them",
+    "savedConfirm": "I saved these codes somewhere safe",
+    "requiredTitle": "Save your backup codes",
+    "requiredBody": "Backup codes are required. If you lose the device with your passkey, a code is the only way back into your account. Create them now and keep them safe."
   },
   "data": {
     "title": "Import & export",
@@ -191,5 +194,11 @@
     "import": "Import",
     "doneTitle": "Imported",
     "done": "Spending: {{imported}} added, {{duplicates}} already there, {{failed}} not readable. Bills: {{bills}}. Cards: {{cards}}. Budgets: {{budgets}}. New bills' payees need account details before Kassa can pay them."
+  },
+  "budgets": {
+    "title": "Budgets",
+    "footer": "This month's limit per category. Lowering one or adding a budget applies at once; raising one needs your passkey.",
+    "save": "Save budgets",
+    "edit": "Change limits"
   }
 }

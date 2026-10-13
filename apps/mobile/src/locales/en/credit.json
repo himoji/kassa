@@ -28,11 +28,17 @@
   "periodRange": "{{from}} to {{to}}",
   "regularIncome": "Months with regular income",
   "sha256": "SHA-256",
-  "share": "Share",
+  "share": "Share link",
   "title": "Credit record",
   "valid": "Valid",
   "verifyDetails": "Details",
   "verifyExplainer": "Checks the signature and fingerprint. A valid result means the record has not changed since it was issued.",
   "verifyPeriod": "Period",
-  "verifyTitle": "Verify record"
+  "verifyTitle": "Verify record",
+  "sharePdf": "Share PDF",
+  "shareTitle": "Kassa credit record",
+  "shareMessage": "My Kassa credit record. Check it here:",
+  "linkCopied": "Link copied. Paste it anywhere to share.",
+  "pdfDownloaded": "PDF downloaded",
+  "shareFailed": "Could not share. Copy the link from the verification page instead."
 }
