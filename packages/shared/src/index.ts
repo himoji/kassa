@@ -23,3 +23,5 @@ export * from "./privacyDto.ts";
 export * from "./businessDto.ts";
 // (added 2026-10-14, Business M2/M3) shop orders and till bills
 export * from "./commerceDto.ts";
+// data import / export
+export * from "./dataportDto.ts";

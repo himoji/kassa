@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 
 import { OnboardingProfileDraft, type AgentMode, type ChoiceAnswer, type DataChoices, type OnboardingConversationResponse, type OnboardingMessageResponse } from "@kassa/shared";
 
-import { getDb } from "../../db/client.ts";
+import { getDb, type Tx } from "../../db/client.ts";
 import { budgets, cards, obligations, payees, profiles, users, type IncomeJson } from "../../db/schema.ts";
 import { onboardingDrafts } from "../../db/schema.intel.ts";
 import { aiProviderFailure } from "../ai/errors.ts";
@@ -313,39 +313,59 @@ export async function applyOnboardingDraft(userId: string, draft: OnboardingProf
       await tx.insert(cards).values({ userId, label: c.label, last4: c.last4, billingCurrency: c.billingCurrency, kind: c.kind });
     }
 
-    const userPayees = await tx.select({ id: payees.id, name: payees.name, kind: payees.kind }).from(payees).where(eq(payees.userId, userId));
-    const userBills = await tx
-      .select({ payeeId: obligations.payeeId, dueDate: obligations.dueDate, amountMinor: obligations.amountMinor, currency: obligations.currency })
-      .from(obligations)
-      .where(eq(obligations.userId, userId));
-    for (const o of draft.obligations) {
-      if (!o.dueDate) continue;
-      const name = o.payeeName.trim();
-      let payee = userPayees.find((p) => p.name === name && p.kind === o.payeeKind);
-      if (!payee) {
-        const screening = screenName(name);
-        if (screening.hit) {
-          await ledger.append(
-            "PAYEE_SCREENING_HIT",
-            { userId, reasonCodes: ["REFUSE_SANCTIONS"], entryId: screening.entryId, score: Math.round(screening.score * 10_000) / 10_000, source: "onboarding", ...(await sealPii(userId, { name }, tx)) },
-            tx,
-          );
-          continue;
-        }
-        const inserted = (
-          await tx
-            .insert(payees)
-            .values({ userId, name, kind: o.payeeKind, accountEnc: null, accountHash: null, country: UNKNOWN_COUNTRY, currency: o.currency, status: "COOLING", verifiedAt: null, coolingUntil: null, createdAt: now })
-            .returning({ id: payees.id, name: payees.name, kind: payees.kind })
-        )[0]!;
-        await ledger.append("PAYEE_CREATED", { userId, payeeId: inserted.id, status: "COOLING", coolingUntil: null, accountMissing: true, replacesPayeeId: null, source: "onboarding" }, tx);
-        userPayees.push(inserted);
-        payee = inserted;
-      }
-      const payeeId = payee.id;
-      if (userBills.some((b) => b.payeeId === payeeId && b.dueDate === o.dueDate && b.amountMinor === o.amountMinor && b.currency === o.currency)) continue;
-      await tx.insert(obligations).values({ userId, payeeId, amountMinor: o.amountMinor, currency: o.currency, dueDate: o.dueDate, recurrence: o.recurrence, reference: null, category: o.category });
-      userBills.push({ payeeId, dueDate: o.dueDate, amountMinor: o.amountMinor, currency: o.currency });
-    }
+    await addBills(tx, userId, draft.obligations, "onboarding");
   });
+}
+
+/**
+ * Adds bills (onboarding drafts, data import). A bill's payee is re-used by name + kind, else created as a placeholder
+ * (see applyOnboardingDraft). Sanctions hits, bills without a due date and exact duplicates are skipped.
+ */
+export async function addBills(tx: Tx, userId: string, bills: OnboardingProfileDraft["obligations"], source: "onboarding" | "import"): Promise<{ added: number; skipped: number }> {
+  const now = clock.now();
+  let added = 0;
+  let skipped = 0;
+  const userPayees = await tx.select({ id: payees.id, name: payees.name, kind: payees.kind }).from(payees).where(eq(payees.userId, userId));
+  const userBills = await tx
+    .select({ payeeId: obligations.payeeId, dueDate: obligations.dueDate, amountMinor: obligations.amountMinor, currency: obligations.currency })
+    .from(obligations)
+    .where(eq(obligations.userId, userId));
+  for (const o of bills) {
+    if (!o.dueDate) {
+      skipped++;
+      continue;
+    }
+    const name = o.payeeName.trim();
+    let payee = userPayees.find((p) => p.name === name && p.kind === o.payeeKind);
+    if (!payee) {
+      const screening = screenName(name);
+      if (screening.hit) {
+        await ledger.append(
+          "PAYEE_SCREENING_HIT",
+          { userId, reasonCodes: ["REFUSE_SANCTIONS"], entryId: screening.entryId, score: Math.round(screening.score * 10_000) / 10_000, source, ...(await sealPii(userId, { name }, tx)) },
+          tx,
+        );
+        skipped++;
+        continue;
+      }
+      const inserted = (
+        await tx
+          .insert(payees)
+          .values({ userId, name, kind: o.payeeKind, accountEnc: null, accountHash: null, country: UNKNOWN_COUNTRY, currency: o.currency, status: "COOLING", verifiedAt: null, coolingUntil: null, createdAt: now })
+          .returning({ id: payees.id, name: payees.name, kind: payees.kind })
+      )[0]!;
+      await ledger.append("PAYEE_CREATED", { userId, payeeId: inserted.id, status: "COOLING", coolingUntil: null, accountMissing: true, replacesPayeeId: null, source }, tx);
+      userPayees.push(inserted);
+      payee = inserted;
+    }
+    const payeeId = payee.id;
+    if (userBills.some((b) => b.payeeId === payeeId && b.dueDate === o.dueDate && b.amountMinor === o.amountMinor && b.currency === o.currency)) {
+      skipped++;
+      continue;
+    }
+    await tx.insert(obligations).values({ userId, payeeId, amountMinor: o.amountMinor, currency: o.currency, dueDate: o.dueDate, recurrence: o.recurrence, reference: null, category: o.category });
+    userBills.push({ payeeId, dueDate: o.dueDate, amountMinor: o.amountMinor, currency: o.currency });
+    added++;
+  }
+  return { added, skipped };
 }

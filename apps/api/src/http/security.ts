@@ -88,12 +88,18 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/unfreeze": "sensitive",
   "POST /api/privacy/erase": "sensitive",
   "GET /api/privacy/export": "sensitive",
+  "GET /api/export": "sensitive",
+  "POST /api/import/preview": "sensitive",
+  "POST /api/import/commit": "sensitive",
   "POST /api/privacy/restrict": "sensitive",
 };
 
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
 const BODY_LIMITS: Readonly<Record<string, number>> = {
   "POST /api/agent/documents": 11 * 1024 * 1024,
+  // A data import's JSON (dataport); Vercel caps request bodies at 4.5 MB anyway.
+  "POST /api/import/preview": 5 * 1024 * 1024,
+  "POST /api/import/commit": 5 * 1024 * 1024,
 };
 
 /** Route keys for one route definition (method may be an array; HEAD follows its GET). */
