@@ -16,6 +16,7 @@ let bootstrapped: Promise<void> | null = null;
 
 onSessionLost(() => {
   void api.setTokens(null);
+  useSessionStore.getState().setDev(false);
   useSessionStore.getState().setStatus("unauthenticated");
 });
 
@@ -26,9 +27,11 @@ onSessionLost(() => {
  */
 export function bootstrapSession(): Promise<void> {
   bootstrapped ??= (async () => {
-    const { setStatus } = useSessionStore.getState();
+    const { setStatus, setDev } = useSessionStore.getState();
     if (api.kind === "native") {
-      setStatus((await api.hasSession()) ? "authenticated" : "unauthenticated");
+      const signedIn = await api.hasSession();
+      if (!signedIn) setDev(false);
+      setStatus(signedIn ? "authenticated" : "unauthenticated");
       return;
     }
     try {
@@ -36,16 +39,24 @@ export function bootstrapSession(): Promise<void> {
       queryClient.setQueryData(keys.me, me);
       setStatus("authenticated");
     } catch (err) {
-      setStatus(isUnauthorized(err) ? "unauthenticated" : "authenticated");
+      const signedOut = isUnauthorized(err);
+      if (signedOut) setDev(false);
+      setStatus(signedOut ? "unauthenticated" : "authenticated");
     }
   })();
   return bootstrapped;
 }
 
-export async function startSession(result: AuthSessionResponse): Promise<void> {
+/** Starts a session from an auth response. `dev` is true only for POST /auth/dev/login. */
+export async function startSession(
+  result: AuthSessionResponse,
+  options: { dev?: boolean } = {}
+): Promise<void> {
   await api.setTokens(result.tokens);
   queryClient.clear();
-  useSessionStore.getState().setStatus("authenticated");
+  const session = useSessionStore.getState();
+  session.setDev(options.dev === true);
+  session.setStatus("authenticated");
 }
 
 export async function endSession(): Promise<void> {
@@ -60,5 +71,6 @@ export async function endSession(): Promise<void> {
   }
   await api.setTokens(null);
   queryClient.clear();
+  useSessionStore.getState().setDev(false);
   useSessionStore.getState().setStatus("unauthenticated");
 }

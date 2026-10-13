@@ -1,4 +1,5 @@
 import {
+  type ChoiceAnswer,
   jcsHash,
   OnboardingConfirmOptionsResponse,
   OnboardingConfirmResponse,
@@ -6,14 +7,13 @@ import {
 } from "@kassa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { signWithPasskey } from "@/lib/passkeys";
-
 import { api } from "../client";
 import { keys } from "../keys";
+import { signPasskeyChallenge } from "../passkey-sign";
 
 export function useOnboardingMessage() {
   return useMutation({
-    mutationFn: (body: { conversationId: string; text: string }) =>
+    mutationFn: (body: { conversationId: string; text: string; choice?: ChoiceAnswer }) =>
       api.request("/onboarding/message", { json: body, schema: OnboardingMessageResponse }),
   });
 }
@@ -44,7 +44,7 @@ export function useConfirmOnboarding(conversationId: string) {
       if (local !== review.rulesHash || review.webauthnOptions.challenge !== review.rulesHash) {
         throw new Error("Base rules hash mismatch");
       }
-      const assertion = await signWithPasskey(review.webauthnOptions);
+      const assertion = await signPasskeyChallenge(review.webauthnOptions);
       return api.request("/onboarding/confirm", {
         json: { conversationId, challengeId: review.challengeId, core: review.core, assertion },
         schema: OnboardingConfirmResponse,

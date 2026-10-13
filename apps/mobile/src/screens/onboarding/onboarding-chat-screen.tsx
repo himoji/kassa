@@ -1,20 +1,22 @@
-import type { OnboardingProfileDraft } from "@kassa/shared";
+import type { ChoiceAnswer, DataChoices, OnboardingProfileDraft } from "@kassa/shared";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 
+import { fetchOnboardingConversation } from "@/api/hooks/chat";
 import { useOnboardingMessage } from "@/api/hooks/onboarding";
+import { ChoiceCard, withReplyAnswer } from "@/components/kassa/choice-card";
 import { errorText } from "@/components/kassa/error-text";
 import { Markdown } from "@/components/kassa/markdown";
-import { Box, Button, Card, Icon, Text, useTheme } from "@/components/ui";
+import { Box, Button, Card, Icon, Loading, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { consentNeeded, type ConsentNeeded } from "@/screens/chat/consent";
 import { ConsentCard } from "@/screens/chat/consent-card";
-import { useChatStore } from "@/stores/chat";
+import { useChatHydrated, useChatStore } from "@/stores/chat";
 
 import { hasContent } from "./draft-content";
 
@@ -22,6 +24,12 @@ interface Turn {
   id: number;
   role: "user" | "assistant";
   text: string;
+  ui: DataChoices[];
+}
+
+/** Text of the first user turn after index `i`: a picker in turn `i` was answered by it. */
+function laterUserText(turns: readonly Turn[], i: number): string | undefined {
+  return turns.slice(i + 1).find((turn) => turn.role === "user")?.text;
 }
 
 function DraftSummary({ draft }: { draft: OnboardingProfileDraft }) {
@@ -67,10 +75,13 @@ function DraftSummary({ draft }: { draft: OnboardingProfileDraft }) {
 export function OnboardingChatScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
+  const hydrated = useChatHydrated();
   const conversationId = useChatStore((s) => s.onboardingConversationId);
+  const setConversationId = useChatStore((s) => s.setOnboardingConversationId);
   const send = useOnboardingMessage();
+  const [loaded, setLoaded] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([
-    { id: 0, role: "assistant", text: t("onboarding:greeting") },
+    { id: 0, role: "assistant", text: t("onboarding:greeting"), ui: [] },
   ]);
   const [input, setInput] = useState("");
   const [draft, setDraft] = useState<OnboardingProfileDraft | null>(null);
@@ -79,22 +90,50 @@ export function OnboardingChatScreen() {
   // 403 AI_CONSENT_REQUIRED / PIPL_CONSENT_REQUIRED: the onboarding chat is the AI's first use, and
   // Settings > Privacy is out of reach until onboarding ends, so the notice + "I agree" live here
   // (as in the agent chat), and the refused message is re-sent once consent is recorded.
-  const [consent, setConsent] = useState<{ need: ConsentNeeded; text: string } | null>(null);
+  const [consent, setConsent] = useState<{
+    need: ConsentNeeded;
+    text: string;
+    choice?: ChoiceAnswer;
+  } | null>(null);
   const scroll = useRef<ScrollView>(null);
 
-  const ask = async (text: string) => {
+  // Resume the server-side conversation after a reload: its id (kept in the store, which the
+  // review screen reads too), the turns so far and the draft.
+  useEffect(() => {
+    if (!hydrated) return;
+    const ctrl = new AbortController();
+    fetchOnboardingConversation(ctrl.signal)
+      .then((res) => {
+        if (res.conversationId) setConversationId(res.conversationId);
+        if (res.turns.length > 0) {
+          setTurns(res.turns.map((turn, id) => ({ id, ...turn })));
+        }
+        setDraft(res.draft);
+        setComplete(res.complete);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!ctrl.signal.aborted) setLoaded(true);
+      });
+    return () => ctrl.abort();
+  }, [hydrated, setConversationId]);
+
+  const ask = async (text: string, choice?: ChoiceAnswer) => {
     setError(null);
     setConsent(null);
     try {
-      const res = await send.mutateAsync({ conversationId, text });
-      setTurns((prev) => [...prev, { id: prev.length, role: "assistant", text: res.reply }]);
+      const res = await send.mutateAsync({ conversationId, text, ...(choice ? { choice } : {}) });
+      setTurns((prev) => [
+        ...prev,
+        { id: prev.length, role: "assistant", text: res.reply, ui: res.ui },
+      ]);
       setDraft(res.draft);
       setComplete(res.complete);
       if (res.complete) haptics.success();
     } catch (err) {
       const need = consentNeeded(err);
       if (need) {
-        setConsent({ need, text });
+        setConsent({ need, text, choice });
         return;
       }
       haptics.error();
@@ -102,13 +141,14 @@ export function OnboardingChatScreen() {
     }
   };
 
-  const submit = async () => {
-    const text = input.trim();
+  const submit = async (text = input.trim(), choice?: ChoiceAnswer) => {
     if (!text || send.isPending) return;
-    setInput("");
-    setTurns((prev) => [...prev, { id: prev.length, role: "user", text }]);
-    await ask(text);
+    if (!choice) setInput("");
+    setTurns((prev) => [...prev, { id: prev.length, role: "user", text, ui: [] }]);
+    await ask(text, choice);
   };
+
+  if (!hydrated || !loaded) return <Loading label={t("chat:loadingHistory")} />;
 
   return (
     <KeyboardAvoidingView
@@ -122,32 +162,41 @@ export function OnboardingChatScreen() {
         contentContainerStyle={{ padding: 16, gap: 12 }}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
       >
-        {turns.map((turn) => (
-          <View
-            key={turn.id}
-            style={{
-              alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
-              maxWidth: "88%",
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 18,
-              borderCurve: "continuous",
-              backgroundColor: turn.role === "user" ? colors.brandAccent : colors.muted,
-            }}
-          >
-            {turn.role === "user" ? (
-              <Text selectable style={{ color: "#ffffff" }}>
-                {turn.text}
-              </Text>
-            ) : (
-              <Markdown>{turn.text}</Markdown>
-            )}
+        {turns.map((turn, index) => (
+          <View key={turn.id} style={{ gap: 8 }}>
+            <View
+              style={{
+                alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "88%",
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 18,
+                borderCurve: "continuous",
+                backgroundColor: turn.role === "user" ? colors.brandAccent : colors.muted,
+              }}
+            >
+              {turn.role === "user" ? (
+                <Text selectable style={{ color: "#ffffff" }}>
+                  {turn.text}
+                </Text>
+              ) : (
+                <Markdown>{turn.text}</Markdown>
+              )}
+            </View>
+            {turn.ui.map((part) => (
+              <ChoiceCard
+                key={part.id}
+                part={withReplyAnswer(part, laterUserText(turns, index))}
+                disabled={send.isPending}
+                onAnswer={(a) => void submit(a.text, a.choice)}
+              />
+            ))}
           </View>
         ))}
         {send.isPending ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
         {error ? <Text color="destructive">{error}</Text> : null}
         {consent ? (
-          <ConsentCard need={consent.need} onGiven={() => void ask(consent.text)} />
+          <ConsentCard need={consent.need} onGiven={() => void ask(consent.text, consent.choice)} />
         ) : null}
         {draft && hasContent(draft) ? (
           <Animated.View entering={FadeIn}>
@@ -190,7 +239,7 @@ export function OnboardingChatScreen() {
           }}
         />
         <Pressable
-          onPress={() => void submit()}
+          onPress={() => void submit(input.trim())}
           accessibilityRole="button"
           accessibilityLabel={t("chat:send")}
           style={{

@@ -12,12 +12,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { signWithPasskey } from "@/lib/passkeys";
-
 import { useSessionStore } from "@/stores/session";
 
 import { api } from "../client";
 import { keys } from "../keys";
+import { signPasskeyChallenge } from "../passkey-sign";
 import { useMe } from "./me";
 
 /** True once /me says this is a BUSINESS account (false while loading, on error, or PERSONAL). */
@@ -93,7 +92,7 @@ export function useSignPurchaseOrder() {
       if (options.webauthnOptions.challenge !== options.poHash) {
         throw new Error("Purchase order challenge does not match the purchase order hash");
       }
-      const assertion = await signWithPasskey(options.webauthnOptions);
+      const assertion = await signPasskeyChallenge(options.webauthnOptions);
       return api.request(`${path}/sign`, {
         json: { core: options.core, assertion },
         schema: SignResult,
