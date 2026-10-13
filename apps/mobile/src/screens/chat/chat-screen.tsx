@@ -283,16 +283,10 @@ function ChatSession({
     if (busy) return false;
     haptics.selection();
     if (a.budgets) {
-      // The budgets card sets the limits itself (raises: passkey, then 24 h); the answer only tells the agent.
+      // The budgets card sets the limits itself (raises need the passkey); the answer only tells the agent.
       try {
-        const res = await setBudgets.mutateAsync(a.budgets);
-        toast.show({
-          kind: "success",
-          title: t("chat:budgets.applied"),
-          ...(res.pending.length > 0
-            ? { description: t("chat:budgets.pending", { count: res.pending.length }) }
-            : {}),
-        });
+        await setBudgets.mutateAsync(a.budgets);
+        toast.show({ kind: "success", title: t("chat:budgets.applied") });
       } catch (err) {
         if (!(err instanceof PasskeyCancelledError)) {
           haptics.error();

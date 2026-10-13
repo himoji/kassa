@@ -329,9 +329,8 @@ export const ChoiceAnswer = z.object({
 export type ChoiceAnswer = z.infer<typeof ChoiceAnswer>;
 
 /**
- * PUT /budgets: this month's limit per category (home currency). Lowering a limit or adding a category tightens the
- * rules and applies at once; raising one loosens them (a bigger budget lowers the risk score), so like any loosening
- * (I8) it needs a passkey (HTTP 428 round trip, as SettingsPatchRequest) and applies after 24 hours.
+ * PUT /budgets: this month's limit per category (home currency), applied at once. Raising one loosens the rules (a
+ * bigger budget lowers the risk score), so it needs a passkey first (HTTP 428 round trip, as SettingsPatchRequest).
  */
 export const BudgetsSetRequest = z.object({
   budgets: z
@@ -343,10 +342,8 @@ export const BudgetsSetRequest = z.object({
 });
 export type BudgetsSetRequest = z.infer<typeof BudgetsSetRequest>;
 export const BudgetsSetResponse = z.object({
-  /** Categories set now (new or lowered). */
+  /** Categories whose limit changed. */
   applied: z.array(z.string()),
-  /** Raised categories, waiting out the 24 h delay. */
-  pending: z.array(z.object({ category: z.string(), limitHomeMinor: z.number().int(), effectiveAt: IsoDateTime })),
 });
 export type BudgetsSetResponse = z.infer<typeof BudgetsSetResponse>;
 

@@ -545,7 +545,7 @@ export function uiTools(ctx: Pick<ToolContext, "emit" | "awaitingUser">, only: r
     ask_amount: make("ask_amount", "Show an amount slider in a currency (minor units). Ends your turn.", AskAmountInput),
     ask_budgets: make(
       "ask_budgets",
-      "Show monthly budgets to set or change: one slider per category (emoji, label, suggested limit in home-currency minor units), confirmed together. The app applies the user's numbers itself (lowering at once; raising needs their passkey and takes 24 h), so only acknowledge them. Ends your turn.",
+      "Show monthly budgets to set or change: one slider per category (emoji, label, suggested limit in home-currency minor units), confirmed together. The app applies the user's numbers itself (raising one needs their passkey), so only acknowledge them. Ends your turn.",
       AskBudgetsInput,
     ),
     ask_date: make("ask_date", "Show a date picker. Ends your turn.", AskDateInput),
