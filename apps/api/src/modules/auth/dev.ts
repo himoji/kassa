@@ -20,7 +20,10 @@ import { SoftAuthenticator } from "./soft-authenticator.ts";
  *
  * POST /auth/dev/login creates (or reuses) a "Dev" user with a server-held software passkey and starts a session
  * carrying `dev: true`. Approvals still go through the normal WebAuthn checks: POST /auth/dev/assert signs the 428
- * challenge with that server-held key, for dev sessions only. Nothing else in the passkey verification changes.
+ * challenge with a server-held key. Dev sessions use it for every approval; any other session (a real passkey user)
+ * only when the app's "Dev" button next to a passkey button asks for it, and the key is then registered on that
+ * account too. KassaLite sessions never get it (they never get passkey-gated rights). Nothing else in the passkey
+ * verification changes.
  *
  * Guards, all required: the routes are not registered when NODE_ENV=production; each request also needs
  * DEMO_ENABLED and DEV_LOGIN, and RP_ID must be localhost, a *.trycloudflare.com quick tunnel or PHONE_HOST.
@@ -85,13 +88,13 @@ const devRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  // A WebAuthn assertion over a 428 challenge, signed by the dev user's server-held passkey (dev sessions only).
+  // A WebAuthn assertion over a 428 challenge, signed by the caller's server-held dev passkey (not for KassaLite).
   app.post(
     "/auth/dev/assert",
     { preHandler: requireUser, schema: { body: z.object({ challenge: z.string().min(16).max(256) }) } },
     async (req) => {
       assertAllowed();
-      if (!req.session?.dev) throw new HttpProblem(403, "DEV_SESSION_REQUIRED", "Only the dev sign-in can auto-approve");
+      if (req.session?.scope === "lite") throw new HttpProblem(403, "LITE_SESSION", "A KassaLite device cannot approve");
       const e = env();
       const key = await devKeyFor(userIdOf(req));
       return { assertion: key.assert(req.body.challenge, { origin: e.PUBLIC_ORIGIN, rpId: e.RP_ID }) };

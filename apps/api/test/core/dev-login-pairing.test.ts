@@ -69,10 +69,22 @@ describe("dev sign-in", () => {
     expect(pair.code).toMatch(/^[A-Z2-9]{8}$/);
   });
 
-  it("/auth/dev/assert refuses a normal session", async () => {
-    devEnv();
+  it("/auth/dev/assert also signs for a passkey user's session (the app's Dev button), only while dev sign-in is on", async () => {
     const { userId } = await createUserWithPasskey();
-    const res = await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: await bearer(userId), payload: { challenge: "a".repeat(43) } });
+    const off = await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: await bearer(userId), payload: { challenge: "a".repeat(43) } });
+    expect(off.statusCode).toBe(404);
+    devEnv();
+    const h = await bearer(userId);
+    const sign = async (challenge: string) => (await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: h, payload: { challenge } })).json().assertion;
+    expect((await startPairing(h, sign)).code).toMatch(/^[A-Z2-9]{8}$/);
+  });
+
+  it("/auth/dev/assert refuses a KassaLite session", async () => {
+    devEnv();
+    const { userId, auth } = await createUserWithPasskey();
+    const pair = await startPairing(await bearer(userId), async (challenge) => auth.assert(challenge));
+    const lite = PairCompleteResponse.parse((await app().inject({ method: "POST", url: "/api/auth/pair/complete", payload: { code: pair.code } })).json());
+    const res = await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: { authorization: `Bearer ${lite.tokens!.accessToken}` }, payload: { challenge: "a".repeat(43) } });
     expect(res.statusCode).toBe(403);
   });
 });
