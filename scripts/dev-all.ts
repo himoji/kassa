@@ -7,6 +7,7 @@
  *
  * Tunnel: a named tunnel when CLOUDFLARED_TUNNEL and PHONE_HOST are set (stable host, passkeys survive restarts),
  * otherwise a quick tunnel whose host changes every run; then DEV_LOGIN=true is set as the sign-in fallback.
+ * The web app on the tunnel calls its own origin (/api through the proxy); localhost tabs call the API directly.
  * The derived env (PUBLIC_ORIGIN, EXTRA_ORIGINS, RP_ID, EXPO_PUBLIC_API_URL, ...) is written to the gitignored
  * `.env.dev-runtime` and merged into turbo's environment (declared in globalPassThroughEnv in turbo.json).
  * Ctrl-C / SIGTERM stops turbo, the proxy and the tunnel.
@@ -83,11 +84,17 @@ if (noTunnel) {
   }
   children.push(tunnel);
 
+  // The tunnel plus this machine's own tabs (Expo opens the web server on localhost, the proxy listens on PORT):
+  // they call the API cross-origin, so CORS and the session CSRF check must accept them.
+  const webPort = num(process.env.WEB_PORT, 8081);
+  const local = [webPort, proxy.port].flatMap((p) => [`http://localhost:${p}`, `http://127.0.0.1:${p}`]);
   const runtime: Record<string, string> = {
     PUBLIC_ORIGIN: tunnel.url,
-    EXTRA_ORIGINS: tunnel.url,
+    EXTRA_ORIGINS: [tunnel.url, ...local].join(","),
     RP_ID: tunnel.host,
-    EXPO_PUBLIC_API_URL: tunnel.url,
+    // Same value env:setup writes to apps/mobile/.env (which wins over this in Expo dev anyway): localhost tabs call
+    // the API directly; pages on the tunnel ignore a loopback API URL and use their own origin (src/api/config.ts).
+    EXPO_PUBLIC_API_URL: `http://localhost:${num(process.env.API_PORT, 4000)}`,
     TRUST_PROXY: "true",
     MOCK_PUBLIC_URL: tunnel.url,
     KASSA_APP_URL: tunnel.url,
