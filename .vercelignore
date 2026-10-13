@@ -1,0 +1,10 @@
+# Not needed by the Vercel build or the function (vercel.json); keeps the CLI upload small.
+.data/
+.turbo/
+node_modules/
+apps/mobile/dist/
+apps/mobile/ios-lite/
+apps/mobile/ios/
+apps/mobile/android/
+docs/demo/
+**/*.mp4

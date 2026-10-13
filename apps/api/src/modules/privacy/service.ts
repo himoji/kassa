@@ -343,7 +343,8 @@ export async function purgeExpired(now: Date = clock.now()): Promise<PurgeCounts
       .select({ id: agentMessages.conversationId })
       .from(agentMessages)
       .groupBy(agentMessages.conversationId)
-      .having(lt(sql`max(${agentMessages.createdAt})`, cCut));
+      // ISO string: a raw sql operand has no column encoder, and postgres.js rejects a bare Date.
+      .having(lt(sql`max(${agentMessages.createdAt})`, cCut.toISOString()));
     const ids = stale.map((r) => r.id);
     if (ids.length) {
       await db.delete(agentMessages).where(inArray(agentMessages.conversationId, ids));
