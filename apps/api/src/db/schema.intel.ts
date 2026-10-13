@@ -7,6 +7,8 @@
  * - agent_documents: uploads from POST /agent/documents (spec §8) → `docId`, plus the cached Reader result.
  * - merchant_category_memory: "a user correction is remembered per merchantNorm" (spec §13).
  * - onboarding_drafts: the structured profile draft the onboarding chat builds (spec §8).
+ * - conversations: the authoritative owner + channel of every conversation id (agent chat and onboarding). The first
+ *   message claims the id (INSERT … ON CONFLICT DO NOTHING); every later request compares user_id and channel.
  */
 import type { ModelMessage } from "ai";
 
@@ -77,3 +79,18 @@ export const onboardingDrafts = pgTable("onboarding_drafts", {
   complete: boolean("complete").notNull().default(false),
   updatedAt: tstz("updated_at").notNull(),
 });
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "agent" | "onboarding" */
+    channel: text("channel").$type<"agent" | "onboarding">().notNull(),
+    title: text("title"),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("conversations_user_idx").on(t.userId, t.createdAt)],
+);

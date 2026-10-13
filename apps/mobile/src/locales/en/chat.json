@@ -14,6 +14,11 @@
   "inputA11y": "Message",
   "newConversation": "New conversation",
   "placeholder": "Ask Kassa",
+  "preparing": {
+    "budgetImpact": "Preparing budget check…",
+    "proposal": "Preparing proposal…",
+    "routes": "Preparing routes…"
+  },
   "replay": "Replay",
   "reviewAndSign": "Review and sign",
   "routeCost": "Cost {{cost}} ({{markup}} markup), arrives {{arrival}}",

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { startTurn } from "../../src/modules/agent/loop.ts";
 import { replayModel, type RecordedStep } from "../../src/modules/agent/replay.ts";
-import { buildTools, MAX_TOOL_STEPS, WRITE_TOOLS } from "../../src/modules/agent/tools.ts";
+import { buildTools, MAX_TOOL_STEPS, READ_TOOLS, UI_TOOLS, WRITE_TOOLS } from "../../src/modules/agent/tools.ts";
 import { Redactor } from "../../src/modules/agent/redact.ts";
 import { verifyExtraction } from "../../src/modules/reader/reader.ts";
 import { buildIban } from "@kassa/shared";
@@ -31,13 +31,28 @@ async function run(steps: RecordedStep[], opts: Parameters<typeof fakePorts>[0] 
 }
 
 describe("agent tool surface (I1)", () => {
-  it("exposes exactly the 11 spec tools; propose_order is the only write tool", () => {
+  it("exposes the 11 spec tools plus read-only get_fx_rate and the ask_* UI tools; propose_order is the only write tool", () => {
     const { ports } = fakePorts();
     const tools = buildTools({ ports, redactor: new Redactor(), emit: () => undefined, readDocs: new Map(), stop: { requested: false, reason: null }, proposals: [] });
     expect(Object.keys(tools).sort()).toEqual(
-      ["forecast_coverage", "get_balances", "get_budget", "get_obligations", "get_payee_facts", "get_profile_summary", "get_routes", "log_expense", "propose_order", "read_document", "search_catalog"].sort(),
+      [
+        "forecast_coverage",
+        "get_balances",
+        "get_budget",
+        "get_obligations",
+        "get_payee_facts",
+        "get_profile_summary",
+        "get_routes",
+        "log_expense",
+        "propose_order",
+        "read_document",
+        "search_catalog",
+        ...READ_TOOLS,
+        ...UI_TOOLS,
+      ].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
+    expect(READ_TOOLS).toEqual(["get_fx_rate"]);
   });
 
   it("agent/** never imports payments, rails or ledger/internal (static import scan)", () => {

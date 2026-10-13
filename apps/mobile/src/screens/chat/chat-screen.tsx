@@ -8,6 +8,7 @@ import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/a
 import { useMe } from "@/api/hooks/me";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
+import { Markdown } from "@/components/kassa/markdown";
 import { ProposalCard } from "@/components/kassa/proposal-card";
 import { RouteComparison } from "@/components/kassa/route-comparison";
 import { Box, Button, Card, Icon, Text, useTheme } from "@/components/ui";
@@ -20,14 +21,42 @@ import { ConsentCard } from "./consent-card";
 
 const SUGGESTIONS = ["chat:suggest.tuition", "chat:suggest.budget", "chat:suggest.log"] as const;
 
-function MessageParts({ message }: { message: KassaUIMessage }) {
+/** Collapsed stand-in for a data card while the reply is still streaming. */
+function PendingRow({ label }: { label: string }) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        alignSelf: "flex-start",
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 18,
+        borderCurve: "continuous",
+        backgroundColor: colors.muted,
+      }}
+    >
+      <Text variant="caption">{label}</Text>
+    </View>
+  );
+}
+
+/**
+ * Text parts render first, then the data cards they explain. `pending` (last message, still
+ * streaming) keeps the cards collapsed until the reply is complete.
+ */
+function MessageParts({ message, pending }: { message: KassaUIMessage; pending?: boolean }) {
   const t = useKassaT();
   const { colors } = useTheme();
   const mine = message.role === "user";
+  const indexed = message.parts.map((part, i) => ({ part, i }));
+  const ordered = [
+    ...indexed.filter(({ part }) => part.type === "text"),
+    ...indexed.filter(({ part }) => part.type !== "text"),
+  ];
   return (
     <View style={{ gap: 8, alignItems: mine ? "flex-end" : "stretch" }}>
       {message.metadata?.replay ? <ReplayBadge force /> : null}
-      {message.parts.map((part, i) => {
+      {ordered.map(({ part, i }) => {
         const key = `${message.id}-${i}`;
         switch (part.type) {
           case "text":
@@ -44,14 +73,20 @@ function MessageParts({ message }: { message: KassaUIMessage }) {
                   backgroundColor: mine ? colors.brandAccent : colors.muted,
                 }}
               >
-                <Text selectable style={mine ? { color: "#ffffff" } : undefined}>
-                  {part.text}
-                </Text>
+                {mine ? (
+                  <Text selectable style={{ color: "#ffffff" }}>
+                    {part.text}
+                  </Text>
+                ) : (
+                  <Markdown>{part.text}</Markdown>
+                )}
               </View>
             );
           case "data-proposal":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.proposal")} />;
             return <ProposalCard key={key} proposal={part.data} />;
           case "data-routes":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.routes")} />;
             return (
               <RouteComparison
                 key={key}
@@ -62,6 +97,7 @@ function MessageParts({ message }: { message: KassaUIMessage }) {
               />
             );
           case "data-budget-impact":
+            if (pending) return <PendingRow key={key} label={t("chat:preparing.budgetImpact")} />;
             return (
               <Card key={key}>
                 <BudgetImpactView impact={part.data} />
@@ -161,7 +197,13 @@ export function ChatScreen() {
               </Box>
             </Box>
           ) : (
-            messages.map((m) => <MessageParts key={m.id} message={m} />)
+            messages.map((m, i) => (
+              <MessageParts
+                key={m.id}
+                message={m}
+                pending={status === "streaming" && i === messages.length - 1}
+              />
+            ))
           )}
           {status === "submitted" ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
           {error && consentNeeded(error) ? (

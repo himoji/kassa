@@ -3,9 +3,11 @@ import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import Animated, { FadeIn } from "react-native-reanimated";
 
 import { useOnboardingMessage } from "@/api/hooks/onboarding";
 import { errorText } from "@/components/kassa/error-text";
+import { Markdown } from "@/components/kassa/markdown";
 import { Box, Button, Card, Icon, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
@@ -13,6 +15,8 @@ import { useKassaT } from "@/lib/i18n";
 import { consentNeeded, type ConsentNeeded } from "@/screens/chat/consent";
 import { ConsentCard } from "@/screens/chat/consent-card";
 import { useChatStore } from "@/stores/chat";
+
+import { hasContent } from "./draft-content";
 
 interface Turn {
   id: number;
@@ -131,9 +135,13 @@ export function OnboardingChatScreen() {
               backgroundColor: turn.role === "user" ? colors.brandAccent : colors.muted,
             }}
           >
-            <Text selectable style={turn.role === "user" ? { color: "#ffffff" } : undefined}>
-              {turn.text}
-            </Text>
+            {turn.role === "user" ? (
+              <Text selectable style={{ color: "#ffffff" }}>
+                {turn.text}
+              </Text>
+            ) : (
+              <Markdown>{turn.text}</Markdown>
+            )}
           </View>
         ))}
         {send.isPending ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
@@ -141,7 +149,11 @@ export function OnboardingChatScreen() {
         {consent ? (
           <ConsentCard need={consent.need} onGiven={() => void ask(consent.text)} />
         ) : null}
-        {draft ? <DraftSummary draft={draft} /> : null}
+        {draft && hasContent(draft) ? (
+          <Animated.View entering={FadeIn}>
+            <DraftSummary draft={draft} />
+          </Animated.View>
+        ) : null}
         {complete ? (
           <Button size="lg" onPress={() => router.push("/onboarding/review")}>
             {t("onboarding:toReview")}

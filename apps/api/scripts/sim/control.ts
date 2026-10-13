@@ -40,7 +40,7 @@ import { getDb } from "../../src/db/client.ts";
 import { issuedCards, ledgerEntries, notifications, payments, proposals, users } from "../../src/db/schema.ts";
 import { buildTools, dbPorts, dbTurnStore, knownNames, Redactor, type AgentPorts, type ToolContext } from "../../src/modules/agent/index.ts";
 import { bindToConversation } from "../../src/modules/agent/ports.ts";
-import { conversationOwner } from "../../src/modules/agent/history.ts";
+import { claimConversation, ConversationForbiddenError, conversationOwner } from "../../src/modules/agent/history.ts";
 import { verifyToken } from "../../src/modules/auth/session.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { ledger } from "../../src/modules/ledger/index.ts";
@@ -119,13 +119,22 @@ async function assertAiAllowed(userId: string): Promise<void> {
   }
 }
 
+async function claimAgentConversation(conversationId: string, userId: string): Promise<void> {
+  try {
+    await claimConversation(conversationId, userId, "agent");
+  } catch (e) {
+    if (e instanceof ConversationForbiddenError) throw new ControlError(403, "CONVERSATION_FORBIDDEN", "This conversation belongs to another user");
+    throw e;
+  }
+}
+
 async function runTool(body: Json, userId: string): Promise<unknown> {
   const name = must(body.name, "name");
   const conversationId = must(body.conversationId, "conversationId");
   const schema = TOOL_INPUTS[name];
   if (!schema) throw new ControlError(400, "UNKNOWN_TOOL", `unknown tool ${name}; one of ${TOOL_NAMES.join(", ")}`);
   const owner = await conversationOwner(conversationId);
-  if (owner && owner !== userId) throw new ControlError(403, "CONVERSATION_FORBIDDEN", "This conversation belongs to another user");
+  await claimAgentConversation(conversationId, userId);
   await assertAiAllowed(userId);
 
   const base = dbPorts(userId, conversationId);
@@ -193,8 +202,7 @@ async function runTool(body: Json, userId: string): Promise<unknown> {
 async function userText(body: Json, userId: string): Promise<unknown> {
   const text = must(body.text, "text");
   const conversationId = must(body.conversationId, "conversationId");
-  const owner = await conversationOwner(conversationId);
-  if (owner && owner !== userId) throw new ControlError(403, "CONVERSATION_FORBIDDEN", "This conversation belongs to another user");
+  await claimAgentConversation(conversationId, userId);
   await assertAiAllowed(userId);
   const ports = dbPorts(userId, conversationId);
   const store = dbTurnStore(conversationId, userId);

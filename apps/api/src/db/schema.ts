@@ -632,6 +632,8 @@ export const placeholderMaps = pgTable(
   "placeholder_maps",
   {
     conversationId: text("conversation_id").notNull(),
+    /** (added 2026-10-13) owner of the conversation; lookups filter on it. Backfilled from conversations. */
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
     placeholder: text("placeholder").notNull(),
     kind: text("kind").notNull(),
     realRef: text("real_ref").notNull(),
