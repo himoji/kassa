@@ -7,8 +7,9 @@
  */
 import { effectiveSettings } from "@kassa/shared";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { fetchOnboardingConversation } from "@/api/hooks/chat";
 import { useConfirmOnboarding, useOnboardingReview } from "@/api/hooks/onboarding";
 import { useCreateMandate } from "@/api/hooks/payees";
 import { RowGroup } from "@/components/row-group";
@@ -16,16 +17,42 @@ import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { StatusChip } from "@/components/kassa/status-chip";
-import { Box, Button, Card, Row, Text } from "@/components/ui";
+import { Box, Button, Card, Loading, Row, Text } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
-import { useChatStore } from "@/stores/chat";
+import { useChatHydrated, useChatStore } from "@/stores/chat";
 
 import { mandateOfferAfterRules, type MandateOffer } from "./mandate-offer";
 
+/**
+ * The conversation id survives a reload (persisted store) and is re-read from the server
+ * (GET /onboarding/conversation) before the review is requested.
+ */
 export function OnboardingReviewScreen() {
+  const t = useKassaT();
+  const hydrated = useChatHydrated();
+  const setConversationId = useChatStore((s) => s.setOnboardingConversationId);
+  const [synced, setSynced] = useState(false);
+  useEffect(() => {
+    if (!hydrated) return;
+    const ctrl = new AbortController();
+    fetchOnboardingConversation(ctrl.signal)
+      .then((res) => {
+        if (res.conversationId) setConversationId(res.conversationId);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!ctrl.signal.aborted) setSynced(true);
+      });
+    return () => ctrl.abort();
+  }, [hydrated, setConversationId]);
+  if (!hydrated || !synced) return <Loading label={t("chat:loadingHistory")} />;
+  return <OnboardingReview />;
+}
+
+function OnboardingReview() {
   const t = useKassaT();
   const f = useFormat();
   const conversationId = useChatStore((s) => s.onboardingConversationId);
