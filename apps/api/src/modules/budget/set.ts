@@ -6,7 +6,7 @@ import { budgets, ruleChanges } from "../../db/schema.ts";
 import { auditAssertionFailure } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
-import { addMs, clock, DAY_MS, isoDate } from "../clock/index.ts";
+import { clock, isoDate } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 
@@ -14,11 +14,10 @@ import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
  * PUT /budgets (the chat's budgets card, ask_budgets): this month's limit per category. Budgets feed the rules (a
  * category's remaining budget is part of the risk score, rules/risk.ts), so changing one is a rule change (I8):
  *  - a new category or a lower limit tightens: applied at once (rule_changes TIGHTEN, RULES_TIGHTENED);
- *  - a higher limit loosens: needs a passkey assertion over hash(change) (428 round trip) and is stored as a
- *    pending LOOSEN with effectiveAt = now + 24 h; applyDueBudgetChanges (scheduler) applies it.
+ *  - a higher limit loosens: needs a passkey assertion over hash(change) (428 round trip), then applies at once
+ *    too (rule_changes LOOSEN carrying the assertion, RULES_LOOSENED). No 24 h wait, like raised caps (DECISIONS).
  */
 
-export const BUDGET_LOOSEN_DELAY_MS = DAY_MS;
 const KIND = "BUDGETS";
 
 type Limits = Record<string, number>;
@@ -70,7 +69,7 @@ export async function setBudgets(userId: string, body: BudgetsSetRequest): Promi
     if (!body.challengeId || !body.assertion) {
       const hash = jcsHash(loosenCore);
       const challengeId = putGated({ userId, purpose: "budgets", hash, payload: loosenCore });
-      throw new HttpProblem(428, "PASSKEY_REQUIRED", "Raising a budget needs your passkey and takes effect after 24 hours", {
+      throw new HttpProblem(428, "PASSKEY_REQUIRED", "Raising a budget needs your passkey", {
         reasonCodes: ["PASSKEY_REQUIRED", "LOOSEN_PENDING"],
         details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
       });
@@ -88,7 +87,6 @@ export async function setBudgets(userId: string, body: BudgetsSetRequest): Promi
     changeHash = gated.hash;
   }
 
-  const effectiveAt = addMs(now, BUDGET_LOOSEN_DELAY_MS);
   await db.transaction(async (tx) => {
     if (Object.keys(tighten.after).length > 0) {
       await writeLimits(tx, userId, tighten.after, now);
@@ -109,22 +107,13 @@ export async function setBudgets(userId: string, body: BudgetsSetRequest): Promi
       await ledger.append("RULES_TIGHTENED", { userId, ruleChangeId: row[0]!.id, kind: KIND, after: tighten.after }, tx);
     }
     if (loosenCore) {
+      await writeLimits(tx, userId, loosen.after, now);
       const row = await tx
         .insert(ruleChanges)
-        .values({ userId, kind: KIND, before: loosen.before, after: loosen.after, direction: "LOOSEN", assertion: assertion as never, changeHash, effectiveAt, createdAt: now })
+        .values({ userId, kind: KIND, before: loosen.before, after: loosen.after, direction: "LOOSEN", assertion: assertion as never, changeHash, effectiveAt: now, appliedAt: now, createdAt: now })
         .returning({ id: ruleChanges.id });
-      await ledger.append("RULES_LOOSEN_PENDING", { userId, ruleChangeId: row[0]!.id, kind: KIND, changeHash, effectiveAt: effectiveAt.toISOString(), after: loosen.after }, tx);
+      await ledger.append("RULES_LOOSENED", { userId, ruleChangeId: row[0]!.id, kind: KIND, changeHash, after: loosen.after }, tx);
     }
   });
-  return {
-    applied: Object.keys(tighten.after),
-    pending: Object.entries(loosen.after).map(([category, limitHomeMinor]) => ({ category, limitHomeMinor, effectiveAt: effectiveAt.toISOString() })),
-  };
+  return { applied: [...Object.keys(tighten.after), ...Object.keys(loosen.after)] };
 }
-
-/** A due, signed budget loosening (rule_changes kind BUDGETS): write it into the budgets active at `now`. */
-export async function applyBudgetChange(tx: DbOrTx, userId: string, after: Limits, now: Date): Promise<void> {
-  await writeLimits(tx, userId, after, now);
-}
-
-export const BUDGETS_RULE_KIND = KIND;

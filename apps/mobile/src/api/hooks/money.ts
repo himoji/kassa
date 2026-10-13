@@ -108,8 +108,8 @@ export function useSetCategory() {
 }
 
 /**
- * PUT /budgets: this month's limits. New or lower limits apply at once; raising one loosens the rules, so the
- * server answers 428 and the passkey signs it (withPasskeyGate); raises then wait 24 hours (`pending`).
+ * PUT /budgets: this month's limits, applied at once. Raising one loosens the rules, so the server answers 428
+ * first and the passkey signs it (withPasskeyGate).
  */
 export function useSetBudgets() {
   const qc = useQueryClient();

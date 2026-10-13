@@ -186,7 +186,7 @@ describe("I8 Loosening is slow, tightening is instant", () => {
 
   const capsOf = async (userId: string) => (await getDb().select().from(profiles).where(eq(profiles.userId, userId)))[0]!.caps!;
 
-  // Deeper: test/attacks/A4.test.ts (24 h pending, signature reuse, preset upgrades).
+  // Deeper: test/attacks/A4.test.ts (caps apply on the passkey, preset loosenings wait 24 h, signature reuse).
   it("raising perPaymentMinor without a passkey → 428 PASSKEY_REQUIRED, unchanged; lowering applies at once", async () => {
     const { userId } = await createUserWithPasskey();
     const before = await capsOf(userId);

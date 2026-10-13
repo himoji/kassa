@@ -5,8 +5,10 @@
  *    handoff), any cap raised, the protected reserve lowered.
  *  - otherwise TIGHTEN/neutral (homeCurrency, notificationMode, lower caps, …): applied immediately.
  * Loosenings need a passkey assertion over hash(change) (HTTP 428 + PasskeyChallenge round trip, see
- * @kassa/shared SettingsPatchRequest) and are stored in rule_changes with effectiveAt = now + 24 h; the
- * scheduler applies them. An unsigned loosening is never stored and never applies.
+ * @kassa/shared SettingsPatchRequest). Raised caps (and a lowered reserve) then apply at once (DECISIONS: limits
+ * are numbers the user sets with their passkey, no waiting); autonomy loosenings (preset, policy, money mode,
+ * agent, region) are stored in rule_changes with effectiveAt = now + 24 h and the scheduler applies them. An
+ * unsigned loosening is never stored and never applies.
  */
 import {
   applySettingsPatch,
@@ -18,12 +20,11 @@ import {
   type SettingsPatch,
   type UserSettings,
 } from "@kassa/shared";
-import { and, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, eq, isNull, lte } from "drizzle-orm";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { profiles, ruleChanges, users, type CapsJson } from "../../db/schema.ts";
 import { auditAssertionFailure } from "../../http/audit.ts";
-import { applyBudgetChange, BUDGETS_RULE_KIND } from "../budget/set.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
@@ -64,7 +65,7 @@ function autonomyLoosens(before: UserSettings, after: UserSettings): boolean {
   );
 }
 
-/** Split a patch into the part applied now and the part that loosens (needs passkey + 24 h). */
+/** Split a patch into the part applied now and the part that loosens (needs the passkey; settings also wait 24 h). */
 export function classify(current: UserSettings, caps: CapsJson, patch: SettingsPatch, capsPatch: CapsPatchIn): { tighten: ChangeSet; loosen: ChangeSet } {
   const tighten: ChangeSet = { settings: {}, caps: {} };
   const loosen: ChangeSet = { settings: {}, caps: {} };
@@ -170,7 +171,7 @@ export async function patchSettings(
     if (!body.challengeId || !body.assertion) {
       const hash = jcsHash(loosenCore);
       const challengeId = putGated({ userId, purpose: "settings", hash, payload: loosenCore });
-      throw new HttpProblem(428, "PASSKEY_REQUIRED", "Loosening needs your passkey and takes effect after 24 hours", {
+      throw new HttpProblem(428, "PASSKEY_REQUIRED", "Loosening needs your passkey", {
         reasonCodes: ["PASSKEY_REQUIRED", "LOOSEN_PENDING"],
         details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
       });
@@ -210,23 +211,47 @@ export async function patchSettings(
       await ledger.append("RULES_TIGHTENED", { userId, ruleChangeId: row[0]!.id, after: tighten }, tx);
     }
     if (loosenCore) {
-      const effectiveAt = addMs(now, LOOSEN_DELAY_MS);
-      const row = await tx
-        .insert(ruleChanges)
-        .values({
-          userId,
-          kind: "SETTINGS",
-          before: loosenCore.before,
-          after: loosenCore.after,
-          direction: "LOOSEN",
-          assertion: assertion as never,
-          changeHash,
-          effectiveAt,
-          createdAt: now,
-        })
-        .returning({ id: ruleChanges.id });
-      ruleChange = { id: row[0]!.id, effectiveAt };
-      await ledger.append("RULES_LOOSEN_PENDING", { userId, ruleChangeId: row[0]!.id, changeHash, effectiveAt: effectiveAt.toISOString(), after: loosen }, tx);
+      // Signed above. Raised caps apply now; autonomy loosenings wait LOOSEN_DELAY_MS (header comment).
+      const capsNow: ChangeSet = { settings: {}, caps: loosen.caps };
+      const later: ChangeSet = { settings: loosen.settings, caps: {} };
+      if (!isEmpty(capsNow)) {
+        s = await applyChangeSet(tx, userId, s, mergeCaps(caps, tighten.caps), capsNow);
+        const row = await tx
+          .insert(ruleChanges)
+          .values({
+            userId,
+            kind: "SETTINGS",
+            before: beforeOf(current, caps, capsNow),
+            after: capsNow,
+            direction: "LOOSEN",
+            assertion: assertion as never,
+            changeHash,
+            effectiveAt: now,
+            appliedAt: now,
+            createdAt: now,
+          })
+          .returning({ id: ruleChanges.id });
+        await ledger.append("RULES_LOOSENED", { userId, ruleChangeId: row[0]!.id, changeHash, after: capsNow }, tx);
+      }
+      if (!isEmpty(later)) {
+        const effectiveAt = addMs(now, LOOSEN_DELAY_MS);
+        const row = await tx
+          .insert(ruleChanges)
+          .values({
+            userId,
+            kind: "SETTINGS",
+            before: beforeOf(current, caps, later),
+            after: later,
+            direction: "LOOSEN",
+            assertion: assertion as never,
+            changeHash,
+            effectiveAt,
+            createdAt: now,
+          })
+          .returning({ id: ruleChanges.id });
+        ruleChange = { id: row[0]!.id, effectiveAt };
+        await ledger.append("RULES_LOOSEN_PENDING", { userId, ruleChangeId: row[0]!.id, changeHash, effectiveAt: effectiveAt.toISOString(), after: later }, tx);
+      }
     }
     return s;
   });
@@ -251,7 +276,7 @@ export async function patchSettings(
   };
 }
 
-/** Scheduler (spec §15): apply signed loosenings whose effectiveAt has passed (settings, and budgets: budget/set.ts). */
+/** Scheduler (spec §15): apply signed loosenings whose effectiveAt has passed. */
 export async function applyDueRuleChanges(): Promise<number> {
   const db = getDb();
   const now = clock.now();
@@ -260,7 +285,7 @@ export async function applyDueRuleChanges(): Promise<number> {
     .from(ruleChanges)
     .where(
       and(
-        inArray(ruleChanges.kind, ["SETTINGS", BUDGETS_RULE_KIND]),
+        eq(ruleChanges.kind, "SETTINGS"),
         eq(ruleChanges.direction, "LOOSEN"),
         isNull(ruleChanges.appliedAt),
         isNull(ruleChanges.canceledAt),
@@ -272,11 +297,8 @@ export async function applyDueRuleChanges(): Promise<number> {
     if (!rc.assertion) continue; // never apply an unsigned loosening (I8)
     try {
       await db.transaction(async (tx) => {
-        if (rc.kind === BUDGETS_RULE_KIND) await applyBudgetChange(tx, rc.userId, rc.after as Record<string, number>, now);
-        else {
-          const { user, profile, caps } = await loadUser(tx, rc.userId);
-          await applyChangeSet(tx, rc.userId, settingsOf(user, profile.notificationMode), caps, rc.after as ChangeSet);
-        }
+        const { user, profile, caps } = await loadUser(tx, rc.userId);
+        await applyChangeSet(tx, rc.userId, settingsOf(user, profile.notificationMode), caps, rc.after as ChangeSet);
         await tx.update(ruleChanges).set({ appliedAt: now }).where(eq(ruleChanges.id, rc.id));
         await ledger.append("RULES_LOOSENED", { userId: rc.userId, ruleChangeId: rc.id, after: rc.after }, tx);
       });

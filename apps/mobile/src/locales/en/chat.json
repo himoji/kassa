@@ -52,8 +52,6 @@
   "loadingHistory": "Loading your conversation",
   "budgets": {
     "applied": "Budgets updated",
-    "pending_one": "{{count}} raise needs 24 hours to take effect.",
-    "pending_other": "{{count}} raises need 24 hours to take effect.",
     "failed": "Budgets not updated"
   }
 }
