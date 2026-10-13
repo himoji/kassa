@@ -65,7 +65,7 @@ async function mint(userId: string, typ: Typ, ttlS: number, claims: SessionClaim
   return { token, exp };
 }
 
-async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: string | undefined; claims: SessionClaims } | null> {
+async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: string | undefined; iat: number; claims: SessionClaims } | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
@@ -73,7 +73,7 @@ async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: stri
       currentDate: clock.now(),
     });
     if (payload.typ !== typ || typeof payload.sub !== "string") return null;
-    return { sub: payload.sub, jti: payload.jti, claims: claimsOf(payload) };
+    return { sub: payload.sub, jti: payload.jti, iat: payload.iat ?? 0, claims: claimsOf(payload) };
   } catch {
     return null;
   }
@@ -127,8 +127,8 @@ export async function refreshSession(refreshToken: string): Promise<SessionToken
   const v = await verify(refreshToken, "refresh");
   if (!v || !v.jti || spentRefresh.has(v.jti)) return null;
   spentRefresh.add(v.jti);
-  const u = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, v.sub)))[0];
-  if (!u) return null;
+  const u = (await getDb().select({ erasedAt: users.erasedAt, sessionsRevokedAt: users.sessionsRevokedAt }).from(users).where(eq(users.id, v.sub)))[0];
+  if (!u || revoked(v.iat, u.sessionsRevokedAt)) return null;
   if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
   // Rotation keeps the session's claims (a KassaLite session stays lite, a dev session stays dev).
   return nativeTokens(v.sub, v.claims);
@@ -165,22 +165,30 @@ function assertCookieOrigin(req: FastifyRequest): void {
   }
 }
 
-/** Resolve the caller: `Authorization: Bearer <access JWT>` first, then the session cookie. */
-export async function authenticate(req: FastifyRequest): Promise<string | null> {
-  return (await authenticateSession(req))?.userId ?? null;
+/** A token issued before the account's sessions were revoked (sign-in with a backup code) no longer counts. */
+function revoked(iat: number, revokedAt: Date | null): boolean {
+  return revokedAt !== null && iat < Math.floor(revokedAt.getTime() / 1000);
 }
 
-async function authenticateSession(req: FastifyRequest): Promise<{ userId: string; claims: SessionClaims } | null> {
+/** Resolve the caller: `Authorization: Bearer <access JWT>` first, then the session cookie. */
+export async function authenticate(req: FastifyRequest): Promise<string | null> {
+  const s = await authenticateSession(req);
+  if (!s) return null;
+  const u = (await getDb().select({ sessionsRevokedAt: users.sessionsRevokedAt }).from(users).where(eq(users.id, s.userId)))[0];
+  return u && !revoked(s.iat, u.sessionsRevokedAt) ? s.userId : null;
+}
+
+async function authenticateSession(req: FastifyRequest): Promise<{ userId: string; iat: number; claims: SessionClaims } | null> {
   const auth = req.headers.authorization;
   if (auth?.startsWith("Bearer ")) {
     const v = await verify(auth.slice(7).trim(), "access");
-    return v ? { userId: v.sub, claims: v.claims } : null;
+    return v ? { userId: v.sub, iat: v.iat, claims: v.claims } : null;
   }
   const cookie = req.cookies?.[SESSION_COOKIE];
   if (cookie) {
     const v = await verify(cookie, "session");
     if (v) assertCookieOrigin(req);
-    return v ? { userId: v.sub, claims: v.claims } : null;
+    return v ? { userId: v.sub, iat: v.iat, claims: v.claims } : null;
   }
   return null;
 }
@@ -204,6 +212,7 @@ export const LITE_DENIED: ReadonlySet<string> = new Set([
   "POST /api/auth/pair/start",
   "POST /api/devices/shortcut",
   "POST /api/auth/register/options",
+  "POST /api/auth/recovery-codes",
   "POST /api/business/purchase-orders/:id/sign",
   "POST /api/business/purchase-orders/:id/sign/options",
 ]);
@@ -218,8 +227,8 @@ export async function requireUser(req: FastifyRequest): Promise<void> {
   const s = await authenticateSession(req);
   if (!s) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
   const { userId } = s;
-  const u = (await getDb().select({ erasedAt: users.erasedAt }).from(users).where(eq(users.id, userId)))[0];
-  if (!u) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
+  const u = (await getDb().select({ erasedAt: users.erasedAt, sessionsRevokedAt: users.sessionsRevokedAt }).from(users).where(eq(users.id, userId)))[0];
+  if (!u || revoked(s.iat, u.sessionsRevokedAt)) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
   if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
   if (s.claims.scope === "lite" && LITE_DENIED.has(`${req.method} ${req.routeOptions.url ?? ""}`)) {
     throw new HttpProblem(428, "PASSKEY_REQUIRED", "Approve this in the Kassa web app with your passkey", {

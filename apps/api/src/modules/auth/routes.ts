@@ -40,6 +40,7 @@ import { putChallenge, takeChallenge } from "./challenges.ts";
 import { demoClaimUserId } from "./demoClaim.ts";
 import devRoutes, { devLoginAllowed } from "./dev.ts";
 import pairRoutes from "./pair.ts";
+import recoveryRoutes from "./recovery.ts";
 import { authenticate, endSession, refreshSession, revokeRefresh, sessionBody, startSession } from "./session.ts";
 
 
@@ -55,6 +56,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   await app.register(devRoutes);
   await app.register(pairRoutes);
+  await app.register(recoveryRoutes);
 
   app.post(
     "/auth/register/options",

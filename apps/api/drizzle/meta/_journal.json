@@ -64,6 +64,13 @@
       "when": 1791884575197,
       "tag": "0008_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791905320605,
+      "tag": "0009_recovery_codes",
+      "breakpoints": true
     }
   ]
 }
