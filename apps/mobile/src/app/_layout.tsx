@@ -96,6 +96,10 @@ function RootStack() {
         options={{ ...largeTitleOptions, headerShown: true, title: t("shortcut:title") }}
       />
       <Stack.Screen
+        name="pair-lite"
+        options={{ ...inlineTitleOptions, headerShown: true, title: t("lite:pairDevice.title") }}
+      />
+      <Stack.Screen
         name="verify/[id]"
         options={{ ...largeTitleOptions, headerShown: true, title: t("credit:verifyTitle") }}
       />

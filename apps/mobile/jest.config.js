@@ -13,6 +13,7 @@ module.exports = {
   },
   testPathIgnorePatterns: [
     "<rootDir>/ios/",
+    "<rootDir>/ios-lite/",
     "<rootDir>/android/",
     "<rootDir>/node_modules/",
     "<rootDir>/.expo/",

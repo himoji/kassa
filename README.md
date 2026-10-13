@@ -87,6 +87,7 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 - **Named tunnel (stable host, recommended):** set `CLOUDFLARED_TUNNEL=<tunnel name>` and `PHONE_HOST=<its hostname>` (route it once with `cloudflared tunnel route dns <name> <host>`). `RP_ID` stays the same across restarts, so passkeys keep working.
 - **Quick tunnel (default):** a random `trycloudflare.com` host that changes on every run, so passkeys made on it stop working after a restart. In this mode `dev:all` sets `DEV_LOGIN=true`: the API accepts `POST /auth/dev/login` and the sign-in screen shows a "Continue as dev user" button.
 - `bun run phone` is the older proxy-and-tunnel-only command; it shares the same tunnel and proxy code (`scripts/lib/`).
+- **KassaLite** (a build signed with a free Apple ID that shows your Apple Pay purchases): see [docs/KASSALITE.md](docs/KASSALITE.md); it needs the named tunnel above.
 
 ### AI configuration
 
