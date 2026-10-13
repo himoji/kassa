@@ -545,3 +545,49 @@ export const OnboardingConversationResponse = z.object({
   turns: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string(), ui: z.array(DataChoices).default([]) })),
 });
 export type OnboardingConversationResponse = z.infer<typeof OnboardingConversationResponse>;
+
+// ---------- KassaLite pairing + captures ----------
+
+/** POST /auth/pair/start (full session + passkey, 428 first) → a single-use code, valid 2 minutes. */
+export const PairStartRequest = z.object({ challengeId: z.string().optional(), assertion: AuthenticationResponseJSON.optional() });
+export type PairStartRequest = z.infer<typeof PairStartRequest>;
+export const PairStartResponse = z.object({
+  /** 8 characters, unambiguous alphabet; shown with the QR code. */
+  code: z.string().length(8),
+  expiresAt: IsoDateTime,
+  /** QR payload: kassalite://pair?code=…&server=… */
+  pairUrl: z.string(),
+});
+export type PairStartResponse = z.infer<typeof PairStartResponse>;
+
+/** POST /auth/pair/complete (KassaLite, no session) → a device-scoped native session + the Shortcut token. */
+export const PairCompleteRequest = z.object({ code: z.string().min(8).max(16), deviceName: z.string().max(60).optional() });
+export type PairCompleteRequest = z.infer<typeof PairCompleteRequest>;
+export const PairCompleteResponse = AuthSessionResponse.extend({
+  /** The iOS Shortcut "Transaction" automation's bearer token (POST /capture/shortcut); shown once. */
+  shortcutToken: z.string(),
+  deviceId: Uuid,
+  /** Stable HTTPS origin the Shortcut and the app should call. */
+  serverUrl: z.string(),
+});
+export type PairCompleteResponse = z.infer<typeof PairCompleteResponse>;
+
+/** GET /capture/recent?since= → the caller's latest captured purchases and nudges (KassaLite Activity). */
+export const RecentCapture = z.object({
+  id: Uuid,
+  source: z.string(),
+  merchant: z.string(),
+  amountMinor: z.number().int(),
+  currency: CurrencyCode,
+  homeAmountMinor: z.number().int().nullable(),
+  category: z.string().nullable(),
+  occurredAt: IsoDateTime,
+  createdAt: IsoDateTime,
+});
+export type RecentCapture = z.infer<typeof RecentCapture>;
+export const RecentCapturesResponse = z.object({
+  captures: z.array(RecentCapture),
+  nudges: z.array(z.object({ id: Uuid, title: z.string(), body: z.string(), createdAt: IsoDateTime })),
+  serverTime: IsoDateTime,
+});
+export type RecentCapturesResponse = z.infer<typeof RecentCapturesResponse>;
