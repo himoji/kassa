@@ -5,7 +5,7 @@
  *
  * - Ed25519 keys: private = base64 PKCS#8 DER, public = base64 SPKI DER
  *   (load with crypto.createPrivateKey({ key: Buffer.from(v, "base64"), format: "der", type: "pkcs8" })).
- * - ACCOUNT_ENC_KEY: 32 random bytes, base64 (AES-256-GCM).
+ * - ACCOUNT_ENC_KEY, USER_KEK: 32 random bytes, base64 (AES-256-GCM).
  * - Other secrets: random bytes, base64url.
  */
 import { generateKeyPairSync, randomBytes } from "node:crypto";
@@ -30,6 +30,7 @@ const lines = [
   `# Ledger checkpoint public key (derivable from the private key; for ledger:verify on another machine):`,
   `# LEDGER_CHECKPOINT_PUBLIC_KEY=${ledger.publicKey}`,
   `ACCOUNT_ENC_KEY=${randomBytes(32).toString("base64")}`,
+  `USER_KEK=${randomBytes(32).toString("base64")}`,
   `MOCK_HMAC_SECRET=${randomBytes(32).toString("base64url")}`,
   `DEMO_ADMIN_TOKEN=${randomBytes(24).toString("base64url")}`,
 ];

@@ -34,6 +34,7 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 | `fixtures` | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays |
 | `docs` | The documents above, the spec, decisions, and evidence |
 | `scripts` | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys) |
+| `api/index.ts`, `vercel.json` | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel" |
 | `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below |
 
 ## Run locally (without Docker)
@@ -132,6 +133,58 @@ bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; ex
 - Counts from the final `bun run test`: API 633 tests in 72 files (unit, invariant, attack, security and integration), mock world 279, shared 34, mobile Jest 410. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`).
+
+## Deploy on Vercel
+
+One Vercel project serves everything from one origin (needed for WebAuthn), the same layout as the Caddy setup:
+
+| Path | Served by |
+| --- | --- |
+| `/` | Static web export of `apps/mobile` (`apps/mobile/dist`) |
+| `/api/*`, `/mock/*` | One Vercel Function, `api/index.ts` (Bun runtime). It starts the API and the mock world on loopback inside the instance and proxies each request to the right one |
+
+Files: `vercel.json`, `api/index.ts`, `scripts/vercel-build.ts` (build command: migrations on production builds, then `expo export`), `.vercelignore`.
+
+Needs a Postgres database (PGlite needs a writable disk, which a function does not have). Any `postgres://` URL in `DATABASE_URL` works, for example Neon from the Vercel Marketplace.
+
+```bash
+npm i -g vercel
+vercel login
+vercel link                                   # from the repo root; framework preset "Other", root directory ./
+vercel integration add neon                   # or Dashboard → Storage; connect it to the project, it sets DATABASE_URL
+
+# Secrets: generated locally into a gitignored file, then sent to Vercel
+bun run keys:generate > .env.vercel
+grep -v '^#' .env.vercel | while IFS= read -r line; do
+  printf '%s' "${line#*=}" | vercel env add "${line%%=*}" production
+done
+
+# Settings (replace kassa-demo.vercel.app with your production domain)
+DOMAIN=kassa-demo.vercel.app
+printf '%s' "https://$DOMAIN" | vercel env add PUBLIC_ORIGIN production
+printf '%s' "$DOMAIN"         | vercel env add RP_ID production
+printf '%s' "https://$DOMAIN" | vercel env add MOCK_PUBLIC_URL production
+printf '%s' "https://$DOMAIN" | vercel env add KASSA_APP_URL production
+printf '%s' "true"            | vercel env add DEMO_ENABLED production
+printf '%s' "REPLAY"          | vercel env add AGENT_MODE production      # or LIVE plus ANTHROPIC_API_KEY (etc.)
+printf '%s' "fake"            | vercel env add ISSUING_PROVIDER production
+
+vercel deploy --prod                          # build runs the migrations, then exports the web app
+
+# Seed the demo data (Dana) once, through the deployed API
+. ./.env.vercel
+curl -X POST "https://$DOMAIN/api/demo/reset" -H "x-kassa-demo-token: $DEMO_ADMIN_TOKEN" \
+  -H 'content-type: application/json' -d '{}'
+curl "https://$DOMAIN/api/health"
+```
+
+Notes:
+
+- `RP_ID` must be the host the app is opened on. Passkeys made on one host do not work on another, so use the production domain, not a per-deployment preview URL.
+- Migrations run only on production builds (`VERCEL_ENV=production`). Set `MIGRATE_ON_BUILD=true` for a preview environment that has its own database.
+- The mock world keeps its state (bank transfers, QR payments, shop orders) in memory. A cold start, or a second instance under load, starts it empty; `POST /api/demo/reset` puts the API and the mock world back in step.
+- Function timers only run while an instance is awake, so the 15 s scheduler and the mock bank tick also run, at most once per interval, after incoming requests.
+- `DEV_LOGIN` does not work on Vercel (production mode); sign in with a passkey.
 
 ## Docker Compose (optional deployment path)
 
