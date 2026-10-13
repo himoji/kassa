@@ -26,3 +26,4 @@ export * from "./businessDto.ts";
 export * from "./commerceDto.ts";
 // data import / export
 export * from "./dataportDto.ts";
+export * from "./payeeAccount.ts";

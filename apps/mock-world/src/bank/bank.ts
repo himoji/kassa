@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { convertMinor, crossRate, isSupportedCurrency, isValidIban, normalizeIban, parseRate } from "@kassa/shared";
+import { convertMinor, crossRate, isSupportedCurrency, normalizeIban, parseRate, validatePayeeAccount, type PayeeAccountFields } from "@kassa/shared";
 
 import type { Clock } from "../clock.ts";
 import type { WebhookSink } from "../webhooks.ts";
@@ -67,14 +67,24 @@ export interface Quote {
   simulated: true;
 }
 
+/**
+ * Wise recipient types the mock pays out to: IBAN (SEPA and other IBAN countries), Alipay and UnionPay card (CNY),
+ * ABA / ACH (USD). Field names are Wise's.
+ */
+export type RecipientAccount =
+  | { type: "iban"; iban: string }
+  | { type: "chinese_alipay"; accountNumber: string }
+  | { type: "chinese_card"; cardNumber: string }
+  | { type: "aba"; abartn: string; accountNumber: string; accountType: "CHECKING" | "SAVINGS" };
+
 export interface Recipient {
   id: number;
   profile: number;
   accountHolderName: string;
-  type: "iban";
+  type: RecipientAccount["type"];
   currency: string;
   country: string;
-  details: { legalType: "PRIVATE" | "BUSINESS"; iban: string };
+  details: { legalType: "PRIVATE" | "BUSINESS" } & Omit<RecipientAccount, "type">;
   active: true;
   simulated: true;
 }
@@ -111,13 +121,35 @@ export interface QuoteInput {
   routeId?: string;
 }
 
-export interface RecipientInput {
+export type RecipientInput = {
   currency: string;
   profile: number;
   accountHolderName: string;
   legalType: "PRIVATE" | "BUSINESS";
-  iban: string;
+} & ({ iban: string; account?: undefined } | { account: RecipientAccount; iban?: undefined });
+
+/** The shared payee-account fields for a Wise recipient, so the mock validates exactly what Kassa validates. */
+function payeeFields(a: RecipientAccount): PayeeAccountFields {
+  switch (a.type) {
+    case "iban":
+      return { scheme: "IBAN", iban: a.iban };
+    case "chinese_alipay":
+      return { scheme: "CN_ALIPAY", alipayId: a.accountNumber };
+    case "chinese_card":
+      return { scheme: "CN_UNIONPAY", cardNumber: a.cardNumber };
+    case "aba":
+      return { scheme: "US_ACH", routingNumber: a.abartn, accountNumber: a.accountNumber, accountType: a.accountType };
+  }
 }
+
+const RECIPIENT_ERRORS: Record<string, [string, string]> = {
+  IBAN_INVALID: ["IBAN is not valid", "details.iban"],
+  ALIPAY_ID_INVALID: ["Alipay ID must be an email or a mainland China mobile number", "details.accountNumber"],
+  UNIONPAY_CARD_INVALID: ["UnionPay card number is not valid", "details.cardNumber"],
+  ACH_ROUTING_INVALID: ["ABA routing number is not valid", "details.abartn"],
+  ACH_ACCOUNT_INVALID: ["Account number must be 4 to 17 digits", "details.accountNumber"],
+  SCHEME_CURRENCY_MISMATCH: ["This recipient type cannot receive that currency", "currency"],
+};
 
 export interface TransferInput {
   targetAccount: number;
@@ -279,17 +311,23 @@ export class MockBank {
   createRecipient(input: RecipientInput): Recipient {
     this.wallet(input.profile);
     if (!isSupportedCurrency(input.currency)) throw new BankError(422, "NOT_VALID", `Unsupported currency ${input.currency}`, "currency");
-    const iban = normalizeIban(input.iban);
-    // ISO 13616 structure + ISO 7064 MOD 97-10 check digits.
-    if (!isValidIban(iban)) throw new BankError(422, "NOT_VALID", "IBAN is not valid", "details.iban");
+    const account: RecipientAccount = input.account ?? { type: "iban", iban: input.iban };
+    // ISO 13616 + MOD 97-10 for IBANs, Luhn for UnionPay, the ABA checksum, and the currency each type pays out in.
+    const problem = validatePayeeAccount(payeeFields(account), input.currency);
+    if (problem) {
+      const [message, path] = RECIPIENT_ERRORS[problem.code] ?? ["Account details are not valid", "details"];
+      throw new BankError(422, "NOT_VALID", message, path);
+    }
+    const { type, ...fields } = account;
+    const details = type === "iban" ? { iban: normalizeIban(account.iban) } : fields;
     const r: Recipient = {
       id: this.nextId++,
       profile: input.profile,
       accountHolderName: input.accountHolderName,
-      type: "iban",
+      type,
       currency: input.currency,
-      country: iban.slice(0, 2),
-      details: { legalType: input.legalType, iban },
+      country: account.type === "iban" ? normalizeIban(account.iban).slice(0, 2) : account.type === "aba" ? "US" : "CN",
+      details: { legalType: input.legalType, ...details } as Recipient["details"],
       active: true,
       simulated: true,
     };

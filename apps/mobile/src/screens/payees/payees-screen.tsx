@@ -1,21 +1,17 @@
-import { CurrencyCode, PayeeKind, type PayeeDto } from "@kassa/shared";
+import type { PayeeDto } from "@kassa/shared";
 import { Link, Stack } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Pressable, View } from "react-native";
 
-import { useCreatePayee, usePayees } from "@/api/hooks/payees";
+import { usePayees } from "@/api/hooks/payees";
 import { RowGroup } from "@/components/row-group";
-import { errorText } from "@/components/kassa/error-text";
-import { SettingPicker } from "@/components/kassa/native-controls";
 import { PayeeStatusChip } from "@/components/kassa/payee-status";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
-import { Box, Button, Card, Icon, Input, Sheet, Text, toast } from "@/components/ui";
-import { copyToClipboard } from "@/lib/clipboard";
-import { countryOptions } from "@/lib/countries";
-import { currencyCodes, useFormat } from "@/lib/format";
-import { haptics } from "@/lib/haptics";
+import { Box, Card, Icon, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
+
+import { AddPayeeSheet } from "./add-payee-sheet";
 
 function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | undefined }) {
   const t = useKassaT();
@@ -55,113 +51,7 @@ function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | u
           ) : null}
         </Pressable>
       </Link.Trigger>
-      {payee.accountMissing ? null : (
-        <Link.Menu>
-          <Link.MenuAction
-            title={t("payees:copyAccount")}
-            icon="doc.on.doc"
-            onPress={() => void copyToClipboard(payee.accountMasked, { toast: t("payees:copied") })}
-          />
-        </Link.Menu>
-      )}
     </Link>
-  );
-}
-
-function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const t = useKassaT();
-  const create = useCreatePayee();
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<PayeeKind>("PERSON");
-  const [account, setAccount] = useState("");
-  const [country, setCountry] = useState("HU");
-  const [currency, setCurrency] = useState<string>("HUF");
-  const [error, setError] = useState<string | null>(null);
-  const f = useFormat();
-  const countries = useMemo(() => countryOptions(), []);
-  const currencies = useMemo(
-    () => currencyCodes().map((c) => ({ value: c, label: `${c} · ${f.currencyName(c)}` })),
-    [f]
-  );
-
-  const submit = async () => {
-    setError(null);
-    // ISO 3166-1 alpha-2 country, ISO 4217 currency (validated again by the server).
-    const cc = country.trim().toUpperCase();
-    if (
-      !name.trim() ||
-      account.trim().length < 4 ||
-      !/^[A-Z]{2}$/.test(cc) ||
-      !CurrencyCode.safeParse(currency).success
-    ) {
-      setError(t("payees:add.invalid"));
-      return;
-    }
-    try {
-      await create.mutateAsync({
-        name: name.trim(),
-        kind,
-        account: account.replace(/\s+/g, ""),
-        country: cc,
-        currency,
-      });
-      haptics.success();
-      toast.show({ title: t("payees:add.created"), description: t("payees:add.coolingNote") });
-      onClose();
-    } catch (err) {
-      haptics.error();
-      setError(errorText(t, err));
-    }
-  };
-
-  return (
-    <Sheet visible={visible} onClose={onClose} detents={["full"]}>
-      <Box p={5} gap={4}>
-        <Text variant="heading">{t("payees:add.title")}</Text>
-        <Text variant="caption">{t("payees:add.coolingNote")}</Text>
-        <Input
-          label={t("payees:add.name")}
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-        />
-        <SettingPicker
-          label={t("payees:add.kind")}
-          value={kind}
-          options={PayeeKind.options.map((k) => ({ value: k, label: t(`payees:kind.${k}`) }))}
-          onChange={setKind}
-        />
-        <Input
-          label={t("payees:add.account")}
-          value={account}
-          onChangeText={setAccount}
-          autoCapitalize="characters"
-        />
-        <View style={{ marginHorizontal: -16 }}>
-          <SettingPicker
-            label={t("payees:add.country")}
-            value={country}
-            options={countries}
-            onChange={setCountry}
-            testID="payee-country"
-          />
-          <SettingPicker
-            label={t("payees:add.currency")}
-            value={currency}
-            options={currencies}
-            onChange={setCurrency}
-            testID="payee-currency"
-          />
-        </View>
-        {error ? <Text color="destructive">{error}</Text> : null}
-        <Button size="lg" onPress={() => void submit()} loading={create.isPending}>
-          {t("payees:add.submit")}
-        </Button>
-        <Button variant="ghost" onPress={onClose}>
-          {t("common:cancel")}
-        </Button>
-      </Box>
-    </Sheet>
   );
 }
 
