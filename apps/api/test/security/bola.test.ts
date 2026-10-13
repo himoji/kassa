@@ -10,7 +10,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
 import { ledgerEntries, mandates, notifications, payments, placeholderMaps, proposals, transactions } from "../../src/db/schema.ts";
-import { agentMessages } from "../../src/db/schema.intel.ts";
+import { agentMessages, conversations, onboardingDrafts } from "../../src/db/schema.intel.ts";
+import { claimConversation, loadPlaceholders } from "../../src/modules/agent/history.ts";
 import { notify } from "../../src/modules/notifications/service.ts";
 import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
@@ -58,7 +59,7 @@ beforeAll(async () => {
       .returning({ id: transactions.id })
   )[0]!.id;
   await getDb().insert(agentMessages).values({ conversationId: A.conversationId, userId: a.userId, channel: "agent", seq: 0, message: { role: "user", content: "hi from payee_1" }, createdAt: new Date() });
-  await getDb().insert(placeholderMaps).values({ conversationId: A.conversationId, placeholder: "payee_1", kind: "PAYEE", realRef: payee.id });
+  await getDb().insert(placeholderMaps).values({ conversationId: A.conversationId, userId: a.userId, placeholder: "payee_1", kind: "PAYEE", realRef: payee.id });
 
   const b = await createUserWithPasskey();
   B = { userId: b.userId, auth: b.auth, h: await bearer(b.userId) };
@@ -133,5 +134,74 @@ describe("user B cannot reach user A's objects", () => {
       payload: { payeeIds: [A.payeeId], categories: ["tuition"], currency: "EUR", maxPerPaymentMinor: 1000, maxPerPeriodMinor: 1000, period: "MONTH", validUntil: null },
     });
     expect(res.statusCode).toBe(404);
+  });
+});
+
+/** One-file multipart body for POST /agent/documents. */
+function multipartDoc(fields: Record<string, string>): { payload: Buffer; headers: Record<string, string> } {
+  const boundary = `----kassa${randomUUID()}`;
+  const parts = Object.entries(fields).map(([k, v]) => `--${boundary}\r\nContent-Disposition: form-data; name="${k}"\r\n\r\n${v}\r\n`);
+  parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="bill.txt"\r\nContent-Type: text/plain\r\n\r\nInvoice 10 EUR\r\n--${boundary}--\r\n`);
+  return { payload: Buffer.from(parts.join("")), headers: { "content-type": `multipart/form-data; boundary=${boundary}` } };
+}
+
+describe("conversation ownership across channels (conversations table)", () => {
+  it("an id is one user's and one channel's: cross-user and cross-channel reuse answer 404 and are audited", async () => {
+    const aH = await bearer(A.userId);
+    // A's agent conversation cannot be continued as A's onboarding chat (nor B's).
+    for (const h of [aH, B.h]) {
+      const res = await app().inject({ method: "POST", url: "/api/onboarding/message", headers: h, payload: { conversationId: A.conversationId, text: "hi" } });
+      expect(res.statusCode).toBe(404);
+    }
+    // An onboarding conversation of A cannot be used for the agent chat, by A or by B.
+    const onboardingId = randomUUID();
+    await getDb().insert(onboardingDrafts).values({ conversationId: onboardingId, userId: A.userId, draft: { displayName: null, homeCurrency: "KZT", region: null, preset: null, moneyMode: null, notificationMode: null, incomes: [], obligations: [], budgets: [], cards: [] }, updatedAt: new Date() });
+    for (const h of [aH, B.h]) {
+      const res = await app().inject({ method: "POST", url: "/api/agent/message", headers: h, payload: { conversationId: onboardingId, text: "hello" } });
+      expect(res.statusCode).toBe(404);
+    }
+    const probes = (await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "AUTHZ_DENIED"))).map((r) => r.payload as { resourceId?: string });
+    expect(probes.filter((p) => p.resourceId === onboardingId).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("POST /agent/documents with another user's conversationId: 404, nothing stored", async () => {
+    const { payload, headers } = multipartDoc({ conversationId: A.conversationId, kind: "invoice" });
+    const res = await app().inject({ method: "POST", url: "/api/agent/documents", headers: { ...B.h, ...headers }, payload });
+    expect(res.statusCode).toBe(404);
+    const mine = multipartDoc({ conversationId: randomUUID(), kind: "invoice" });
+    const ok = await app().inject({ method: "POST", url: "/api/agent/documents", headers: { ...B.h, ...mine.headers }, payload: mine.payload });
+    expect(ok.statusCode, ok.body).toBe(200);
+  });
+
+  it("two users claiming the same new id at once: exactly one wins, the other is refused", async () => {
+    const id = randomUUID();
+    const results = await Promise.allSettled([claimConversation(id, A.userId, "agent"), claimConversation(id, B.userId, "agent")]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+    const rows = await getDb().select().from(conversations).where(eq(conversations.id, id));
+    expect(rows).toHaveLength(1);
+    // The loser cannot take it over afterwards either.
+    const loser = rows[0]!.userId === A.userId ? B.userId : A.userId;
+    await expect(claimConversation(id, loser, "agent")).rejects.toThrow();
+  });
+
+  it("history endpoint: B cannot read A's messages; A reads them rehydrated; lists are per user", async () => {
+    const res = await app().inject({ method: "GET", url: `/api/agent/conversations/${A.conversationId}/messages`, headers: B.h });
+    expect(res.statusCode).toBe(404);
+    expect(res.body).not.toContain("University of Alice");
+    const mine = await app().inject({ method: "GET", url: `/api/agent/conversations/${A.conversationId}/messages`, headers: await bearer(A.userId) });
+    expect(mine.statusCode, mine.body).toBe(200);
+    expect(mine.json().messages[0]).toMatchObject({ role: "user", parts: [{ type: "text", text: "hi from University of Alice" }] });
+    const list = await app().inject({ method: "GET", url: "/api/agent/conversations", headers: B.h });
+    expect(list.statusCode).toBe(200);
+    expect(list.body).not.toContain(A.conversationId);
+    const onboarding = await app().inject({ method: "GET", url: "/api/onboarding/conversation", headers: B.h });
+    expect(onboarding.statusCode).toBe(200);
+    expect(onboarding.body).not.toContain(A.conversationId);
+  });
+
+  it("placeholder maps are scoped to their owner", async () => {
+    expect(await loadPlaceholders(A.conversationId, B.userId)).toEqual([]);
+    expect((await loadPlaceholders(A.conversationId, A.userId)).map((e) => e.realRef)).toEqual([A.payeeId]);
   });
 });

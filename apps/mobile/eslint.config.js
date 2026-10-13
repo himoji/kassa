@@ -7,11 +7,27 @@ module.exports = defineConfig([
   expoConfig,
   prettierRecommended,
   {
+    // public/sw.js is a plain-JS service worker: it runs in ServiceWorkerGlobalScope, not in the app.
+    files: ["public/sw.js"],
+    languageOptions: {
+      globals: {
+        self: "readonly",
+        caches: "readonly",
+        clients: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+        Response: "readonly",
+        Request: "readonly",
+      },
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".expo/**",
       "dist/**",
       "ios/**",
+      "ios-lite/**",
       "android/**",
       "coverage/**",
       "modules/**",

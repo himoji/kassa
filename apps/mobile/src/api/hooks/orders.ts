@@ -13,11 +13,10 @@ import {
 } from "@kassa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { signWithPasskey } from "@/lib/passkeys";
-
 import { api } from "../client";
 import { KassaApiError } from "../errors";
 import { keys, moneyKeys } from "../keys";
+import { signPasskeyChallenge } from "../passkey-sign";
 
 export class OrderIntegrityError extends Error {
   constructor() {
@@ -67,7 +66,9 @@ export function useApproveOrder(proposalId: string) {
   return useMutation({
     mutationFn: async (view: OrderView) => {
       if (!view.webauthnOptions || !verifyOrderIntegrity(view)) throw new OrderIntegrityError();
-      const assertion: AuthenticationResponseJSON = await signWithPasskey(view.webauthnOptions);
+      const assertion: AuthenticationResponseJSON = await signPasskeyChallenge(
+        view.webauthnOptions
+      );
       try {
         return await api.request(`/orders/${encodeURIComponent(proposalId)}/approve`, {
           json: { assertion },

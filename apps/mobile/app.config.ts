@@ -6,7 +6,7 @@ import path from "node:path";
 // resolves only literal paths (no extension probing). tsc accepts it via allowImportingTsExtensions.
 import config from "./readynative.config.ts";
 
-type Variant = "dev" | "preview" | "prod";
+type Variant = "dev" | "preview" | "prod" | "lite";
 
 // Expo's config loader compiles this file to CommonJS, where `__dirname` exists; `doctor`
 // imports it through node's native type stripping (ESM), where only `import.meta` does.
@@ -15,10 +15,32 @@ const APP_ROOT = typeof __dirname !== "undefined" ? __dirname : import.meta.dirn
 
 const VARIANT = (process.env.APP_VARIANT ?? "dev") as Variant;
 
+/**
+ * KassaLite (docs/KASSALITE.md): a build signed with a free Apple ID (Personal Team). Free teams cannot use
+ * Push Notifications, Associated Domains, Apple Pay, Sign in with Apple ... so this variant carries none of
+ * those entitlements, no Stripe and no passkeys, and its routes come from `src/app-lite`.
+ */
+const LITE = VARIANT === "lite";
+const LITE_BUNDLE_ID = "app.kassa.lite";
+const LITE_SCHEME = "kassalite";
+/** Plugins the lite build must not apply (expo-notifications adds `aps-environment`: remote push). */
+const LITE_DROPPED_PLUGINS = new Set([
+  "expo-notifications",
+  "@stripe/stripe-react-native",
+  "expo-dev-client",
+]);
+/**
+ * iCloud link of the "Kassa Apple Pay" Shortcut template that the lite Settings screen opens (Settings →
+ * Install Shortcut). Publish your own copy of the Shortcut (Shortcuts app → Share → Copy iCloud Link) and put
+ * its link in KASSALITE_SHORTCUT_TEMPLATE_URL (or here). Empty: the screen only shows the manual steps.
+ */
+const SHORTCUT_TEMPLATE_URL = process.env.KASSALITE_SHORTCUT_TEMPLATE_URL ?? "";
+
 const variantMeta: Record<Variant, { nameSuffix: string; idSuffix: string }> = {
   dev: { nameSuffix: " (Dev)", idSuffix: ".dev" },
   preview: { nameSuffix: " (Preview)", idSuffix: ".preview" },
   prod: { nameSuffix: "", idSuffix: "" },
+  lite: { nameSuffix: "", idSuffix: "" },
 };
 
 const { nameSuffix, idSuffix } = variantMeta[VARIANT] ?? variantMeta.dev;
@@ -129,9 +151,10 @@ const linksDomain = config.links.domain.trim();
 // `webcredentials:` lets native passkeys use that domain as the WebAuthn RP ID (the API's RP_ID must
 // equal it; `gen:links` already lists the app under `webcredentials` in the AASA file). Without a
 // domain the native app cannot create passkeys at all (README "Passkeys on native").
-const associatedDomains = linksDomain
-  ? { associatedDomains: [`applinks:${linksDomain}`, `webcredentials:${linksDomain}`] }
-  : {};
+const associatedDomains =
+  linksDomain && !LITE
+    ? { associatedDomains: [`applinks:${linksDomain}`, `webcredentials:${linksDomain}`] }
+    : {};
 const intentFilters = linksDomain
   ? {
       intentFilters: [
@@ -149,7 +172,8 @@ const intentFilters = linksDomain
 // the buyer pastes it into `readynative.config.ts` (app.easProjectId), CI sets EAS_PROJECT_ID.
 // `updates.url` is derived from it and stays absent until then (an empty url breaks expo-updates).
 const easProjectId = (process.env.EAS_PROJECT_ID ?? config.app.easProjectId ?? "").trim();
-const updates = easProjectId ? { updates: { url: `https://u.expo.dev/${easProjectId}` } } : {};
+const updates =
+  easProjectId && !LITE ? { updates: { url: `https://u.expo.dev/${easProjectId}` } } : {};
 
 // iOS icon: an Icon Composer file (layered, Liquid Glass) at `assets/expo.icon` wins when you add
 // one; otherwise iOS uses the same `icon` PNG as everything else, which `bun run gen:assets`
@@ -161,20 +185,20 @@ const iosIcon = fs.existsSync(path.join(APP_ROOT, "assets", "expo.icon"))
 
 const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConfig => ({
   ...base,
-  name: `${config.app.name}${nameSuffix}`,
+  name: LITE ? "KassaLite" : `${config.app.name}${nameSuffix}`,
   slug: config.app.slug,
   // Expo account / organisation that owns the EAS project; omitted when unset (personal account).
   owner: config.app.owner || undefined,
   version: base.version ?? "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
-  scheme: config.app.scheme,
+  scheme: LITE ? LITE_SCHEME : config.app.scheme,
   userInterfaceStyle: "automatic",
   runtimeVersion: { policy: "appVersion" },
   ...updates,
   ios: {
     ...iosIcon,
-    bundleIdentifier: `${config.app.ios.bundleId}${idSuffix}`,
+    bundleIdentifier: LITE ? LITE_BUNDLE_ID : `${config.app.ios.bundleId}${idSuffix}`,
     ...associatedDomains,
     infoPlist: {
       // Only HTTPS / OS-provided crypto: answers App Store Connect's export-compliance question
@@ -190,7 +214,7 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
     predictiveBackGestureEnabled: false,
-    package: `${config.app.android.package}${idSuffix}`,
+    package: LITE ? LITE_BUNDLE_ID : `${config.app.android.package}${idSuffix}`,
     ...intentFilters,
   },
   web: {
@@ -198,7 +222,8 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
-    "expo-router",
+    // Lite: the router reads its routes from src/app-lite (the plugin option is `root`).
+    LITE ? ["expo-router", { root: "./src/app-lite" }] : "expo-router",
     [
       "expo-splash-screen",
       {
@@ -213,15 +238,19 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
     "expo-secure-store",
     // Pay in place (spec §11): PaymentSheet. Apple Pay is out of scope (spec §22).
     ["@stripe/stripe-react-native", { enableGooglePay: false }],
+    // Lite: Face ID lock (NSFaceIDUsageDescription).
+    ["expo-local-authentication", { faceIDPermission: "Allow KassaLite to unlock with Face ID." }],
     // iOS 27: adopt the UIScene life cycle (see the plugin header).
     "./plugins/with-scene-lifecycle.js",
   ],
   experiments: {
-    typedRoutes: true,
+    // Lite routes live in another directory: do not regenerate .expo/types from them.
+    typedRoutes: !LITE,
     reactCompiler: true,
   },
   extra: {
     appVariant: VARIANT,
+    shortcutTemplateUrl: SHORTCUT_TEMPLATE_URL,
     eas: {
       // Empty until the buyer links their own EAS project (see `easProjectId` above).
       projectId: easProjectId,
@@ -234,5 +263,15 @@ function tracksUsers(c: unknown): boolean {
   return (c as { features?: { tracking?: unknown } }).features?.tracking === true;
 }
 
-export default (ctx: { config: Partial<ExpoConfig> }): ExpoConfig =>
-  applyModulePatch(baseConfig(ctx), applyTrackingPolicy(readModuleAppPatch(), tracksUsers(config)));
+/** Lite keeps only the plugins it needs: Stripe / dev-client are dropped, Face ID is added. */
+function forVariant(expoConfig: ExpoConfig): ExpoConfig {
+  const plugins = (expoConfig.plugins ?? []).filter((p) =>
+    LITE ? !LITE_DROPPED_PLUGINS.has(pluginId(p)) : pluginId(p) !== "expo-local-authentication"
+  );
+  return { ...expoConfig, plugins };
+}
+
+export default (ctx: { config: Partial<ExpoConfig> }): ExpoConfig => {
+  const patch = applyTrackingPolicy(readModuleAppPatch(), tracksUsers(config));
+  return forVariant(applyModulePatch(baseConfig(ctx), patch));
+};

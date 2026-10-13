@@ -112,6 +112,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     stop: { requested: false, reason: null },
     proposals: [],
     business,
+    awaitingUser: null,
   };
   const tools = buildTools(ctx);
 
@@ -133,6 +134,8 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
 
   let stopAtStep: number | null = null;
   const stopAfterExplanation: StopCondition<ToolSet> = ({ steps }) => stopAtStep !== null && steps.length > stopAtStep;
+  // A picker (ask_*) is on screen: end the turn and wait for the user's answer.
+  const stopForPicker: StopCondition<ToolSet> = () => Boolean(ctx.awaitingUser);
 
   const result = streamText({
     model,
@@ -141,7 +144,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     tools,
     // Live models retry 429 / 5xx themselves (ai/retry.ts: AI_MAX_RETRIES, backoff + jitter, Retry-After).
     maxRetries: SDK_MAX_RETRIES,
-    stopWhen: [isStepCount(MAX_TOOL_STEPS + 1), stopAfterExplanation],
+    stopWhen: [isStepCount(MAX_TOOL_STEPS + 1), stopAfterExplanation, stopForPicker],
     prepareStep: ({ stepNumber }) => {
       if (ctx.stop.requested && stopAtStep === null) stopAtStep = stepNumber;
       // After REFUSE / COOLING, or once 8 tool rounds are used: text only.

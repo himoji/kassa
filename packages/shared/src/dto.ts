@@ -398,6 +398,15 @@ export type ProposalSummary = z.infer<typeof ProposalSummary>;
 export const AgentMessageRequest = z.object({
   conversationId: Uuid,
   text: z.string().min(1).max(4000),
+  /** (added 2026-10-13) The user's pick for a `data-choices` part (appDto ChoiceAnswer); validated server-side. */
+  choice: z
+    .object({
+      id: z.string().min(1).max(64),
+      optionId: z.string().min(1).max(32).optional(),
+      optionIds: z.array(z.string().min(1).max(32)).max(8).optional(),
+      value: z.string().max(40).optional(),
+    })
+    .optional(),
 });
 export type AgentMessageRequest = z.infer<typeof AgentMessageRequest>;
 

@@ -1,11 +1,12 @@
-import { CaptureEventRequest, CaptureEventResponse, SettlementEventRequest, SettlementEventResponse, sha256Base64url } from "@kassa/shared";
-import { and, eq, isNull } from "drizzle-orm";
+import { CaptureEventRequest, CaptureEventResponse, RecentCapturesResponse, SettlementEventRequest, SettlementEventResponse, sha256Base64url } from "@kassa/shared";
+import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { devices } from "../../db/schema.ts";
+import { devices, notifications, transactions } from "../../db/schema.ts";
+import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { captureNudge } from "./nudge.ts";
@@ -14,7 +15,8 @@ import { ingestCapture, reconcileSettlement, SettlementError } from "./service.t
 
 /*
  * POST /capture/event (app: notification simulator, text, voice transcript), POST /capture/settlement
- * (statement line / demo), POST /capture/shortcut (iOS Shortcut, per-device bearer token, I13).
+ * (statement line / demo), POST /capture/shortcut (iOS Shortcut, per-device bearer token, I13), GET /capture/recent
+ * (the caller's own latest captures + nudges; KassaLite's Activity tab polls it).
  * Triggers never approve (I6): these routes only log spending.
  */
 
@@ -66,6 +68,51 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         ? ingestCapture(userId, { source: body.source, rawText: body.rawText })
         : ingestCapture(userId, { source: body.source, fields: body.fields });
     });
+
+  app.get(
+    "/capture/recent",
+    { preHandler: requireUser, schema: { querystring: z.object({ since: z.iso.datetime().optional(), limit: z.coerce.number().int().min(1).max(100).default(50) }), response: { 200: RecentCapturesResponse } } },
+    async (req) => {
+      const userId = userIdOf(req);
+      const { since, limit } = req.query;
+      const after = since ? new Date(since) : null;
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.userId, userId),
+            inArray(transactions.source, ["SHORTCUT", "NOTIF_SIM", "TEXT", "VOICE", "SCREENSHOT"]),
+            isNull(transactions.mergedIntoId),
+            after ? gt(transactions.createdAt, after) : undefined,
+          ),
+        )
+        .orderBy(desc(transactions.createdAt))
+        .limit(limit);
+      const nudges = await db
+        .select({ id: notifications.id, title: notifications.title, body: notifications.body, createdAt: notifications.createdAt })
+        .from(notifications)
+        .where(and(eq(notifications.userId, userId), after ? gt(notifications.createdAt, after) : undefined))
+        .orderBy(desc(notifications.createdAt))
+        .limit(20);
+      return {
+        captures: rows.map((t) => ({
+          id: t.id,
+          source: t.source,
+          merchant: t.merchantRaw,
+          amountMinor: t.amountMinor,
+          currency: t.currency,
+          homeAmountMinor: t.homeAmountMinor,
+          category: t.category,
+          occurredAt: t.occurredAt.toISOString(),
+          createdAt: t.createdAt.toISOString(),
+        })),
+        nudges: nudges.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),
+        serverTime: clock.now().toISOString(),
+      };
+    },
+  );
 
   app.post("/capture/settlement", { preHandler: requireUser, schema: { body: SettlementEventRequest, response: { 200: SettlementEventResponse } } }, async (req) => {
       try {

@@ -175,7 +175,8 @@ const StageDocumentBody = z.object({
 const admin = { onRequest: async (req: FastifyRequest) => assertAdmin(req) };
 
 const routes: FastifyPluginAsyncZod = async (app) => {
-  app.get("/demo/clock", { schema: { response: { 200: DemoStateResponse } } }, async () => {
+  // logLevel warn: mock-world polls this endpoint, keep it out of the request log.
+  app.get("/demo/clock", { logLevel: "warn", schema: { response: { 200: DemoStateResponse } } }, async () => {
     assertDemoEnabled();
     return state();
   });
