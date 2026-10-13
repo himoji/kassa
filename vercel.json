@@ -9,13 +9,25 @@
   "functions": {
     "api/index.ts": {
       "maxDuration": 300,
-      "includeFiles": "{apps/api/src/**,apps/api/drizzle/**,apps/mock-world/src/**,packages/shared/src/**,fixtures/**}"
+      "includeFiles": "{apps/api/src/**,apps/api/drizzle/**,apps/mock-world/src/**,packages/shared/src/**,fixtures/**,node_modules/@napi-rs/canvas/**,node_modules/@napi-rs/canvas-linux-x64-gnu/**,node_modules/pdfjs-dist/legacy/build/**}"
     }
   },
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api" },
-    { "source": "/mock", "destination": "/api" },
-    { "source": "/mock/:path*", "destination": "/api" },
-    { "source": "/:path*", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/mock",
+      "destination": "/api"
+    },
+    {
+      "source": "/mock/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
   ]
 }
