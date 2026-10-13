@@ -8,7 +8,7 @@ import { api } from "@/api/client";
 import { signWithPasskey } from "@/lib/passkeys";
 import { useSessionStore } from "@/stores/session";
 
-import { signPasskeyChallenge } from "../passkey-sign";
+import { armDevPasskey, signPasskeyChallenge } from "../passkey-sign";
 
 jest.mock("@/api/client", () => ({ api: { request: jest.fn() } }));
 jest.mock("@/lib/passkeys", () => ({ signWithPasskey: jest.fn() }));
@@ -63,6 +63,25 @@ describe("signPasskeyChallenge", () => {
     useSessionStore.getState().setDev(false);
     jest.mocked(signWithPasskey).mockResolvedValue(PLATFORM_ASSERTION);
 
+    await expect(signPasskeyChallenge(OPTIONS)).resolves.toBe(PLATFORM_ASSERTION);
+    expect(api.request).not.toHaveBeenCalled();
+  });
+
+  it("an armed dev passkey (Dev button) signs the next challenge on the server, once, in a normal session", async () => {
+    jest.mocked(api.request).mockResolvedValue({ assertion: DEV_ASSERTION });
+    jest.mocked(signWithPasskey).mockResolvedValue(PLATFORM_ASSERTION);
+
+    armDevPasskey();
+    await expect(signPasskeyChallenge(OPTIONS)).resolves.toBe(DEV_ASSERTION);
+    await expect(signPasskeyChallenge(OPTIONS)).resolves.toBe(PLATFORM_ASSERTION);
+    expect(api.request).toHaveBeenCalledTimes(1);
+    expect(signWithPasskey).toHaveBeenCalledTimes(1);
+  });
+
+  it("an armed dev passkey expires if no challenge comes", async () => {
+    jest.mocked(signWithPasskey).mockResolvedValue(PLATFORM_ASSERTION);
+
+    armDevPasskey(Date.now() - 60_000);
     await expect(signPasskeyChallenge(OPTIONS)).resolves.toBe(PLATFORM_ASSERTION);
     expect(api.request).not.toHaveBeenCalled();
   });

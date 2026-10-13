@@ -26,6 +26,8 @@
     "HANDOFF": "Pay it yourself",
     "REFUSE": "Refused"
   },
+  "devPasskey": "Dev",
+  "devPasskeyLabel": "Skip the passkey (dev build): the server's dev key signs instead",
   "errors": {
     "conflict": "This changed while you were looking. Refresh and try again.",
     "contract": "Kassa got an unexpected response. Update the app and try again.",

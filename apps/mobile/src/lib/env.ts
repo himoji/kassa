@@ -11,6 +11,11 @@ import { z } from "zod";
 const schema = z.object({
   APP_VARIANT: z.enum(["dev", "preview", "prod"]).default("dev"),
   API_URL: z.string().optional(),
+  /**
+   * Set only by `bun run dev:all` (never in .env): the API for localhost tabs. Under dev:all the web app ignores
+   * API_URL, which a .env (it wins over the shell env in Expo dev) can pin to a dead tunnel host.
+   */
+  DEV_ALL_API_URL: z.string().optional(),
   /** Demo panel admin token (spec §15, DEMO_ADMIN_TOKEN). Demo builds only; never a real secret. */
   DEMO_ADMIN_TOKEN: z.string().optional(),
 });
@@ -52,6 +57,7 @@ function warnInsecureApiUrl(url: string | undefined): void {
 const raw = {
   APP_VARIANT: optional(process.env.EXPO_PUBLIC_APP_VARIANT),
   API_URL: optional(process.env.EXPO_PUBLIC_API_URL),
+  DEV_ALL_API_URL: optional(process.env.EXPO_PUBLIC_DEV_ALL_API_URL),
   DEMO_ADMIN_TOKEN: optional(process.env.EXPO_PUBLIC_DEMO_ADMIN_TOKEN),
 };
 

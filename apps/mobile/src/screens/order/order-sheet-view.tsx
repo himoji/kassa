@@ -18,6 +18,7 @@ import { View } from "react-native";
 import { verifyOrderIntegrity } from "@/api/hooks/orders";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
 import { Countdown } from "@/components/kassa/countdown";
+import { PasskeyButton } from "@/components/kassa/passkey-button";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { Box, Button, Divider, Icon, Text } from "@/components/ui";
 import { useFormat } from "@/lib/format";
@@ -180,17 +181,9 @@ export function OrderSheetView({
       <View style={{ flex: 1 }} />
 
       <Box gap={3}>
-        <Button
-          size="lg"
-          onPress={onApprove}
-          loading={approving}
-          disabled={!canApprove || rejecting}
-          leftIcon={
-            <Icon name="faceid" fallback="fingerprint" size={20} color="primaryForeground" />
-          }
-        >
+        <PasskeyButton onPress={onApprove} loading={approving} disabled={!canApprove || rejecting}>
           {t("order:approve")}
-        </Button>
+        </PasskeyButton>
         <Button
           size="lg"
           variant="outline"

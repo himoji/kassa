@@ -99,6 +99,9 @@ if (noTunnel) {
     // Same value env:setup writes to apps/mobile/.env (which wins over this in Expo dev anyway): localhost tabs call
     // the API directly; pages on the tunnel ignore a loopback API URL and use their own origin (src/api/config.ts).
     EXPO_PUBLIC_API_URL: `http://localhost:${num(process.env.API_PORT, 4000)}`,
+    // Not in any .env, so it reaches the web app as is: the web app then ignores EXPO_PUBLIC_API_URL, which a .env
+    // can pin to an old tunnel host (src/api/config.ts).
+    EXPO_PUBLIC_DEV_ALL_API_URL: `http://localhost:${num(process.env.API_PORT, 4000)}`,
     TRUST_PROXY: "true",
     MOCK_PUBLIC_URL: tunnel.url,
     KASSA_APP_URL: tunnel.url,
