@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 
 import { useKassaT } from "@/lib/i18n";
-import { inlineTitleOptions, largeTitleOptions } from "@/navigation/stack-options";
+import { inlineTitleOptions } from "@/navigation/stack-options";
 
 export default function OnboardingLayout() {
   const t = useKassaT();
@@ -11,9 +11,17 @@ export default function OnboardingLayout() {
         name="chat"
         options={{ ...inlineTitleOptions, title: t("onboarding:chatTitle") }}
       />
+      {/* Review + sign (spec §16): a form sheet over the chat, like the order sheet in the root layout. */}
       <Stack.Screen
         name="review"
-        options={{ ...largeTitleOptions, title: t("onboarding:reviewTitle") }}
+        options={{
+          presentation: "formSheet",
+          sheetAllowedDetents: [0.8, 1],
+          sheetGrabberVisible: true,
+          sheetCornerRadius: 24,
+          headerShown: false,
+          title: t("onboarding:reviewTitle"),
+        }}
       />
     </Stack>
   );
