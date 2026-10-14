@@ -113,7 +113,8 @@ export async function spendingInsights(userId: string, db: DbOrTx = getDb()): Pr
     .select({
       norm: transactions.merchantNorm,
       raw: sql<string>`max(${transactions.merchantRaw})`,
-      place: sql<string | null>`max(${transactions.place}->>'name')`,
+      // Names only cleaned from the statement are named afresh below (see capture/routes.ts recentPlace).
+      place: sql<string | null>`max(case when ${transactions.place}->>'source' is distinct from 'CLEANED' then ${transactions.place}->>'name' end)`,
       total: sql<string>`coalesce(sum(${transactions.homeAmountMinor}), 0)`,
       n: sql<string>`count(*)`,
     })
@@ -156,7 +157,8 @@ export async function transactionDetail(userId: string, id: string, db: DbOrTx =
   const month = monthWindow(today);
   const tomorrow = addDays(today, 1);
 
-  const merchant = row.place?.name ?? (await placeName(userId, row.merchantNorm, row.merchantRaw, db)).name;
+  const stored = row.place?.source === "CLEANED" ? undefined : row.place?.name;
+  const merchant = stored ?? (await placeName(userId, row.merchantNorm, row.merchantRaw, db)).name;
   const p = row.place;
   const where = whereLabel(p);
   const place = p
