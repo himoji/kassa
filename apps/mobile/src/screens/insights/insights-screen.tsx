@@ -271,18 +271,23 @@ function Categories({ data }: { data: SpendingInsightsResponse }) {
         );
       })}
       {unspentBudgets.map((c) => (
-        <Box key={c.category} px={4} py={3} row align="center" gap={3}>
-          <Swatch color="transparent" />
-          <Text numberOfLines={1} style={{ flex: 1 }}>
-            {categoryLabel(t, c.category)}
-          </Text>
-          <Text variant="caption">
+        <View key={c.category} style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 4 }}>
+          <Box row align="center" gap={3}>
+            <Swatch color="transparent" />
+            <Text weight="semibold" numberOfLines={1} style={{ flex: 1 }}>
+              {categoryLabel(t, c.category)}
+            </Text>
+            <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
+              {f.money(0, data.homeCurrency)}
+            </Text>
+          </Box>
+          <Text variant="caption" style={{ paddingStart: 22 }}>
             {t("insights:categories.left", {
               amount: f.money(c.budget!.remainingMinor, data.homeCurrency),
               limit: f.money(c.budget!.limitMinor, data.homeCurrency),
             })}
           </Text>
-        </Box>
+        </View>
       ))}
     </RowGroup>
   );
