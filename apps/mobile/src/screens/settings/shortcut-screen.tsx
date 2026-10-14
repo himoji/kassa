@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
+import { Platform } from "react-native";
 
 import {
   shortcutEndpoint,
@@ -9,6 +10,7 @@ import {
 } from "@/api/hooks/shortcut";
 import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
+import { Segmented } from "@/components/kassa/segmented";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Text, toast } from "@/components/ui";
@@ -21,10 +23,20 @@ import { useKassaT } from "@/lib/i18n";
 const noSubscribe = () => () => {};
 
 const STEPS = ["1", "2", "3", "4", "5", "6"] as const;
+const ONLINE_STEPS = ["1", "2", "3", "4"] as const;
+const ANDROID_STEPS = ["1", "2", "3", "4", "5", "6"] as const;
+
+type Phone = "iphone" | "android";
+
+/** The forwarder's JSON body (MacroDroid magic text; Tasker: %antitle / %antext / %anapp). */
+const ANDROID_BODY =
+  '{"app":"[notification_app_package]","title":"[notification_title]","text":"[notification]"}';
 
 /**
- * Settings → "Apple Pay → Kassa": mint a Shortcut device token (shown once), copy the endpoint, follow the iOS
- * Transaction-automation steps (docs/SHORTCUT_SETUP.md) and revoke tokens. Capture only logs (I6).
+ * Settings → "Payment taps → Kassa": mint a device token (shown once), copy the endpoint, and follow the steps for
+ * the phone (docs/SHORTCUT_SETUP.md): iPhone, the Shortcuts Transaction trigger for Apple Pay taps in shops plus a
+ * Message trigger for the bank SMS that online and in-app Apple Pay leave; Android, an automation app forwarding
+ * Google Wallet, Samsung Wallet, Alipay, WeChat Pay and bank notifications. Revoke tokens. Capture only logs (I6).
  */
 export function ShortcutScreen() {
   const t = useKassaT();
@@ -42,6 +54,7 @@ export function ShortcutScreen() {
     () => shortcutEndpoint(undefined, "")
   );
 
+  const [phone, setPhone] = useState<Phone>(Platform.OS === "android" ? "android" : "iphone");
   const copy = (text: string) => void copyToClipboard(text, { toast: t("shortcut:copied") });
 
   const onCreate = async () => {
@@ -78,7 +91,17 @@ export function ShortcutScreen() {
     <ScrollScreen onRefresh={() => void devices.refetch()} refreshing={devices.isRefetching}>
       <Box gap={3}>
         <Text variant="caption">{t("shortcut:intro")}</Text>
-        <Text variant="caption">{t("shortcut:limits")}</Text>
+        <Segmented
+          value={phone}
+          onChange={setPhone}
+          options={[
+            { value: "iphone", label: t("shortcut:phone.iphone") },
+            { value: "android", label: t("shortcut:phone.android") },
+          ]}
+        />
+        <Text variant="caption">
+          {phone === "iphone" ? t("shortcut:limits") : t("shortcut:android.limits")}
+        </Text>
       </Box>
 
       <RowGroup title={t("shortcut:endpointTitle")} footer={t("shortcut:endpointFooter")}>
@@ -126,13 +149,43 @@ export function ShortcutScreen() {
         </Box>
       </RowGroup>
 
-      <RowGroup title={t("shortcut:stepsTitle")}>
-        <Box p={4} gap={3}>
-          {STEPS.map((n) => (
-            <Text key={n}>{t("shortcut:step", { n, text: t(`shortcut:steps.${n}`) })}</Text>
-          ))}
-        </Box>
-      </RowGroup>
+      {phone === "iphone" ? (
+        <>
+          <RowGroup title={t("shortcut:stepsTitle")}>
+            <Box p={4} gap={3}>
+              {STEPS.map((n) => (
+                <Text key={n}>{t("shortcut:step", { n, text: t(`shortcut:steps.${n}`) })}</Text>
+              ))}
+            </Box>
+          </RowGroup>
+          <RowGroup title={t("shortcut:online.title")} footer={t("shortcut:online.footer")}>
+            <Box p={4} gap={3}>
+              <Text variant="caption">{t("shortcut:online.why")}</Text>
+              {ONLINE_STEPS.map((n) => (
+                <Text key={n}>
+                  {t("shortcut:step", { n, text: t(`shortcut:online.steps.${n}`) })}
+                </Text>
+              ))}
+            </Box>
+          </RowGroup>
+        </>
+      ) : (
+        <RowGroup title={t("shortcut:android.title")} footer={t("shortcut:android.footer")}>
+          <Box p={4} gap={3}>
+            {ANDROID_STEPS.map((n) => (
+              <Text key={n}>
+                {t("shortcut:step", { n, text: t(`shortcut:android.steps.${n}`) })}
+              </Text>
+            ))}
+            <Text variant="code" selectable>
+              {ANDROID_BODY}
+            </Text>
+            <Button variant="outline" size="sm" onPress={() => copy(ANDROID_BODY)}>
+              {t("shortcut:android.copyBody")}
+            </Button>
+          </Box>
+        </RowGroup>
+      )}
 
       <QueryView query={devices} skeletonRows={1}>
         {(d) => (

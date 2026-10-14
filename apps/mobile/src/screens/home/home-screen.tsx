@@ -1,4 +1,5 @@
 import { router, Stack } from "expo-router";
+import { useState } from "react";
 import { View } from "react-native";
 
 import { useMe } from "@/api/hooks/me";
@@ -12,18 +13,21 @@ import {
 import { usePayees } from "@/api/hooks/payees";
 import { RowGroup } from "@/components/row-group";
 import { SimulatedBadge } from "@/components/kassa/badges";
-import { BudgetBar } from "@/components/kassa/budget-bar";
+import { BudgetBar, BudgetsSummary, sortBudgets } from "@/components/kassa/budget-bar";
 import { FreezeButton } from "@/components/kassa/freeze-button";
 import { ObligationRow } from "@/components/kassa/obligation-row";
 import { ProposalCard } from "@/components/kassa/proposal-card";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { StatusChip } from "@/components/kassa/status-chip";
-import { Box, Card, Icon, Row, Text } from "@/components/ui";
+import { Box, Button, Card, Divider, Icon, Row, Text } from "@/components/ui";
+import { useRequireBackupCodes } from "@/hooks/use-require-backup-codes";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
 const UPCOMING_LIMIT = 4;
+/** Budgets listed before "Show all" (the ones that need attention come first). */
+const BUDGETS_COLLAPSED = 4;
 
 function BalanceCard() {
   const t = useKassaT();
@@ -75,6 +79,23 @@ function BalanceCard() {
             {b.rateDate ? (
               <Text variant="caption">{t("home:rateDate", { date: f.date(b.rateDate) })}</Text>
             ) : null}
+            <Box row gap={2}>
+              <Button
+                style={{ flex: 1 }}
+                onPress={() => router.push("/add-money")}
+                leftIcon={<Icon name="plus" fallback="add" size={18} color="primaryForeground" />}
+              >
+                {t("home:addMoney")}
+              </Button>
+              <Button
+                style={{ flex: 1 }}
+                variant="secondary"
+                onPress={() => router.push("/send")}
+                leftIcon={<Icon name="paperplane" fallback="send" size={18} color="foreground" />}
+              >
+                {t("home:send")}
+              </Button>
+            </Box>
           </Box>
         </Card>
       )}
@@ -138,6 +159,8 @@ export function HomeScreen() {
   const obligations = useObligations();
   const pending = usePendingProposals();
   const balances = useBalances();
+  const [showAllBudgets, setShowAllBudgets] = useState(false);
+  useRequireBackupCodes();
   const refreshing = me.isRefetching || balances.isRefetching || budgets.isRefetching;
 
   const refresh = () => {
@@ -178,21 +201,56 @@ export function HomeScreen() {
         ) : null}
 
         <Box gap={3}>
-          <Text variant="heading">{t("home:budgets")}</Text>
+          <Box row justify="between" align="center">
+            <Text variant="heading">{t("home:budgets")}</Text>
+            <Button size="sm" variant="ghost" onPress={() => router.push("/settings")}>
+              {t("home:editBudgets")}
+            </Button>
+          </Box>
           <QueryView
             query={budgets}
             isEmpty={(b) => b.budgets.length === 0}
-            empty={<Text variant="caption">{t("home:noBudgets")}</Text>}
-          >
-            {(b) => (
+            empty={
               <Card>
-                <Box gap={5}>
-                  {b.budgets.map((budget) => (
-                    <BudgetBar key={budget.id} budget={budget} homeCurrency={b.homeCurrency} />
-                  ))}
+                <Box gap={3}>
+                  <Text variant="caption">{t("home:noBudgets")}</Text>
+                  <Button variant="outline" onPress={() => router.push("/settings")}>
+                    {t("home:addBudget.open")}
+                  </Button>
                 </Box>
               </Card>
-            )}
+            }
+          >
+            {(b) => {
+              const sorted = sortBudgets(b.budgets);
+              const shown = showAllBudgets ? sorted : sorted.slice(0, BUDGETS_COLLAPSED);
+              return (
+                <Box gap={3}>
+                  <BudgetsSummary budgets={b.budgets} homeCurrency={b.homeCurrency} />
+                  <Card>
+                    <Box>
+                      {shown.map((budget, i) => (
+                        <View key={budget.id}>
+                          {i > 0 ? <Divider spacing={0} /> : null}
+                          <BudgetBar budget={budget} homeCurrency={b.homeCurrency} />
+                        </View>
+                      ))}
+                      {sorted.length > BUDGETS_COLLAPSED ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onPress={() => setShowAllBudgets((v) => !v)}
+                        >
+                          {showAllBudgets
+                            ? t("home:showFewerBudgets")
+                            : t("home:showAllBudgets", { count: sorted.length })}
+                        </Button>
+                      ) : null}
+                    </Box>
+                  </Card>
+                </Box>
+              );
+            }}
           </QueryView>
         </Box>
 

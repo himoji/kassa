@@ -29,5 +29,30 @@
   "signMandate": "Sign mandate with passkey",
   "signRules": "Sign rules with passkey",
   "skipMandate": "Skip for now",
-  "toReview": "Review my setup"
+  "toReview": "Review my setup",
+  "noBudgetsYet": "No budgets yet. Add one, or ask Kassa in the chat.",
+  "planner": {
+    "title": "Your month and your goal",
+    "intro": "Change your salary, budgets or goal and see what is left each month and where you end up.",
+    "salary": "Monthly salary (after tax)",
+    "goal": "Savings goal",
+    "goalPlaceholder": "e.g. 3700",
+    "months_one": "{{count}} month",
+    "months_other": "{{count}} months",
+    "income": "Income",
+    "bills": "Bills (rent, tuition…)",
+    "budgets": "Budgets",
+    "left": "Left each month",
+    "projection_one": "In {{count}} month you will have saved {{amount}}.",
+    "projection_other": "In {{count}} months you will have saved {{amount}}.",
+    "goalReached_one": "Goal reached in {{count}} month.",
+    "goalReached_other": "Goal reached in {{count}} months.",
+    "goalShort_one": "{{short}} short. The goal needs {{need}} a month; at this pace it takes {{count}} month.",
+    "goalShort_other": "{{short}} short. The goal needs {{need}} a month; at this pace it takes {{count}} months.",
+    "nothingLeft": "Nothing is left to save: bills and budgets use all of your income.",
+    "ask": "Ask Kassa to fit my goal",
+    "fromAi": "Kassa AI suggests",
+    "fromRules": "Kassa suggests",
+    "apply": "Apply to my budgets"
+  }
 }

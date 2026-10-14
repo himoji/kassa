@@ -48,5 +48,29 @@
   "toSign": "To sign",
   "totalA11y": "Total in home currency: {{amount}}",
   "totalLabel": "Total in {{currency}}",
-  "upcoming": "Upcoming"
+  "upcoming": "Upcoming",
+  "addBudget": {
+    "open": "Add budget",
+    "category": "Category",
+    "newCategory": "Add “{{name}}” as a new category",
+    "limit": "Monthly limit",
+    "exists": "This category already has a budget.",
+    "add": "Add"
+  },
+  "budgetSummary": {
+    "leftThisMonth": "Left in your budgets this month",
+    "a11y": "{{left}} left: {{spent}} spent of {{limit}}",
+    "attention_one": "{{count}} needs attention",
+    "attention_other": "{{count}} need attention"
+  },
+  "budgetRow": {
+    "left": "{{amount}} left",
+    "over": "{{amount}} over"
+  },
+  "runOutShort": "Runs out {{date}}",
+  "editBudgets": "Edit",
+  "showAllBudgets": "Show all {{count}}",
+  "showFewerBudgets": "Show fewer",
+  "addMoney": "Add money",
+  "send": "Send"
 }

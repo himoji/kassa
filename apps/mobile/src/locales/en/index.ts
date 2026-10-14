@@ -22,6 +22,7 @@ import shortcut from "./shortcut.json";
 import shop from "./shop.json";
 import business from "./business.json";
 import lite from "./lite.json";
+import wallet from "./wallet.json";
 
 export const en = {
   translation,
@@ -45,4 +46,5 @@ export const en = {
   shop,
   business,
   lite,
+  wallet,
 };
