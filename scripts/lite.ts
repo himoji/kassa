@@ -103,6 +103,20 @@ try {
     }
   }
 
+  // expo-notifications still writes `aps-environment` (remote push) even with its plugin dropped; a Personal Team
+  // cannot sign it ("do not support the Push Notifications capability"), so strip it. Local notifications keep working.
+  for (const dir of readdirSync(liteDir)) {
+    const file = join(liteDir, dir, `${dir}.entitlements`);
+    if (!existsSync(file)) continue;
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace(
+        /\s*<key>aps-environment<\/key>\s*<string>[^<]*<\/string>/,
+        "",
+      ),
+    );
+  }
+
   if (isMac) run("pod", ["install"], liteDir);
   else
     console.log(
