@@ -8,6 +8,31 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 
 > **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos.
 
+## Quickstart
+
+Needs Bun 1.4 and, for the app, Node.js 22.18 or later.
+
+1. `bun install`
+2. `bun run env:setup` (writes gitignored `.env` files with generated dev keys). For live AI, put `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` in the root `.env`; without one the chat uses recorded replays.
+3. `bun run db:migrate && bun run seed` (file-backed PGlite in `.data/`, seeds Dana)
+4. `bun run dev` (API on http://localhost:4000, mock world on http://localhost:4001)
+5. In a second terminal: `cd apps/mobile && bun run web`, then open http://localhost:8081
+
+Details, phone testing and deployment are below.
+
+## What it does
+
+- **Chat with an AI that only drafts.** The planner reads balances, budgets, bills and documents and can propose an order. It cannot pay. Rules decide, and money moves only with a passkey over the exact order or inside a signed mandate ([SECURITY.md](docs/SECURITY.md)).
+- **AI runs LIVE by default** (`AGENT_MODE=LIVE`). It needs `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` (or another provider, see "AI configuration"). Without a key, or if the model cannot be reached, the turn falls back to a recorded replay and the message is labelled **Replay** in the chat.
+- **Spending in every currency.** Captures card taps, wallet notifications and Shortcut events, categorises them, and keeps budgets with a pace forecast.
+- **Fee x-ray and cheapest route.** Shows hidden card FX fees and compares funding routes for each bill.
+- **Bills and autopay.** Obligations (rent, tuition, insurance) are planned against the forecast; recurring ones can be paid inside a passkey-signed mandate.
+- **Credit building.** The credit record (app: `apps/mobile/src/app/credit-record.tsx`; API: `apps/api/src/modules/credit-record/`) lets a student pick a period and what to include (income, bills paid on time, budgets, payments) and export a signed summary for a landlord or bank: Ed25519-signed, recorded in the ledger, with a public verify link and a PDF. Only the selected items are shared.
+- **Add money.** A stand-in for the phone's wallet sheet (Apple Pay, Google Pay, Samsung Pay or a test card). The tap is simulated, or a Stripe test-mode charge with `sk_test_` keys. Test money only ([docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md)).
+- **Send to another Kassa user** by Kassa ID (for example `KSA-ZVMS-3NXE`). The new payee cools down for 24 hours like any payee, and each send needs the passkey ([docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md)).
+- **China handoff.** In region CN Kassa prepares the payment and hands off to the user's QR wallet after checking the QR payee name.
+- **Small business mode.** Stock forecast, purchase orders signed with the passkey, and a three-way invoice match that refuses swapped bank details (attack A9).
+
 ## Documents
 
 | Document                                                     | What it covers                                                                                        |
@@ -18,6 +43,25 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md)                     | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned)                      |
 | [docs/TESTS.md](docs/TESTS.md)                               | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence            |
 | [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Dated log of every deviation from the technical spec |
+| [docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md) | Sandbox payouts for EU, China and US; Add money (test money); sending to another Kassa user by Kassa ID |
+| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md) | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits |
+| [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md) | Technical specification (source of truth for how) |
+| [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference |
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `apps/api` | Fastify 5 API (TypeScript, Bun). Modules under `src/modules/` include `agent`, `ai`, `reader`, `rules`, `payments`, `rails`, `capture`, `budget`, `fx`, `screening`, `ledger`, `privacy`, `payees`, `mandates`, `users`, `auth`, `scheduler`, `demo`, `webhooks`, `wallet`, `credit-record`, `business` and `commerce`. Drizzle schema in `src/db/`, migrations in `drizzle/`, tests in `test/` |
+| `apps/mock-world` | Fastify mock services: a Wise-shaped mock bank, a pizza shop, two food suppliers, a university, a landlord, an insurer, an email inbox, a "QR Wallet (simulated)", a POS emitter, and a remittance sender |
+| `apps/mobile` | Expo app (Expo Router, React Native Web, native passkeys). Source in `src/app/`. Generated from the ReadyNative Pro boilerplate, see Licences |
+| `packages/shared` | `@kassa/shared`: zod schemas, `CanonicalOrder`, `orderHash` and `mandateHash` (RFC 8785 JCS), reason codes, money helpers (integer minor units), IBAN helpers, mock webhook HMAC |
+| `fixtures` | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays |
+| `docs` | The documents above, the spec, decisions, and evidence |
+| `scripts` | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys) |
+| `api/index.ts`, `vercel.json` | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel" |
+| `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below |
 | [docs/DECISIONS.md](docs/DECISIONS.md)                       | Dated log of every deviation from the technical spec                                                  |
 | [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md)             | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits        |
 | [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md)             | Technical specification (source of truth for how)                                                     |
@@ -61,7 +105,7 @@ bun run dev            # API on http://localhost:4000, mock world on http://loca
 Notes:
 
 - Without a `.env`, the API still starts. It generates development secrets once into `.data/dev-secrets.json`. Production refuses to start without real keys.
-- `env:setup` writes `AGENT_MODE=REPLAY` and `ISSUING_PROVIDER=fake` into the generated `.env`. The code default for `AGENT_MODE` is `LIVE`, so use `env:setup` or set `AGENT_MODE=REPLAY` yourself.
+- `AGENT_MODE` defaults to `LIVE` in the code and in `.env.example`. With no AI key, or when the model is unreachable, each turn falls back to a recorded replay labelled Replay. Set `AGENT_MODE=REPLAY` to always use the recordings. `env:setup` writes `ISSUING_PROVIDER=fake`.
 - PGlite allows one process per data directory. Stop the API before `bun run seed`, or use `POST /api/demo/reset` while it runs with `DEMO_ENABLED=true`.
 - The demo user Dana is created by `bun run seed`. To bind a passkey to her, set `DEMO_ENABLED=true` and register with `demoClaim` (`POST /api/auth/register/options`). The demo routes are not registered unless `DEMO_ENABLED=true`.
 - Health check: `curl http://localhost:4000/api/health`.
@@ -86,12 +130,16 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 `dev:all` needs `cloudflared` (`brew install cloudflared`). It starts the tunnel, then a proxy on `:8080` so the phone gets one HTTPS origin (web app, `/api` and `/mock`), writes the gitignored `.env.dev-runtime` (`PUBLIC_ORIGIN`, `EXTRA_ORIGINS`, `RP_ID`, `EXPO_PUBLIC_API_URL`) and runs the services through turbo with that env. Scan the QR code with the phone camera. Ctrl-C stops everything.
 
 - **Named tunnel (stable host, recommended):** set `CLOUDFLARED_TUNNEL=<tunnel name>` and `PHONE_HOST=<its hostname>` (route it once with `cloudflared tunnel route dns <name> <host>`). `RP_ID` stays the same across restarts, so passkeys keep working.
-- **Quick tunnel (default):** a random `trycloudflare.com` host that changes on every run, so passkeys made on it stop working after a restart. In this mode `dev:all` sets `DEV_LOGIN=true`: the API accepts `POST /auth/dev/login` and the sign-in screen shows a "Continue as dev user" button.
+- **Quick tunnel (default):** a random `trycloudflare.com` host that changes on every run, so passkeys made on it stop working after a restart. Dev sign-in is off by default, also on a tunnel. Set `DEV_LOGIN=true` yourself to get `POST /auth/dev/login` and a "Continue as dev user" button; approvals then use a server-held test passkey (`POST /auth/dev/assert`). It is never available with `NODE_ENV=production` (SECURITY.md §7.0).
 - `bun run phone` is the older proxy-and-tunnel-only command; it shares the same tunnel and proxy code (`scripts/lib/`).
 - **KassaLite** (a build signed with a free Apple ID that shows your Apple Pay purchases): see [docs/KASSALITE.md](docs/KASSALITE.md); it needs the named tunnel above.
 
 ### AI configuration
 
+| Mode | Setting | Needs |
+| --- | --- | --- |
+| Live (default) | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider, for example `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`. Without a key, or if the model is unreachable, the turn is served from the matching recording and labelled Replay |
+| Replay | `AGENT_MODE=REPLAY` | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
 | Mode                            | Setting                                            | Needs                                                                                                   |
 | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | Replay (default in `env:setup`) | `AGENT_MODE=REPLAY`                                | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
@@ -130,7 +178,7 @@ bun run test           # Vitest suites (api, mock-world, shared) and the mobile 
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
 ```
 
-- Counts from the final `bun run test`: API 633 tests in 72 files (unit, invariant, attack, security and integration), mock world 279, shared 34, mobile Jest 410. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-14): API 821 tests in 101 files (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 526. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`).
 

@@ -9,7 +9,8 @@ import { OnboardingProfileDraft, type AgentMode, type ChoiceAnswer, type DataCho
 import { getDb, type Tx } from "../../db/client.ts";
 import { budgets, cards, obligations, payees, profiles, users, type IncomeJson } from "../../db/schema.ts";
 import { onboardingDrafts } from "../../db/schema.intel.ts";
-import { aiProviderFailure } from "../ai/errors.ts";
+import { AiConfigError, aiProviderFailure } from "../ai/errors.ts";
+import { newFallbackState, replayFallbackEnabled, withReplayFallback } from "../ai/fallback.ts";
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
 import { generateStructured } from "../ai/structured.ts";
 import { clock, isoDate } from "../clock/index.ts";
@@ -185,17 +186,35 @@ export async function onboardingTurn(o: {
 
   // Model: injected (tests) → REPLAY (the "onboarding" recording, for ANY user: exact text, keywords,
   // else the turn index, so it never depends on who is onboarding) → live planner from the registry.
+  // LIVE falls back to the recording when the provider can't be used (ai/fallback.ts); the reply is flagged `replay`.
   let base: LanguageModel;
   let recordedWith = "injected";
-  const recorder = o.record && o.mode === "LIVE" && !o.model ? new StepRecorder() : null;
+  const recording = () => replayModel(selectTurn(redactor.redactText(text), { scenario: "onboarding", priorUserTurns: history.filter((m) => m.role === "user").length }).turn);
+  const recordingOrNull = () => {
+    try {
+      return recording();
+    } catch {
+      return null;
+    }
+  };
+  const fallback = newFallbackState();
   if (o.model) base = o.model;
   else if (o.mode === "REPLAY") {
-    base = replayModel(selectTurn(redactor.redactText(text), { scenario: "onboarding", priorUserTurns: history.filter((m) => m.role === "user").length }).turn);
+    base = recording();
     recordedWith = "replay";
   } else {
-    base = getPlannerModel();
-    recordedWith = plannerSpec().id;
+    try {
+      base = withReplayFallback(getPlannerModel(), recordingOrNull, fallback);
+      recordedWith = plannerSpec().id;
+    } catch (e) {
+      const r = e instanceof AiConfigError && replayFallbackEnabled() ? recordingOrNull() : null;
+      if (!r) throw e;
+      base = r;
+      fallback.used = true;
+      recordedWith = "replay";
+    }
   }
+  const recorder = o.record && o.mode === "LIVE" && !o.model && recordedWith !== "replay" ? new StepRecorder() : null;
   const model = typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware: redactionMiddleware(redactor) });
 
   // Structured output via ai/structured.ts (native → forced schema-carrier tool → JSON text), validated
@@ -241,8 +260,8 @@ export async function onboardingTurn(o: {
     .onConflictDoUpdate({ target: onboardingDrafts.conversationId, set: { draft, complete, updatedAt: now } });
   await appendHistory(o.conversationId, o.userId, "onboarding", [userMsg, ...responseMessages]);
   await savePlaceholders(o.conversationId, o.userId, redactor.drainNew());
-  if (recorder) recorder.save("onboarding", redactor.redactText(text), recordedWith);
-  return { reply: redactor.rehydrateForUser(reply), draft, complete, ui };
+  if (recorder && !fallback.used) recorder.save("onboarding", redactor.redactText(text), recordedWith);
+  return { reply: redactor.rehydrateForUser(reply), draft, complete, ui, replay: (o.mode === "REPLAY" || fallback.used) && !o.model };
 }
 
 /** GET /onboarding/conversation: the caller's latest onboarding draft and its turns (rehydrated for the user). */

@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useEffect } from "react";
-import { BackHandler } from "react-native";
+import { BackHandler, Platform } from "react-native";
 
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Box, Card, Icon, Text } from "@/components/ui";
@@ -14,7 +14,8 @@ import { BackupCodesPanel } from "@/screens/settings/backup-codes-section";
 export function BackupCodesRequiredScreen() {
   const t = useKassaT();
   useEffect(() => {
-    // Android back button: stay until the codes are saved.
+    // Android back button: stay until the codes are saved. (No BackHandler on web or iOS.)
+    if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
     return () => sub.remove();
   }, []);

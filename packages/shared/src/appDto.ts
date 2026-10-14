@@ -398,6 +398,8 @@ export const OnboardingMessageResponse = z.object({
   complete: z.boolean(),
   /** Pickers for this turn (rendered with the same ChoiceCard as the agent chat). */
   ui: z.array(DataChoices).default([]),
+  /** This reply came from a recorded replay (REPLAY mode, or LIVE fell back because the model was unavailable). */
+  replay: z.boolean().default(false),
 });
 export type OnboardingMessageResponse = z.infer<typeof OnboardingMessageResponse>;
 

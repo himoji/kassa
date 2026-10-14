@@ -15,5 +15,6 @@
   "shortfall": "Short on {{date}} by {{amount}}",
   "suggestion": "Move {{amount}} from {{from}} to {{to}} by {{date}} to cover this",
   "title": "Bills",
-  "upcomingTitle": "Upcoming"
+  "upcomingTitle": "Upcoming",
+  "shortfallBody": "No single balance can pay this yet. Add {{currency}} from Home, or wait for money from home."
 }
