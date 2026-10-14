@@ -107,6 +107,19 @@ export type IncomeJson = {
  * balances per currency (minor units) and obligation categories to protect. Rules step 5 uses the
  * home-currency total in caps.reserveMinor; the forecast may use per-currency minimums.
  */
+/** (added) Where a captured spend happened and the likely place (capture/place.ts). Coordinates rounded to ~100 m. */
+export type PlaceJson = {
+  name?: string;
+  kind?: string;
+  source?: "DICTIONARY" | "PAYEE" | "CLEANED" | "AI";
+  processor?: string;
+  street?: string;
+  city?: string;
+  country?: string;
+  lat?: number;
+  lon?: number;
+};
+
 export type ReserveRulesJson = {
   /** Per-currency minimums used by the fx forecast (Track B). The seed fills it from minBalances. */
   reserves?: { currency: string; minMinor: number }[];
@@ -355,6 +368,8 @@ export const transactions = pgTable(
     status: transactionStatusEnum("status").notNull().default("PENDING"),
     /** (added) link for KASSA_PAYMENT rows. */
     paymentId: uuid("payment_id"),
+    /** (added) where the tap happened and the likely place (capture/place.ts PlaceJson); null when unknown. */
+    place: jsonb("place").$type<PlaceJson>(),
     createdAt: tstz("created_at").notNull().defaultNow(),
   },
   (t) => [

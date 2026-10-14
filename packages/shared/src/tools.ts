@@ -34,6 +34,7 @@ export const GetRoutesInput = z.object({
   dueDate: z.iso.date().optional().describe("YYYY-MM-DD"),
 });
 export const ForecastCoverageInput = z.object({});
+export const GetSpendingSummaryInput = z.object({});
 export const ReadDocumentInput = z.object({
   docId: z.string().min(1).max(64),
 });

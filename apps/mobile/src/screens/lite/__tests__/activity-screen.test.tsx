@@ -35,6 +35,18 @@ const DATA: RecentCapturesResponse = {
       occurredAt: "2026-10-27T09:30:00.000Z",
       createdAt: "2026-10-27T09:30:05.000Z",
     },
+    {
+      id: "00000000-0000-4000-8000-000000000003",
+      source: "shortcut",
+      merchant: "SQ *BB 0412",
+      amountMinor: 210000,
+      currency: "HUF",
+      homeAmountMinor: null,
+      category: "eating_out",
+      occurredAt: "2026-10-27T07:00:00.000Z",
+      createdAt: "2026-10-27T07:00:05.000Z",
+      place: { name: "Blue Bottle Coffee", kind: "café", where: "Váci utca 10, Budapest" },
+    },
   ],
   nudges: [
     {
@@ -70,6 +82,10 @@ describe("ActivityScreen", () => {
     expect(await screen.findByText("Newest Cafe")).toBeTruthy();
     expect(screen.getByText("Older Bakery")).toBeTruthy();
     expect(screen.getByText("Eating out is 80% used")).toBeTruthy();
+    // The likely place replaces the statement text; where it happened joins the caption.
+    expect(screen.getByText("Blue Bottle Coffee")).toBeTruthy();
+    expect(screen.queryByText("SQ *BB 0412")).toBeNull();
+    expect(screen.getByText(/Eating out · .* · Váci utca 10, Budapest/)).toBeTruthy();
     expect(mockNotify).toHaveBeenCalledWith(DATA);
   });
 
@@ -77,6 +93,7 @@ describe("ActivityScreen", () => {
     expect(sortCaptures(DATA.captures).map((c) => c.merchant)).toEqual([
       "Newest Cafe",
       "Older Bakery",
+      "SQ *BB 0412",
     ]);
   });
 });

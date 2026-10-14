@@ -22,6 +22,7 @@ import { readUntrusted } from "../reader/index.ts";
 import { categorize, lookupMerchant } from "./categorize.ts";
 import { dedupeCandidates, dedupeKey } from "./dedupe.ts";
 import { normalizeMerchant } from "./normalize.ts";
+import { cityLabel, cleanMerchant, placeFrom, type PlaceHint, type PlaceSource } from "./place.ts";
 import { parseNotificationText, parseShortcut, parseWalletNotification, type ForwardedNotification, type ParsedEvent, type ShortcutPayload } from "./parsers/index.ts";
 
 /*
@@ -108,31 +109,36 @@ async function parse(input: CaptureInput, homeCurrency: string, aiAllowed: boole
   }
 }
 
-const SMALL_WORDS = new Set(["a", "an", "and", "at", "for", "from", "in", "of", "on", "the", "to"]);
-
-/** "BUY EVERYTHING SHOP FROM CHINA" → "Buy Everything Shop from China"; mixed-case text is left as written. */
-function prettyRaw(raw: string): string {
-  const t = raw.trim();
-  if (/\p{Ll}/u.test(t) || !/\p{Lu}/u.test(t)) return t;
-  return t
-    .toLowerCase()
-    .split(/(\s+)/)
-    .map((w, i) => (i > 0 && SMALL_WORDS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-    .join("");
+/**
+ * The place a statement text names (Y6, cn note 4): the dictionary entry, else the user's payee with the same
+ * normalised name, else the statement text with the payment processor moved aside ("SQ *BLUE BOTTLE" → "Blue
+ * Bottle" via Square) and title-cased if it was printed in capitals.
+ */
+export async function placeName(
+  userId: string,
+  merchantNorm: string,
+  merchantRaw: string,
+  db: DbOrTx = getDb(),
+): Promise<{ name: string; source: PlaceSource; processor: string | null }> {
+  const cleaned = cleanMerchant(merchantRaw);
+  const entry = lookupMerchant(merchantNorm) ?? (cleaned.processor ? lookupMerchant(normalizeMerchant(cleaned.name)) : null);
+  if (entry) return { name: entry.displayName, source: "DICTIONARY", processor: cleaned.processor };
+  const own = await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId));
+  const cleanedNorm = normalizeMerchant(cleaned.name);
+  const payee = own.find((p) => {
+    const n = normalizeMerchant(p.name);
+    return n === merchantNorm || n === cleanedNorm;
+  });
+  if (payee) return { name: payee.name, source: "PAYEE", processor: cleaned.processor };
+  return { name: cleaned.name, source: "CLEANED", processor: cleaned.processor };
 }
 
 /**
- * The merchant name shown to the user (Y6, cn note 4): the dictionary display name, else the user's payee with
- * the same normalised name, else the raw text (title-cased if it was printed in capitals). Never `merchantNorm`,
- * which is a matching key ("coffee shop in"), not a name.
+ * The merchant name shown to the user: `placeName`. Never `merchantNorm`, which is a matching key ("coffee shop
+ * in"), not a name.
  */
 export async function merchantDisplayName(userId: string, merchantNorm: string, merchantRaw: string, db: DbOrTx = getDb()): Promise<string> {
-  const entry = lookupMerchant(merchantNorm);
-  if (entry) return entry.displayName;
-  const own = await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId));
-  const payee = own.find((p) => normalizeMerchant(p.name) === merchantNorm);
-  if (payee) return payee.name;
-  return prettyRaw(merchantRaw);
+  return (await placeName(userId, merchantNorm, merchantRaw, db)).name;
 }
 
 async function matchCard(db: DbOrTx, userId: string, hint: string | null) {
@@ -198,6 +204,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
     return UNPARSED;
   }
   const { ev, parsedBy } = parsed;
+  const hint: PlaceHint | undefined = "shortcut" in input ? input.shortcut : "forwarded" in input ? input.forwarded : undefined;
   const base = { parsedBy, amountMinor: ev.amountMinor, currency: ev.currency };
   if (ev.kind !== "PURCHASE") {
     // Credits / refunds are not spending; the forecast reads incomes from the profile.
@@ -226,6 +233,8 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
     ? { category: first.category ?? "other", source: "DICTIONARY" as const, mcc: first.mcc }
     : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, ...(aiAllowed ? { readerFallback: readerCategory } : {}) });
 
+  const named = await placeName(userId, merchantNorm, merchantRaw, db);
+  const place = placeFrom(hint, ev.location, named);
   const foreign = card ? card.billingCurrency !== ev.currency : ev.currency !== u.homeCurrency;
   const row = (
     await db
@@ -248,6 +257,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
         dedupeKey: dedupeKey(fields),
         mergedIntoId: first?.id ?? null,
         status: foreign ? "PENDING" : "SETTLED",
+        place,
         createdAt: clock.now(),
       })
       .returning({ id: transactions.id })
@@ -270,12 +280,14 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
     return { ...base, status: "MERGED", transactionId: row.id, mergedIntoId: first.id, merchantNorm, homeAmountMinor: home.amountMinor, category: cat.category, categorySource: cat.source, notification: null };
   }
   // A data import logs history in bulk: no "spent at ..." notification per row.
-  const display = opts.notify === false ? "" : await merchantDisplayName(userId, merchantNorm, merchantRaw, db);
+  const display = named.name;
+  const where = cityLabel(place);
   const msg = opts.notify === false ? null : await onSpendLogged(userId, {
     transactionId: row.id,
     category: cat.category,
     homeAmountMinor: home.amountMinor,
     merchantDisplay: display,
+    ...(where ? { where } : {}),
     amount: { amountMinor: ev.amountMinor, currency: ev.currency },
     // Foreign spend: the home-currency equivalent is shown next to it (cn note 3).
     ...(ev.currency !== u.homeCurrency ? { home: { amountMinor: home.amountMinor, currency: u.homeCurrency } } : {}),

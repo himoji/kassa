@@ -1,13 +1,34 @@
 # Payment taps → Kassa (iOS Shortcut, Android forwarder)
 
 Each Apple Pay tap on your iPhone can be logged in Kassa by itself. An iOS Shortcuts **Personal Automation** with the
-**Transaction** trigger sends the merchant and amount to Kassa. Kassa logs the spend and replies with one line,
-for example:
+**Transaction** trigger sends the merchant and amount (and, if you add it, where you are) to Kassa. Kassa logs the
+spend and replies with a short notification, for example:
 
-> Logged HUF 1,290.00 at Cafe Frei · Eating out 62% left this month
+> **Logged HUF 2,100.00 at Blue Bottle**
+> Today 10:59 · Váci utca 10, Budapest · 2nd visit this month · paid via Square
+> Probably Blue Bottle Coffee, a café
+> Eating out 62% left this month (HUF 6,200.00), about HUF 295 a day
+> Tip: About HUF 295 a day keeps eating out on track.
 
-The Shortcut shows that line as a notification. When Kassa knows about a card markup or DCC (dynamic currency
-conversion), it adds a warning to the line.
+What each line means:
+
+- **When and where**: the time of the tap, the street and city (when the Shortcut sends them), how often you went
+  there this month, and the payment processor printed on the statement (`SQ *`, `SUMUP *`, `ZETTLE_*`...), which Kassa
+  moves aside so the shop's own name shows.
+- **Likely place**: with your AI consent, a small model reads the statement text (and the city) and names the place
+  and what kind of place it is. A guess it is unsure of is not shown. The guess is kept on the purchase.
+- **Budget**: for a category with a budget, what is left and about how much a day keeps you inside. For a category
+  **without** a budget, the month so far in that category against a usual month, how much went to categories without
+  a budget, and all spending against your monthly income:
+
+  > Shopping: no budget · HUF 12,000.00 this month (1 purchase), usually HUF 9,000.00
+  > Outside budgets HUF 12,000.00 · all spending 7% of income · 21 days left
+
+- **Warnings**: a card markup or DCC (dynamic currency conversion) Kassa already knows about.
+- **Tip**: with your AI consent, one sentence of advice about this spend. It may only quote numbers Kassa computed;
+  a tip with any other number is dropped. Turn tips and place guesses off for the whole server with
+  `AI_PAYMENT_NOTES=false`. If the model is slow (over `PAYMENT_NOTE_TIMEOUT_MS`, 4 s by default) or fails, the
+  notification comes without them.
 
 Capture **only logs**. It never approves, creates or blocks a payment (invariant I6).
 
@@ -61,6 +82,24 @@ Add the actions below in this order.
 - If the date is not ISO 8601 with a time zone, Kassa ignores it and uses the time the request arrives. With Run
   Immediately, that time is the moment of the tap.
 
+**Optional** location fields (where you paid):
+1. **Before** Get Contents of URL, add **Get Current Location**.
+2. Add **Text** fields to the JSON body. For each, choose the **Current Location** variable, tap it and pick the detail:
+
+| Key | Detail |
+| --- | --- |
+| `street` | **Street** |
+| `city` | **City** |
+| `country` | **Country** (or **ISO Country Code**) |
+| `latitude` | **Latitude** (optional) |
+| `longitude` | **Longitude** (optional) |
+
+- The first run asks for location access. Run the automation once by hand and choose **Allow While Using App** (or
+  set **Settings → Privacy & Security → Location Services → Shortcuts**), or the automation stops at this step.
+- The location is where the phone is, which is usually the shop. Kassa keeps the street, city and country, and the
+  coordinates rounded to about 100 m; the street and coordinates are removed with the raw merchant text after 90 days
+  (`RETENTION_DAYS_CAPTURED_TEXT`). Leave the fields out and everything else works the same.
+
 ### Action 2: Get Dictionary Value
 
 1. Set it to **Get Value for** `nudge` **in** **Contents of URL**.
@@ -68,6 +107,9 @@ Add the actions below in this order.
 ### Action 3: Show Notification
 
 1. Set the body to **Dictionary Value**.
+
+Optional, for a bold first line: get `nudgeTitle` and `nudgeBody` instead (two **Get Dictionary Value** actions) and
+set **Show Notification**'s title to the first and its body to the second.
 
 Tap **Done**.
 
@@ -97,8 +139,15 @@ Other rules:
 
 ### Response
 
-The response is the usual capture result plus `nudge`, a single English line. The app shows the localised version
-of the same message.
+The response is the usual capture result plus:
+
+| Field | Content |
+| --- | --- |
+| `nudge` | The whole notification in English, one line per part (title first) |
+| `nudgeTitle` | The first line: amount and place |
+| `nudgeBody` | The other lines |
+
+The app shows the localised version of the same message in Activity.
 
 `status` has one of four values:
 
@@ -170,8 +219,10 @@ in shops and online. Use the same token and endpoint.
    {"app":"[notification_app_package]","title":"[notification_title]","text":"[notification]"}
    ```
 
-   (MacroDroid magic text; in Tasker use `%anapp`, `%antitle`, `%antext`.)
-4. Optional: save the response and show its `nudge` as a notification.
+   (MacroDroid magic text; in Tasker use `%anapp`, `%antitle`, `%antext`.) To say where you paid, add `"latitude"`
+   and `"longitude"` (MacroDroid `[last_loc_lat]`, `[last_loc_long]`; Tasker `%LOCN`) and, if your app has them,
+   `"city"` and `"country"`.
+4. Optional: save the response and show its `nudgeTitle` and `nudgeBody` as a notification.
 
 Formats Kassa reads (`apps/api/src/modules/capture/parsers/wallet.ts`):
 

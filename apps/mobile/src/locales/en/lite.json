@@ -53,7 +53,7 @@
       "1": "Tap Install Shortcut. The endpoint URL (first line) and the Authorization value (second line, “Bearer …”) are copied to the clipboard.",
       "2": "Open Shortcuts → Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation.",
       "3": "Add “Get Contents of URL”. URL: the first copied line (ends in /api/capture/shortcut). Method: POST. Headers: Authorization = the second copied line.",
-      "4": "Request Body: JSON with merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass.",
+      "4": "Request Body: JSON with merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass. Optional: add “Get Current Location” first and send street, city and country from it, so the notification says where you paid.",
       "5": "Add “Get Dictionary Value” (key nudge) and “Show Notification” with that value.",
       "6": "Pay with Apple Pay. The purchase shows up in Activity within seconds."
     },

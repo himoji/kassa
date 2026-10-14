@@ -20,10 +20,18 @@ function CaptureRow({ capture }: { capture: RecentCapture }) {
     <Box p={4} row justify="between" align="center" gap={3} testID={`capture-${capture.id}`}>
       <Box gap={1} style={{ flexShrink: 1 }}>
         <Text weight="semibold" numberOfLines={1}>
-          {capture.merchant}
+          {capture.place?.name ?? capture.merchant}
         </Text>
-        <Text variant="caption">
-          {capture.category ?? t("lite:activity.uncategorised")} · {f.dateTime(capture.occurredAt)}
+        <Text variant="caption" numberOfLines={2}>
+          {[
+            capture.category
+              ? t(`common:category.${capture.category}`, { defaultValue: capture.category })
+              : t("lite:activity.uncategorised"),
+            f.dateTime(capture.occurredAt),
+            capture.place?.where,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </Text>
       </Box>
       <Text weight="semibold">{f.money(capture.amountMinor, capture.currency)}</Text>
