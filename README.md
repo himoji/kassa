@@ -180,7 +180,7 @@ bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; ex
 
 - Counts from the latest run (2026-10-14): API 828 tests in 104 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 527. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
-- CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`).
+- CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.
 
 ## Deploy on Vercel
 
