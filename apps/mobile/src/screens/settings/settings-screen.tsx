@@ -22,8 +22,10 @@ import { confirm } from "@/lib/confirm";
 import { env } from "@/lib/env";
 import { currencyCodes, useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { KassaIdCard } from "@/screens/wallet/send-screen";
 
 import { BackupCodesSection } from "./backup-codes-section";
+import { BudgetsSection } from "./budgets-section";
 import { CapsSection } from "./caps-section";
 import { MandatesSection } from "./mandates-section";
 import { PendingChanges } from "./pending-changes";
@@ -62,6 +64,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
 
   return (
     <>
+      <KassaIdCard />
       <Box gap={3}>
         <Text variant="heading">{t("settings:presetTitle")}</Text>
         <PresetCards
@@ -169,6 +172,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
       </RowGroup>
 
       <PendingChanges />
+      <BudgetsSection />
       <CapsSection />
       <MandatesSection />
       <BackupCodesSection />

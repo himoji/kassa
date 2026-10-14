@@ -10,7 +10,7 @@ import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { captureNudge } from "./nudge.ts";
-import { ShortcutPayload } from "./parsers/index.ts";
+import { ForwardedNotification, ShortcutPayload } from "./parsers/index.ts";
 import { ingestCapture, reconcileSettlement, SettlementError } from "./service.ts";
 
 /*
@@ -48,12 +48,15 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       onRequest: async (req) => {
         shortcutUsers.set(req, await shortcutDeviceUser(req));
       },
-      schema: { body: ShortcutPayload, response: { 200: ShortcutCaptureResponse } },
+      // The iOS Transaction fields, or a forwarded notification / SMS text (Android wallets, bank SMS for online
+      // and in-app Apple Pay): `text` marks the second shape.
+      schema: { body: z.union([ForwardedNotification, ShortcutPayload]), response: { 200: ShortcutCaptureResponse } },
     },
     async (req) => {
       const userId = shortcutUsers.get(req);
       if (!userId) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
-      const result = await ingestCapture(userId, { source: "SHORTCUT", shortcut: req.body });
+      const body = req.body;
+      const result = await ingestCapture(userId, "text" in body ? { source: "SHORTCUT", forwarded: body } : { source: "SHORTCUT", shortcut: body });
       return { ...result, nudge: await captureNudge(userId, result) };
     },
   );

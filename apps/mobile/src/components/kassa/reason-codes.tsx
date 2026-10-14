@@ -1,7 +1,8 @@
 import { HARD_REFUSE_CODES, type ReasonCode } from "@kassa/shared";
+import { router } from "expo-router";
 import { View } from "react-native";
 
-import { Text } from "@/components/ui";
+import { Button, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 
 import { StatusChip } from "./status-chip";
@@ -31,6 +32,16 @@ export function ReasonCodeList({ codes }: { codes: readonly ReasonCode[] }) {
         >
           <StatusChip tone={reasonTone(code)} label={t(`reasonCodes:${code}.label`)} />
           <Text variant="caption">{t(`reasonCodes:${code}.text`)}</Text>
+          {code === "INSUFFICIENT_FUNDS" ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              style={{ alignSelf: "flex-start" }}
+              onPress={() => router.push("/add-money")}
+            >
+              {t("home:addMoney")}
+            </Button>
+          ) : null}
         </View>
       ))}
     </View>

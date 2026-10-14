@@ -3,22 +3,43 @@
   "accountMissingBody": "This payee came from your setup chat without account details. Kassa will not pay it until its account details are added and verified.",
   "accountNotAdded": "Not added yet",
   "add": {
-    "account": "Account number or IBAN",
+    "accountNumber": "Account number",
+    "alipayId": "Alipay ID",
+    "cardNumber": "UnionPay card number",
+    "checking": "Checking",
     "coolingNote": "A new or changed payee cools down for 24 hours before you can pay it.",
-    "country": "Country code",
+    "country": "Country",
     "created": "Payee added",
     "currency": "Currency",
-    "invalid": "Check the name and account. The account must look valid for the country.",
+    "errors": {
+      "ACCOUNT_TOO_SHORT": "Enter at least 4 characters.",
+      "ACH_ACCOUNT_INVALID": "A US account number has 4 to 17 digits.",
+      "ACH_ROUTING_INVALID": "This routing number's check digit is wrong. It has 9 digits.",
+      "ALIPAY_ID_INVALID": "Use the email or the 11-digit mainland mobile number on their Alipay account.",
+      "IBAN_INVALID": "This IBAN's check digits don't add up. Check it for a typo.",
+      "INVALID_IBAN": "This IBAN's check digits don't add up. Check it for a typo.",
+      "NAME_MISSING": "Enter the name on their account.",
+      "SCHEME_CURRENCY_MISMATCH": "Alipay and UnionPay receive CNY, US bank accounts receive USD, and IBAN accounts receive the other currencies.",
+      "UNIONPAY_CARD_INVALID": "This isn't a valid UnionPay card number. It starts with 62 and has 16 to 19 digits.",
+      "KASSA_ID_INVALID": "A Kassa ID looks like KSA-7QMX-2HVA: 8 letters and digits after KSA.",
+      "KASSA_ID_SELF": "That's your own Kassa ID. Top up from Home instead.",
+      "KASSA_ID_UNKNOWN": "No Kassa user has this ID. Ask them to read it from Settings."
+    },
+    "how": "How they get paid",
+    "iban": "IBAN",
     "kind": "Type",
-    "name": "Name",
+    "name": "Name on the account",
+    "other": "Account or merchant ID",
+    "preview": "Kassa will pay",
+    "routingNumber": "Routing number",
+    "savings": "Savings",
     "submit": "Add payee",
-    "title": "Add payee"
+    "title": "Add payee",
+    "kassaId": "Kassa ID"
   },
   "coolingEndsIn": "Can be paid in {{remaining}}",
   "coolingFor": "Cooling, {{remaining}} left",
   "coolingRule": "You can pay this payee once the 24 hours are over.",
-  "copied": "Account copied",
-  "copyAccount": "Copy account",
   "detailTitle": "Payee",
   "detailsTitle": "Details",
   "empty": "No payees yet.",
@@ -52,5 +73,31 @@
     "COOLING": "Cooling",
     "BLOCKED": "Blocked"
   },
-  "title": "Payees"
+  "title": "Payees",
+  "scheme": {
+    "IBAN": {
+      "short": "IBAN",
+      "hint": "Within Europe (SEPA) the name and IBAN are all a bank needs. Spaces are fine."
+    },
+    "CN_ALIPAY": {
+      "short": "Alipay",
+      "hint": "Paid straight to their Alipay balance, in CNY. Use the email or phone number on their Alipay account."
+    },
+    "CN_UNIONPAY": {
+      "short": "UnionPay",
+      "hint": "Paid to the bank account behind their UnionPay debit card, in CNY."
+    },
+    "US_ACH": {
+      "short": "US bank",
+      "hint": "An ACH transfer needs the 9-digit routing number and the account number. Both are printed on a US check."
+    },
+    "KASSA_USER": {
+      "short": "Kassa user",
+      "hint": "Another Kassa user's wallet, by their Kassa ID (Settings → Your Kassa ID). Any currency, arrives in minutes."
+    },
+    "OTHER": {
+      "short": "Other",
+      "hint": "A merchant ID or an account Kassa can't check, for QR handoffs. Bank transfers can't reach it."
+    }
+  }
 }

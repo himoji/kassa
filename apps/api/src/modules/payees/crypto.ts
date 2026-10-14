@@ -3,11 +3,10 @@
  * construction), 128-bit tag, AAD = "kassa:payee:v1:" + userId so a ciphertext cannot be moved to
  * another user. Stored as "v1.<iv>.<ciphertext>.<tag>" (base64url, RFC 4648 §5).
  */
-import { sha256Base64url } from "@kassa/shared";
+import { maskPayeeAccount, normalizePayeeAccount, sha256Base64url } from "@kassa/shared";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 import { env } from "../../env.ts";
-import { looksLikeIban, normalizeIban } from "../screening/iban.ts";
 
 function key(): Buffer {
   const k = Buffer.from(env().ACCOUNT_ENC_KEY, "base64");
@@ -35,9 +34,12 @@ export function decryptAccount(userId: string, enc: string): string {
   return Buffer.concat([decipher.update(Buffer.from(ctB, "base64url")), decipher.final()]).toString("utf8");
 }
 
-/** IBANs to ISO 13616 electronic format; other identifiers: strip spaces/hyphens, upper case. */
+/**
+ * One canonical form per account (shared/payeeAccount.ts): IBANs in ISO 13616 electronic format, Alipay / UnionPay /
+ * ACH re-encoded from their fields, other identifiers stripped of spaces and hyphens and upper-cased.
+ */
 export function normalizeAccount(account: string): string {
-  return looksLikeIban(account) ? normalizeIban(account) : account.replace(/[\s-]+/g, "").toUpperCase();
+  return normalizePayeeAccount(account);
 }
 
 /** base64url(sha256(normalized account)) — CanonicalOrder.payeeAccountHash (spec §7). */
@@ -46,6 +48,5 @@ export function accountHash(account: string): string {
 }
 
 export function maskAccount(account: string): string {
-  const n = normalizeAccount(account);
-  return n.length <= 4 ? `•••• ${n}` : `•••• ${n.slice(-4)}`;
+  return maskPayeeAccount(account);
 }
