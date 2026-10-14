@@ -22,7 +22,7 @@ import { readUntrusted } from "../reader/index.ts";
 import { categorize, lookupMerchant } from "./categorize.ts";
 import { dedupeCandidates, dedupeKey } from "./dedupe.ts";
 import { normalizeMerchant } from "./normalize.ts";
-import { parseNotificationText, parseShortcut, type ParsedEvent, type ShortcutPayload } from "./parsers/index.ts";
+import { parseNotificationText, parseShortcut, parseWalletNotification, type ForwardedNotification, type ParsedEvent, type ShortcutPayload } from "./parsers/index.ts";
 
 /*
  * Capture ingest (spec §13). Invariant I6: capture can only LOG spending (or, via the agent, draft) —
@@ -32,7 +32,9 @@ import { parseNotificationText, parseShortcut, type ParsedEvent, type ShortcutPa
 export type CaptureInput =
   | { source: TransactionSource; rawText: string }
   | { source: TransactionSource; fields: { merchant: string; amountMinor: number; currency: string; cardHint?: string | undefined; occurredAt?: string | undefined; mcc?: string | undefined } }
-  | { source: "SHORTCUT"; shortcut: ShortcutPayload };
+  | { source: "SHORTCUT"; shortcut: ShortcutPayload }
+  /** A notification forwarded from an Android phone (Google / Samsung Wallet, Alipay, WeChat Pay, a bank app) or an SMS. */
+  | { source: "SHORTCUT"; forwarded: ForwardedNotification };
 
 const UNPARSED: CaptureEventResponse = {
   status: "UNPARSED",
@@ -72,6 +74,13 @@ async function parse(input: CaptureInput, homeCurrency: string, aiAllowed: boole
   if ("shortcut" in input) {
     const ev = parseShortcut(input.shortcut, homeCurrency);
     return ev ? { ev, parsedBy: "PARSER:IOS_SHORTCUT", mcc: null } : null;
+  }
+  if ("forwarded" in input) {
+    const n = input.forwarded;
+    const wallet = parseWalletNotification(n, homeCurrency);
+    if (wallet) return { ev: wallet, parsedBy: `PARSER:${wallet.format}`, mcc: null };
+    // Any other app or an SMS: the notification text parsers, then the Reader, as for pasted text.
+    return parse({ source: input.source, rawText: [n.title, n.text].filter(Boolean).join("\n") }, homeCurrency, aiAllowed);
   }
   const ev = parseNotificationText(input.rawText);
   if (ev) return { ev, parsedBy: `PARSER:${ev.format}`, mcc: null };

@@ -254,6 +254,39 @@ describe("Wise-shaped bank flow", () => {
     expect((jsonOf(res).errors as { code: string }[])[0]!.code).toBe("NOT_VALID");
   });
 
+  it("pays out to Alipay, UnionPay and ACH recipients, validated like Kassa validates them", async () => {
+    const account = (payload: Record<string, unknown>) =>
+      app.inject({ method: "POST", url: "/mock/v1/accounts", payload: { profile: USER_ID, accountHolderName: "X", ...payload } });
+
+    const alipay = await account({ currency: "CNY", type: "chinese_alipay", details: { legalType: "PRIVATE", accountNumber: "li.wei@example.cn" } });
+    expect(alipay.statusCode).toBe(200);
+    expect(jsonOf(alipay)).toMatchObject({ type: "chinese_alipay", country: "CN", details: { accountNumber: "li.wei@example.cn" } });
+
+    const card = await account({ currency: "CNY", type: "chinese_card", details: { legalType: "PRIVATE", cardNumber: "6200 0000 0000 0005" } });
+    expect(jsonOf(card)).toMatchObject({ type: "chinese_card", details: { cardNumber: "6200000000000005" } });
+
+    const aba = await account({ currency: "USD", type: "aba", details: { legalType: "BUSINESS", abartn: "021000021", accountNumber: "123456789", accountType: "SAVINGS" } });
+    expect(jsonOf(aba)).toMatchObject({ type: "aba", country: "US", details: { abartn: "021000021", accountType: "SAVINGS" } });
+
+    const badLuhn = await account({ currency: "CNY", type: "chinese_card", details: { cardNumber: "6200000000000006" } });
+    expect(badLuhn.statusCode).toBe(422);
+    expect((jsonOf(badLuhn).errors as { path: string }[])[0]!.path).toBe("details.cardNumber");
+
+    const alipayInEur = await account({ currency: "EUR", type: "chinese_alipay", details: { accountNumber: "li.wei@example.cn" } });
+    expect(alipayInEur.statusCode).toBe(422);
+    expect((jsonOf(alipayInEur).errors as { path: string }[])[0]!.path).toBe("currency");
+  });
+
+  it("accepts Wise's decimal quote amounts as well as minor units", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/mock/v3/profiles/${USER_ID}/quotes`,
+      payload: { sourceCurrency: "EUR", targetCurrency: "CNY", targetAmount: 500, sourceAmount: null, payOut: "BANK_TRANSFER" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(jsonOf(res)).toMatchObject({ sourceCurrency: "EUR", targetCurrency: "CNY", targetAmountMinor: 50_000 });
+  });
+
   it("returns 404 for a quote on an unknown profile", async () => {
     const res = await app.inject({
       method: "POST",

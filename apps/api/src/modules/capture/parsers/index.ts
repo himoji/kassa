@@ -6,6 +6,7 @@ import { wechatParser } from "./wechat.ts";
 
 export * from "./types.ts";
 export { parseShortcut, ShortcutPayload } from "./shortcut.ts";
+export { ForwardedNotification, parseWalletNotification } from "./wallet.ts";
 
 /** Order matters only for overlapping formats; WeChat before Alipay (both use ¥). */
 export const TEXT_PARSERS: TextParser[] = [kzBankParser, wechatParser, alipayParser, wiseParser, revolutParser];

@@ -30,6 +30,7 @@ import payeeRoutes from "./modules/payees/routes.ts";
 import paymentRoutes from "./modules/payments/routes.ts";
 import privacyRoutes from "./modules/privacy/routes.ts";
 import userRoutes from "./modules/users/routes.ts";
+import walletRoutes from "./modules/wallet/routes.ts";
 import webhookRoutes from "./modules/webhooks/routes.ts";
 
 /** Track B route plugins (coordination doc), mounted under /api when present. */
@@ -98,6 +99,7 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
       await api.register(authRoutes);
       await api.register(userRoutes);
       await api.register(payeeRoutes);
+      await api.register(walletRoutes);
       await api.register(mandateRoutes);
       await api.register(orderRoutes);
       await api.register(commerceRoutes);

@@ -23,3 +23,29 @@ export const MANDATE_CATEGORIES = [
   "utilities",
   "groceries",
 ] as const;
+
+/** Categories offered when a budget is added by hand (any other name the user types becomes its own category). */
+export const BUDGET_CATEGORIES = [
+  ...KNOWN_CATEGORIES,
+  "fun",
+  "subscriptions",
+  "travel",
+  "phone",
+  "sport",
+  "beauty",
+  "gifts",
+  "pets",
+] as const;
+
+/** A typed category name as a category id ("Gym & sauna" → "gym_sauna"); null when nothing is left. */
+export function categoryId(name: string): string | null {
+  const id = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32);
+  return id.length > 0 ? id : null;
+}

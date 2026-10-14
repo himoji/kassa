@@ -123,4 +123,30 @@ describe("onboarding draft → obligations with placeholder payees", () => {
     expect(await t.db().select().from(payees).where(eq(payees.userId, userId))).toHaveLength(1);
     expect(await t.db().select().from(obligations).where(eq(obligations.userId, userId))).toHaveLength(2);
   });
+  it("review-sheet planner edits: added budgets and a new monthly salary are signed and applied", async () => {
+    const { userId, auth } = await createUserWithPasskey();
+    const h = await bearer(userId);
+    const conversationId = randomUUID();
+    await t.db().insert(onboardingDrafts).values({ conversationId, userId, draft: DRAFT, complete: true, updatedAt: clock.now() });
+    const payload = {
+      conversationId,
+      budgets: [{ category: "groceries", limitHomeMinor: 8_000_000 }],
+      // "groceries" is already in the draft: the added copy is dropped, the edit above wins.
+      addedBudgets: [{ category: "eating_out", limitHomeMinor: 3_000_000 }, { category: "groceries", limitHomeMinor: 1 }],
+      monthlyIncomeMinor: 70_000_000,
+    };
+    const opt = (await app().inject({ method: "POST", url: "/api/onboarding/confirm/options", headers: h, payload })).json();
+    expect(opt.draft.budgets).toEqual([
+      { category: "groceries", limitHomeMinor: 8_000_000 },
+      { category: "eating_out", limitHomeMinor: 3_000_000 },
+    ]);
+    expect(opt.draft.incomes[0]).toMatchObject({ source: "Parents", amountMinor: 70_000_000, cadence: "MONTHLY" });
+    // The planner's basis in KZT: the new salary, and the HUF rent plus the EUR term bills spread per month.
+    expect(opt.planBasis.monthlyIncomeMinor).toBe(70_000_000);
+    expect(opt.planBasis.fixedMonthlyMinor).toBeGreaterThan(0);
+    const res = await app().inject({ method: "POST", url: "/api/onboarding/confirm", headers: h, payload: { conversationId, challengeId: opt.challengeId, core: opt.core, assertion: auth.assert(opt.rulesHash) } });
+    expect(res.statusCode, res.body).toBe(200);
+    const budgets = (await app().inject({ method: "GET", url: "/api/budgets", headers: h })).json().budgets as Array<{ category: string; limitHomeMinor: number }>;
+    expect(Object.fromEntries(budgets.map((b) => [b.category, b.limitHomeMinor]))).toEqual({ groceries: 8_000_000, eating_out: 3_000_000 });
+  });
 });
