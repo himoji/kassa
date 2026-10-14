@@ -48,6 +48,7 @@
     "passkeyUnsupported": "This device cannot approve with a passkey.",
     "request": "That request did not work. Try again.",
     "server": "Kassa is having trouble. Try again in a moment.",
+    "serverOutdated": "Your Kassa server is older than this app and does not have this yet. Redeploy the server, then pull to refresh.",
     "signedOut": "Your session has ended. Sign in again.",
     "unknown": "Something went wrong. Try again."
   },

@@ -28,6 +28,14 @@ export class KassaApiError extends Error {
     return [...new Set(codes)];
   }
 
+  /**
+   * The server has no such route at all (Fastify's not-found handler: "No route GET /api/..."): it runs older code than
+   * this app, so a screen added since then cannot load until the server is redeployed.
+   */
+  get missingRoute(): boolean {
+    return this.status === 404 && this.message.startsWith("No route ");
+  }
+
   /** HTTP 428 + PASSKEY_REQUIRED: the server wants a passkey assertion over `challenge` (I8). */
   get passkeyChallenge(): PasskeyChallenge | null {
     if (this.status !== 428 || this.code !== "PASSKEY_REQUIRED") return null;

@@ -5,14 +5,14 @@ import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { devices, notifications, transactions } from "../../db/schema.ts";
+import { devices, notifications, payees, transactions } from "../../db/schema.ts";
 import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { captureNudge } from "./nudge.ts";
 import { whereLabel, type PlaceJson } from "./place.ts";
 import { ForwardedNotification, ShortcutPayload } from "./parsers/index.ts";
-import { ingestCapture, reconcileSettlement, SettlementError } from "./service.ts";
+import { ingestCapture, placeName, reconcileSettlement, SettlementError } from "./service.ts";
 
 /*
  * POST /capture/event (app: notification simulator, text, voice transcript), POST /capture/settlement
@@ -106,11 +106,14 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .where(and(eq(notifications.userId, userId), after ? gt(notifications.createdAt, after) : undefined))
         .orderBy(desc(notifications.createdAt))
         .limit(20);
+      // The name people recognise (as on the purchase screen), not the statement's "SQ *BLUE BOTTLE 0042".
+      const own = await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId));
+      const names = await Promise.all(rows.map(async (t) => (await placeName(userId, t.merchantNorm, t.merchantRaw, db, own)).name));
       return {
-        captures: rows.map((t) => ({
+        captures: rows.map((t, i) => ({
           id: t.id,
           source: t.source,
-          merchant: t.merchantRaw,
+          merchant: names[i]!,
           amountMinor: t.amountMinor,
           currency: t.currency,
           homeAmountMinor: t.homeAmountMinor,

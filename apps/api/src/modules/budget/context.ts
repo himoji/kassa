@@ -56,17 +56,35 @@ export async function totalsByCategory(db: DbOrTx, userId: string, from: string,
   return rows.map((r) => ({ category: r.category, spentMinor: Number(r.total), count: Number(r.n) }));
 }
 
-/** Average monthly spend per category over the last TYPICAL_MONTHS full months that came after the first spend. */
-export async function typicalByCategory(db: DbOrTx, userId: string, monthStart: string): Promise<Map<string, number>> {
+/**
+ * Days into a month the first recorded purchase may fall and the month still counts as tracked in full. A month whose
+ * tracking started later (someone who paired on the 27th) would make a "usual month" or "last month" look tiny.
+ */
+export const FULL_MONTH_GRACE_DAYS = 3;
+
+/**
+ * The first calendar month that was tracked in full before `monthStart` (its first purchase within the grace days of
+ * the month's start, or earlier), or null when there is none yet.
+ */
+export async function firstFullMonth(db: DbOrTx, userId: string, monthStart: string): Promise<string | null> {
   const first = (
     await db
       .select({ at: sql<Date | string | null>`min(${transactions.occurredAt})` })
       .from(transactions)
       .where(and(eq(transactions.userId, userId), isNull(transactions.mergedIntoId), lt(transactions.occurredAt, dayStart(monthStart))))
   )[0]?.at;
+  if (!first) return null;
+  const firstDay = isoDate(new Date(first));
+  const startOfFirst = `${firstDay.slice(0, 8)}01`;
+  const full = daysBetween(startOfFirst, firstDay) < FULL_MONTH_GRACE_DAYS ? startOfFirst : `${addDays(startOfFirst, 31).slice(0, 8)}01`;
+  return full < monthStart ? full : null;
+}
+
+/** Average monthly spend per category over the last TYPICAL_MONTHS months before this one that were tracked in full. */
+export async function typicalByCategory(db: DbOrTx, userId: string, monthStart: string): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  if (!first) return out;
-  const firstMonth = `${isoDate(new Date(first)).slice(0, 8)}01`;
+  const firstMonth = await firstFullMonth(db, userId, monthStart);
+  if (!firstMonth) return out;
   let from = monthStart;
   let months = 0;
   while (months < TYPICAL_MONTHS) {
