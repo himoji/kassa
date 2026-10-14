@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { RefreshControl, ScrollView } from "react-native";
+import { RefreshControl } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { useTheme } from "@/components/ui";
 
@@ -15,6 +16,9 @@ interface ScrollScreenProps {
  * The scroll container every stack screen starts with: first child of the route, with
  * `contentInsetAdjustmentBehavior="automatic"` so native large titles collapse and the safe area
  * and tab bar insets are handled by UIKit (Apple HIG "Navigation bars").
+ *
+ * Keyboard-aware: a focused field scrolls above the keyboard, dragging the list dismisses it
+ * (interactive on iOS), and taps on buttons go through while it is up.
  */
 export function ScrollScreen({
   children,
@@ -24,10 +28,12 @@ export function ScrollScreen({
 }: ScrollScreenProps) {
   const { colors } = useTheme();
   return (
-    <ScrollView
+    <KeyboardAwareScrollView
       testID={testID}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      bottomOffset={24}
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 48 }}
       refreshControl={
@@ -35,6 +41,6 @@ export function ScrollScreen({
       }
     >
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }

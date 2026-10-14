@@ -8,6 +8,8 @@
  */
 import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 import * as Notifications from "expo-notifications";
+import { router, type Href } from "expo-router";
+import { useEffect } from "react";
 
 import { formatAmount } from "@/lib/format";
 import { i18next } from "@/lib/i18n";
@@ -48,8 +50,17 @@ async function canNotify(): Promise<boolean> {
   return (await Notifications.requestPermissionsAsync()).granted;
 }
 
-async function show(title: string, body: string): Promise<void> {
-  await Notifications.scheduleNotificationAsync({ content: { title, body }, trigger: null });
+/** `data.url` is the in-app route a tap opens (useNotificationLinks). */
+async function show(title: string, body: string, url: string): Promise<void> {
+  await Notifications.scheduleNotificationAsync({
+    content: { title, body, data: { url } },
+    trigger: null,
+  });
+}
+
+/** The route a purchase notification opens. */
+export function purchaseUrl(id: string): string {
+  return `/purchase/${encodeURIComponent(id)}`;
 }
 
 let chain: Promise<number> = Promise.resolve(0);
@@ -78,16 +89,18 @@ async function run(response: RecentCapturesResponse): Promise<number> {
     if (fresh.length > MAX_INDIVIDUAL_NOTIFICATIONS) {
       await show(
         i18next.t("lite:activity.notifyManyTitle", { count: fresh.length }),
-        i18next.t("lite:activity.notifyManyBody")
+        i18next.t("lite:activity.notifyManyBody"),
+        "/activity"
       );
     } else {
       for (const c of fresh) {
         await show(
           i18next.t("lite:activity.notifyTitle"),
           i18next.t("lite:activity.notifyBody", {
-            merchant: c.merchant,
+            merchant: c.place?.name ?? c.merchant,
             amount: formatAmount(c.amountMinor, c.currency, i18next.language),
-          })
+          }),
+          purchaseUrl(c.id)
         );
       }
     }
@@ -101,4 +114,38 @@ async function run(response: RecentCapturesResponse): Promise<number> {
 
 export async function clearNotifierState(): Promise<void> {
   await storage.removeItem(LAST_SEEN_KEY);
+}
+
+/** Only app routes are followed (a notification's data is ours, but never trust it to leave the app). */
+export function notificationRoute(response: Notifications.NotificationResponse): string | null {
+  const url = response.notification.request.content.data?.url;
+  return typeof url === "string" && url.startsWith("/") && !url.startsWith("//") ? url : null;
+}
+
+/**
+ * Opens the route of a tapped purchase notification, including the one that launched the app. `enabled` waits for
+ * the navigator and a paired session (a tap while locked opens the route behind the lock screen).
+ */
+export function useNotificationLinks(enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    let handled: string | null = null;
+    const open = (response: Notifications.NotificationResponse) => {
+      const key = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (key === handled) return;
+      handled = key;
+      const route = notificationRoute(response);
+      if (route) router.push(route as Href);
+    };
+    const sub = Notifications.addNotificationResponseReceivedListener(open);
+    Notifications.getLastNotificationResponseAsync()
+      .then((last) => {
+        if (!last) return;
+        open(last);
+        // Handled: a later relaunch must not open it again.
+        Notifications.clearLastNotificationResponse();
+      })
+      .catch(() => {});
+    return () => sub.remove();
+  }, [enabled]);
 }

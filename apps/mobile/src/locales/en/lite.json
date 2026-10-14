@@ -1,6 +1,11 @@
 {
   "name": "KassaLite",
-  "tabs": { "activity": "Activity", "chat": "Chat", "settings": "Settings" },
+  "tabs": {
+    "activity": "Activity",
+    "insights": "Insights",
+    "chat": "Chat",
+    "settings": "Settings"
+  },
   "lock": {
     "title": "KassaLite is locked",
     "body": "Unlock with Face ID to see your purchases.",
@@ -18,7 +23,11 @@
     "notifyTitle": "New purchase",
     "notifyBody": "{{merchant}} · {{amount}}",
     "notifyManyTitle": "{{count}} new purchases",
-    "notifyManyBody": "Open KassaLite to see them."
+    "notifyManyBody": "Open KassaLite to see them.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "openHint": "Opens the purchase",
+    "notifyOpen": "Tap to see the details."
   },
   "pair": {
     "title": "Pair KassaLite",
