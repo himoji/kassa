@@ -58,3 +58,14 @@ To undo a bad update, publish the previous commit again, or use `npx eas-cli@lat
 An update does not extend the free provisioning profile: KassaLite still has to be re-run from Xcode about once a
 week. Re-running installs the bundle Xcode built from your checkout; the app then picks up the latest `lite`
 update again on its next starts.
+
+## When an update does not arrive
+
+Open KassaLite → **Settings → App updates**. It says which case you are in:
+
+- **"Over-the-air updates are off in this build"**: the installed app was built without an EAS project id
+  (`bun run lite:ios` also prints this). Do the one-time setup above, then build again. No publish can reach it.
+- **"Debug build"**: Xcode ran the Debug configuration, which loads JS from Metro. Run Release.
+- **"Channel lite, version X"**: the client works. If **Check for updates** says "Up to date", the update was
+  published to another channel or runtime version: publish with `bun run ota lite` and keep
+  `apps/mobile/package.json`'s version equal to the one shown. Otherwise the button downloads it and restarts.
