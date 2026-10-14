@@ -52,7 +52,7 @@ In Xcode:
 1. Select the **KassaLite** target → **Signing & Capabilities** → **Team**: your Apple ID (Personal Team). Add the Apple ID under Xcode → Settings → Accounts first.
 2. If `app.kassa.lite` is taken (free teams share one global namespace), change the **Bundle Identifier**, for example `app.kassa.lite.<yourname>`. Only change it in Xcode; there is nothing to change in the code.
 3. The capability list must stay empty (no Push, no Associated Domains). If Xcode adds one, remove it: a free team cannot sign it.
-4. Choose your iPhone as the run destination. **Product → Scheme → Edit Scheme → Run → Build Configuration: Release** makes the app run without a Metro dev server.
+4. Choose your iPhone as the run destination. `lite:ios` sets the scheme's Run configuration to **Release**, so the app runs without a Metro dev server. Keep it that way: a Debug build loads its JS from whatever Metro is on :8081 (usually `dev:all`'s full-app Metro) and crashes with `'StripeSdk' could not be found`.
 5. **Run** (Cmd-R).
 
 ### On the iPhone
@@ -84,12 +84,12 @@ A KassaLite session cannot sign with a passkey. When the chat proposes a payment
 
 ## Where the code is
 
-| What | Where |
-| --- | --- |
-| Variant switch (bundle id, name, scheme, plugins, router root) | `apps/mobile/app.config.ts` (`APP_VARIANT=lite`) |
-| Routes | `apps/mobile/src/app-lite/` |
-| Screens | `apps/mobile/src/screens/lite/` |
-| Pairing, notifier, lock, server URL, approvals | `apps/mobile/src/lite/` |
-| Passkey / Stripe stubs for the JS bundle | `apps/mobile/src/lite/stubs/`, aliased in `apps/mobile/metro.config.js` |
-| "Pair KassaLite" in the full app | `apps/mobile/src/screens/settings/pair-lite-screen.tsx` |
-| Project generator | `scripts/lite.ts` (`bun run lite:ios`) |
+| What                                                           | Where                                                                   |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Variant switch (bundle id, name, scheme, plugins, router root) | `apps/mobile/app.config.ts` (`APP_VARIANT=lite`)                        |
+| Routes                                                         | `apps/mobile/src/app-lite/`                                             |
+| Screens                                                        | `apps/mobile/src/screens/lite/`                                         |
+| Pairing, notifier, lock, server URL, approvals                 | `apps/mobile/src/lite/`                                                 |
+| Passkey / Stripe stubs for the JS bundle                       | `apps/mobile/src/lite/stubs/`, aliased in `apps/mobile/metro.config.js` |
+| "Pair KassaLite" in the full app                               | `apps/mobile/src/screens/settings/pair-lite-screen.tsx`                 |
+| Project generator                                              | `scripts/lite.ts` (`bun run lite:ios`)                                  |

@@ -68,13 +68,13 @@ export async function setBudgets(userId: string, body: BudgetsSetRequest): Promi
   if (loosenCore) {
     if (!body.challengeId || !body.assertion) {
       const hash = jcsHash(loosenCore);
-      const challengeId = putGated({ userId, purpose: "budgets", hash, payload: loosenCore });
+      const challengeId = await putGated({ userId, purpose: "budgets", hash, payload: loosenCore });
       throw new HttpProblem(428, "PASSKEY_REQUIRED", "Raising a budget needs your passkey", {
         reasonCodes: ["PASSKEY_REQUIRED", "LOOSEN_PENDING"],
         details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
       });
     }
-    const gated = takeGated(body.challengeId, userId, "budgets");
+    const gated = await takeGated(body.challengeId, userId, "budgets");
     if (!gated || jcs(gated.payload) !== jcs(loosenCore)) {
       throw new HttpProblem(409, "CHALLENGE_MISMATCH", "The signed change differs from this request; start again");
     }

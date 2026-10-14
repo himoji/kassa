@@ -53,13 +53,13 @@ export async function requestUnfreeze(
   if (!body.challengeId || !body.assertion) {
     const core: UnfreezeCore = { v: 1, kind: "UNFREEZE", userId, frozenAt: u.frozenAt.toISOString(), nonce: randomBytes(16).toString("base64url") };
     const hash = jcsHash(core);
-    const challengeId = putGated({ userId, purpose: "unfreeze", hash, payload: core });
+    const challengeId = await putGated({ userId, purpose: "unfreeze", hash, payload: core });
     throw new HttpProblem(428, "PASSKEY_REQUIRED", "Unfreezing needs your passkey and takes effect after 24 hours", {
       reasonCodes: ["PASSKEY_REQUIRED", "UNFREEZE_PENDING"],
       details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
     });
   }
-  const gated = takeGated(body.challengeId, userId, "unfreeze");
+  const gated = await takeGated(body.challengeId, userId, "unfreeze");
   const core = gated?.payload as UnfreezeCore | undefined;
   // The account must still be frozen by the same freeze the user signed for.
   if (!gated || !core || core.frozenAt !== u.frozenAt.toISOString()) {
