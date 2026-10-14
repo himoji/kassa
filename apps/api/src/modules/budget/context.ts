@@ -35,15 +35,15 @@ export function monthWindow(today: string): MonthWindow {
   return { start, end, daysTotal, daysElapsed: daysBetween(start, today) + 1, daysLeft: daysBetween(today, end) + 1 };
 }
 
-const dayStart = (d: string) => new Date(`${d}T00:00:00.000Z`);
+export const dayStart = (d: string) => new Date(`${d}T00:00:00.000Z`);
 
-interface CategoryTotal {
+export interface CategoryTotal {
   category: string;
   spentMinor: number;
   count: number;
 }
 
-async function totalsByCategory(db: DbOrTx, userId: string, from: string, toExclusive: string): Promise<CategoryTotal[]> {
+export async function totalsByCategory(db: DbOrTx, userId: string, from: string, toExclusive: string): Promise<CategoryTotal[]> {
   const rows = await db
     .select({
       category: sql<string>`coalesce(${transactions.category}, 'other')`,
@@ -57,7 +57,7 @@ async function totalsByCategory(db: DbOrTx, userId: string, from: string, toExcl
 }
 
 /** Average monthly spend per category over the last TYPICAL_MONTHS full months that came after the first spend. */
-async function typicalByCategory(db: DbOrTx, userId: string, monthStart: string): Promise<Map<string, number>> {
+export async function typicalByCategory(db: DbOrTx, userId: string, monthStart: string): Promise<Map<string, number>> {
   const first = (
     await db
       .select({ at: sql<Date | string | null>`min(${transactions.occurredAt})` })
@@ -81,7 +81,7 @@ async function typicalByCategory(db: DbOrTx, userId: string, monthStart: string)
 }
 
 /** Monthly income in the home currency (weekly × 52 / 12, a term grant over six months, one-offs left out). */
-async function monthlyIncome(db: DbOrTx, userId: string, homeCurrency: string, today: string): Promise<number | null> {
+export async function monthlyIncome(db: DbOrTx, userId: string, homeCurrency: string, today: string): Promise<number | null> {
   const p = (await db.select({ incomes: profiles.incomes }).from(profiles).where(eq(profiles.userId, userId)))[0];
   if (!p || p.incomes.length === 0) return null;
   let total = 0;

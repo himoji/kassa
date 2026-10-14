@@ -611,8 +611,19 @@ export type AgentMessageMetadata = z.infer<typeof AgentMessageMetadata>;
 // ---------- Conversations (persisted chats) ----------
 
 /** GET /agent/conversations */
-export const ConversationSummary = z.object({ id: Uuid, title: z.string().nullable(), createdAt: IsoDateTime });
+export const ConversationSummary = z.object({
+  id: Uuid,
+  title: z.string().nullable(),
+  createdAt: IsoDateTime,
+  /** (added) When the last message was stored (the creation time before the first); the list is newest first by this. */
+  lastMessageAt: IsoDateTime.optional(),
+  /** (added) Stored messages, user and assistant turns and tool results. */
+  messageCount: z.number().int().nonnegative().optional(),
+});
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
+/** PATCH /agent/conversations/:id: rename a chat (shown in the history list). */
+export const RenameConversationRequest = z.object({ title: z.string().trim().min(1).max(80) });
+export type RenameConversationRequest = z.infer<typeof RenameConversationRequest>;
 export const ConversationsResponse = z.object({ conversations: z.array(ConversationSummary) });
 export type ConversationsResponse = z.infer<typeof ConversationsResponse>;
 

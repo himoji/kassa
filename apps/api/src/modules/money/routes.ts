@@ -7,7 +7,7 @@ import {
   SetTransactionCategoryRequest,
   TransactionsResponse,
 } from "@kassa/shared";
-import type { ObligationDto, TransactionDto } from "@kassa/shared";
+import type { ObligationDto } from "@kassa/shared";
 import { and, asc, desc, eq, isNull, lt, or } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -15,6 +15,7 @@ import { z } from "zod";
 import { getDb } from "../../db/client.ts";
 import { cards, mandates, obligations, payees, transactions, users } from "../../db/schema.ts";
 import { ownedNotFound } from "../../http/audit.ts";
+import { toTransactionDto } from "./transaction-dto.ts";
 import { HttpProblem, notFound } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { clock, DAY_MS, isoDate } from "../clock/index.ts";
@@ -52,31 +53,6 @@ function parseCursor(raw: string): { occurredAt: Date; id: string } {
     throw new HttpProblem(400, "BAD_CURSOR", "Invalid cursor");
   }
   return { occurredAt, id: idRaw };
-}
-
-type TransactionRow = typeof transactions.$inferSelect;
-
-function toTransactionDto(row: TransactionRow): TransactionDto {
-  return {
-    id: row.id,
-    source: row.source,
-    occurredAt: row.occurredAt.toISOString(),
-    merchantRaw: row.merchantRaw,
-    merchantNorm: row.merchantNorm,
-    mcc: row.mcc,
-    amountMinor: row.amountMinor,
-    currency: row.currency,
-    cardId: row.cardId,
-    homeAmountMinor: row.homeAmountMinor,
-    rateUsed: row.rateUsed,
-    rateDate: row.rateDate,
-    settledAmountMinor: row.settledAmountMinor,
-    settledCurrency: row.settledCurrency,
-    feeHomeMinor: row.feeHomeMinor,
-    category: row.category,
-    mergedIntoId: row.mergedIntoId,
-    status: row.status,
-  };
 }
 
 const routes: FastifyPluginAsyncZod = async (app) => {

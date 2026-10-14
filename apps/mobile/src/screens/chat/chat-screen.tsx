@@ -1,15 +1,17 @@
 import { useChat } from "@ai-sdk/react";
-import { Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
-import { fetchConversationMessages } from "@/api/hooks/chat";
+import { fetchConversationMessages, useConversations } from "@/api/hooks/chat";
+import { keys } from "@/api/keys";
 import { useMe } from "@/api/hooks/me";
 import { useSetBudgets } from "@/api/hooks/money";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
+import { ChatLayout } from "@/components/kassa/chat-layout";
 import {
   ChoiceCard,
   withReplyAnswer,
@@ -258,12 +260,16 @@ function ChatSession({
     if (server && server !== initial && !touched.current) setMessages(server);
   }, [server, initial, setMessages]);
 
-  // Offline copy (native; encrypted, last 50): refreshed whenever a reply has settled.
+  // Offline copy (native; encrypted, last 50): refreshed whenever a reply has settled. The history list
+  // (titles, last activity) changes with every turn too.
+  const qc = useQueryClient();
   useEffect(() => {
     if (status === "ready" && messages.length > 0) {
       void writeCachedMessages(conversationId, messages);
+      void qc.invalidateQueries({ queryKey: keys.conversations });
     }
-  }, [status, messages, conversationId]);
+  }, [status, messages, conversationId, qc]);
+  const title = useConversations().data?.conversations.find((c) => c.id === conversationId)?.title;
   const [input, setInput] = useState("");
   const scroll = useRef<ScrollView>(null);
   const busy = status === "submitted" || status === "streaming";
@@ -308,6 +314,23 @@ function ChatSession({
     <>
       <Stack.Screen
         options={{
+          title: title ?? t("chat:title"),
+          headerLeft: () => (
+            <Pressable
+              onPress={() => router.push("/chat/history" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel={t("chat:history.open")}
+              testID="open-history"
+              style={{
+                minWidth: 44,
+                minHeight: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="clock.arrow.circlepath" fallback="history" size={22} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Box row gap={2} align="center">
               {replay ? <ReplayBadge /> : null}
@@ -328,9 +351,64 @@ function ChatSession({
           ),
         }}
       />
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={{ flex: 1, backgroundColor: colors.background }}
+      <ChatLayout
+        inTabs
+        composer={
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "flex-end",
+              gap: 8,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              backgroundColor: colors.background,
+            }}
+          >
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder={t("chat:placeholder")}
+              placeholderTextColor={colors.mutedForeground}
+              accessibilityLabel={t("chat:inputA11y")}
+              multiline
+              maxLength={4000}
+              onSubmitEditing={() => send(input)}
+              style={{
+                flex: 1,
+                minHeight: 44,
+                maxHeight: 140,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 22,
+                backgroundColor: colors.muted,
+                color: colors.foreground,
+                fontSize: 16,
+              }}
+            />
+            <Pressable
+              onPress={() => (busy ? void stop() : send(input))}
+              accessibilityRole="button"
+              accessibilityLabel={busy ? t("chat:stop") : t("chat:send")}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.brandAccent,
+              }}
+            >
+              <Icon
+                name={busy ? "stop.fill" : "arrow.up"}
+                fallback={busy ? "stop" : "arrow_upward"}
+                size={20}
+                color="primaryForeground"
+              />
+            </Pressable>
+          </View>
+        }
       >
         <ScrollView
           ref={scroll}
@@ -382,61 +460,7 @@ function ChatSession({
             </Card>
           ) : null}
         </ScrollView>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-end",
-            gap: 8,
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            backgroundColor: colors.background,
-          }}
-        >
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder={t("chat:placeholder")}
-            placeholderTextColor={colors.mutedForeground}
-            accessibilityLabel={t("chat:inputA11y")}
-            multiline
-            maxLength={4000}
-            onSubmitEditing={() => send(input)}
-            style={{
-              flex: 1,
-              minHeight: 44,
-              maxHeight: 140,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              borderRadius: 22,
-              backgroundColor: colors.muted,
-              color: colors.foreground,
-              fontSize: 16,
-            }}
-          />
-          <Pressable
-            onPress={() => (busy ? void stop() : send(input))}
-            accessibilityRole="button"
-            accessibilityLabel={busy ? t("chat:stop") : t("chat:send")}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: colors.brandAccent,
-            }}
-          >
-            <Icon
-              name={busy ? "stop.fill" : "arrow.up"}
-              fallback={busy ? "stop" : "arrow_upward"}
-              size={20}
-              color="primaryForeground"
-            />
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
+      </ChatLayout>
     </>
   );
 }

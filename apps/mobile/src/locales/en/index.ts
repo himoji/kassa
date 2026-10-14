@@ -23,6 +23,7 @@ import shop from "./shop.json";
 import business from "./business.json";
 import lite from "./lite.json";
 import wallet from "./wallet.json";
+import insights from "./insights.json";
 
 export const en = {
   translation,
@@ -47,4 +48,5 @@ export const en = {
   business,
   lite,
   wallet,
+  insights,
 };

@@ -20,6 +20,16 @@ export function Input({
   leftIcon,
   rightIcon,
   style,
+  ref,
+  returnKeyType,
+  onSubmitEditing,
+  submitBehavior,
+  autoCorrect,
+  autoComplete,
+  textContentType,
+  autoFocus,
+  maxLength,
+  testID,
 }: InputProps) {
   const { colors } = useTheme();
 
@@ -30,12 +40,14 @@ export function Input({
         className={cn(
           "bg-background flex-row items-center gap-2 rounded-md border px-3",
           error ? "border-destructive" : "border-input",
-          multiline ? "min-h-24 items-start py-2" : "h-10",
+          multiline ? "min-h-24 items-start py-2" : "h-11",
           !editable && "opacity-50"
         )}
       >
         {leftIcon}
         <TextInput
+          ref={ref}
+          testID={testID}
           className="text-foreground flex-1 text-base"
           value={value}
           onChangeText={onChangeText}
@@ -46,6 +58,14 @@ export function Input({
           autoCapitalize={autoCapitalize}
           multiline={multiline}
           editable={editable}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing ? () => onSubmitEditing() : undefined}
+          submitBehavior={submitBehavior}
+          autoCorrect={autoCorrect}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
+          autoFocus={autoFocus}
+          maxLength={maxLength}
           textAlignVertical={multiline ? "top" : "center"}
           aria-invalid={Boolean(error)}
           aria-label={label}

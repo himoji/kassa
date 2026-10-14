@@ -84,6 +84,14 @@ function RootStack() {
         options={{ ...inlineTitleOptions, headerShown: true, title: t("payees:detailTitle") }}
       />
       <Stack.Screen
+        name="purchase/[id]"
+        options={{ ...inlineTitleOptions, headerShown: true, title: t("insights:detail.title") }}
+      />
+      <Stack.Screen
+        name="insights"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("insights:title") }}
+      />
+      <Stack.Screen
         name="bills/index"
         options={{ ...largeTitleOptions, headerShown: true, title: t("bills:title") }}
       />
