@@ -269,7 +269,9 @@ export function fallbackPickers(o: {
     if (t) covered.add(t);
     for (const opt of o.modelPicker.options) covered.add(`opt:${slug(opt.label)}`);
   }
-  if (!o.modelPicker && draft.homeCurrency && /budget/i.test(reply)) {
+  // Only while budgets are still being asked for: a reply that sums up budgets already in the draft gets no slider
+  // card (it would show a partial copy next to the draft summary).
+  if (!o.modelPicker && draft.homeCurrency && draft.budgets.length === 0 && /budget/i.test(reply)) {
     const pairs = budgetPairs(reply);
     const p = pairs.length >= 2 ? budgetsPicker(o.newId(), "Monthly budgets: slide to adjust, then confirm", draft.homeCurrency, pairs) : null;
     if (p) return [p];

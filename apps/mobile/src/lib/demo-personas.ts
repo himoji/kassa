@@ -15,6 +15,19 @@ export type DemoPersona = (typeof DEMO_PERSONAS)[number];
 
 export const DEFAULT_DEMO_PERSONA: DemoPersona = "dana";
 
+/** Business-mode personas (a pizzeria's till, stock and supplier orders): outside the student/cross-border story. */
+const BUSINESS_PERSONAS: readonly DemoPersona[] = ["pizzeria-bud", "pizzeria-sha"];
+
+/**
+ * The persona chips the welcome screen shows. Business personas are hidden unless EXPO_PUBLIC_SHOW_BUSINESS=true,
+ * but one opened by `?persona=` is still shown, so a direct link keeps working.
+ */
+export function visibleDemoPersonas(selected: DemoPersona, showBusiness: boolean): DemoPersona[] {
+  return DEMO_PERSONAS.filter(
+    (p) => showBusiness || p === selected || !BUSINESS_PERSONAS.includes(p)
+  );
+}
+
 /** Validates a `?persona=` query value; anything not on the allow-list falls back to Dana. */
 export function parseDemoPersona(raw: string | string[] | undefined): DemoPersona {
   const value = Array.isArray(raw) ? raw[0] : raw;

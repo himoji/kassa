@@ -17,10 +17,11 @@ import { cards, mandates, obligations, payees, transactions, users } from "../..
 import { ownedNotFound } from "../../http/audit.ts";
 import { HttpProblem, notFound } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
-import { clock } from "../clock/index.ts";
+import { clock, DAY_MS, isoDate } from "../clock/index.ts";
 import { setTransactionCategory } from "../capture/index.ts";
 import { toHome, type HomeAmount } from "./fx.ts";
 import { walletBalances } from "../rules/facts.ts";
+import { chooseFunding } from "../rules/funding.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE_MANDATE_STATUSES = new Set<string>(["ACTIVE", "PENDING_EFFECTIVE"]);
@@ -125,6 +126,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         payeeId: obligations.payeeId,
         payeeName: payees.name,
         payeeStatus: payees.status,
+        payeeKind: payees.kind,
         payeeAccountHash: payees.accountHash,
         amountMinor: obligations.amountMinor,
         currency: obligations.currency,
@@ -147,6 +149,19 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const activeMandates = userMandates.filter((m) => ACTIVE_MANDATE_STATUSES.has(m.status));
 
     const obligationDtos: ObligationDto[] = [];
+    // Coverage the way the rules check it before a bank transfer (rules/funding.ts): can one wallet balance pay this
+    // bill, with fees, in time? Checked for bills due in the next 45 days; "Covered" on Home then means "Pay" works.
+    const horizon = isoDate(new Date(now.getTime() + 45 * DAY_MS));
+    const coverageOf = async (o: (typeof rows)[number]): Promise<"COVERED" | "SHORTFALL"> => {
+      if (o.payeeKind === "MERCHANT" || o.payeeAccountHash === null || o.dueDate > horizon) return "COVERED";
+      try {
+        const f = await chooseFunding({ userId, homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: o.dueDate });
+        return f.status === "NONE" ? "SHORTFALL" : "COVERED";
+      } catch {
+        return "COVERED";
+      }
+    };
+
     for (const o of rows) {
       const home = await homeOf(o.amountMinor, o.currency, homeCurrency, now);
       const mandate = activeMandates.find((m) => m.payeeIds.includes(o.payeeId) && m.categories.includes(o.category));
@@ -164,7 +179,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         reference: o.reference,
         category: o.category,
         bestRoute: null,
-        coverage: "COVERED",
+        coverage: await coverageOf(o),
         mandateId: mandate?.id ?? null,
       });
     }

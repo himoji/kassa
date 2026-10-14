@@ -25,9 +25,9 @@ import {
   jcsHash,
 } from "@kassa/shared";
 import { generateRegistrationOptions, verifyRegistrationResponse } from "@simplewebauthn/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { createHmac, randomBytes, randomInt } from "node:crypto";
+import { createHmac, hkdfSync, randomBytes, randomInt } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
 import { recoveryCodes, users, webauthnCredentialsRules } from "../../db/schema.ts";
@@ -61,7 +61,17 @@ export function normalizeRecoveryCode(code: string): string {
     .replace(/O/g, "0");
 }
 
+/** The digest key: derived from SESSION_SECRET with HKDF (RFC 5869) for this purpose only, never the signing key itself. */
+function recoveryKey(): Buffer {
+  return Buffer.from(hkdfSync("sha256", env().SESSION_SECRET, "kassa", "recovery-codes-v2", 32));
+}
+
 export function hashRecoveryCode(code: string): string {
+  return createHmac("sha256", recoveryKey()).update(`kassa-recovery-v2:${normalizeRecoveryCode(code)}`).digest("base64url");
+}
+
+/** Codes saved before 2026-10-14 were keyed with SESSION_SECRET directly; they still redeem until replaced. */
+function legacyHashRecoveryCode(code: string): string {
   return createHmac("sha256", env().SESSION_SECRET).update(`kassa-recovery-v1:${normalizeRecoveryCode(code)}`).digest("base64url");
 }
 
@@ -116,7 +126,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .select({ id: recoveryCodes.id, userId: recoveryCodes.userId, displayName: users.displayName, erasedAt: users.erasedAt })
         .from(recoveryCodes)
         .innerJoin(users, eq(users.id, recoveryCodes.userId))
-        .where(and(eq(recoveryCodes.codeHash, hashRecoveryCode(req.body.code)), isNull(recoveryCodes.usedAt)))
+        .where(and(inArray(recoveryCodes.codeHash, [hashRecoveryCode(req.body.code), legacyHashRecoveryCode(req.body.code)]), isNull(recoveryCodes.usedAt)))
     )[0];
     if (!row || row.erasedAt) {
       await audit("AUTH_RECOVERY_FAILED", { userId: null, reasonCodes: ["ASSERTION_INVALID"], detail: "unknown or used backup code" });

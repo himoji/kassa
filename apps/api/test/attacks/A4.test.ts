@@ -162,13 +162,13 @@ describe("A4: loosening needs the passkey, tightening is instant", () => {
     const { userId, auth } = await createUserWithPasskey();
     const payee = await addPayee(userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "KZT" });
     const before = await caps(userId);
-    const body = { caps: { perPaymentMinor: before.perPaymentMinor * 10 } };
+    const body = { caps: { perPaymentMinor: before.perPaymentMinor * 10, perDayMinor: before.perDayMinor * 10, perMonthMinor: before.perMonthMinor * 10 } };
     const first = await app().inject({ method: "PATCH", url: "/api/settings", headers: await bearer(userId), payload: body });
     expect(first.statusCode).toBe(428);
     expect(await caps(userId)).toEqual(before);
 
-    // 2.5x the old per-payment cap: above 2x it is refused outright (SMART asks only within 2x). It stays
-    // inside 2x of the daily cap, so after the loosening only the per-payment check changes.
+    // 2.5x the old per-payment cap: refused (a cap is a hard limit under every preset). The signed change raises the
+    // per-payment, daily and monthly caps, so after it no cap check applies.
     const amountMinor = (before.perPaymentMinor * 5) / 2;
     const early = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "KZT", purpose: "rent" });
     expect(early.decision).toBe("REFUSE");
@@ -194,7 +194,6 @@ describe("A4: loosening needs the passkey, tightening is instant", () => {
       const late = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor, currency: "KZT", purpose: "rent" });
       expect(late.reasonCodes).not.toContain("REFUSE_CAP");
       expect(late.decision).toBe("ASK");
-      expect(late.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
     } finally {
       setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000" });
     }
