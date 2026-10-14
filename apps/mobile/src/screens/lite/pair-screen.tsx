@@ -1,7 +1,9 @@
 import { router, useLocalSearchParams, type Href } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { TextInput } from "react-native";
 
-import { Box, Button, Input, Screen, Text } from "@/components/ui";
+import { ScrollScreen } from "@/components/kassa/scroll-screen";
+import { Box, Button, Card, Icon, Input, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 import { errorText } from "@/components/kassa/error-text";
 import {
@@ -29,6 +31,7 @@ export function PairScreen() {
   const [server, setServer] = useState(() => first(params.server));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const serverRef = useRef<TextInput>(null);
 
   // A new link while the screen is open replaces the fields (adjusting state during render).
   const linkCode = first(params.code);
@@ -69,35 +72,61 @@ export function PairScreen() {
     }
   };
 
+  // The title is the navigation bar's large title (lite-root); this screen starts with the scroll view so it
+  // collapses on scroll and nothing sits under the bar.
   return (
-    <Screen scroll>
-      <Box gap={4}>
-        <Text variant="title">{t("lite:pair.title")}</Text>
-        <Text variant="caption">{t("lite:pair.intro")}</Text>
-        <Input
-          label={t("lite:pair.codeLabel")}
-          placeholder={t("lite:pair.codePlaceholder")}
-          value={code}
-          onChangeText={(text) => setCode(normalizeCode(text).slice(0, 8))}
-          autoCapitalize="characters"
+    <ScrollScreen>
+      <Box align="center" gap={3} pt={2}>
+        <Icon
+          name="iphone.radiowaves.left.and.right"
+          fallback="phonelink_ring"
+          size={44}
+          color="brandAccent"
         />
-        <Input
-          label={t("lite:pair.serverLabel")}
-          placeholder={t("lite:pair.serverPlaceholder")}
-          value={server}
-          onChangeText={setServer}
-          keyboardType="url"
-          autoCapitalize="none"
-        />
-        {error ? (
-          <Text color="destructive" testID="pair-error">
-            {error}
-          </Text>
-        ) : null}
-        <Button onPress={() => void submit()} loading={busy}>
-          {t("lite:pair.submit")}
-        </Button>
+        <Text variant="caption" align="center">
+          {t("lite:pair.intro")}
+        </Text>
       </Box>
-    </Screen>
+      <Card>
+        <Box gap={4}>
+          <Input
+            label={t("lite:pair.codeLabel")}
+            placeholder={t("lite:pair.codePlaceholder")}
+            value={code}
+            onChangeText={(text) => setCode(normalizeCode(text).slice(0, 8))}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            autoComplete="one-time-code"
+            textContentType="oneTimeCode"
+            returnKeyType="next"
+            submitBehavior="submit"
+            onSubmitEditing={() => serverRef.current?.focus()}
+            testID="pair-code"
+          />
+          <Input
+            ref={serverRef}
+            label={t("lite:pair.serverLabel")}
+            placeholder={t("lite:pair.serverPlaceholder")}
+            value={server}
+            onChangeText={setServer}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="URL"
+            returnKeyType="go"
+            onSubmitEditing={() => void submit()}
+            testID="pair-server"
+          />
+        </Box>
+      </Card>
+      {error ? (
+        <Text color="destructive" testID="pair-error">
+          {error}
+        </Text>
+      ) : null}
+      <Button size="lg" onPress={() => void submit()} loading={busy}>
+        {t("lite:pair.submit")}
+      </Button>
+    </ScrollScreen>
   );
 }

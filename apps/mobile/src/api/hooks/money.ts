@@ -131,6 +131,9 @@ export function useSetCategory() {
       Promise.all([
         qc.invalidateQueries({ queryKey: keys.transactions }),
         qc.invalidateQueries({ queryKey: keys.budgets }),
+        qc.invalidateQueries({ queryKey: keys.insights }),
+        // KassaLite's Activity list shows the category too.
+        qc.invalidateQueries({ queryKey: ["lite", "recent"] }),
       ]),
   });
 }

@@ -11,6 +11,7 @@ import { FlatList, Pressable, View } from "react-native";
 import { useLedger, useMarkNotificationRead, useNotifications } from "@/api/hooks/activity";
 import { useMe } from "@/api/hooks/me";
 import { useShopOrders } from "@/api/hooks/shop";
+import { useSpendingInsights } from "@/api/hooks/insights";
 import { useTransactions } from "@/api/hooks/money";
 import { errorText } from "@/components/kassa/error-text";
 import { ReasonCodeList } from "@/components/kassa/reason-codes";
@@ -29,6 +30,8 @@ import {
 } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
+import { purchaseHref } from "@/screens/transaction/transaction-detail-screen";
 
 import { ShopOrderTimeline } from "../shop/shop-order-timeline";
 import { ledgerDisplay } from "./ledger-entry";
@@ -93,7 +96,17 @@ function TransactionRow({ tx }: { tx: TransactionDto }) {
   const f = useFormat();
   const homeCurrency = useMe().data?.homeCurrency;
   return (
-    <View style={{ paddingVertical: 12, gap: 4, minHeight: 44 }}>
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => router.push(purchaseHref(tx.id))}
+      style={({ pressed }) => ({
+        paddingVertical: 12,
+        gap: 4,
+        minHeight: 44,
+        opacity: pressed ? 0.6 : 1,
+      })}
+      testID={`tx-${tx.id}`}
+    >
       <Box row justify="between" gap={3}>
         <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
           {tx.merchantRaw}
@@ -123,7 +136,7 @@ function TransactionRow({ tx }: { tx: TransactionDto }) {
           />
         ) : null}
       </Box>
-    </View>
+    </Pressable>
   );
 }
 
@@ -139,9 +152,13 @@ function NotificationRow({ n }: { n: NotificationDto }) {
     const r = ReasonCode.safeParse(c);
     return r.success ? [r.data] : [];
   });
+  const txId = typeof n.data?.transactionId === "string" ? n.data.transactionId : null;
   return (
     <Pressable
-      onPress={() => unread && markRead.mutate(n.id)}
+      onPress={() => {
+        if (unread) markRead.mutate(n.id);
+        if (txId) router.push(purchaseHref(txId));
+      }}
       accessibilityRole="button"
       accessibilityLabel={unread ? t("activity:unreadA11y", { title: text.title }) : text.title}
       style={{ paddingVertical: 12, gap: 4, minHeight: 44 }}
@@ -197,6 +214,7 @@ export function ActivityScreen() {
   const ledger = useLedger();
   const txs = useTransactions();
   const notes = useNotifications();
+  const insights = useSpendingInsights();
   // (M2/M3) Polls every 2 s while an order is open (see useShopOrders); only while this segment is shown.
   const shop = useShopOrders({ enabled: segment === "orders" });
 
@@ -213,6 +231,9 @@ export function ActivityScreen() {
         ]}
       />
       {segment === "timeline" ? <Text variant="caption">{t("activity:timelineHint")}</Text> : null}
+      {segment === "spending" && insights.data ? (
+        <MonthSummaryCard data={insights.data} onPress={openInsights} />
+      ) : null}
     </Box>
   );
 

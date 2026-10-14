@@ -4,7 +4,7 @@ import { Linking } from "react-native";
 import { errorText } from "@/components/kassa/error-text";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { RowGroup } from "@/components/row-group";
-import { Box, Button, Input, Text, toast } from "@/components/ui";
+import { Box, Button, Icon, Input, Row, Text, toast, useTheme } from "@/components/ui";
 import { copyToClipboard } from "@/lib/clipboard";
 import { confirm } from "@/lib/confirm";
 import { useKassaT } from "@/lib/i18n";
@@ -30,6 +30,7 @@ export function shortcutClipboardText(serverUrl: string, token: string): string 
 /** KassaLite settings: pairing state, Shortcut install, server URL, sign out. */
 export function LiteSettingsScreen() {
   const t = useKassaT();
+  const { colors } = useTheme();
   const [name, setName] = useState<string | null>(null);
   const [server, setServer] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -84,12 +85,18 @@ export function LiteSettingsScreen() {
 
   return (
     <ScrollScreen>
-      <RowGroup title={t("lite:settings.accountTitle")}>
-        <Box p={4}>
-          <Text>
-            {t("lite:settings.signedInAs", { name: name ?? t("lite:settings.unknownUser") })}
-          </Text>
-        </Box>
+      <RowGroup title={t("lite:settings.accountTitle")} icons>
+        <Row
+          leading={
+            <Icon
+              name="person.crop.circle.fill"
+              fallback="account_circle"
+              size={26}
+              color="brandAccent"
+            />
+          }
+          title={t("lite:settings.signedInAs", { name: name ?? t("lite:settings.unknownUser") })}
+        />
       </RowGroup>
 
       <RowGroup
@@ -97,7 +104,17 @@ export function LiteSettingsScreen() {
         footer={template ? t("lite:settings.installShortcutFooter") : t("lite:settings.noTemplate")}
       >
         <Box p={4} gap={3}>
-          <Text variant="caption">{t("lite:settings.shortcutIntro")}</Text>
+          <Box row gap={3} align="center">
+            <Icon
+              name="wave.3.right.circle.fill"
+              fallback="contactless"
+              size={32}
+              color="brandAccent"
+            />
+            <Text variant="caption" style={{ flex: 1 }}>
+              {t("lite:settings.shortcutIntro")}
+            </Text>
+          </Box>
           <Button onPress={() => void install()}>
             {template ? t("lite:settings.installShortcut") : t("lite:settings.copyAgain")}
           </Button>
@@ -107,9 +124,18 @@ export function LiteSettingsScreen() {
       <RowGroup title={t("lite:settings.stepsTitle")}>
         <Box p={4} gap={3}>
           {STEPS.map((n) => (
-            <Text key={n}>
-              {t("lite:settings.step", { n, text: t(`lite:settings.steps.${n}`) })}
-            </Text>
+            <Box key={n} row gap={3}>
+              <Box
+                align="center"
+                justify="center"
+                style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.muted }}
+              >
+                <Text variant="caption" weight="semibold">
+                  {n}
+                </Text>
+              </Box>
+              <Text style={{ flex: 1 }}>{t(`lite:settings.steps.${n}`)}</Text>
+            </Box>
           ))}
         </Box>
       </RowGroup>
@@ -122,6 +148,10 @@ export function LiteSettingsScreen() {
             onChangeText={setServer}
             keyboardType="url"
             autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="URL"
+            returnKeyType="done"
+            onSubmitEditing={() => void saveServer()}
             error={serverError ?? undefined}
           />
           <Button variant="outline" onPress={() => void saveServer()}>
@@ -130,9 +160,22 @@ export function LiteSettingsScreen() {
         </Box>
       </RowGroup>
 
-      <Button variant="destructive" onPress={() => void signOut()}>
-        {t("lite:settings.signOut")}
-      </Button>
+      <RowGroup>
+        <Row
+          leading={
+            <Icon
+              name="rectangle.portrait.and.arrow.right"
+              fallback="logout"
+              size={22}
+              color="destructive"
+            />
+          }
+          title={t("lite:settings.signOut")}
+          destructive
+          chevron={false}
+          onPress={() => void signOut()}
+        />
+      </RowGroup>
     </ScrollScreen>
   );
 }

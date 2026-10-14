@@ -2,6 +2,7 @@ import { router, Stack } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
 
+import { useSpendingInsights } from "@/api/hooks/insights";
 import { useMe } from "@/api/hooks/me";
 import {
   useBalances,
@@ -24,8 +25,15 @@ import { Box, Button, Card, Divider, Icon, Row, Text } from "@/components/ui";
 import { useRequireBackupCodes } from "@/hooks/use-require-backup-codes";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
 
 const UPCOMING_LIMIT = 4;
+
+/** This month's spending at a glance; opens Insights. Hidden until it loads (the budgets below carry the page). */
+function MonthSpend() {
+  const insights = useSpendingInsights();
+  return insights.data ? <MonthSummaryCard data={insights.data} onPress={openInsights} /> : null;
+}
 /** Budgets listed before "Show all" (the ones that need attention come first). */
 const BUDGETS_COLLAPSED = 4;
 
@@ -200,6 +208,8 @@ export function HomeScreen() {
           </Box>
         ) : null}
 
+        <MonthSpend />
+
         <Box gap={3}>
           <Box row justify="between" align="center">
             <Text variant="heading">{t("home:budgets")}</Text>
@@ -282,6 +292,13 @@ export function HomeScreen() {
         <Alerts />
 
         <RowGroup title={t("home:more")} icons>
+          <Row
+            leading={
+              <Icon name="chart.bar.xaxis" fallback="insights" size={20} color="foreground" />
+            }
+            title={t("insights:title")}
+            onPress={openInsights}
+          />
           <Row
             leading={<Icon name="person.2" fallback="group" size={20} color="foreground" />}
             title={t("payees:title")}
