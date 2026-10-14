@@ -15,11 +15,12 @@ import {
   type CapsPatch,
   type OnboardingConfirmOptionsResponse,
 } from "@kassa/shared";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 
 import { fetchOnboardingConversation } from "@/api/hooks/chat";
+import { useMe } from "@/api/hooks/me";
 import {
   type OnboardingReviewEdits,
   useConfirmOnboarding,
@@ -53,6 +54,15 @@ export function OnboardingReviewScreen() {
   const hydrated = useChatHydrated();
   const setConversationId = useChatStore((s) => s.setOnboardingConversationId);
   const [synced, setSynced] = useState(false);
+  const me = useMe();
+  // Opened (or reloaded) after the base rules were already signed: nothing to sign again, go home. Decided once, from
+  // the first answer, so signing on this screen (which flips `onboarded`) still shows the steps that follow it.
+  const [alreadySigned, setAlreadySigned] = useState<boolean | null>(null);
+  if (alreadySigned === null && me.data) setAlreadySigned(me.data.onboarded !== false);
+  // No answer coming (error, or not signed in so the query is idle): show the review.
+  if (alreadySigned === null && !me.data && (me.isError || me.fetchStatus === "idle")) {
+    setAlreadySigned(false);
+  }
   useEffect(() => {
     if (!hydrated) return;
     const ctrl = new AbortController();
@@ -66,7 +76,12 @@ export function OnboardingReviewScreen() {
       });
     return () => ctrl.abort();
   }, [hydrated, setConversationId]);
-  if (!hydrated || !synced) return <Loading label={t("chat:loadingHistory")} />;
+  if (alreadySigned) {
+    return <Redirect href={me.data?.accountType === "BUSINESS" ? "/today" : "/home"} />;
+  }
+  if (!hydrated || !synced || alreadySigned === null) {
+    return <Loading label={t("chat:loadingHistory")} />;
+  }
   return (
     <SheetScroll>
       <OnboardingReview />

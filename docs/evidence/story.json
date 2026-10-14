@@ -1,0 +1,227 @@
+{
+  "ok": true,
+  "story": "kassa connected world (M6)",
+  "agentMode": "REPLAY",
+  "beats": {
+    "setup": {
+      "ok": true,
+      "ms": 292,
+      "personas": {
+        "dana": "c83d27e3-4e03-570f-8fea-87db32399c12",
+        "ownerBud": "02ec41e3-7f0f-59cf-a7e8-d9e8cb990b4d",
+        "ownerSha": "08dc4466-1346-5be3-9fc7-708d7eb7e536"
+      },
+      "shops": {
+        "bud": {
+          "merchant": {
+            "id": "e07aab11-023e-5ee4-8192-6784ef287dab",
+            "slug": "bud",
+            "name": "Pizza Shop in Budapest",
+            "currency": "HUF",
+            "timezone": "Europe/Budapest"
+          },
+          "inventoryItems": 8
+        },
+        "sha": {
+          "merchant": {
+            "id": "42178da4-27f6-528d-b070-7384ac1520a5",
+            "slug": "sha",
+            "name": "Pizza Shop in Shanghai",
+            "currency": "CNY",
+            "timezone": "Asia/Shanghai"
+          },
+          "inventoryItems": 8
+        }
+      }
+    },
+    "pizza": {
+      "ok": true,
+      "ms": 1446,
+      "proposal": {
+        "id": "c82f49c9-3597-4c42-b5cf-b03125239e99",
+        "decision": "AUTO",
+        "payeeName": "Pizza Shop in Budapest",
+        "amountMinor": 598000,
+        "currency": "HUF"
+      },
+      "approval": {
+        "approved": false,
+        "status": "EXECUTED",
+        "decision": "AUTO"
+      },
+      "shopOrder": {
+        "id": "ae68faff-2237-4e38-a376-68b2849fac77",
+        "externalOrderId": "ord_b8a658ced04cb9f3",
+        "status": "DELIVERED",
+        "timeline": [
+          "SUBMITTED",
+          "RECEIVED",
+          "ACCEPTED",
+          "COOKING",
+          "OUT_FOR_DELIVERY",
+          "DELIVERED"
+        ]
+      },
+      "shopCharges": 1
+    },
+    "till": {
+      "ok": true,
+      "ms": 133,
+      "billId": "bud-1a8d57fd13e4c177b591",
+      "totalMinor": 487000,
+      "payUrl": "http://localhost:8081/pay/bud-1a8d57fd13e4c177b591",
+      "proposal": {
+        "proposalId": "e4320f7c-0c14-4f06-8b48-302bd685ee6a",
+        "decision": "AUTO",
+        "reasonCodes": [
+          "SMALL_AUTO"
+        ],
+        "summary": "Paid automatically inside your signed rules: HUF\u00a04,870.00 (\u2248 KZT\u00a07,598.44) to Pizza Shop in Budapest. Reasons: This is under your auto-pay limit to a verified payee, so Kassa can pay it without asking (SMALL_AUTO).",
+        "bill": {
+          "billId": "bud-1a8d57fd13e4c177b591",
+          "merchantSlug": "bud",
+          "merchantName": "Pizza Shop in Budapest",
+          "items": [
+            {
+              "sku": "PZ-PEPP",
+              "qty": 1,
+              "unitPriceMinor": 349000,
+              "name": "Pepperoni"
+            },
+            {
+              "sku": "DR-COLA",
+              "qty": 2,
+              "unitPriceMinor": 69000,
+              "name": "Cola 0.5 l"
+            }
+          ],
+          "totalMinor": 487000,
+          "currency": "HUF",
+          "status": "OPEN"
+        }
+      },
+      "approval": {
+        "approved": false,
+        "status": "EXECUTED",
+        "decision": "AUTO"
+      },
+      "tillStatus": "PAID"
+    },
+    "restock": {
+      "ok": true,
+      "ms": 2117,
+      "forecast": {
+        "today": "2026-10-27",
+        "tomorrow": "2026-10-28",
+        "boxShortage": {
+          "sku": "BOX-33CM",
+          "name": "Pizza box 33 cm",
+          "unit": "pcs",
+          "demandToday": 324,
+          "demandTomorrow": 346,
+          "need": 670,
+          "safety": 67,
+          "onHand": 337,
+          "incoming": 0,
+          "shortage": 400,
+          "suggestion": {
+            "supplierPayeeId": "a0326d52-4f69-5b38-bb3a-ee31cb4e4813",
+            "supplierName": "Restaurant Supplier from China",
+            "verified": true,
+            "supplierSku": "BOX-33CM-100",
+            "packSize": 100,
+            "packs": 4,
+            "packPriceMinor": 18000,
+            "lineTotalMinor": 72000,
+            "currency": "CNY",
+            "leadTimeDays": 1,
+            "arrivesBy": "2026-10-28",
+            "late": false
+          }
+        }
+      },
+      "draft": {
+        "id": "0f0b95ab-3587-4934-88ab-67f9f7e6fd20",
+        "createdBy": "AGENT",
+        "supplierName": "Restaurant Supplier from China",
+        "totalMinor": 72000,
+        "currency": "CNY",
+        "reasonCodes": []
+      },
+      "proposalsWhileDraft": 0,
+      "signed": {
+        "poHash": "JTv0meDn9yqRtHGPv_zZhhl2TULU08iXnLE0dTNN7Cw",
+        "result": {
+          "id": "0f0b95ab-3587-4934-88ab-67f9f7e6fd20",
+          "status": "SENT",
+          "poHash": "JTv0meDn9yqRtHGPv_zZhhl2TULU08iXnLE0dTNN7Cw"
+        }
+      },
+      "status": "CONFIRMED"
+    },
+    "swappedInvoice": {
+      "ok": true,
+      "ms": 179,
+      "refused": true,
+      "reasonCodes": [
+        "INVOICE_ACCOUNT_MISMATCH"
+      ],
+      "poStatus": "CONFIRMED",
+      "proposals": 0
+    },
+    "invoicePaid": {
+      "ok": true,
+      "ms": 581,
+      "proposalId": "380737bb-9044-4c78-a690-81be01d82982",
+      "approval": {
+        "approved": true,
+        "decision": "HANDOFF",
+        "hashMatches": true,
+        "tier": "T2",
+        "paymentId": "fe67ba6a-4e38-4a95-8bdf-41e3395a1596",
+        "paymentStatus": "PROCESSING",
+        "signedOrderHash": "Bk1lfseEceiohcErbGGFybZ2Q2MvemEMG0NHgytbwII"
+      },
+      "qr": {
+        "qrPaymentId": "f0e297b2-5f1f-4019-ba56-e254aa4eb19a",
+        "check": "MATCH"
+      },
+      "poStatus": "PAID",
+      "totalMinor": 72000,
+      "currency": "CNY"
+    },
+    "shortcut": {
+      "ok": true,
+      "ms": 39,
+      "deviceId": "b4339404-2797-475d-938d-641d99262343",
+      "httpStatus": 200,
+      "nudge": "Logged HUF\u00a01,200.00 (\u2248 KZT\u00a01,872.31) at Coffee House \u00b7 Eating out 8% left this month"
+    },
+    "ledgerVerify": {
+      "ok": true,
+      "ms": 7,
+      "entries": 55,
+      "checkpoints": 2,
+      "headHash": "bJrTk_aPlXmoZ0Rmc2_PErTXz0-G0ZJ4L6zDeIb9_mU",
+      "headAnchorSeq": 55,
+      "problems": [],
+      "verifiedAt": "2026-10-27T09:00:06.461Z"
+    }
+  },
+  "failed": [],
+  "stopped": {
+    "stopped": true,
+    "graceful": true,
+    "signaled": [],
+    "portsFree": true,
+    "listening": {
+      "api": false,
+      "mock": false,
+      "control": false
+    },
+    "daemonAlive": false,
+    "mockAlive": false,
+    "groupAlive": false
+  },
+  "totalMs": 10785
+}

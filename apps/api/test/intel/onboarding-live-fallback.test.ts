@@ -20,7 +20,7 @@ import { ensureIntelTables } from "./intelTables.ts";
  */
 
 const t = useTestDb();
-const ENV_KEYS = ["AGENT_MODE", "PLANNER_MODEL", "LOCAL_BASE_URL", "LOCAL_API_KEY", "AI_MAX_RETRIES", "AI_STRUCTURED_MODE"] as const;
+const ENV_KEYS = ["AGENT_MODE", "PLANNER_MODEL", "LOCAL_BASE_URL", "LOCAL_API_KEY", "AI_MAX_RETRIES", "AI_STRUCTURED_MODE", "AI_REPLAY_FALLBACK"] as const;
 const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 let stub: Server;
 let baseUrl = "";
@@ -99,6 +99,7 @@ describe("onboarding LIVE on a model without structured output and a throttled u
         expect(res.statusCode, res.body).toBe(200);
         const body = OnboardingMessageResponse.parse(res.json());
         expect(body.draft.homeCurrency).toBe("KZT");
+        expect(body.replay).toBe(false);
       }
       // Turn 1: native 400 → tool (429, retried, then 200). Turn 2: cached tool mode, no response_format.
       expect(seen.filter((s) => s.responseFormat)).toHaveLength(1);
@@ -109,9 +110,27 @@ describe("onboarding LIVE on a model without structured output and a throttled u
     }
   });
 
-  it("a provider outage is a clean 503 AI_PROVIDER_UNAVAILABLE, not a 500", async () => {
+  it("a provider outage is served from the recording, labelled replay", async () => {
     behaviour = "down";
     process.env.AI_MAX_RETRIES = "1";
+    delete process.env.AI_REPLAY_FALLBACK;
+    const { userId } = await createUserWithPasskey();
+    const token = await mintAccessTokenForTests(userId);
+    const app = await buildServer({ logger: false });
+    try {
+      const res = await say(app, token, randomUUID(), "Hi");
+      expect(res.statusCode, res.body).toBe(200);
+      expect(OnboardingMessageResponse.parse(res.json()).replay).toBe(true);
+      expect(seen).toHaveLength(2); // the live call and its one retry, then the recording
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("with the fallback off, a provider outage is a clean 503 AI_PROVIDER_UNAVAILABLE, not a 500", async () => {
+    behaviour = "down";
+    process.env.AI_MAX_RETRIES = "1";
+    process.env.AI_REPLAY_FALLBACK = "false";
     const { userId } = await createUserWithPasskey();
     const token = await mintAccessTokenForTests(userId);
     const app = await buildServer({ logger: false });

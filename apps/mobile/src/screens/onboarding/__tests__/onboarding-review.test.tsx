@@ -47,6 +47,10 @@ jest.mock("@/api/hooks/onboarding", () => ({
     isPending: false,
   }),
 }));
+let mockMe: { onboarded: boolean } | undefined;
+jest.mock("@/api/hooks/me", () => ({
+  useMe: () => ({ data: mockMe, isError: false, fetchStatus: mockMe ? "idle" : "idle" }),
+}));
 jest.mock("@/api/hooks/payees", () => ({
   useCreateMandate: () => ({
     mutateAsync: (m: MandateOptionsRequest) => mockCreateMandate(m),
@@ -136,6 +140,7 @@ async function signRules() {
 
 describe("onboarding review → mandate → home", () => {
   beforeEach(() => {
+    mockMe = undefined;
     mockReplace.mockClear();
     mockConfirm.mockReset();
     mockCreateMandate.mockReset();

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { DEMO_PERSONAS, demoClaimFor, parseDemoPersona } from "@/lib/demo-personas";
+import {
+  DEMO_PERSONAS,
+  demoClaimFor,
+  parseDemoPersona,
+  visibleDemoPersonas,
+} from "@/lib/demo-personas";
 import { en } from "@/locales/en";
 
 describe("demo personas", () => {
@@ -27,5 +32,16 @@ describe("demo personas", () => {
       expect(personas[p]?.label).toBeTruthy();
       expect(personas[p]?.name).toBeTruthy();
     }
+  });
+
+  it("hides the business personas unless asked for or opened by link", () => {
+    expect(visibleDemoPersonas("dana", false)).toEqual(["dana", "li-wei", "li-wei-cn"]);
+    expect(visibleDemoPersonas("pizzeria-bud", false)).toEqual([
+      "dana",
+      "li-wei",
+      "li-wei-cn",
+      "pizzeria-bud",
+    ]);
+    expect(visibleDemoPersonas("dana", true)).toEqual([...DEMO_PERSONAS]);
   });
 });

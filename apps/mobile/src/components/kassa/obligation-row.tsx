@@ -72,6 +72,9 @@ export function ObligationRow({
       {o.payeeAccountMissing ? (
         <Text variant="caption">{t("bills:needsPayeeDetailsBody", { payee: o.payeeName })}</Text>
       ) : null}
+      {o.coverage === "SHORTFALL" && !o.payeeAccountMissing ? (
+        <Text variant="caption">{t("bills:shortfallBody", { currency: o.currency })}</Text>
+      ) : null}
     </>
   );
   const style = { paddingHorizontal: 16, paddingVertical: 12, gap: 6, minHeight: 44 };
@@ -84,6 +87,20 @@ export function ObligationRow({
         accessibilityHint={t("bills:needsPayeeDetails")}
         testID={`obligation-needs-details-${o.id}`}
         onPress={() => router.push(`/payees/${o.payeeId}`)}
+        style={style}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+  // Not enough money in any one balance (the rules would refuse with INSUFFICIENT_FUNDS): open Add money.
+  if (o.coverage === "SHORTFALL") {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityHint={t("home:addMoney")}
+        testID={`obligation-shortfall-${o.id}`}
+        onPress={() => router.push({ pathname: "/add-money", params: { currency: o.currency } })}
         style={style}
       >
         {body}
