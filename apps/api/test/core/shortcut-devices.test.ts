@@ -123,8 +123,13 @@ describe("/capture/shortcut nudge", () => {
     const body = res.json();
     expect(body.status).toBe("LOGGED");
     expect(body.amountMinor).toBe(129_000);
-    // 1 290 of 10 000 used → 12% used, 88% left.
-    expect(plain(body.nudge)).toBe("Logged HUF 1,290.00 at Cafe Frei · Eating out 88% left this month");
+    // 1 290 of 10 000 used → 12% used, 88% left; 8 710 left over 21 days (11–31 Oct) → about 414 a day.
+    // The tap time is the request time (the localized `date` is ignored): 09:00 UTC = 11:00 in Budapest.
+    expect(plain(body.nudge)).toBe(
+      ["Logged HUF 1,290.00 at Cafe Frei", "Today 11:00 · first time here", "Eating out 88% left this month (HUF 8,710.00), about HUF 414 a day", "New card saved: Revolut (billed in HUF)"].join("\n"),
+    );
+    expect(plain(body.nudgeTitle)).toBe("Logged HUF 1,290.00 at Cafe Frei");
+    expect(plain(body.nudgeBody)).toBe(plain(body.nudge).split("\n").slice(1).join("\n"));
     expect(await getDb().select().from(proposals)).toHaveLength(0);
     expect(await getDb().select().from(approvals)).toHaveLength(0);
     expect(await getDb().select().from(payments)).toHaveLength(0);
@@ -149,7 +154,7 @@ describe("/capture/shortcut nudge", () => {
     await getDb().insert(cardFeeProfiles).values({ cardId: card.id, fromCurrency: "EUR", toCurrency: "HUF", medianMarkupBps: 250, fixedFeeMinor: 0, samples: 3 });
     const { token } = await createDevice(userId);
     const nudge = plain((await capture(token, { merchant: "Café de Flore", amount: "€4.50", card: "Local HUF card" })).json().nudge as string);
-    expect(nudge).toMatch(/^Logged €4\.50 \(≈ HUF [\d,.]+\) at Café de Flore · /);
+    expect(nudge).toMatch(/^Logged €4\.50 \(≈ HUF [\d,.]+\) at Café de Flore\n/);
     expect(nudge).toMatch(/Local HUF card adds ~2\.5% \(≈ HUF [\d,.]+\)/);
   });
 

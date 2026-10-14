@@ -52,7 +52,7 @@ describe("agent tool surface (I1)", () => {
       ].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
-    expect(READ_TOOLS).toEqual(["get_fx_rate"]);
+    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary"]);
   });
 
   it("agent/** never imports payments, rails or ledger/internal (static import scan)", () => {

@@ -2,6 +2,7 @@ import { isKnownCurrency } from "@kassa/shared";
 import { z } from "zod";
 
 import { currencyFromText, parseAmountString } from "../amount.ts";
+import { PlaceHint } from "../place.ts";
 import type { ParsedEvent } from "./types.ts";
 
 /*
@@ -12,11 +13,13 @@ import type { ParsedEvent } from "./types.ts";
  *    "CN¥38.00", "-€4.50" (refund), or a bare JSON number when the field is typed Number.
  *  - `date`: ISO 8601 when the user formats Current Date as ISO; otherwise a localized string ("11 Oct 2026 at
  *    09:15") that is ignored (the automation runs immediately, so the server's now is the purchase time).
+ * Optional location fields (`street`, `city`, `country`, `latitude`, `longitude`; capture/place.ts) say where the tap
+ * happened: the notification names the place and the city, and the place is kept on the transaction.
  * Tolerant on input, strict on meaning: an amount in a currency Kassa does not know ("£4.50", "A$4.50", "JPY 500")
  * is unparsed rather than logged in the home currency.
  */
 
-export const ShortcutPayload = z.object({
+export const ShortcutPayload = PlaceHint.extend({
   // An empty merchant (some passes have none) is logged as "Unknown merchant" rather than refused.
   merchant: z.string().max(200).default(""),
   amount: z.union([z.string().min(1).max(64), z.number()]),
