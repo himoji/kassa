@@ -50,7 +50,10 @@ export function categoryColor(category: string, mode: ResolvedMode, taken: Set<n
 }
 
 export function categoryLabel(t: ReturnType<typeof useKassaT>, category: string): string {
-  return t(`common:category.${category}`, { defaultValue: category.replace(/_/g, " ") });
+  const plain = category.replace(/_/g, " ");
+  return t(`common:category.${category}`, {
+    defaultValue: plain.charAt(0).toLocaleUpperCase() + plain.slice(1),
+  });
 }
 
 /** The emoji of a category in a soft circle: the leading mark of purchase rows. */
@@ -83,6 +86,18 @@ export function CategoryAvatar({
 type Day = SpendingInsightsResponse["daily"][number];
 
 /**
+ * The amount the bar chart's full height stands for. Normally the biggest day; when one day dwarfs the rest (rent on
+ * the 1st is often ten times a normal day) the scale follows the second-biggest day instead, so the other days stay
+ * readable, and the outlier is drawn full height with a break.
+ */
+export function chartMax(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => b - a);
+  const [first = 0, second = 0] = sorted;
+  if (second > 0 && first > second * 3) return Math.round(second * 1.5);
+  return Math.max(1, first);
+}
+
+/**
  * One bar per day of the month so far, baseline-anchored, today in the accent colour. Tapping a bar names the day
  * and the amount above the chart (the chart's tooltip); by default that line names the biggest day.
  */
@@ -99,7 +114,7 @@ export function DailyBars({
   const f = useFormat();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
-  const max = Math.max(1, ...days.map((d) => d.spentMinor));
+  const max = chartMax(days.map((d) => d.spentMinor));
   const peak = days.reduce<Day | null>((a, d) => (!a || d.spentMinor > a.spentMinor ? d : a), null);
   const pick = days.find((d) => d.date === selected);
   const last = days[days.length - 1]?.date;
@@ -122,7 +137,11 @@ export function DailyBars({
       </Text>
       <View style={{ height, flexDirection: "row", alignItems: "flex-end", gap }}>
         {days.map((d) => {
-          const h = d.spentMinor > 0 ? Math.max(4, Math.round((d.spentMinor / max) * height)) : 2;
+          const clipped = d.spentMinor > max;
+          const h =
+            d.spentMinor > 0
+              ? Math.max(4, Math.round((Math.min(d.spentMinor, max) / max) * height))
+              : 2;
           const active = d.date === selected || (!selected && d.date === last);
           return (
             <Pressable
@@ -144,7 +163,12 @@ export function DailyBars({
                   backgroundColor: active ? colors.brandAccent : colors.mutedForeground,
                   opacity: active ? 1 : d.spentMinor > 0 ? 0.45 : 0.2,
                 }}
-              />
+              >
+                {/* A break near the top: this day is taller than the chart (its amount is in the caption). */}
+                {clipped ? (
+                  <View style={{ marginTop: 8, height: 3, backgroundColor: colors.card }} />
+                ) : null}
+              </View>
             </Pressable>
           );
         })}

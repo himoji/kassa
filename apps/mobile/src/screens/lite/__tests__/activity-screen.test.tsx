@@ -85,7 +85,7 @@ describe("ActivityScreen", () => {
     // The likely place replaces the statement text; where it happened joins the caption.
     expect(screen.getByText("Blue Bottle Coffee")).toBeTruthy();
     expect(screen.queryByText("SQ *BB 0412")).toBeNull();
-    expect(screen.getByText(/Eating out · .* · Váci utca 10, Budapest/)).toBeTruthy();
+    expect(screen.getByText(/.* · Eating out · Váci utca 10, Budapest/)).toBeTruthy();
     expect(mockNotify).toHaveBeenCalledWith(DATA);
   });
 

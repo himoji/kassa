@@ -1,5 +1,5 @@
 import type { TransactionDetailResponse } from "@kassa/shared";
-import { router, Stack, useLocalSearchParams, type Href } from "expo-router";
+import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, View } from "react-native";
 
@@ -11,13 +11,14 @@ import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { CategoryAvatar, categoryLabel } from "@/components/kassa/spend-charts";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { RowGroup } from "@/components/row-group";
-import { Box, Icon, Row, Text, toast, useTheme } from "@/components/ui";
+import { Box, Row, Text, toast, useTheme } from "@/components/ui";
 import { BUDGET_CATEGORIES } from "@/lib/categories";
 import { categoryEmoji } from "@/lib/category-emoji";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 import { shareText } from "@/lib/share";
+import { HeaderButtons } from "@/navigation/header-buttons";
 import { statusColor } from "@/theme/status";
 
 function first(value: string | string[] | undefined): string {
@@ -61,11 +62,10 @@ function Hero({ d }: { d: TransactionDetailResponse }) {
           {t("common:approxHome", { amount: f.money(tx.homeAmountMinor!, d.homeCurrency) })}
         </Text>
       ) : null}
-      <Text variant="caption">{f.dateTime(tx.occurredAt)}</Text>
-      <StatusChip
-        tone={tx.status === "SETTLED" ? "positive" : "neutral"}
-        label={t(`activity:txStatus.${tx.status}`)}
-      />
+      {/* Settled is the normal case and needs no badge; a pending one may still change. */}
+      {tx.status !== "SETTLED" ? (
+        <StatusChip tone="neutral" label={t(`activity:txStatus.${tx.status}`)} />
+      ) : null}
     </Box>
   );
 }
@@ -353,44 +353,26 @@ export function TransactionDetailScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerRight: d
-            ? () => (
-                <Box row gap={1} align="center">
-                  <Pressable
-                    onPress={() =>
-                      void copyToClipboard(d.transaction.id, { toast: t("insights:detail.copied") })
-                    }
-                    accessibilityRole="button"
-                    accessibilityLabel={t("insights:detail.copyId")}
-                    style={{
-                      minWidth: 44,
-                      minHeight: 44,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon name="doc.on.doc" fallback="content_copy" size={20} />
-                  </Pressable>
-                  <Pressable
-                    onPress={share}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("insights:detail.share")}
-                    style={{
-                      minWidth: 44,
-                      minHeight: 44,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Icon name="square.and.arrow.up" fallback="share" size={20} />
-                  </Pressable>
-                </Box>
-              )
-            : undefined,
-        }}
-      />
+      {d ? (
+        <HeaderButtons
+          placement="right"
+          buttons={[
+            {
+              icon: "doc.on.doc",
+              fallback: "content_copy",
+              label: t("insights:detail.copyId"),
+              onPress: () =>
+                void copyToClipboard(d.transaction.id, { toast: t("insights:detail.copied") }),
+            },
+            {
+              icon: "square.and.arrow.up",
+              fallback: "share",
+              label: t("insights:detail.share"),
+              onPress: share,
+            },
+          ]}
+        />
+      ) : null}
       <ScrollScreen onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
         <QueryView query={detail} skeletonRows={6}>
           {(data) => <TransactionDetailBody d={data} />}

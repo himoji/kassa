@@ -13,7 +13,7 @@ const mockBack = jest.fn();
 jest.mock("expo-router", () => ({
   ...jest.requireActual<object>("expo-router"),
   router: { back: () => mockBack(), canGoBack: () => true, push: jest.fn() },
-  Stack: { Screen: () => null },
+  Stack: { Screen: () => null, Toolbar: Object.assign(() => null, { Button: () => null }) },
 }));
 
 const NOW = new Date(2026, 9, 14, 15, 0);

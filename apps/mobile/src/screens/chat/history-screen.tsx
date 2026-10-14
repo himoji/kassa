@@ -12,6 +12,7 @@ import { Box, EmptyState, Icon, Input, Row, Text, toast, useTheme } from "@/comp
 import { confirm } from "@/lib/confirm";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { HeaderButtons } from "@/navigation/header-buttons";
 import { useChatStore } from "@/stores/chat";
 
 type Bucket = "today" | "yesterday" | "week" | "month" | "older";
@@ -227,22 +228,18 @@ export function ChatHistoryScreen() {
                   onChangeText: (e) => setQuery(e.nativeEvent.text),
                   hideWhenScrolling: false,
                 },
-          headerRight: () => (
-            <Pressable
-              onPress={startNew}
-              accessibilityRole="button"
-              accessibilityLabel={t("chat:newConversation")}
-              style={{
-                minWidth: 44,
-                minHeight: 44,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="square.and.pencil" fallback="edit_square" size={22} />
-            </Pressable>
-          ),
         }}
+      />
+      <HeaderButtons
+        placement="right"
+        buttons={[
+          {
+            icon: "square.and.pencil",
+            fallback: "edit_square",
+            label: t("chat:newConversation"),
+            onPress: startNew,
+          },
+        ]}
       />
       <ScrollScreen onRefresh={() => void list.refetch()} refreshing={list.isRefetching}>
         {Platform.OS === "web" ? (
