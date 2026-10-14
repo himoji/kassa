@@ -12,10 +12,10 @@ Workspace totals from the run of 2026-10-14 (see "Changelog" at the end). Per-fi
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 101 | 821 | all pass |
+| apps/api | 104 | 828 (+1 opt-in live smoke test, skipped) | all pass |
 | apps/mock-world | 9 | 338 | all pass |
 | packages/shared | 7 | 53 | all pass |
-| apps/mobile (jest) | 65 | 526 | all pass |
+| apps/mobile (jest) | 65 | 527 | all pass |
 
 Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of 8 paid** (`docs/evidence/attacks.json`, A1 to A8). A9 was added later and is refused by its own test; it is not in the naive baseline.
 
@@ -121,3 +121,4 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 ## Changelog
 - 2026-10-12: catalogue created from the review run. Final fix pass: counts refreshed from the final `bun run test` (api 72 files / 633 tests, mock-world 6 / 279, shared 4 / 34, mobile 46 / 410) and rows added for the new and changed test files (X1–X10, Y1–Y7, cap currency, settings derived changes).
 - 2026-10-14: workspace totals refreshed (api 101 files / 821 tests, mock-world 9 / 338, shared 7 / 53, mobile 65 / 526). Rows added for A9, dev sign-in and wallet P2P. Shared and mock-world totals re-run with `npx vitest run`; api and mobile totals from the team's latest full run.
+- 2026-10-14 (later): totals re-run with `bun run test` after the live-AI round (api 104 files / 828 tests, 1 opt-in live smoke test skipped; mobile 65 / 527).
