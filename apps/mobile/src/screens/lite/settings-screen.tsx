@@ -29,6 +29,11 @@ export function shortcutClipboardText(serverUrl: string, token: string): string 
   return `${shortcutEndpointFor(serverUrl)}\nBearer ${token}`;
 }
 
+/** "kassa-sand.vercel.app" for the stored `https://` origin. */
+export function serverHost(url: string): string {
+  return url.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+}
+
 /** KassaLite settings: pairing state, Shortcut install, server URL, sign out. */
 export function LiteSettingsScreen() {
   const t = useKassaT();
@@ -36,6 +41,8 @@ export function LiteSettingsScreen() {
   const [name, setName] = useState<string | null>(null);
   const [server, setServer] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
+  const [showSteps, setShowSteps] = useState(false);
+  const [editServer, setEditServer] = useState(false);
   const template = shortcutTemplateUrl();
 
   useEffect(() => {
@@ -71,6 +78,7 @@ export function LiteSettingsScreen() {
     await saveServerUrl(normalized);
     applyServerUrl(normalized);
     setServer(normalized);
+    setEditServer(false);
     toast.show({ title: t("lite:settings.serverSaved"), kind: "success" });
   };
 
@@ -98,14 +106,15 @@ export function LiteSettingsScreen() {
             />
           }
           title={t("lite:settings.signedInAs", { name: name ?? t("lite:settings.unknownUser") })}
+          subtitle={server ? serverHost(server) : undefined}
         />
       </RowGroup>
 
       <RowGroup
         title={t("lite:settings.shortcutTitle")}
-        footer={template ? t("lite:settings.installShortcutFooter") : t("lite:settings.noTemplate")}
+        footer={template ? t("lite:settings.installShortcutFooter") : t("lite:settings.copyFooter")}
       >
-        <Box p={4} gap={3}>
+        <Box p={4} gap={4}>
           <Box row gap={3} align="center">
             <Icon
               name="wave.3.right.circle.fill"
@@ -117,49 +126,86 @@ export function LiteSettingsScreen() {
               {t("lite:settings.shortcutIntro")}
             </Text>
           </Box>
-          <Button onPress={() => void install()}>
+          <Button variant="outline" onPress={() => void install()}>
             {template ? t("lite:settings.installShortcut") : t("lite:settings.copyAgain")}
           </Button>
         </Box>
-      </RowGroup>
-
-      <RowGroup title={t("lite:settings.stepsTitle")}>
-        <Box p={4} gap={3}>
-          {STEPS.map((n) => (
-            <Box key={n} row gap={3}>
-              <Box
-                align="center"
-                justify="center"
-                style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: colors.muted }}
-              >
-                <Text variant="caption" weight="semibold">
-                  {n}
+        <Row
+          leading={
+            <Icon
+              name="list.number"
+              fallback="format_list_numbered"
+              size={22}
+              color="brandAccent"
+            />
+          }
+          title={t("lite:settings.stepsTitle")}
+          trailing={
+            <Icon
+              name={showSteps ? "chevron.up" : "chevron.down"}
+              fallback={showSteps ? "expand_less" : "expand_more"}
+              size={14}
+              color="mutedForeground"
+            />
+          }
+          onPress={() => setShowSteps((v) => !v)}
+          testID="shortcut-steps"
+        />
+        {showSteps ? (
+          <Box px={4} pb={4} gap={3}>
+            {STEPS.map((n) => (
+              <Box key={n} row gap={3}>
+                <Box
+                  align="center"
+                  justify="center"
+                  style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: colors.muted }}
+                >
+                  <Text variant="caption" weight="semibold">
+                    {n}
+                  </Text>
+                </Box>
+                <Text variant="caption" style={{ flex: 1, color: colors.foreground }}>
+                  {t(`lite:settings.steps.${n}`)}
                 </Text>
               </Box>
-              <Text style={{ flex: 1 }}>{t(`lite:settings.steps.${n}`)}</Text>
-            </Box>
-          ))}
-        </Box>
+            ))}
+          </Box>
+        ) : null}
       </RowGroup>
 
-      <RowGroup title={t("lite:settings.serverTitle")} footer={t("lite:settings.serverFooter")}>
-        <Box p={4} gap={3}>
-          <Input
-            label={t("lite:settings.serverLabel")}
-            value={server}
-            onChangeText={setServer}
-            keyboardType="url"
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="URL"
-            returnKeyType="done"
-            onSubmitEditing={() => void saveServer()}
-            error={serverError ?? undefined}
+      <RowGroup
+        title={t("lite:settings.serverTitle")}
+        footer={editServer ? t("lite:settings.serverFooter") : undefined}
+      >
+        {editServer ? (
+          <Box p={4} gap={3}>
+            <Input
+              label={t("lite:settings.serverLabel")}
+              value={server}
+              onChangeText={setServer}
+              keyboardType="url"
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="URL"
+              returnKeyType="done"
+              autoFocus
+              onSubmitEditing={() => void saveServer()}
+              error={serverError ?? undefined}
+            />
+            <Button variant="outline" onPress={() => void saveServer()}>
+              {t("lite:settings.serverSave")}
+            </Button>
+          </Box>
+        ) : (
+          <Row
+            title={server ? serverHost(server) : t("lite:settings.serverLabel")}
+            trailing={
+              <Text style={{ color: colors.brandAccent }}>{t("lite:settings.serverChange")}</Text>
+            }
+            onPress={() => setEditServer(true)}
+            testID="server-row"
           />
-          <Button variant="outline" onPress={() => void saveServer()}>
-            {t("lite:settings.serverSave")}
-          </Button>
-        </Box>
+        )}
       </RowGroup>
 
       <UpdatesSection />

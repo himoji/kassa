@@ -75,6 +75,9 @@ function titleCase(s: string): string {
  * "SQ *BLUE BOTTLE 0412" → { name: "Blue Bottle", processor: "Square" }. Store numbers ("#12", "0412") and "*" are
  * dropped; a name with no processor is only title-cased when it was printed in capitals.
  */
+/** A trailing upper-case country code after a name of its own ("SPAR HU", "ZARA KZ"). */
+const TRAILING_COUNTRY = /(?<=\S)\s+(?:HU|KZ|DE|AT|GB|UK|US|FR|IT|ES|NL|PL|CZ|SK|RO|HR|SI|RS|UA|TR|CN|HK|SG|JP|KR|AE|UZ|KG|RU|GE|AM|AZ|IE|PT|BE|CH|SE|NO|DK|FI|LT|LV|EE|BG|GR|CA|AU)$/;
+
 export function cleanMerchant(raw: string): { name: string; processor: string | null } {
   let s = raw.normalize("NFKC").replace(/\s+/g, " ").trim();
   let processor: string | null = null;
@@ -90,6 +93,8 @@ export function cleanMerchant(raw: string): { name: string; processor: string | 
   }
   s = s
     .replace(/\s+(?:#\d+|\d{4,})$/, "")
+    // Card networks append the country ("MUNKARUHASHOP HU"); it is not part of the name.
+    .replace(TRAILING_COUNTRY, "")
     .replace(/[*_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

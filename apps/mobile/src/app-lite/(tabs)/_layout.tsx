@@ -7,7 +7,7 @@ export default function LiteTabsLayout() {
   const { colors } = useTheme();
   const t = useKassaT();
   return (
-    <NativeTabs tintColor={colors.brandAccent} minimizeBehavior="onScrollDown">
+    <NativeTabs tintColor={colors.brandAccent}>
       <NativeTabs.Trigger name="activity">
         <NativeTabs.Trigger.Icon sf="list.bullet.rectangle" md="receipt_long" />
         <NativeTabs.Trigger.Label>{t("lite:tabs.activity")}</NativeTabs.Trigger.Label>

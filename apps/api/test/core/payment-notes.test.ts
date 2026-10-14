@@ -99,6 +99,8 @@ describe("when, where and which place", () => {
     expect(cleanMerchant("SUMUP *CAFE FREI")).toEqual({ name: "Cafe Frei", processor: "SumUp" });
     expect(cleanMerchant("ZETTLE_*Bistro Nord")).toEqual({ name: "Bistro Nord", processor: "Zettle" });
     expect(cleanMerchant("Café de Flore")).toEqual({ name: "Café de Flore", processor: null });
+    expect(cleanMerchant("MUNKARUHASHOP HU")).toEqual({ name: "Munkaruhashop", processor: null });
+    expect(cleanMerchant("HU")).toEqual({ name: "Hu", processor: null });
   });
 
   it("old Shortcuts without location fields still work, and junk coordinates are ignored", async () => {

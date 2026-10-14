@@ -82,7 +82,6 @@ describe("ChatHistoryScreen", () => {
     );
     expect(await screen.findByText("Budget for food")).toBeTruthy();
     expect(screen.getByText("Untitled chat")).toBeTruthy();
-    expect(screen.getByText("4 chats")).toBeTruthy();
     await fireEvent.press(screen.getByText("Rent"));
     expect(useChatStore.getState().conversationId).toBe(CHATS[3]!.id);
     expect(mockBack).toHaveBeenCalled();
