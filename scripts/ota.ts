@@ -17,12 +17,18 @@ import { join } from "node:path";
 
 import mobileConfig from "../apps/mobile/readynative.config.ts";
 
-type Target = { variant: string; channel: string; platform: "ios" | "android" | "all" };
+/** `environment`: which EAS environment's variables the bundle gets (`eas update` prompts for it otherwise). */
+type Target = {
+  variant: string;
+  channel: string;
+  platform: "ios" | "android" | "all";
+  environment: "production" | "preview" | "development";
+};
 
 const TARGETS: Record<string, Target> = {
-  lite: { variant: "lite", channel: "lite", platform: "ios" },
-  production: { variant: "prod", channel: "production", platform: "all" },
-  preview: { variant: "preview", channel: "preview", platform: "all" },
+  lite: { variant: "lite", channel: "lite", platform: "ios", environment: "production" },
+  production: { variant: "prod", channel: "production", platform: "all", environment: "production" },
+  preview: { variant: "preview", channel: "preview", platform: "all", environment: "preview" },
 };
 
 const mobile = join(import.meta.dir, "../apps/mobile");
@@ -57,6 +63,7 @@ const easArgs = [
   target.platform,
   "--message",
   message,
+  ...(extra.includes("--environment") ? [] : ["--environment", target.environment]),
   ...extra,
 ];
 
