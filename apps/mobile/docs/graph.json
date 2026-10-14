@@ -302,6 +302,15 @@
       }
     },
     {
+      "id": "route:/chat/history",
+      "kind": "route",
+      "label": "/chat/history",
+      "file": "src/app/(tabs)/chat/history.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
       "id": "route:/credit-record",
       "kind": "route",
       "label": "/credit-record",
@@ -621,6 +630,12 @@
       "kind": "screen",
       "label": "@/screens/chat/consent-card",
       "file": "src/screens/chat/consent-card.tsx"
+    },
+    {
+      "id": "screen:chat/history-screen",
+      "kind": "screen",
+      "label": "@/screens/chat/history-screen",
+      "file": "src/screens/chat/history-screen.tsx"
     },
     {
       "id": "screen:credit/credit-record-screen",
@@ -1776,6 +1791,11 @@
       "kind": "renders"
     },
     {
+      "from": "route:/chat/history",
+      "to": "screen:chat/history-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/credit-record",
       "to": "screen:credit/credit-record-screen",
       "kind": "renders"
@@ -2103,6 +2123,26 @@
     {
       "from": "screen:chat/consent-card",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "store:chat",
       "kind": "imports"
     },
     {

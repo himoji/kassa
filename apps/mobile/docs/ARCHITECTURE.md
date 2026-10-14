@@ -54,6 +54,7 @@ flowchart LR
     nroute__bills["/bills"]
     nroute__cards["/cards"]
     nroute__chat["/chat"]
+    nroute__chat_history["/chat/history"]
     nroute__credit_record["/credit-record"]
     nroute__data["/data"]
     nroute__demo["/demo"]
@@ -97,6 +98,7 @@ flowchart LR
     nscreen_chat_chat_screen["@/screens/chat/chat-screen"]
     nscreen_chat_consent["@/screens/chat/consent"]
     nscreen_chat_consent_card["@/screens/chat/consent-card"]
+    nscreen_chat_history_screen["@/screens/chat/history-screen"]
     nscreen_credit_credit_record_screen["@/screens/credit/credit-record-screen"]
     nscreen_demo_demo_screen["@/screens/demo/demo-screen"]
     nscreen_demo_notification_samples["@/screens/demo/notification-samples"]
@@ -316,6 +318,7 @@ flowchart LR
   nroute__bills -->|renders| nscreen_bills_bills_screen
   nroute__cards -->|renders| nscreen_cards_cards_screen
   nroute__chat -->|renders| nscreen_chat_chat_screen
+  nroute__chat_history -->|renders| nscreen_chat_history_screen
   nroute__credit_record -->|renders| nscreen_credit_credit_record_screen
   nroute__data -->|renders| nscreen_settings_data_screen
   nroute__demo -->|renders| nscreen_demo_demo_screen
@@ -382,6 +385,10 @@ flowchart LR
   nscreen_chat_chat_screen -->|imports| nstore_chat
   nscreen_chat_consent_card -->|imports| nlib_haptics
   nscreen_chat_consent_card -->|imports| nlib_i18n
+  nscreen_chat_history_screen -->|imports| nlib_confirm
+  nscreen_chat_history_screen -->|imports| nlib_format
+  nscreen_chat_history_screen -->|imports| nlib_i18n
+  nscreen_chat_history_screen -->|imports| nstore_chat
   nscreen_credit_credit_record_screen -->|imports| nlib_haptics
   nscreen_credit_credit_record_screen -->|imports| nlib_i18n
   nscreen_credit_credit_record_screen -->|imports| nlib_share_record
@@ -542,7 +549,7 @@ flowchart LR
 | `provider:ToastHost`       | ToastHost       | `src/providers.tsx` |
 | `provider:UiThemeProvider` | UiThemeProvider | `src/providers.tsx` |
 
-## route (44)
+## route (45)
 
 | id                              | label                | file                                  |
 | ------------------------------- | -------------------- | ------------------------------------- |
@@ -565,6 +572,7 @@ flowchart LR
 | `route:/bills`                  | /bills               | `src/app/bills/index.tsx`             |
 | `route:/cards`                  | /cards               | `src/app/(tabs)/cards/index.tsx`      |
 | `route:/chat`                   | /chat                | `src/app/(tabs)/chat/index.tsx`       |
+| `route:/chat/history`           | /chat/history        | `src/app/(tabs)/chat/history.tsx`     |
 | `route:/credit-record`          | /credit-record       | `src/app/credit-record.tsx`           |
 | `route:/data`                   | /data                | `src/app/data.tsx`                    |
 | `route:/demo`                   | /demo                | `src/app/demo.tsx`                    |
@@ -591,7 +599,7 @@ flowchart LR
 | `route:/welcome`                | /welcome             | `src/app/(auth)/welcome.tsx`          |
 | `route:onboarding/_layout`      | /onboarding (layout) | `src/app/onboarding/_layout.tsx`      |
 
-## screen (54)
+## screen (55)
 
 | id                                                 | label                                               | file                                                        |
 | -------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
@@ -611,6 +619,7 @@ flowchart LR
 | `screen:chat/chat-screen`                          | @/screens/chat/chat-screen                          | `src/screens/chat/chat-screen.tsx`                          |
 | `screen:chat/consent`                              | @/screens/chat/consent                              | `src/screens/chat/consent.ts`                               |
 | `screen:chat/consent-card`                         | @/screens/chat/consent-card                         | `src/screens/chat/consent-card.tsx`                         |
+| `screen:chat/history-screen`                       | @/screens/chat/history-screen                       | `src/screens/chat/history-screen.tsx`                       |
 | `screen:credit/credit-record-screen`               | @/screens/credit/credit-record-screen               | `src/screens/credit/credit-record-screen.tsx`               |
 | `screen:demo/demo-screen`                          | @/screens/demo/demo-screen                          | `src/screens/demo/demo-screen.tsx`                          |
 | `screen:demo/notification-samples`                 | @/screens/demo/notification-samples                 | `src/screens/demo/notification-samples.ts`                  |

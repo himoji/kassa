@@ -1,5 +1,5 @@
 import multipart from "@fastify/multipart";
-import { AgentMessageRequest, ConversationMessagesResponse, ConversationsResponse, ReaderDocType, UploadDocumentResponse } from "@kassa/shared";
+import { AgentMessageRequest, ConversationMessagesResponse, ConversationsResponse, ReaderDocType, RenameConversationRequest, UploadDocumentResponse } from "@kassa/shared";
 import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
@@ -12,7 +12,18 @@ import { requireUser, userIdOf } from "../auth/session.ts";
 import { requireAiConsent } from "../privacy/notice.ts";
 import { DocumentError, MAX_DOCUMENT_BYTES, storeDocument } from "../reader/index.ts";
 import { answerText, ChoiceError } from "./choices.ts";
-import { claimConversation, ConversationForbiddenError, conversationOwner, listConversations, loadAllMessages, loadHistory, loadPlaceholders, ownsConversation } from "./history.ts";
+import {
+  claimConversation,
+  ConversationForbiddenError,
+  conversationOwner,
+  deleteConversation,
+  listConversations,
+  loadAllMessages,
+  loadHistory,
+  loadPlaceholders,
+  ownsConversation,
+  renameConversation,
+} from "./history.ts";
 import { startTurn } from "./loop.ts";
 import { dbPorts } from "./ports.ts";
 import { dbTurnStore } from "./store.ts";
@@ -91,7 +102,15 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.get("/agent/conversations", { schema: { response: { 200: ConversationsResponse } } }, async (req) => {
     const rows = await listConversations(userIdOf(req), "agent");
-    return { conversations: rows.map((r) => ({ id: r.id, title: r.title, createdAt: r.createdAt.toISOString() })) };
+    return {
+      conversations: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        createdAt: r.createdAt.toISOString(),
+        lastMessageAt: (r.lastMessageAt ?? r.createdAt).toISOString(),
+        messageCount: r.messageCount,
+      })),
+    };
   });
 
   app.get(
@@ -105,6 +124,28 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       return { messages: await toUIMessages(id, messages, placeholders, dbPorts(userId, id)) };
     },
   );
+
+  app.patch(
+    "/agent/conversations/:id",
+    { schema: { params: z.object({ id: z.string().uuid() }), body: RenameConversationRequest } },
+    async (req, reply) => {
+      const userId = userIdOf(req);
+      const { id } = req.params;
+      if (!(await renameConversation(id, userId, "agent", req.body.title))) {
+        throw await ownedNotFound(userId, "conversation", id, async () => (await conversationOwner(id)) !== null);
+      }
+      return reply.status(204).send();
+    },
+  );
+
+  app.delete("/agent/conversations/:id", { schema: { params: z.object({ id: z.string().uuid() }) } }, async (req, reply) => {
+    const userId = userIdOf(req);
+    const { id } = req.params;
+    if (!(await deleteConversation(id, userId, "agent"))) {
+      throw await ownedNotFound(userId, "conversation", id, async () => (await conversationOwner(id)) !== null);
+    }
+    return reply.status(204).send();
+  });
 
   app.post("/agent/documents", { schema: { response: { 200: UploadDocumentResponse } } }, async (req) => {
     const userId = userIdOf(req);

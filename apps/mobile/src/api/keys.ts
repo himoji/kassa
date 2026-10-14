@@ -11,6 +11,7 @@ export const keys = {
   transactions: ["transactions"] as const,
   transaction: (id: string) => ["transactions", id] as const,
   insights: ["insights", "spending"] as const,
+  conversations: ["agent", "conversations"] as const,
   payees: ["payees"] as const,
   mandates: ["mandates"] as const,
   caps: ["caps"] as const,
