@@ -725,3 +725,36 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   spending through capture (I6, dedupe, source `IMPORT`, migration 0010, no per-row notifications), bills
   through the onboarding path (placeholder payees, never payable without account details; sanctions
   screening, I9), cards. Budgets are applied by the app with `PUT /budgets` and the passkey.
+
+## 2026-10-14: Payment notifications with when, where, the likely place and budget context for every category; money-advice prompt
+
+- **When and where.** The iOS Shortcut and Android forwarders may add `street`, `city`, `country`, `latitude`,
+  `longitude` to the capture body (`capture/place.ts` `PlaceHint`, all optional, junk coordinates ignored). Kassa keeps
+  them on the transaction (`transactions.place` jsonb, migration 0011) with coordinates rounded to 3 decimals (about
+  100 m); the street and coordinates are removed with the raw merchant text after `RETENTION_DAYS_CAPTURED_TEXT`.
+  The notification gives the local time ("Today 10:59"), the street and city, and visits this month.
+- **Likely place.** Statement text often starts with the payment processor ("SQ *BLUE BOTTLE 0412"). `cleanMerchant`
+  moves known processors aside (Square, SumUp, Zettle, PayPal, Toast, Shopify, myPOS, Stripe, PayU, Checkout.com,
+  GoDaddy, Google, Apple) and drops store numbers; `merchantDisplayName` uses it everywhere, after the dictionary and
+  the user's payees. With AI consent and LIVE mode, the reader model also names the place and its kind; only a
+  medium or high confidence guess is shown ("Probably Blue Bottle Coffee, a café") and kept (`place.source = "AI"`).
+- **Budget context outside budgets.** Before, a spend in a category without a budget produced no in-app notification
+  and only the category name in the Shortcut line. Now (EACH mode) it sends `budget.unbudgeted` (kind
+  `SPEND_UNBUDGETED`): the month so far in that category, the usual month (average of up to 3 full calendar months
+  after the first spend, `budget/context.ts`), spending in all categories without a budget, all spending and its share
+  of monthly income (profile incomes, `monthlyIncomeOf`). The daily digest adds the outside-budgets total. THRESHOLDS
+  mode stays quiet for unbudgeted categories (there is no threshold to cross).
+- **AI tip, grounded.** One call per tap (`advice/enrich.ts`, reader model, 4 s timeout, `AI_PAYMENT_NOTES=false` turns
+  it off) returns the place guess and one tip. The server checks the tip: every number in it must appear in the facts
+  it sent, else the tip is dropped. Any failure leaves the deterministic notification.
+- **Money-advice prompt.** `advice/prompt.ts` `ADVICE_PROMPT` is appended to the agent's `SYSTEM_PROMPT` and used by
+  the payment tip, so advice sounds the same in chat and in notifications: grounded numbers only, look at spending
+  outside budgets, priority order (bills, budgets running out, fees/DCC, unusual spending, goals), concrete and kind,
+  protected money first, everyday money management only (no investment, credit, tax or legal advice). New read-only
+  agent tool `get_spending_summary` (month per category with or without a budget, usual month, outside-budgets total,
+  share of income). Replay recordings are unaffected: they are keyed by the redacted user text.
+- **Response shape.** `POST /capture/shortcut` adds `nudgeTitle` and `nudgeBody`; `nudge` is now the whole
+  notification, one part per line (older Shortcuts keep working). `GET /capture/recent` adds an optional `place`
+  (`name`, `kind`, `where`), shown in KassaLite's Activity.
+- **Tests:** `apps/api/test/core/payment-notes.test.ts`, `shortcut-devices.test.ts` (new format),
+  `apps/mobile/src/screens/activity/__tests__/notification-text.test.ts`, `screens/lite/__tests__/activity-screen.test.tsx`.

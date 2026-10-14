@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { PlaceHint } from "../place.ts";
 import { parseShortcut } from "./shortcut.ts";
 import type { ParsedEvent, ParserFormat } from "./types.ts";
 
@@ -11,10 +12,11 @@ import type { ParsedEvent, ParserFormat } from "./types.ts";
  *  - Samsung Wallet / Pay (com.samsung.android.spay): title "Samsung Wallet", text "Payment of ₸2 500 at Magnum completed"
  *    or "You paid $4.50 to Starbucks with card ending 1234".
  * The amount text goes through the iOS Shortcut amount rules (same locales, same "unknown currency → not logged").
+ * The forwarder may add the phone's location (`city`, `country`, ...; capture/place.ts), as the iOS Shortcut can.
  * Alipay, WeChat Pay and bank apps forwarded the same way go to the text parsers (alipay.ts, wechat.ts, kzBank.ts).
  */
 
-export const ForwardedNotification = z.object({
+export const ForwardedNotification = PlaceHint.extend({
   /** Package name or app label of the app that posted the notification, when the forwarder knows it. */
   app: z.string().max(120).optional(),
   title: z.string().max(300).optional(),

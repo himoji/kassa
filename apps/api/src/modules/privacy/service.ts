@@ -376,6 +376,11 @@ export async function purgeExpired(now: Date = clock.now()): Promise<PurgeCounts
         .where(and(lt(transactions.createdAt, tCut), ne(transactions.merchantRaw, transactions.merchantNorm)))
         .returning({ id: transactions.id })
     ).length;
+    // The same for where a tap happened: the street and the (rounded) coordinates go; the city and the place's name stay.
+    await db
+      .update(transactions)
+      .set({ place: sql`${transactions.place} - 'street' - 'lat' - 'lon'` })
+      .where(and(lt(transactions.createdAt, tCut), sql`${transactions.place} ?| array['street', 'lat', 'lon']`));
   }
 
   if (Object.values(counts).some((n) => n > 0)) await audit("RETENTION_PURGED", { ...counts, at: now.toISOString() });
