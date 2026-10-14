@@ -30,6 +30,7 @@ import type {
   PayeeKind,
   PayeeStatus,
   Preset,
+  RecipientDetails,
   Recurrence,
   Region,
   TransactionSource,
@@ -114,6 +115,8 @@ export interface SeedPayee {
   verifiedAt: string | null;
   coolingUntil: string | null;
   replacesPayeeId: string | null;
+  /** (added 2026-10-15) Recipient details (shared/recipient.ts); the API encrypts them into detailsEnc. */
+  details?: RecipientDetails;
 }
 
 export interface SeedObligation {
@@ -301,6 +304,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-02T10:00:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "RENT", reference: "HF-APT4B-RENT", dueDay: 1 },
   },
   {
     id: IDS.payees.university,
@@ -316,6 +320,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-05T09:30:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "TUITION", studentId: "KZ26-0417", term: "Fall 2026" },
   },
   {
     id: IDS.payees.insurer,
@@ -331,6 +336,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-05T09:45:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "BILLS", billType: "INSURANCE", customerNumber: "POL-778201" },
   },
   {
     id: IDS.payees.pizzaShop,

@@ -31,6 +31,7 @@ import { AccountType } from "./purchaseOrder.ts";
 import { CanonicalOrder } from "./order.ts";
 import { AmountMinor, CurrencyCode, IsoDate, IsoDateTime, paginated, PositiveAmountMinor, Uuid } from "./primitives.ts";
 import { ReasonCode } from "./reasonCodes.ts";
+import { RecipientCategory, RecipientDetails } from "./recipient.ts";
 import { EffectiveSettings, UserSettings } from "./settings.ts";
 import {
   AuthenticationResponseJSON,
@@ -290,6 +291,10 @@ export const PayeeDto = z.object({
   verifiedAt: IsoDateTime.nullable(),
   coolingUntil: IsoDateTime.nullable(),
   replacesPayeeId: Uuid.nullable(),
+  /** (added 2026-10-15) Recipient category, derived from `kind` (shared/recipient.ts). */
+  category: RecipientCategory,
+  /** (added 2026-10-15) What this category asks for (student ID, customer number…); null when none was given. */
+  details: RecipientDetails.nullable(),
 });
 export type PayeeDto = z.infer<typeof PayeeDto>;
 
@@ -305,8 +310,25 @@ export const CreatePayeeRequest = z.object({
   country: z.string().length(2),
   currency: CurrencyCode,
   replacesPayeeId: Uuid.optional(),
+  /** (added 2026-10-15) Must belong to the kind's category (detailsFitKind). */
+  details: RecipientDetails.optional(),
 });
 export type CreatePayeeRequest = z.infer<typeof CreatePayeeRequest>;
+
+/** PATCH /payees/:id (added 2026-10-15): details only. The account, name and currency never change in place (I7). */
+export const UpdatePayeeRequest = z.object({ details: RecipientDetails.nullable() });
+export type UpdatePayeeRequest = z.infer<typeof UpdatePayeeRequest>;
+
+/** POST /obligations (added 2026-10-15): a bill or a schedule (rent, wages, support) to a recipient. */
+export const CreateObligationRequest = z.object({
+  payeeId: Uuid,
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  dueDate: IsoDate,
+  recurrence: z.enum(["MONTHLY", "ONCE"]),
+  reference: z.string().trim().min(1).max(140).optional(),
+});
+export type CreateObligationRequest = z.infer<typeof CreateObligationRequest>;
 
 export const MandateDto = z.object({
   id: Uuid,

@@ -1,4 +1,4 @@
-import type { PayeeDto } from "@kassa/shared";
+import { suggestedReference, type PayeeDto } from "@kassa/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 
@@ -77,7 +77,9 @@ export function SendScreen() {
         payeeId: payee.id,
         amountMinor,
         currency: payee.currency,
-        purpose: purpose.trim() || t("wallet:purposePlaceholder"),
+        // The recipient's own reference (student ID, customer number) unless the user wrote one.
+        purpose:
+          purpose.trim() || suggestedReference(payee.details) || t("wallet:purposePlaceholder"),
       });
       haptics.success();
       router.push(`/order/${res.proposalId}`);
@@ -107,11 +109,11 @@ export function SendScreen() {
                       key={p.id}
                       testID={`send-payee-${p.id}`}
                       title={p.name}
-                      subtitle={
-                        p.status === "COOLING"
-                          ? `${p.accountMasked} · ${t("wallet:cooling")}`
-                          : p.accountMasked
-                      }
+                      subtitle={[
+                        t(`payees:category.${p.category}`),
+                        p.accountMasked,
+                        ...(p.status === "COOLING" ? [t("wallet:cooling")] : []),
+                      ].join(" · ")}
                       onPress={() => {
                         haptics.selection();
                         setPayeeId(p.id);
@@ -147,7 +149,9 @@ export function SendScreen() {
                     label={t("wallet:purpose")}
                     value={purpose}
                     onChangeText={setPurpose}
-                    placeholder={t("wallet:purposePlaceholder")}
+                    placeholder={
+                      suggestedReference(chosen.details) || t("wallet:purposePlaceholder")
+                    }
                   />
                 </Box>
               ) : null}

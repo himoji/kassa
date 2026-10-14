@@ -15,8 +15,9 @@ import {
   type PaymentStatus,
   type Rail,
   type ReasonCode,
+  budgetCategoryFor,
 } from "@kassa/shared";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
@@ -31,6 +32,7 @@ import { findMatchingMandate, type LinkedObligation } from "../mandates/scope.ts
 import { claimSettlement, markSettlementPaid, releaseSettlement, settlementFor } from "../obligations/settlements.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
+import { readDetails } from "../payees/crypto.ts";
 import { screenName } from "../screening/index.ts";
 import { effectiveOf, loadUser } from "../users/service.ts";
 import { decide, type DecideResult } from "./decide.ts";
@@ -38,7 +40,6 @@ import {
   categoryRemaining,
   chooseRail,
   dayStartUtc,
-  defaultCategory,
   itemsOf,
   localHour,
   monthStartUtc,
@@ -283,7 +284,8 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const now = clock.now();
   const { user, profile, caps } = await loadUser(db, input.userId);
   const effective = effectiveOf(user);
-  const payee = (await db.select().from(payees).where(and(eq(payees.id, input.payeeId), eq(payees.userId, input.userId))))[0] ?? null;
+  // A removed recipient (archivedAt) is no payee at all: refused like an unknown one.
+  const payee = (await db.select().from(payees).where(and(eq(payees.id, input.payeeId), eq(payees.userId, input.userId), isNull(payees.archivedAt))))[0] ?? null;
   const rail = chooseRail(input.rail, effective.moneyMode, user.region, payee?.kind ?? "PERSON");
   const home = await toHome(input.amountMinor, input.currency, user.homeCurrency, now);
 
@@ -313,7 +315,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     poNotDelivered = !row.po.timeline.some((t) => t.status === "DELIVERED");
   }
   // X1: a linked bill's category comes from the obligation (server side), never from the caller's input.
-  const category = linked?.category ?? input.category ?? (payee ? defaultCategory(payee.kind) : "other");
+  const category = linked?.category ?? input.category ?? (payee ? budgetCategoryFor(payee.kind, readDetails(payee)) : "other");
   const duplicateObligation = internal.duplicateObligation === true || (period !== null && (await settlementFor(db, input.obligationId!, period)) !== null);
 
   // B2: funding route for bank transfers (spec §12), bound into the signed order below.
@@ -534,7 +536,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     await notify(user.id, {
       kind: "ORDER_REFUSED",
       title: "Payment refused",
-      body: summarize(decision, reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown payee" }),
+      body: summarize(decision, reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown recipient" }),
       data: { proposalId, reasonCodes },
     });
   }
@@ -546,7 +548,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     summary: summarize(
       decision,
       reasonCodes,
-      { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown payee", fundingCurrency: order?.fundingCurrency, fundingAmountMinor: order?.fundingAmountMinor },
+      { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown recipient", fundingCurrency: order?.fundingCurrency, fundingAmountMinor: order?.fundingAmountMinor },
       { amountMinor: home.amountMinor, currency: user.homeCurrency },
     ),
   };
@@ -678,8 +680,8 @@ export async function approveOrder(userId: string, proposalId: string, assertion
   }
   // Payee state may have changed since the draft (blocked, or replaced): re-check.
   const payee = (await db.select().from(payees).where(eq(payees.id, p.canonicalOrder.payeeId)))[0];
-  if (!payee || payee.status === "BLOCKED" || payee.accountHash !== p.canonicalOrder.payeeAccountHash) {
-    throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Payee changed or blocked", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
+  if (!payee || payee.status === "BLOCKED" || payee.archivedAt !== null || payee.accountHash !== p.canonicalOrder.payeeAccountHash) {
+    throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Recipient changed, blocked or removed", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
   }
   if (payee.status === "COOLING" && (!payee.coolingUntil || payee.coolingUntil.getTime() > clock.nowMs())) {
     throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Payee is still cooling", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING"] });

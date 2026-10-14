@@ -1,6 +1,6 @@
 import { router, Stack } from "expo-router";
 import { useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useSpendingInsights } from "@/api/hooks/insights";
 import { useMe } from "@/api/hooks/me";
@@ -21,11 +21,12 @@ import { ProposalCard } from "@/components/kassa/proposal-card";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { StatusChip } from "@/components/kassa/status-chip";
-import { Box, Button, Card, Divider, Icon, Row, Text } from "@/components/ui";
+import { Box, Button, Card, Divider, Icon, Row, Text, useTheme } from "@/components/ui";
 import { useRequireBackupCodes } from "@/hooks/use-require-backup-codes";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
+import { CATEGORIES, CATEGORY_ICON } from "@/screens/payees/recipient-fields";
 
 const UPCOMING_LIMIT = 4;
 
@@ -160,6 +161,51 @@ function Alerts() {
   );
 }
 
+/** Pay by what it is for: one shortcut per recipient category, then all recipients. */
+function PayTo() {
+  const t = useKassaT();
+  const { colors } = useTheme();
+  return (
+    <Box gap={3}>
+      <Box row justify="between" align="center">
+        <Text variant="heading">{t("home:payTo")}</Text>
+        <Button size="sm" variant="ghost" onPress={() => router.push("/payees")}>
+          {t("home:allRecipients")}
+        </Button>
+      </Box>
+      <Box row gap={2} style={{ flexWrap: "wrap" }}>
+        {CATEGORIES.map((c) => (
+          <Pressable
+            key={c}
+            accessibilityRole="button"
+            testID={`home-pay-${c}`}
+            onPress={() => router.push(`/payees?category=${c}`)}
+            style={{
+              flexGrow: 1,
+              flexBasis: 64,
+              alignItems: "center",
+              gap: 6,
+              paddingVertical: 12,
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.card,
+            }}
+          >
+            <Icon
+              name={CATEGORY_ICON[c].sf}
+              fallback={CATEGORY_ICON[c].md}
+              size={22}
+              color="brandAccent"
+            />
+            <Text variant="caption">{t(`payees:category.${c}`)}</Text>
+          </Pressable>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 export function HomeScreen() {
   const t = useKassaT();
   const me = useMe();
@@ -198,6 +244,8 @@ export function HomeScreen() {
         ) : null}
 
         <BalanceCard />
+
+        <PayTo />
 
         {pending.data && pending.data.proposals.length > 0 ? (
           <Box gap={3}>

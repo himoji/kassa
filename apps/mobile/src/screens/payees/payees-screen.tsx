@@ -1,5 +1,5 @@
-import type { PayeeDto } from "@kassa/shared";
-import { Link, Stack } from "expo-router";
+import { suggestedReference, type PayeeDto, type RecipientCategory } from "@kassa/shared";
+import { Link, Stack, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -12,6 +12,9 @@ import { Box, Card, Icon, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 
 import { AddPayeeSheet } from "./add-payee-sheet";
+import { CATEGORIES, CATEGORY_ICON, ChipRow } from "./recipient-fields";
+
+type Filter = RecipientCategory | "ALL";
 
 function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | undefined }) {
   const t = useKassaT();
@@ -23,14 +26,27 @@ function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | u
           style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 6, minHeight: 44 }}
         >
           <Box row justify="between" align="center" gap={2}>
-            <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
-              {payee.name}
-            </Text>
+            <Box row align="center" gap={2} style={{ flexShrink: 1 }}>
+              <Icon
+                name={CATEGORY_ICON[payee.category].sf}
+                fallback={CATEGORY_ICON[payee.category].md}
+                size={18}
+                color="mutedForeground"
+              />
+              <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
+                {payee.name}
+              </Text>
+            </Box>
             <PayeeStatusChip payee={payee} />
           </Box>
+          {suggestedReference(payee.details) ? (
+            <Text variant="caption" numberOfLines={1}>
+              {suggestedReference(payee.details)}
+            </Text>
+          ) : null}
           <Text variant="caption">
             {t("payees:meta", {
-              kind: t(`payees:kind.${payee.kind}`),
+              kind: t(`payees:category.${payee.category}`),
               account: payee.accountMissing ? t("payees:accountNotAdded") : payee.accountMasked,
               currency: payee.currency,
               country: payee.country,
@@ -55,10 +71,19 @@ function PayeeRow({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | u
   );
 }
 
-/** Payees (spec §16): status chips with countdown; "a changed account is a new payee" (I7). */
+/**
+ * Recipients (spec §16 "payees"): grouped by what you pay (people, tuition, rent, bills, shops), with status chips and
+ * the cooling countdown; "a changed account is a new recipient" (I7).
+ */
 export function PayeesScreen() {
   const t = useKassaT();
   const payees = usePayees();
+  const params = useLocalSearchParams<{ category?: string }>();
+  const [filter, setFilter] = useState<Filter>(
+    CATEGORIES.includes(params.category as RecipientCategory)
+      ? (params.category as RecipientCategory)
+      : "ALL"
+  );
   const [adding, setAdding] = useState(false);
 
   return (
@@ -99,22 +124,49 @@ export function PayeesScreen() {
         >
           {(p) => {
             const byId = new Map(p.payees.map((x) => [x.id, x]));
+            const count = (c: Filter) =>
+              c === "ALL" ? p.payees.length : p.payees.filter((x) => x.category === c).length;
+            const shown =
+              filter === "ALL" ? p.payees : p.payees.filter((x) => x.category === filter);
+            const chips = (["ALL", ...CATEGORIES] as Filter[]).map((c) => ({
+              value: c,
+              label: `${t(`payees:category.${c}`)} ${count(c)}`,
+            }));
             return (
-              <RowGroup>
-                {p.payees.map((payee) => (
-                  <View key={payee.id}>
-                    <PayeeRow
-                      payee={payee}
-                      replaced={payee.replacesPayeeId ? byId.get(payee.replacesPayeeId) : undefined}
-                    />
-                  </View>
-                ))}
-              </RowGroup>
+              <Box gap={3}>
+                <ChipRow
+                  options={chips}
+                  value={filter}
+                  onChange={setFilter}
+                  testIDPrefix="recipient-filter"
+                />
+                {shown.length === 0 ? (
+                  <Text variant="caption">
+                    {t("payees:emptyCategory", { category: t(`payees:category.${filter}`) })}
+                  </Text>
+                ) : null}
+                <RowGroup>
+                  {shown.map((payee) => (
+                    <View key={payee.id}>
+                      <PayeeRow
+                        payee={payee}
+                        replaced={
+                          payee.replacesPayeeId ? byId.get(payee.replacesPayeeId) : undefined
+                        }
+                      />
+                    </View>
+                  ))}
+                </RowGroup>
+              </Box>
             );
           }}
         </QueryView>
       </ScrollScreen>
-      <AddPayeeSheet visible={adding} onClose={() => setAdding(false)} />
+      <AddPayeeSheet
+        visible={adding}
+        onClose={() => setAdding(false)}
+        initialCategory={filter === "ALL" ? null : filter}
+      />
     </>
   );
 }

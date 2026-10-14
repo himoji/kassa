@@ -137,7 +137,7 @@ describe("KassaLite pairing", () => {
     for (const token of [lite.tokens!.accessToken, refreshed.json().accessToken as string]) {
       const h = { authorization: `Bearer ${token}` };
       expect((await app().inject({ method: "GET", url: "/api/capture/recent", headers: h })).statusCode).toBe(200);
-      for (const url of [`/api/orders/${randomUUID()}/approve`, "/api/auth/pair/start", "/api/devices/shortcut", "/api/privacy/erase"]) {
+      for (const url of [`/api/orders/${randomUUID()}/approve`, "/api/auth/pair/start", "/api/devices/shortcut", "/api/privacy/erase", `/api/payees/${randomUUID()}/verify-callback`]) {
         const res = await app().inject({ method: "POST", url, headers: h, payload: {} });
         expect(res.statusCode, url).toBe(428);
         expect(res.json().details.approveInWebApp, url).toBeTruthy();
