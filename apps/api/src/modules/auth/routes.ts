@@ -108,7 +108,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         excludeCredentials: existing.map((c) => ({ id: c.id, transports: c.transports })),
         authenticatorSelection: { residentKey: "required", userVerification: "required" },
       });
-      const challengeId = putChallenge(options.challenge, {
+      const challengeId = await putChallenge(options.challenge, {
         purpose: "register",
         userId,
         displayName: req.body.displayName,
@@ -130,7 +130,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       const db = getDb();
       const e = env();
-      const pending = takeChallenge(req.body.challengeId);
+      const pending = await takeChallenge(req.body.challengeId);
       if (!pending || pending.purpose !== "register") {
         throw new HttpProblem(400, "CHALLENGE_UNKNOWN", "Registration challenge unknown or expired");
       }
@@ -189,7 +189,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     { schema: { response: { 200: LoginOptionsResponse } } },
     async () => {
       const options = await generateAuthenticationOptions({ rpID: env().RP_ID, userVerification: "required" });
-      const challengeId = putChallenge(options.challenge, { purpose: "login" });
+      const challengeId = await putChallenge(options.challenge, { purpose: "login" });
       return { challengeId, options: options as never };
     },
   );
@@ -200,7 +200,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       const db = getDb();
       const e = env();
-      const pending = takeChallenge(req.body.challengeId);
+      const pending = await takeChallenge(req.body.challengeId);
       if (!pending || pending.purpose !== "login") {
         throw new HttpProblem(400, "CHALLENGE_UNKNOWN", "Login challenge unknown or expired");
       }

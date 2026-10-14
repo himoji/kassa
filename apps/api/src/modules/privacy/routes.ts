@@ -69,13 +69,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     if (!req.body.challengeId || !req.body.assertion) {
       const core: EraseCore = { v: 1, kind: "ERASE", userId, nonce: randomBytes(16).toString("base64url") };
       const hash = jcsHash(core);
-      const challengeId = putGated({ userId, purpose: "erase", hash, payload: core });
+      const challengeId = await putGated({ userId, purpose: "erase", hash, payload: core });
       throw new HttpProblem(428, "PASSKEY_REQUIRED", "Erasing your data needs your passkey", {
         reasonCodes: ["PASSKEY_REQUIRED"],
         details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
       });
     }
-    const gated = takeGated(req.body.challengeId, userId, "erase");
+    const gated = await takeGated(req.body.challengeId, userId, "erase");
     if (!gated) throw new HttpProblem(409, "CHALLENGE_MISMATCH", "Erase challenge unknown or expired; start again");
     const check = await verifyRulesAssertion(db, { userId, assertion: req.body.assertion, expectedChallenge: gated.hash, challengeReason: "ASSERTION_INVALID" });
     if (!check.ok) {

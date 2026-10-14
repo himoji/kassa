@@ -11,7 +11,8 @@
  * - Security headers (ASVS V14.4): @fastify/helmet with an API CSP (`default-src 'none'`), no framing.
  * - CORS (ASVS V14.5.3): only the configured origins (PUBLIC_ORIGIN + EXTRA_ORIGINS), credentials allowed;
  *   requests without an Origin (native app, webhooks, curl) are not CORS requests and are unaffected.
- * Honest limit: rate-limit counters are in memory (one API process), like the challenge stores.
+ * Honest limit: rate-limit counters are in memory (per API instance; the challenge stores and pairing codes are in
+ * Postgres, auth/challenges.ts).
  */
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";

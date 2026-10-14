@@ -171,13 +171,13 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
   if (!body.challengeId || !body.assertion) {
     const core: PayeeVerifyCore = { v: 1, kind: "PAYEE_VERIFY", userId, payeeId: p.id, payeeName: p.name, accountHash: accountHashValue, nonce: randomBytes(16).toString("base64url") };
     const hash = jcsHash(core);
-    const challengeId = putGated({ userId, purpose: "payee-verify", hash, payload: core });
+    const challengeId = await putGated({ userId, purpose: "payee-verify", hash, payload: core });
     throw new HttpProblem(428, "PASSKEY_REQUIRED", `Confirm ${p.name} with your passkey`, {
       reasonCodes: ["PASSKEY_REQUIRED"],
       details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
     });
   }
-  const gated = takeGated(body.challengeId, userId, "payee-verify");
+  const gated = await takeGated(body.challengeId, userId, "payee-verify");
   const core = gated?.payload as PayeeVerifyCore | undefined;
   // The challenge must be for THIS payee, with the account it still has.
   if (!gated || !core || core.payeeId !== p.id || core.accountHash !== p.accountHash || core.payeeName !== p.name) {

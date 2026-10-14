@@ -95,13 +95,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (!req.body.challengeId || !req.body.assertion) {
         const core: CodesCore = { v: 1, kind: "RECOVERY_CODES", userId, nonce: randomBytes(16).toString("base64url") };
         const hash = jcsHash(core);
-        const challengeId = putGated({ userId, purpose: "recovery-codes", hash, payload: core });
+        const challengeId = await putGated({ userId, purpose: "recovery-codes", hash, payload: core });
         throw new HttpProblem(428, "PASSKEY_REQUIRED", "Creating backup codes needs your passkey", {
           reasonCodes: ["PASSKEY_REQUIRED"],
           details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
         });
       }
-      const gated = takeGated(req.body.challengeId, userId, "recovery-codes");
+      const gated = await takeGated(req.body.challengeId, userId, "recovery-codes");
       if (!gated) throw new HttpProblem(409, "CHALLENGE_MISMATCH", "The signed request expired; start again");
       const check = await verifyRulesAssertion(db, { userId, assertion: req.body.assertion, expectedChallenge: gated.hash, challengeReason: "ASSERTION_INVALID" });
       if (!check.ok) {
@@ -142,14 +142,14 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       attestationType: "none",
       authenticatorSelection: { residentKey: "required", userVerification: "required" },
     });
-    const challengeId = putChallenge(options.challenge, { purpose: "recover", userId: row.userId, codeId: row.id });
+    const challengeId = await putChallenge(options.challenge, { purpose: "recover", userId: row.userId, codeId: row.id });
     return { challengeId, options: options as never };
   });
 
   app.post("/auth/recovery/verify", { schema: { body: RecoveryVerifyRequest, response: { 200: RecoveryVerifyResponse } } }, async (req, reply) => {
     const db = getDb();
     const e = env();
-    const pending = takeChallenge(req.body.challengeId);
+    const pending = await takeChallenge(req.body.challengeId);
     if (!pending || pending.purpose !== "recover") throw new HttpProblem(400, "CHALLENGE_UNKNOWN", "Recovery challenge unknown or expired; enter the code again");
     let verification;
     try {

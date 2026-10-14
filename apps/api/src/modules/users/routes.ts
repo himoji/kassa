@@ -362,7 +362,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         caps: { currency: draft.homeCurrency ?? user.homeCurrency, ...caps, ...capEdits },
       };
       const rulesHash = jcsHash(core);
-      const challengeId = putGated({ userId, purpose: "base-rules", hash: rulesHash, payload: { core, draft } });
+      const challengeId = await putGated({ userId, purpose: "base-rules", hash: rulesHash, payload: { core, draft } });
 
       const { suggestedMandate, suggestedMandatePayees } = await suggestRentMandate(userId);
       return {
@@ -386,7 +386,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const db = getDb();
       const { profile } = await loadUser(db, userId);
       if (profile.baseRulesSignedAt) throw conflict("ALREADY_ONBOARDED", "Base rules already signed; change them in Settings (I8)");
-      const gated = takeGated(req.body.challengeId, userId, "base-rules");
+      const gated = await takeGated(req.body.challengeId, userId, "base-rules");
       const pending = gated?.payload as { core: BaseRulesCore; draft: OnboardingProfileDraft } | undefined;
       if (!gated || !pending || jcs(pending.core) !== jcs(req.body.core)) {
         throw new HttpProblem(409, "CHALLENGE_MISMATCH", "Signed rules differ from the server's; reload the review");

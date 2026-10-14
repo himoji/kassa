@@ -196,6 +196,56 @@ export const recoveryCodes = pgTable(
 );
 
 /**
+ * (added) Short-lived, single-use auth state (auth/challenges.ts, auth/pair.ts). In Postgres rather than process
+ * memory so the request that creates an entry and the one that consumes it may hit different API instances (Vercel
+ * Functions). Taking an entry is `DELETE ... RETURNING` (atomic, at most one taker); expiry is checked against the
+ * Clock (demo offset included) in code, and expired rows are swept on each insert.
+ */
+export const webauthnChallenges = pgTable(
+  "webauthn_challenges",
+  {
+    /** The WebAuthn challenge itself (random ≥16 bytes, base64url); it doubles as the challengeId. */
+    challenge: text("challenge").primaryKey(),
+    /** "register" | "login" | "recover". */
+    purpose: text("purpose").notNull(),
+    /** The rest of the pending entry (register: userId, displayName, existingUser; recover: userId, codeId). */
+    data: jsonb("data").$type<Record<string, unknown>>().notNull().default({}),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("webauthn_challenges_expires_idx").on(t.expiresAt)],
+);
+
+/** Passkey-gated writes: the challenge is the hash of `payload`, the exact server-built change. */
+export const gatedChallenges = pgTable(
+  "gated_challenges",
+  {
+    /** Opaque challengeId (16 random bytes, base64url). */
+    id: text("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: text("purpose").notNull(),
+    hash: text("hash").notNull(),
+    payload: jsonb("payload").$type<unknown>().notNull(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("gated_challenges_expires_idx").on(t.expiresAt)],
+);
+
+/** KassaLite pairing codes, stored as sha256 (base64url) of the normalized code, never in plaintext. */
+export const pairCodes = pgTable(
+  "pair_codes",
+  {
+    codeHash: text("code_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("pair_codes_expires_idx").on(t.expiresAt)],
+);
+
+/**
  * (added, Phase 2) Per-user data encryption key (DEK) for personal fields in append-only stores (ledger
  * payload `pii`). The DEK is wrapped (AES-256-GCM, NIST SP 800-38D) with USER_KEK; erasure (GDPR Art. 17)
  * nulls `wrappedDek` — crypto-shredding — and the row stays as a tombstone so a new key is never minted.

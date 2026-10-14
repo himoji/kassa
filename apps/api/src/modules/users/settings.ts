@@ -170,13 +170,13 @@ export async function patchSettings(
   if (loosenCore) {
     if (!body.challengeId || !body.assertion) {
       const hash = jcsHash(loosenCore);
-      const challengeId = putGated({ userId, purpose: "settings", hash, payload: loosenCore });
+      const challengeId = await putGated({ userId, purpose: "settings", hash, payload: loosenCore });
       throw new HttpProblem(428, "PASSKEY_REQUIRED", "Loosening needs your passkey", {
         reasonCodes: ["PASSKEY_REQUIRED", "LOOSEN_PENDING"],
         details: { challengeId, webauthnOptions: await assertionOptions(db, userId, hash) },
       });
     }
-    const gated = takeGated(body.challengeId, userId, "settings");
+    const gated = await takeGated(body.challengeId, userId, "settings");
     if (!gated || jcs(gated.payload) !== jcs(loosenCore)) {
       throw new HttpProblem(409, "CHALLENGE_MISMATCH", "The signed change differs from this request; start again");
     }
