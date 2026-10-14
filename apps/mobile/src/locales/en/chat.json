@@ -9,6 +9,7 @@
     "failed": "Kassa could not save your consent. Try again."
   },
   "emptyBody": "Ask for a payment, a budget check or a log. Kassa drafts it, and you approve it with your passkey.",
+  "emptyBodyLite": "Ask where your money went, what is left for the week, or log a cash purchase. Payments you approve in the web app.",
   "emptyTitle": "What do you need to pay or plan?",
   "error": "Kassa could not reply just now.",
   "inputA11y": "Message",
@@ -29,6 +30,8 @@
   "send": "Send",
   "stop": "Stop",
   "suggest": {
+    "week": "What did I spend this week?",
+    "where": "Where did my money go this month?",
     "tuition": "Pay my tuition",
     "budget": "How much can I still spend on food this week?",
     "log": "Log a coffee for 1,200 HUF"

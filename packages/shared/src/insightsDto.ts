@@ -48,12 +48,12 @@ export const SpendingInsightsResponse = z.object({
   month: MonthWindowDto,
   totalMinor: AmountMinor,
   count: Count,
-  /** Last month up to the same day of the month; null when there was no spending before this month. */
+  /** Last month up to the same day of the month; null unless last month was tracked in full (from its first days). */
   lastMonthToDateMinor: AmountMinor.nullable(),
   lastMonthTotalMinor: AmountMinor.nullable(),
-  /** Average full month over the last three (only months after the first spend); null when there is none yet. */
+  /** Average month over the last three tracked in full; null when there is none yet. */
   typicalMonthMinor: AmountMinor.nullable(),
-  /** This month's total at the current daily pace. */
+  /** Where this month ends: spent so far plus the days left at the recent daily pace (the biggest day left out). */
   projectedMinor: AmountMinor,
   monthlyIncomeMinor: AmountMinor.nullable(),
   /** totalMinor as a share of monthly income (integer percent), when the income is known. */

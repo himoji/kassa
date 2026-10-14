@@ -50,7 +50,7 @@ export function MonthSummaryCard({
 }) {
   const t = useKassaT();
   const f = useFormat();
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
   const vs = comparison(data, t, f);
   const up = data.lastMonthToDateMinor !== null && data.totalMinor > data.lastMonthToDateMinor;
   return (
@@ -75,29 +75,39 @@ export function MonthSummaryCard({
         >
           {f.money(data.totalMinor, data.homeCurrency)}
         </Text>
-        <Text variant="caption">{t("insights:month.purchases", { count: data.count })}</Text>
+        <Text variant="caption">
+          {[
+            t("insights:month.purchases", { count: data.count }),
+            data.count > 0
+              ? t("insights:month.perDay", {
+                  amount: f.money(
+                    Math.round(data.totalMinor / Math.max(1, data.month.daysElapsed)),
+                    data.homeCurrency
+                  ),
+                })
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
         {vs ? (
           <Box row gap={2} align="center">
             <Icon
               name={up ? "arrow.up.right" : "arrow.down.right"}
               fallback={up ? "trending_up" : "trending_down"}
-              size={16}
-              color="mutedForeground"
+              size={14}
+              color={up ? "destructive" : "mutedForeground"}
             />
-            <Text
-              style={{
-                flexShrink: 1,
-                color: up ? statusColor("warning", mode) : colors.foreground,
-              }}
-            >
+            <Text variant="caption" style={{ flexShrink: 1, color: colors.foreground }}>
               {vs}
             </Text>
           </Box>
         ) : null}
-        {data.daily.length >= 3 ? (
+        {data.daily.length >= 3 && data.month.daysLeft > 1 ? (
           <Text variant="caption">
             {t("insights:month.projected", {
               amount: f.money(data.projectedMinor, data.homeCurrency),
+              date: f.dayMonth(data.month.end),
             })}
           </Text>
         ) : null}

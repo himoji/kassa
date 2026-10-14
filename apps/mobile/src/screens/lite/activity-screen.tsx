@@ -43,9 +43,14 @@ export function groupByDay(
 function CaptureRow({ capture }: { capture: RecentCapture }) {
   const t = useKassaT();
   const f = useFormat();
+  const insights = useSpendingInsights();
+  const home = insights.data?.homeCurrency;
   const category = capture.category
     ? categoryLabel(t, capture.category)
     : t("lite:activity.uncategorised");
+  const name = capture.place?.name ?? capture.merchant;
+  const foreign =
+    home !== undefined && capture.currency !== home && capture.homeAmountMinor !== null;
   return (
     <Pressable
       onPress={() => router.push(purchaseHref(capture.id))}
@@ -56,22 +61,28 @@ function CaptureRow({ capture }: { capture: RecentCapture }) {
     >
       <Box px={4} py={3} row align="center" gap={3}>
         <CategoryAvatar category={capture.category} />
-        <Box gap={1} style={{ flex: 1 }}>
-          <Text weight="semibold" numberOfLines={1}>
-            {capture.place?.name ?? capture.merchant}
-          </Text>
-          <Text variant="caption" numberOfLines={2}>
-            {[category, f.time(capture.occurredAt), capture.place?.where]
-              .filter(Boolean)
-              .join(" · ")}
-          </Text>
+        <Box gap={1} style={{ flex: 1, minWidth: 0 }}>
+          <Box row align="center" gap={3}>
+            <Text weight="semibold" numberOfLines={1} style={{ flex: 1 }}>
+              {name}
+            </Text>
+            <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
+              {f.money(capture.amountMinor, capture.currency)}
+            </Text>
+          </Box>
+          <Box row align="center" gap={3}>
+            <Text variant="caption" numberOfLines={1} style={{ flex: 1 }}>
+              {[f.time(capture.occurredAt), category, capture.place?.where]
+                .filter(Boolean)
+                .join(" · ")}
+            </Text>
+            {foreign ? (
+              <Text variant="caption" style={{ fontVariant: ["tabular-nums"] }}>
+                {t("lite:activity.homeAmount", { amount: f.money(capture.homeAmountMinor!, home) })}
+              </Text>
+            ) : null}
+          </Box>
         </Box>
-        <Box style={{ alignItems: "flex-end" }} gap={1}>
-          <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
-            {f.money(capture.amountMinor, capture.currency)}
-          </Text>
-        </Box>
-        <Icon name="chevron.forward" fallback="chevron_right" size={14} color="mutedForeground" />
       </Box>
     </Pressable>
   );
