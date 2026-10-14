@@ -419,6 +419,13 @@ export const OnboardingConfirmOptionsRequest = z.object({
   /** Edits made on the review sheet before signing: the caps to sign, and budget limits for the draft's categories. */
   caps: CapsPatch.optional(),
   budgets: z.array(z.object({ category: z.string(), limitHomeMinor: PositiveAmountMinor })).max(20).optional(),
+  /** Budgets the user added by hand on the review sheet (categories the draft does not have yet). */
+  addedBudgets: z
+    .array(z.object({ category: z.string().regex(/^[a-z0-9_]{1,32}$/), limitHomeMinor: PositiveAmountMinor }))
+    .max(20)
+    .optional(),
+  /** Monthly take-home pay in the home currency, edited on the review sheet's planner (replaces the main salary). */
+  monthlyIncomeMinor: PositiveAmountMinor.optional(),
 });
 export type OnboardingConfirmOptionsRequest = z.infer<typeof OnboardingConfirmOptionsRequest>;
 export const OnboardingConfirmOptionsResponse = z.object({
@@ -431,6 +438,11 @@ export const OnboardingConfirmOptionsResponse = z.object({
   suggestedMandate: MandateOptionsRequest.nullable(),
   /** Payee names for `suggestedMandate.payeeIds`, for display. */
   suggestedMandatePayees: z.array(z.object({ id: Uuid, name: z.string() })),
+  /**
+   * The planner's starting point, per month in the home currency: the draft's incomes and its recurring bills,
+   * converted at today's rate (shared/plan.ts cadences). Bills here are not budgets: they are paid as bills.
+   */
+  planBasis: z.object({ monthlyIncomeMinor: AmountMinor, fixedMonthlyMinor: AmountMinor }).optional(),
 });
 export type OnboardingConfirmOptionsResponse = z.infer<typeof OnboardingConfirmOptionsResponse>;
 
@@ -669,3 +681,97 @@ export const RecentCapturesResponse = z.object({
   serverTime: IsoDateTime,
 });
 export type RecentCapturesResponse = z.infer<typeof RecentCapturesResponse>;
+
+// ---------- Savings plan (the "your rules" planner) ----------
+
+/**
+ * POST /plan/advice: income, fixed bills and budgets per month plus a savings goal. The server works out what is left
+ * each month and, when the goal does not fit, suggests lower limits for the flexible budgets (AI-written when the
+ * user allows AI processing, else a deterministic rule). Advice only: nothing is changed until the user applies it.
+ */
+export const PlanAdviceRequest = z.object({
+  currency: CurrencyCode,
+  monthlyIncomeMinor: AmountMinor,
+  fixedMonthlyMinor: AmountMinor,
+  budgets: z
+    .array(z.object({ category: z.string().regex(/^[a-z0-9_]{1,32}$/), limitHomeMinor: PositiveAmountMinor }))
+    .max(20),
+  goal: z.object({ amountMinor: PositiveAmountMinor, months: z.number().int().min(1).max(60) }),
+});
+export type PlanAdviceRequest = z.infer<typeof PlanAdviceRequest>;
+export const PlanAdviceResponse = z.object({
+  source: z.enum(["AI", "RULES"]),
+  /** One or two plain sentences for the user. */
+  summary: z.string(),
+  /** Suggested limits (only the categories that change); empty when the goal already fits. */
+  budgets: z.array(z.object({ category: z.string(), limitHomeMinor: PositiveAmountMinor })),
+  /** Left each month after bills and budgets, with the suggestion applied (may be negative). */
+  monthlyLeftMinor: z.number().int(),
+  /** monthlyLeftMinor × months (0 when negative). */
+  projectedMinor: AmountMinor,
+  /** Months the goal takes at that pace; null when nothing is left to save. */
+  monthsToGoal: z.number().int().positive().nullable(),
+});
+export type PlanAdviceResponse = z.infer<typeof PlanAdviceResponse>;
+
+// ---------- Wallet: test top-ups and Kassa-to-Kassa ----------
+
+/** How a test top-up is "paid": a wallet tap (simulated sheet in the app) or a test card. */
+export const TopUpMethod = z.enum(["APPLE_PAY", "GOOGLE_PAY", "SAMSUNG_PAY", "CARD"]);
+export type TopUpMethod = z.infer<typeof TopUpMethod>;
+
+/** GET /wallet: the user's Kassa ID (what another user types to pay them) and how top-ups run here. */
+export const WalletResponse = z.object({
+  /** "KSA-7QMX-2HVA": a public handle, safe to share. */
+  kassaId: z.string(),
+  /** Top-ups need the capped wallet (money mode CAPPED_WALLET). */
+  canTopUp: z.boolean(),
+  /** "stripe-test": a Stripe test-mode PaymentIntent is charged; "simulated": no card network at all. */
+  topUpProvider: z.enum(["stripe-test", "simulated"]),
+  /** What one day of top-ups may add, in the home currency (the user's signed per-day cap). */
+  topUpDailyLimitHomeMinor: AmountMinor,
+  topUpTodayHomeMinor: AmountMinor,
+  homeCurrency: CurrencyCode,
+  currencies: z.array(CurrencyCode),
+});
+export type WalletResponse = z.infer<typeof WalletResponse>;
+
+/** POST /wallet/top-ups: add test money to the wallet. Never real money: Stripe test mode or a simulation. */
+export const TopUpRequest = z.object({
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  method: TopUpMethod,
+  /** One top-up per key (a double tap or a retry after a timeout adds the money once). */
+  idempotencyKey: z.string().uuid(),
+});
+export type TopUpRequest = z.infer<typeof TopUpRequest>;
+export const TopUpResponse = z.object({
+  topUpId: z.string(),
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  method: TopUpMethod,
+  provider: z.enum(["stripe-test", "simulated"]),
+  /** Stripe PaymentIntent id (pi_…) or a simulated reference. */
+  providerRef: z.string(),
+  balanceAfterMinor: AmountMinor.nullable(),
+  simulated: z.literal(true),
+});
+export type TopUpResponse = z.infer<typeof TopUpResponse>;
+
+/**
+ * POST /payees/:id/pay: the user asks to pay one of their payees (any scheme, another Kassa user included). It goes
+ * through the same rules as an agent draft and comes back as a proposal to approve with the passkey.
+ */
+export const PayPayeeRequest = z.object({
+  amountMinor: PositiveAmountMinor,
+  currency: CurrencyCode,
+  purpose: z.string().trim().min(1).max(140),
+});
+export type PayPayeeRequest = z.infer<typeof PayPayeeRequest>;
+export const PayPayeeResponse = z.object({
+  proposalId: z.string().uuid(),
+  decision: z.string(),
+  reasonCodes: z.array(z.string()),
+  summary: z.string(),
+});
+export type PayPayeeResponse = z.infer<typeof PayPayeeResponse>;

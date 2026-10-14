@@ -21,6 +21,7 @@ import {
   SettingsPatchResponse,
   sha256Base64url,
   jcsHash,
+  monthlyIncomeOf,
   type BaseRulesCore,
   type MandateOptionsRequest,
   type OnboardingProfileDraft,
@@ -39,6 +40,7 @@ import { putGated, takeGated } from "../auth/challenges.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { toHome } from "../money/fx.ts";
 import { aiNotice } from "../privacy/notice.ts";
 import { rectifyDisplayName } from "../privacy/service.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
@@ -111,6 +113,38 @@ const ShortcutDevicesResponse = z.object({
   devices: z.array(z.object({ id: z.string().uuid(), kind: z.literal("IOS_SHORTCUT"), createdAt: z.string() })),
   lastCaptureAt: z.string().nullable(),
 });
+
+/**
+ * The planner's salary edit: the first monthly income in the home currency gets the new amount; without one, a
+ * "Salary" income is added first. No edit → incomes as drafted.
+ */
+function withMonthlySalary(incomes: OnboardingProfileDraft["incomes"], amountMinor: number | undefined, currency: string): OnboardingProfileDraft["incomes"] {
+  if (amountMinor === undefined) return incomes;
+  const i = incomes.findIndex((x) => x.cadence === "MONTHLY" && x.currency === currency);
+  if (i >= 0) return incomes.map((x, j) => (j === i ? { ...x, amountMinor } : x));
+  return [{ source: "Salary", currency, amountMinor, cadence: "MONTHLY", nextDate: null }, ...incomes];
+}
+
+/** Per month in the home currency (the review planner's start): incomes, and recurring bills (a term bill over 6 months). */
+async function planBasis(draft: OnboardingProfileDraft, homeCurrency: string): Promise<{ monthlyIncomeMinor: number; fixedMonthlyMinor: number }> {
+  const now = clock.now();
+  const home = async (amountMinor: number, currency: string) => {
+    if (amountMinor === 0) return 0;
+    try {
+      return (await toHome(amountMinor, currency, homeCurrency, now)).amountMinor;
+    } catch {
+      return 0; // no rate for it today: left out, the user can still set the salary on the sheet
+    }
+  };
+  let monthlyIncomeMinor = 0;
+  for (const i of draft.incomes) monthlyIncomeMinor += await home(monthlyIncomeOf(i.amountMinor, i.cadence), i.currency);
+  let fixedMonthlyMinor = 0;
+  for (const o of draft.obligations) {
+    const perMonth = o.recurrence === "MONTHLY" ? o.amountMinor : o.recurrence === "TERM" ? Math.round(o.amountMinor / 6) : 0;
+    fixedMonthlyMinor += await home(perMonth, o.currency);
+  }
+  return { monthlyIncomeMinor, fixedMonthlyMinor };
+}
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
@@ -303,9 +337,16 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const { user, profile, caps } = await loadUser(db, userId);
       const ob = await onboardingModule();
       const stored = (await ob.getOnboardingDraft?.(userId, req.body.conversationId)) ?? emptyDraft();
-      // Review-sheet edits: new limits for the draft's own budget categories (others are ignored), and the caps.
+      // Review-sheet edits: new limits for the draft's own budget categories (others are ignored), budgets the user
+      // added by hand (categories the draft lacks; at most 20 in all), the planner's monthly salary, and the caps.
       const budgetEdits = new Map((req.body.budgets ?? []).map((b) => [b.category, b.limitHomeMinor]));
-      const draft = { ...stored, budgets: stored.budgets.map((b) => ({ ...b, limitHomeMinor: budgetEdits.get(b.category) ?? b.limitHomeMinor })) };
+      const own = new Set(stored.budgets.map((b) => b.category));
+      const added = (req.body.addedBudgets ?? []).filter((b, i, all) => !own.has(b.category) && all.findIndex((x) => x.category === b.category) === i);
+      const draft = {
+        ...stored,
+        budgets: [...stored.budgets.map((b) => ({ ...b, limitHomeMinor: budgetEdits.get(b.category) ?? b.limitHomeMinor })), ...added].slice(0, 20),
+        incomes: withMonthlySalary(stored.incomes, req.body.monthlyIncomeMinor, stored.homeCurrency ?? user.homeCurrency),
+      };
       const capEdits = Object.fromEntries(Object.entries(req.body.caps ?? {}).filter(([, v]) => v !== undefined));
       const current = settingsOf(user, profile.notificationMode);
       const core: BaseRulesCore = {
@@ -332,6 +373,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         draft,
         suggestedMandate,
         suggestedMandatePayees,
+        planBasis: await planBasis(draft, core.settings.homeCurrency),
       };
     },
   );

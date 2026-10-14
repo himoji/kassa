@@ -71,6 +71,13 @@ const EnvSchema = z.object({
   /** Stable phone host (named tunnel), e.g. kassa.example.com: the server URL KassaLite and the Shortcut use. */
   PHONE_HOST: z.string().optional(),
   MOCK_WORLD_URL: z.string().url().default("http://localhost:4001"),
+  /**
+   * Wise sandbox (rails/bankApi.ts): with a sandbox API token the bank rail sends real sandbox quotes, recipients and
+   * transfers instead of using mock-world. Never a live token: the URL defaults to the sandbox.
+   */
+  WISE_SANDBOX_TOKEN: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+  WISE_API_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().default("https://api.sandbox.transferwise.tech")),
+  WISE_PROFILE_ID: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().positive().optional()),
   SCHEDULER_ENABLED: z
     .enum(["true", "false", "1", "0"])
     .optional()
@@ -201,6 +208,10 @@ export function env(): Env {
     missing.push("RULES_PUBLIC_KEY");
   }
 
+  // Kassa never moves real money: a Wise URL must be a sandbox host.
+  if (e.WISE_SANDBOX_TOKEN && !/sandbox/i.test(new URL(e.WISE_API_URL).hostname)) {
+    throw new Error("WISE_API_URL must be a Wise sandbox host (e.g. https://api.sandbox.transferwise.tech)");
+  }
   const stripeEnabled = Boolean(e.STRIPE_SECRET_KEY && e.STRIPE_SECRET_KEY.startsWith("sk_test_"));
   const result: Env = {
     ...e,

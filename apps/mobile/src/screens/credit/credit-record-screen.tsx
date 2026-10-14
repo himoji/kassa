@@ -1,7 +1,7 @@
 import { CreditRecordItem, type CreditRecordExportResponse } from "@kassa/shared";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Linking, Share } from "react-native";
+import { Linking } from "react-native";
 
 import { useExportCreditRecord } from "@/api/hooks/records";
 import { SimulatedBadge } from "@/components/kassa/badges";
@@ -13,6 +13,7 @@ import { RowGroup } from "@/components/row-group";
 import { Box, Button, Card, Text, toast } from "@/components/ui";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
+import { sharePdf, shareLink, type ShareOutcome } from "@/lib/share-record";
 
 type Period = "3m" | "6m" | "12m";
 
@@ -61,10 +62,37 @@ export function CreditRecordScreen() {
     }
   };
 
-  const onShare = (verifyUrl: string) => {
-    void Share.share({ message: verifyUrl, url: verifyUrl }).catch((err: unknown) =>
-      toast.show({ title: errorText(t, err), kind: "error" })
+  const [sharing, setSharing] = useState<"link" | "pdf" | null>(null);
+
+  const afterShare = (outcome: ShareOutcome) => {
+    if (outcome === "shared") haptics.success();
+    else if (outcome === "downloaded") toast.show({ title: t("credit:pdfDownloaded") });
+    else if (outcome === "failed") toast.show({ title: t("credit:shareFailed"), kind: "error" });
+  };
+
+  const onShare = async (r: CreditRecordExportResponse) => {
+    setSharing("link");
+    afterShare(
+      await shareLink({
+        url: r.verifyUrl,
+        title: t("credit:shareTitle"),
+        message: t("credit:shareMessage"),
+        copiedToast: t("credit:linkCopied"),
+      })
     );
+    setSharing(null);
+  };
+
+  const onSharePdf = async (r: CreditRecordExportResponse) => {
+    setSharing("pdf");
+    afterShare(
+      await sharePdf({
+        url: r.pdfUrl,
+        fileName: `kassa-credit-record-${r.verifyId}.pdf`,
+        title: t("credit:shareTitle"),
+      })
+    );
+    setSharing(null);
   };
 
   const onOpenPdf = (pdfUrl: string) => {
@@ -117,7 +145,16 @@ export function CreditRecordScreen() {
             <Text variant="caption" selectable>
               {t("credit:hash", { hash: result.sha256.slice(0, 16) })}
             </Text>
-            <Button onPress={() => onShare(result.verifyUrl)}>{t("credit:share")}</Button>
+            <Button loading={sharing === "link"} onPress={() => void onShare(result)}>
+              {t("credit:share")}
+            </Button>
+            <Button
+              variant="outline"
+              loading={sharing === "pdf"}
+              onPress={() => void onSharePdf(result)}
+            >
+              {t("credit:sharePdf")}
+            </Button>
             <Button variant="outline" onPress={() => router.push(`/verify/${result.verifyId}`)}>
               {t("credit:openVerify")}
             </Button>
