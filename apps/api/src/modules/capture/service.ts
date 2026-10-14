@@ -19,6 +19,7 @@ import { notify } from "../notifications/service.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { aiProcessingAllowedFor } from "../privacy/notice.ts";
 import { readUntrusted } from "../reader/index.ts";
+import { learnCard } from "./cards.ts";
 import { categorize, lookupMerchant } from "./categorize.ts";
 import { dedupeCandidates, dedupeKey } from "./dedupe.ts";
 import { normalizeMerchant } from "./normalize.ts";
@@ -213,7 +214,9 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   const merchantRaw = ev.merchantRaw ?? "Unknown merchant";
   const merchantNorm = normalizeMerchant(merchantRaw) || "unknown";
   const occurredAt = ev.occurredAt ?? clock.now();
-  const card = await matchCard(db, userId, ev.cardHint);
+  // A card the user has not added yet is learned from the tap (capture/cards.ts); a data import adds its own cards.
+  const matched = await matchCard(db, userId, ev.cardHint);
+  const card = matched ?? (ev.cardHint && input.source !== "IMPORT" ? await learnCard(db, userId, ev.cardHint, { currency: ev.currency, homeCurrency: u.homeCurrency }) : null);
 
   // Dedupe (spec §13): own bucket + neighbouring bucket; later sources merge into the first.
   const fields = { userId, amountMinor: ev.amountMinor, currency: ev.currency, merchantNorm, occurredAt };

@@ -25,6 +25,10 @@ What each line means:
   > Outside budgets HUF 12,000.00 · all spending 7% of income · 21 days left
 
 - **Warnings**: a card markup or DCC (dynamic currency conversion) Kassa already knows about.
+- **New card**: the first time a card you have not added pays, Kassa adds it from the `card` field (name and last 4
+  digits) and says "New card saved: Visa ••4821 (billed in HUF)". It assumes your home currency as the billing
+  currency (the spend's currency for Revolut, Wise and other multi-currency accounts); if that is wrong, remove the
+  card in Cards and add it again with the right currency.
 - **Tip**: with your AI consent, one sentence of advice about this spend. It may only quote numbers Kassa computed;
   a tip with any other number is dropped. Turn tips and place guesses off for the whole server with
   `AI_PAYMENT_NOTES=false`. If the model is slow (over `PAYMENT_NOTE_TIMEOUT_MS`, 4 s by default) or fails, the
