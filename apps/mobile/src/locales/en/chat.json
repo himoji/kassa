@@ -56,5 +56,36 @@
   "budgets": {
     "applied": "Budgets updated",
     "failed": "Budgets not updated"
+  },
+  "history": {
+    "title": "Chats",
+    "open": "All chats",
+    "newChat": "New chat",
+    "untitled": "Untitled chat",
+    "messages_one": "{{count}} message",
+    "messages_other": "{{count}} messages",
+    "current": "Open now",
+    "search": "Search chats",
+    "noMatch": "No chats match “{{query}}”",
+    "emptyTitle": "No chats yet",
+    "emptyBody": "Ask Kassa about a bill, a budget or a purchase. Every chat is kept here.",
+    "footer_one": "{{count}} chat",
+    "footer_other": "{{count}} chats",
+    "bucket": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "Previous 7 days",
+      "month": "Previous 30 days",
+      "older": "Older"
+    },
+    "rename": "Rename",
+    "renameLabel": "Chat name",
+    "renameA11y": "Rename {{title}}",
+    "delete": "Delete",
+    "deleteA11y": "Delete {{title}}",
+    "actions": "More for {{title}}",
+    "deleteTitle": "Delete this chat?",
+    "deleteBody": "“{{title}}” and everything in it is deleted from Kassa. Payments it led to keep their own records.",
+    "deleted": "Chat deleted"
   }
 }

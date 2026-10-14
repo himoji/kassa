@@ -1,10 +1,12 @@
 import { useChat } from "@ai-sdk/react";
-import { Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
-import { fetchConversationMessages } from "@/api/hooks/chat";
+import { fetchConversationMessages, useConversations } from "@/api/hooks/chat";
+import { keys } from "@/api/keys";
 import { useMe } from "@/api/hooks/me";
 import { useSetBudgets } from "@/api/hooks/money";
 import { ReplayBadge } from "@/components/kassa/badges";
@@ -258,12 +260,16 @@ function ChatSession({
     if (server && server !== initial && !touched.current) setMessages(server);
   }, [server, initial, setMessages]);
 
-  // Offline copy (native; encrypted, last 50): refreshed whenever a reply has settled.
+  // Offline copy (native; encrypted, last 50): refreshed whenever a reply has settled. The history list
+  // (titles, last activity) changes with every turn too.
+  const qc = useQueryClient();
   useEffect(() => {
     if (status === "ready" && messages.length > 0) {
       void writeCachedMessages(conversationId, messages);
+      void qc.invalidateQueries({ queryKey: keys.conversations });
     }
-  }, [status, messages, conversationId]);
+  }, [status, messages, conversationId, qc]);
+  const title = useConversations().data?.conversations.find((c) => c.id === conversationId)?.title;
   const [input, setInput] = useState("");
   const scroll = useRef<ScrollView>(null);
   const busy = status === "submitted" || status === "streaming";
@@ -308,6 +314,23 @@ function ChatSession({
     <>
       <Stack.Screen
         options={{
+          title: title ?? t("chat:title"),
+          headerLeft: () => (
+            <Pressable
+              onPress={() => router.push("/chat/history" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel={t("chat:history.open")}
+              testID="open-history"
+              style={{
+                minWidth: 44,
+                minHeight: 44,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="clock.arrow.circlepath" fallback="history" size={22} />
+            </Pressable>
+          ),
           headerRight: () => (
             <Box row gap={2} align="center">
               {replay ? <ReplayBadge /> : null}

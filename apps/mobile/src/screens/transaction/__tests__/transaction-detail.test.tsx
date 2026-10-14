@@ -71,7 +71,7 @@ const DETAIL: TransactionDetailResponse = {
 describe("TransactionDetailBody", () => {
   it("shows the place, card, statement name, month context and history, and opens the category picker", async () => {
     await render(
-      <QueryClientProvider client={new QueryClient()}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { gcTime: 0 } } })}>
         <ThemeProvider>
           <TransactionDetailBody d={DETAIL} />
         </ThemeProvider>
