@@ -120,11 +120,13 @@ export async function placeName(
   merchantNorm: string,
   merchantRaw: string,
   db: DbOrTx = getDb(),
+  /** The user's payees when the caller already loaded them (naming a whole list). */
+  ownPayees?: readonly { name: string }[],
 ): Promise<{ name: string; source: PlaceSource; processor: string | null }> {
   const cleaned = cleanMerchant(merchantRaw);
   const entry = lookupMerchant(merchantNorm) ?? (cleaned.processor ? lookupMerchant(normalizeMerchant(cleaned.name)) : null);
   if (entry) return { name: entry.displayName, source: "DICTIONARY", processor: cleaned.processor };
-  const own = await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId));
+  const own = ownPayees ?? (await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId)));
   const cleanedNorm = normalizeMerchant(cleaned.name);
   const payee = own.find((p) => {
     const n = normalizeMerchant(p.name);

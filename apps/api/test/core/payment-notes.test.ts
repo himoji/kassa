@@ -185,7 +185,7 @@ describe("spending outside budgets", () => {
       status: "SETTLED" as const,
       createdAt: new Date(occurredAt),
     });
-    await getDb().insert(transactions).values([row("2026-08-10T10:00:00Z", "shopping", 8_000_00), row("2026-09-12T10:00:00Z", "shopping", 10_000_00), row("2026-10-05T10:00:00Z", "eating_out", 3_000_00)]);
+    await getDb().insert(transactions).values([row("2026-08-01T10:00:00Z", "shopping", 8_000_00), row("2026-09-12T10:00:00Z", "shopping", 10_000_00), row("2026-10-05T10:00:00Z", "eating_out", 3_000_00)]);
     const token = await device(userId);
 
     const r = await tap(token, { merchant: "ZARA", amount: "12 000 Ft" });

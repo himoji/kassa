@@ -7,7 +7,6 @@ import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
 import { fetchConversationMessages, useConversations } from "@/api/hooks/chat";
 import { keys } from "@/api/keys";
-import { useMe } from "@/api/hooks/me";
 import { useSetBudgets } from "@/api/hooks/money";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
@@ -29,10 +28,19 @@ import { useKassaT } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useChatHydrated, useChatStore } from "@/stores/chat";
 
+import { isLiteBuild } from "@/lite/variant";
+import { HeaderButtons } from "@/navigation/header-buttons";
+
 import { consentNeeded } from "./consent";
 import { ConsentCard } from "./consent-card";
 
 const SUGGESTIONS = ["chat:suggest.tuition", "chat:suggest.budget", "chat:suggest.log"] as const;
+/** KassaLite cannot approve payments (no passkey): questions about spending instead. */
+const LITE_SUGGESTIONS = [
+  "chat:suggest.week",
+  "chat:suggest.where",
+  "chat:suggest.budget",
+] as const;
 
 /** Collapsed stand-in for a data card while the reply is still streaming. */
 function PendingRow({ label }: { label: string }) {
@@ -241,6 +249,7 @@ function ChatSession({
 }) {
   const t = useKassaT();
   const { colors } = useTheme();
+  const lite = isLiteBuild();
   const newConversation = useChatStore((s) => s.newConversation);
   // What the session started with (cache or server); `server` is compared against it below.
   const [initial] = useState(initialProp);
@@ -274,7 +283,6 @@ function ChatSession({
   const scroll = useRef<ScrollView>(null);
   const busy = status === "submitted" || status === "streaming";
   const setBudgets = useSetBudgets();
-  const replay = useMe().data?.demo?.agentMode === "REPLAY";
 
   const send = (text: string) => {
     const trimmed = text.trim();
@@ -315,41 +323,31 @@ function ChatSession({
       <Stack.Screen
         options={{
           title: title ?? t("chat:title"),
-          headerLeft: () => (
-            <Pressable
-              onPress={() => router.push("/chat/history" as Href)}
-              accessibilityRole="button"
-              accessibilityLabel={t("chat:history.open")}
-              testID="open-history"
-              style={{
-                minWidth: 44,
-                minHeight: 44,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="clock.arrow.circlepath" fallback="history" size={22} />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Box row gap={2} align="center">
-              {replay ? <ReplayBadge /> : null}
-              <Pressable
-                onPress={newConversation}
-                accessibilityRole="button"
-                accessibilityLabel={t("chat:newConversation")}
-                style={{
-                  minWidth: 44,
-                  minHeight: 44,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Icon name="square.and.pencil" fallback="edit_square" size={22} />
-              </Pressable>
-            </Box>
-          ),
         }}
+      />
+      <HeaderButtons
+        placement="left"
+        buttons={[
+          {
+            icon: "clock.arrow.circlepath",
+            fallback: "history",
+            label: t("chat:history.open"),
+            onPress: () => router.push("/chat/history" as Href),
+            testID: "open-history",
+          },
+        ]}
+      />
+      <HeaderButtons
+        placement="right"
+        buttons={[
+          {
+            icon: "square.and.pencil",
+            fallback: "edit_square",
+            label: t("chat:newConversation"),
+            onPress: newConversation,
+            testID: "new-conversation",
+          },
+        ]}
       />
       <ChatLayout
         inTabs
@@ -424,10 +422,10 @@ function ChatSession({
                 {t("chat:emptyTitle")}
               </Text>
               <Text variant="caption" align="center">
-                {t("chat:emptyBody")}
+                {lite ? t("chat:emptyBodyLite") : t("chat:emptyBody")}
               </Text>
               <Box gap={2}>
-                {SUGGESTIONS.map((key) => (
+                {(lite ? LITE_SUGGESTIONS : SUGGESTIONS).map((key) => (
                   <Button key={key} variant="outline" onPress={() => send(t(key))}>
                     {t(key)}
                   </Button>

@@ -60,7 +60,7 @@ describe("GET /insights/spending", () => {
     await getDb()
       .insert(transactions)
       .values([
-        spend(userId, "2026-08-20T10:00:00Z", "SPAR", "groceries", 30_000_00),
+        spend(userId, "2026-08-02T10:00:00Z", "SPAR", "groceries", 30_000_00),
         spend(userId, "2026-09-03T10:00:00Z", "SPAR", "groceries", 6_000_00),
         spend(userId, "2026-09-25T10:00:00Z", "ZARA", "shopping", 20_000_00),
         spend(userId, "2026-10-02T08:00:00Z", "SPAR", "groceries", 4_000_00),
@@ -79,9 +79,10 @@ describe("GET /insights/spending", () => {
     // September 1–11 had one 6 000 purchase; the whole of September 26 000.
     expect(body.lastMonthToDateMinor).toBe(6_000_00);
     expect(body.lastMonthTotalMinor).toBe(26_000_00);
-    // August (30 000) and September (26 000) are the full months since the first spend: usually 28 000.
+    // August (tracked from the 2nd: in full) 30 000 and September 26 000: usually 28 000.
     expect(body.typicalMonthMinor).toBe(28_000_00);
-    expect(body.projectedMinor).toBe(Math.round((11_000_00 * 31) / 11));
+    // Pace: the last 11 days without the biggest (6 000 on the 2nd) is 5 000 / 10 a day, for the 20 days after today.
+    expect(body.projectedMinor).toBe(11_000_00 + 500_00 * 20);
     expect(body.incomeUsedPct).toBe(5);
     expect(body.outsideBudgetsMinor).toBe(5_000_00);
 
@@ -97,6 +98,21 @@ describe("GET /insights/spending", () => {
 
     expect(body.topMerchants[0]).toEqual({ name: "Spar", spentMinor: 6_000_00, count: 2 });
     expect(body.topMerchants[1]?.spentMinor).toBe(5_000_00);
+  });
+
+  it("compares only against months tracked in full", async () => {
+    const userId = await hufUser();
+    // Tracking started on September 27: September is not a usual month and not a fair "last month".
+    await getDb()
+      .insert(transactions)
+      .values([spend(userId, "2026-09-27T10:00:00Z", "SPAR", "groceries", 3_000_00), spend(userId, "2026-10-01T10:00:00Z", "RENT", "rent", 200_000_00), spend(userId, "2026-10-05T10:00:00Z", "SPAR", "groceries", 2_000_00)]);
+    const body = SpendingInsightsResponse.parse((await get(userId, "/insights/spending")).json());
+    expect(body.lastMonthToDateMinor).toBeNull();
+    expect(body.lastMonthTotalMinor).toBeNull();
+    expect(body.typicalMonthMinor).toBeNull();
+    expect(body.categories.every((c) => c.typicalMinor === null)).toBe(true);
+    // Rent on the 1st is counted once, not repeated for every day left.
+    expect(body.projectedMinor).toBe(202_000_00 + Math.round((2_000_00 / 10) * 20));
   });
 
   it("is empty but well-formed for a new user, and lists budgets with nothing spent yet", async () => {

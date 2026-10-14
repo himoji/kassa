@@ -19,6 +19,16 @@ const EMOJI: Record<string, string> = {
   beauty: "💄",
   gifts: "🎁",
   pets: "🐾",
+  books: "📚",
+  education: "🎓",
+  coffee: "☕",
+  fuel: "⛽",
+  taxi: "🚕",
+  clothes: "👕",
+  electronics: "💻",
+  home: "🛋️",
+  bills: "🧾",
+  cash: "💵",
   other: "📦",
 };
 
