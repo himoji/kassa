@@ -753,6 +753,11 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   protected money first, everyday money management only (no investment, credit, tax or legal advice). New read-only
   agent tool `get_spending_summary` (month per category with or without a budget, usual month, outside-budgets total,
   share of income). Replay recordings are unaffected: they are keyed by the redacted user text.
+- **Cards learned from taps.** A card hint that matches no card (`matchCard`: last 4 digits, else the label) used to be
+  dropped. Now `capture/cards.ts` adds the card (label and last 4 digits read from the hint, no model needed) with
+  the home currency as billing currency, or the spend's currency for multi-currency accounts, and notifies
+  (`CARD_LEARNED`, plus a nudge line on its first tap). Cards only label spending, so adding one needs no passkey (I8).
+  Data imports keep adding their own cards.
 - **Response shape.** `POST /capture/shortcut` adds `nudgeTitle` and `nudgeBody`; `nudge` is now the whole
   notification, one part per line (older Shortcuts keep working). `GET /capture/recent` adds an optional `place`
   (`name`, `kind`, `where`), shown in KassaLite's Activity.

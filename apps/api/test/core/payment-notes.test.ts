@@ -8,11 +8,12 @@ import { MockLanguageModelV4 } from "ai/test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
-import { budgets, notifications, profiles, transactions, users } from "../../src/db/schema.ts";
+import { budgets, cards, notifications, profiles, transactions, users } from "../../src/db/schema.ts";
 import { purgeExpired } from "../../src/modules/privacy/service.ts";
 import { setPaymentNoteModelForTests, tipIsGrounded } from "../../src/modules/advice/enrich.ts";
 import { ADVICE_PROMPT } from "../../src/modules/advice/prompt.ts";
 import { SYSTEM_PROMPT } from "../../src/modules/agent/prompt.ts";
+import { cardFromHint } from "../../src/modules/capture/cards.ts";
 import { cleanMerchant } from "../../src/modules/capture/place.ts";
 import { rememberCategoryCorrection } from "../../src/modules/capture/service.ts";
 import { normalizeMerchant } from "../../src/modules/capture/normalize.ts";
@@ -128,6 +129,39 @@ describe("when, where and which place", () => {
     expect(n.kind).toBe("BUDGET_EACH");
     expect(plain(n.body)).toBe("HUF 1,290.00 at Cafe Frei in Budapest. Eating out: 12% used, 88% left for 21 days, on track.");
     expect(n.data).toMatchObject({ key: "budget.each", params: { where: "Budapest" } });
+  });
+});
+
+describe("cards learned from taps", () => {
+  it("a tap with a card Kassa does not know adds it, says so once, and later taps reuse it", async () => {
+    const userId = await hufUser();
+    const token = await device(userId);
+    const first = await tap(token, { merchant: "CAFE FREI", amount: "1 290 Ft", card: "Visa ••4821" });
+    expect(plain(first.nudge)).toContain("New card saved: Visa ••4821 (billed in HUF)");
+    const mine = await getDb().select().from(cards).where(eq(cards.userId, userId));
+    expect(mine).toMatchObject([{ label: "Visa", last4: "4821", billingCurrency: "HUF", kind: "LOCAL_HUF" }]);
+    const row = (await getDb().select().from(transactions).where(eq(transactions.id, first.transactionId)))[0]!;
+    expect(row.cardId).toBe(mine[0]!.id);
+    const n = await getDb().select().from(notifications).where(eq(notifications.kind, "CARD_LEARNED"));
+    expect(n.map((x) => x.title)).toEqual(["New card: Visa ••4821"]);
+
+    const second = await tap(token, { merchant: "SPAR", amount: "2 000 Ft", card: "Visa ••4821" });
+    expect(second.nudge).not.toContain("New card saved");
+    expect(await getDb().select().from(cards).where(eq(cards.userId, userId))).toHaveLength(1);
+  });
+
+  it("a multi-currency account is assumed to bill in the spend's currency", async () => {
+    const userId = await hufUser();
+    const token = await device(userId);
+    await tap(token, { merchant: "Café de Flore", amount: "€4.50", card: "Revolut" });
+    expect(await getDb().select().from(cards).where(eq(cards.userId, userId))).toMatchObject([{ label: "Revolut", last4: "", billingCurrency: "EUR", kind: "MULTI" }]);
+  });
+
+  it("reads the card name and last 4 digits from the hint", () => {
+    expect(cardFromHint("Mastercard •••• 9876")).toEqual({ label: "Mastercard", last4: "9876" });
+    expect(cardFromHint("Revolut")).toEqual({ label: "Revolut", last4: "" });
+    expect(cardFromHint("1234")).toEqual({ label: "Card", last4: "1234" });
+    expect(cardFromHint("   ")).toBeNull();
   });
 });
 

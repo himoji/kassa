@@ -126,7 +126,7 @@ describe("/capture/shortcut nudge", () => {
     // 1 290 of 10 000 used → 12% used, 88% left; 8 710 left over 21 days (11–31 Oct) → about 414 a day.
     // The tap time is the request time (the localized `date` is ignored): 09:00 UTC = 11:00 in Budapest.
     expect(plain(body.nudge)).toBe(
-      ["Logged HUF 1,290.00 at Cafe Frei", "Today 11:00 · first time here", "Eating out 88% left this month (HUF 8,710.00), about HUF 414 a day"].join("\n"),
+      ["Logged HUF 1,290.00 at Cafe Frei", "Today 11:00 · first time here", "Eating out 88% left this month (HUF 8,710.00), about HUF 414 a day", "New card saved: Revolut (billed in HUF)"].join("\n"),
     );
     expect(plain(body.nudgeTitle)).toBe("Logged HUF 1,290.00 at Cafe Frei");
     expect(plain(body.nudgeBody)).toBe(plain(body.nudge).split("\n").slice(1).join("\n"));

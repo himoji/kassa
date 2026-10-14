@@ -1,5 +1,5 @@
 import { formatMoney, type CaptureEventResponse } from "@kassa/shared";
-import { and, eq, gte, isNull, lte, ne } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, ne, sql } from "drizzle-orm";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { cardFeeProfiles, cards, notifications, transactions, users } from "../../db/schema.ts";
@@ -27,6 +27,22 @@ const money = (amountMinor: number, currency: string) => formatMoney(amountMinor
 
 function isCalendarMonth(periodStart: string, periodEnd: string): boolean {
   return periodStart.endsWith("-01") && addDays(periodEnd, 1).endsWith("-01") && periodStart.slice(0, 7) === periodEnd.slice(0, 7);
+}
+
+/** "New card saved: Revolut ••1234 (billed in HUF)" on the first tap of a card Kassa learned (capture/cards.ts). */
+async function learnedCardPart(tx: typeof transactions.$inferSelect, db: DbOrTx): Promise<string | null> {
+  if (!tx.cardId) return null;
+  const learned = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(and(eq(notifications.userId, tx.userId), eq(notifications.kind, "CARD_LEARNED"), sql`${notifications.data}->>'cardId' = ${tx.cardId}`))
+    .limit(1);
+  if (learned.length === 0) return null;
+  const uses = await db.select({ id: transactions.id }).from(transactions).where(and(eq(transactions.cardId, tx.cardId), isNull(transactions.mergedIntoId))).limit(2);
+  if (uses.length > 1) return null;
+  const card = (await db.select().from(cards).where(eq(cards.id, tx.cardId)))[0];
+  if (!card) return null;
+  return `New card saved: ${card.last4 ? `${card.label} ••${card.last4}` : card.label} (billed in ${card.billingCurrency})`;
 }
 
 /** Card markup on a foreign spend, from the card's rolling-median fee profile (spec §12 fee x-ray). */
@@ -210,6 +226,8 @@ export async function captureNudge(userId: string, r: CaptureEventResponse, db: 
 
   const budget = await budgetLines(userId, category, db);
   const warnings: string[] = [];
+  const learned = await learnedCardPart(tx, db);
+  if (learned) warnings.push(learned);
   const fee = await feePart(tx, u.homeCurrency, db);
   if (fee) warnings.push(fee);
   const dcc = await dccPart(tx, u.homeCurrency, db);
