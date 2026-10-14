@@ -20,6 +20,8 @@
     "db:migrate": "bun run --cwd apps/api db:migrate",
     "seed": "bun run --cwd apps/api seed",
     "ledger:verify": "bun run --cwd apps/api ledger:verify",
+    "ledger:anchor": "bun run --cwd apps/api ledger:anchor",
+    "ledger:anchor:verify": "bun run --cwd apps/api ledger:anchor:verify",
     "evidence:attacks": "rm -f docs/evidence/attacks.json docs/evidence/naive-baseline.json && WRITE_EVIDENCE=1 bun run --cwd apps/api vitest run test/attacks test/naive",
     "sim": "bun apps/api/scripts/sim/cli.ts",
     "phone": "bun scripts/phone.ts",
