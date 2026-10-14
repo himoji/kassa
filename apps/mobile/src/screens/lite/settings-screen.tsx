@@ -20,6 +20,8 @@ import { loadShortcutToken } from "@/lite/shortcut-token";
 import { liteSignOut } from "@/lite/sign-out";
 import { shortcutTemplateUrl } from "@/lite/variant";
 
+import { UpdatesSection } from "./updates-section";
+
 const STEPS = ["1", "2", "3", "4", "5", "6"] as const;
 
 /** What the person pastes into the Shortcut: the endpoint, then the Authorization header value. */
@@ -159,6 +161,8 @@ export function LiteSettingsScreen() {
           </Button>
         </Box>
       </RowGroup>
+
+      <UpdatesSection />
 
       <RowGroup>
         <Row
