@@ -18,6 +18,8 @@ const schema = z.object({
   DEV_ALL_API_URL: z.string().optional(),
   /** Demo panel admin token (spec §15, DEMO_ADMIN_TOKEN). Demo builds only; never a real secret. */
   DEMO_ADMIN_TOKEN: z.string().optional(),
+  /** "true" shows the business (pizzeria) personas on the welcome screen; hidden by default (lib/demo-personas). */
+  SHOW_BUSINESS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -59,6 +61,7 @@ const raw = {
   API_URL: optional(process.env.EXPO_PUBLIC_API_URL),
   DEV_ALL_API_URL: optional(process.env.EXPO_PUBLIC_DEV_ALL_API_URL),
   DEMO_ADMIN_TOKEN: optional(process.env.EXPO_PUBLIC_DEMO_ADMIN_TOKEN),
+  SHOW_BUSINESS: optional(process.env.EXPO_PUBLIC_SHOW_BUSINESS),
 };
 
 const result = schema.safeParse(raw);
