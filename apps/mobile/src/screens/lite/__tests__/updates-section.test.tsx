@@ -61,6 +61,7 @@ describe("UpdatesSection", () => {
     mockUpdates.isEnabled = true;
     mockUpdates.isEmbeddedLaunch = true;
     mockUpdates.updateId = null;
+    mockUpdates.createdAt = null;
     checkForUpdateAsync.mockClear();
     fetchUpdateAsync.mockClear();
     reloadAsync.mockClear();
@@ -79,9 +80,18 @@ describe("UpdatesSection", () => {
 
   it("shows the channel, version and the embedded bundle", async () => {
     await renderSection();
-    expect(
-      screen.getByText("Channel lite, version 1.3.0. Running the bundle built in Xcode.")
-    ).toBeTruthy();
+    expect(screen.getByText("Built in Xcode")).toBeTruthy();
+    expect(screen.getByText(/Channel lite, app version 1\.3\.0\./)).toBeTruthy();
+  });
+
+  it("shows which over-the-air update is running", async () => {
+    mockUpdates.isEmbeddedLaunch = false;
+    mockUpdates.updateId = "0a1b2c3d-4e5f-6789-abcd-ef0123456789";
+    mockUpdates.createdAt = new Date("2026-10-14T12:30:00Z");
+    await renderSection();
+    expect(screen.getByText("Update 0a1b2c3d")).toBeTruthy();
+    expect(screen.getByText(/2026|Oct/)).toBeTruthy();
+    expect(screen.queryByText("Built in Xcode")).toBeNull();
   });
 
   it("downloads and restarts into an available update", async () => {

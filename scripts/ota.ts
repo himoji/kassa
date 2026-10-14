@@ -54,6 +54,10 @@ if (!projectId) {
 }
 
 const message = messageWords.join(" ").trim() || `${name} update ${new Date().toISOString()}`;
+// Settings → App updates shows these (src/screens/lite/updates-section.tsx); "+" marks uncommitted changes.
+const git = (...a: string[]) => spawnSync("git", a, { cwd: mobile, encoding: "utf8" }).stdout?.trim() ?? "";
+const commit = git("rev-parse", "--short", "HEAD");
+const otaCommit = commit && git("status", "--porcelain") ? `${commit}+` : commit;
 const easArgs = [
   "eas-cli@latest",
   "update",
@@ -75,6 +79,8 @@ const result = spawnSync("npx", easArgs, {
     ...process.env,
     APP_VARIANT: target.variant,
     EXPO_PUBLIC_APP_VARIANT: target.variant,
+    EXPO_PUBLIC_OTA_MESSAGE: message,
+    EXPO_PUBLIC_OTA_COMMIT: otaCommit,
   },
 });
 process.exit(result.status ?? 1);
