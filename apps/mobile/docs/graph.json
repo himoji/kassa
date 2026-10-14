@@ -257,6 +257,24 @@
       }
     },
     {
+      "id": "route:/add-money",
+      "kind": "route",
+      "label": "/add-money",
+      "file": "src/app/add-money.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/backup-codes",
+      "kind": "route",
+      "label": "/backup-codes",
+      "file": "src/app/backup-codes.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
       "id": "route:/bills",
       "kind": "route",
       "label": "/bills",
@@ -284,10 +302,28 @@
       }
     },
     {
+      "id": "route:/chat/history",
+      "kind": "route",
+      "label": "/chat/history",
+      "file": "src/app/(tabs)/chat/history.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
       "id": "route:/credit-record",
       "kind": "route",
       "label": "/credit-record",
       "file": "src/app/credit-record.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/data",
+      "kind": "route",
+      "label": "/data",
+      "file": "src/app/data.tsx",
       "meta": {
         "type": "page"
       }
@@ -315,6 +351,15 @@
       "kind": "route",
       "label": "/home",
       "file": "src/app/(tabs)/home/index.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/insights",
+      "kind": "route",
+      "label": "/insights",
+      "file": "src/app/insights.tsx",
       "meta": {
         "type": "page"
       }
@@ -401,10 +446,28 @@
       }
     },
     {
+      "id": "route:/purchase/[id]",
+      "kind": "route",
+      "label": "/purchase/[id]",
+      "file": "src/app/purchase/[id].tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
       "id": "route:/register",
       "kind": "route",
       "label": "/register",
       "file": "src/app/(auth)/register.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
+      "id": "route:/send",
+      "kind": "route",
+      "label": "/send",
+      "file": "src/app/send.tsx",
       "meta": {
         "type": "page"
       }
@@ -509,6 +572,12 @@
       "file": "src/screens/auth/welcome-screen.tsx"
     },
     {
+      "id": "screen:backup-codes/backup-codes-required-screen",
+      "kind": "screen",
+      "label": "@/screens/backup-codes/backup-codes-required-screen",
+      "file": "src/screens/backup-codes/backup-codes-required-screen.tsx"
+    },
+    {
       "id": "screen:bills/bills-screen",
       "kind": "screen",
       "label": "@/screens/bills/bills-screen",
@@ -563,6 +632,12 @@
       "file": "src/screens/chat/consent-card.tsx"
     },
     {
+      "id": "screen:chat/history-screen",
+      "kind": "screen",
+      "label": "@/screens/chat/history-screen",
+      "file": "src/screens/chat/history-screen.tsx"
+    },
+    {
       "id": "screen:credit/credit-record-screen",
       "kind": "screen",
       "label": "@/screens/credit/credit-record-screen",
@@ -591,6 +666,18 @@
       "kind": "screen",
       "label": "@/screens/home/home-screen",
       "file": "src/screens/home/home-screen.tsx"
+    },
+    {
+      "id": "screen:insights/highlights",
+      "kind": "screen",
+      "label": "@/screens/insights/highlights",
+      "file": "src/screens/insights/highlights.ts"
+    },
+    {
+      "id": "screen:insights/insights-screen",
+      "kind": "screen",
+      "label": "@/screens/insights/insights-screen",
+      "file": "src/screens/insights/insights-screen.tsx"
     },
     {
       "id": "screen:lite/activity-screen",
@@ -659,6 +746,12 @@
       "file": "src/screens/order/order-sheet-view.tsx"
     },
     {
+      "id": "screen:payees/add-payee-sheet",
+      "kind": "screen",
+      "label": "@/screens/payees/add-payee-sheet",
+      "file": "src/screens/payees/add-payee-sheet.tsx"
+    },
+    {
       "id": "screen:payees/payee-detail-screen",
       "kind": "screen",
       "label": "@/screens/payees/payee-detail-screen",
@@ -671,10 +764,28 @@
       "file": "src/screens/payees/payees-screen.tsx"
     },
     {
+      "id": "screen:settings/backup-codes-section",
+      "kind": "screen",
+      "label": "@/screens/settings/backup-codes-section",
+      "file": "src/screens/settings/backup-codes-section.tsx"
+    },
+    {
+      "id": "screen:settings/budgets-section",
+      "kind": "screen",
+      "label": "@/screens/settings/budgets-section",
+      "file": "src/screens/settings/budgets-section.tsx"
+    },
+    {
       "id": "screen:settings/caps-section",
       "kind": "screen",
       "label": "@/screens/settings/caps-section",
       "file": "src/screens/settings/caps-section.tsx"
+    },
+    {
+      "id": "screen:settings/data-screen",
+      "kind": "screen",
+      "label": "@/screens/settings/data-screen",
+      "file": "src/screens/settings/data-screen.tsx"
     },
     {
       "id": "screen:settings/mandates-section",
@@ -731,10 +842,28 @@
       "file": "src/screens/shop/shop-order-timeline.tsx"
     },
     {
+      "id": "screen:transaction/transaction-detail-screen",
+      "kind": "screen",
+      "label": "@/screens/transaction/transaction-detail-screen",
+      "file": "src/screens/transaction/transaction-detail-screen.tsx"
+    },
+    {
       "id": "screen:verify/verify-screen",
       "kind": "screen",
       "label": "@/screens/verify/verify-screen",
       "file": "src/screens/verify/verify-screen.tsx"
+    },
+    {
+      "id": "screen:wallet/add-money-screen",
+      "kind": "screen",
+      "label": "@/screens/wallet/add-money-screen",
+      "file": "src/screens/wallet/add-money-screen.tsx"
+    },
+    {
+      "id": "screen:wallet/send-screen",
+      "kind": "screen",
+      "label": "@/screens/wallet/send-screen",
+      "file": "src/screens/wallet/send-screen.tsx"
     },
     {
       "id": "hook:use-auth-redirect",
@@ -765,6 +894,12 @@
       "kind": "hook",
       "label": "@/hooks/use-register-device",
       "file": "src/hooks/use-register-device.ts"
+    },
+    {
+      "id": "hook:use-require-backup-codes",
+      "kind": "hook",
+      "label": "@/hooks/use-require-backup-codes",
+      "file": "src/hooks/use-require-backup-codes.ts"
     },
     {
       "id": "hook:use-sign-out-cleanup",
@@ -803,6 +938,12 @@
       "file": "src/stores/review-prompt.ts"
     },
     {
+      "id": "store:savings-goal",
+      "kind": "store",
+      "label": "@/stores/savings-goal",
+      "file": "src/stores/savings-goal.ts"
+    },
+    {
       "id": "store:session",
       "kind": "store",
       "label": "@/stores/session",
@@ -825,6 +966,12 @@
       "kind": "lib",
       "label": "@/lib/account-data",
       "file": "src/lib/account-data.ts"
+    },
+    {
+      "id": "lib:amount-slider",
+      "kind": "lib",
+      "label": "@/lib/amount-slider",
+      "file": "src/lib/amount-slider.ts"
     },
     {
       "id": "lib:analytics",
@@ -863,6 +1010,12 @@
       "file": "src/lib/categories.ts"
     },
     {
+      "id": "lib:category-emoji",
+      "kind": "lib",
+      "label": "@/lib/category-emoji",
+      "file": "src/lib/category-emoji.ts"
+    },
+    {
       "id": "lib:chat-cache",
       "kind": "lib",
       "label": "@/lib/chat-cache",
@@ -891,6 +1044,12 @@
       "kind": "lib",
       "label": "@/lib/consent",
       "file": "src/lib/consent.ts"
+    },
+    {
+      "id": "lib:countries",
+      "kind": "lib",
+      "label": "@/lib/countries",
+      "file": "src/lib/countries.ts"
     },
     {
       "id": "lib:crash",
@@ -959,6 +1118,12 @@
       "file": "src/lib/passkeys.web.ts"
     },
     {
+      "id": "lib:payee-form",
+      "kind": "lib",
+      "label": "@/lib/payee-form",
+      "file": "src/lib/payee-form.ts"
+    },
+    {
       "id": "lib:payments",
       "kind": "lib",
       "label": "@/lib/payments",
@@ -1011,6 +1176,12 @@
       "kind": "lib",
       "label": "@/lib/share",
       "file": "src/lib/share.ts"
+    },
+    {
+      "id": "lib:share-record",
+      "kind": "lib",
+      "label": "@/lib/share-record",
+      "file": "src/lib/share-record.ts"
     },
     {
       "id": "lib:shims/account-data",
@@ -1146,6 +1317,16 @@
       "id": "env:EXPO_PUBLIC_DEMO_ADMIN_TOKEN",
       "kind": "env",
       "label": "EXPO_PUBLIC_DEMO_ADMIN_TOKEN"
+    },
+    {
+      "id": "env:EXPO_PUBLIC_DEV_ALL_API_URL",
+      "kind": "env",
+      "label": "EXPO_PUBLIC_DEV_ALL_API_URL"
+    },
+    {
+      "id": "env:EXPO_PUBLIC_SHOW_BUSINESS",
+      "kind": "env",
+      "label": "EXPO_PUBLIC_SHOW_BUSINESS"
     },
     {
       "id": "script:doctor",
@@ -1320,6 +1501,16 @@
       "kind": "reads"
     },
     {
+      "from": "lib:env",
+      "to": "env:EXPO_PUBLIC_DEV_ALL_API_URL",
+      "kind": "reads"
+    },
+    {
+      "from": "lib:env",
+      "to": "env:EXPO_PUBLIC_SHOW_BUSINESS",
+      "kind": "reads"
+    },
+    {
       "from": "lib:format",
       "to": "lib:i18n",
       "kind": "imports"
@@ -1381,6 +1572,16 @@
     },
     {
       "from": "lib:share",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:share-record",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "lib:share-record",
       "to": "lib:crash",
       "kind": "imports"
     },
@@ -1565,6 +1766,16 @@
       "kind": "renders"
     },
     {
+      "from": "route:/add-money",
+      "to": "screen:wallet/add-money-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/backup-codes",
+      "to": "screen:backup-codes/backup-codes-required-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/bills",
       "to": "screen:bills/bills-screen",
       "kind": "renders"
@@ -1580,8 +1791,18 @@
       "kind": "renders"
     },
     {
+      "from": "route:/chat/history",
+      "to": "screen:chat/history-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/credit-record",
       "to": "screen:credit/credit-record-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/data",
+      "to": "screen:settings/data-screen",
       "kind": "renders"
     },
     {
@@ -1597,6 +1818,11 @@
     {
       "from": "route:/home",
       "to": "screen:home/home-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/insights",
+      "to": "screen:insights/insights-screen",
       "kind": "renders"
     },
     {
@@ -1645,8 +1871,18 @@
       "kind": "renders"
     },
     {
+      "from": "route:/purchase/[id]",
+      "to": "screen:transaction/transaction-detail-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/register",
       "to": "screen:auth/register-screen",
+      "kind": "renders"
+    },
+    {
+      "from": "route:/send",
+      "to": "screen:wallet/send-screen",
       "kind": "renders"
     },
     {
@@ -1692,6 +1928,16 @@
     {
       "from": "screen:activity/activity-screen",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:activity/activity-screen",
+      "to": "screen:insights/insights-screen",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:activity/activity-screen",
+      "to": "screen:transaction/transaction-detail-screen",
       "kind": "imports"
     },
     {
@@ -1746,6 +1992,11 @@
     },
     {
       "from": "screen:auth/welcome-screen",
+      "to": "lib:env",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/welcome-screen",
       "to": "lib:haptics",
       "kind": "imports"
     },
@@ -1762,6 +2013,21 @@
     {
       "from": "screen:auth/welcome-screen",
       "to": "lib:return-path",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:auth/welcome-screen",
+      "to": "env:EXPO_PUBLIC_SHOW_BUSINESS",
+      "kind": "reads"
+    },
+    {
+      "from": "screen:backup-codes/backup-codes-required-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:backup-codes/backup-codes-required-screen",
+      "to": "screen:settings/backup-codes-section",
       "kind": "imports"
     },
     {
@@ -1816,6 +2082,11 @@
     },
     {
       "from": "screen:cards/cards-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:cards/cards-screen",
       "to": "lib:i18n",
       "kind": "imports"
     },
@@ -1836,6 +2107,11 @@
     },
     {
       "from": "screen:chat/chat-screen",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/chat-screen",
       "to": "store:chat",
       "kind": "imports"
     },
@@ -1850,6 +2126,26 @@
       "kind": "imports"
     },
     {
+      "from": "screen:chat/history-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:chat/history-screen",
+      "to": "store:chat",
+      "kind": "imports"
+    },
+    {
       "from": "screen:credit/credit-record-screen",
       "to": "lib:haptics",
       "kind": "imports"
@@ -1857,6 +2153,11 @@
     {
       "from": "screen:credit/credit-record-screen",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:credit/credit-record-screen",
+      "to": "lib:share-record",
       "kind": "imports"
     },
     {
@@ -1896,6 +2197,11 @@
     },
     {
       "from": "screen:home/home-screen",
+      "to": "hook:use-require-backup-codes",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:home/home-screen",
       "to": "lib:format",
       "kind": "imports"
     },
@@ -1905,6 +2211,21 @@
       "kind": "imports"
     },
     {
+      "from": "screen:home/home-screen",
+      "to": "screen:insights/insights-screen",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:insights/insights-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:insights/insights-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
       "from": "screen:lite/activity-screen",
       "to": "lib:format",
       "kind": "imports"
@@ -1912,6 +2233,16 @@
     {
       "from": "screen:lite/activity-screen",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/activity-screen",
+      "to": "screen:insights/insights-screen",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/activity-screen",
+      "to": "screen:transaction/transaction-detail-screen",
       "kind": "imports"
     },
     {
@@ -1991,6 +2322,16 @@
     },
     {
       "from": "screen:onboarding/onboarding-review-screen",
+      "to": "lib:amount-slider",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
+      "to": "lib:category-emoji",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-review-screen",
       "to": "lib:format",
       "kind": "imports"
     },
@@ -2040,6 +2381,31 @@
       "kind": "imports"
     },
     {
+      "from": "screen:payees/add-payee-sheet",
+      "to": "lib:countries",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/add-payee-sheet",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/add-payee-sheet",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/add-payee-sheet",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/add-payee-sheet",
+      "to": "lib:payee-form",
+      "kind": "imports"
+    },
+    {
       "from": "screen:payees/payee-detail-screen",
       "to": "lib:format",
       "kind": "imports"
@@ -2056,17 +2422,62 @@
     },
     {
       "from": "screen:payees/payees-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/backup-codes-section",
       "to": "lib:clipboard",
       "kind": "imports"
     },
     {
-      "from": "screen:payees/payees-screen",
+      "from": "screen:settings/backup-codes-section",
       "to": "lib:haptics",
       "kind": "imports"
     },
     {
-      "from": "screen:payees/payees-screen",
+      "from": "screen:settings/backup-codes-section",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/backup-codes-section",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/budgets-section",
+      "to": "lib:amount-slider",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/budgets-section",
+      "to": "lib:category-emoji",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/budgets-section",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/budgets-section",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/budgets-section",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/budgets-section",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/caps-section",
+      "to": "lib:amount-slider",
       "kind": "imports"
     },
     {
@@ -2077,6 +2488,31 @@
     {
       "from": "screen:settings/caps-section",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/data-screen",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/data-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/data-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/data-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/data-screen",
+      "to": "lib:passkey-errors",
       "kind": "imports"
     },
     {
@@ -2161,6 +2597,11 @@
     },
     {
       "from": "screen:settings/settings-screen",
+      "to": "screen:wallet/send-screen",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/settings-screen",
       "to": "env:EXPO_PUBLIC_DEMO_ADMIN_TOKEN",
       "kind": "reads"
     },
@@ -2230,12 +2671,77 @@
       "kind": "imports"
     },
     {
+      "from": "screen:transaction/transaction-detail-screen",
+      "to": "lib:categories",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:transaction/transaction-detail-screen",
+      "to": "lib:category-emoji",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:transaction/transaction-detail-screen",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:transaction/transaction-detail-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:transaction/transaction-detail-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:transaction/transaction-detail-screen",
+      "to": "lib:share",
+      "kind": "imports"
+    },
+    {
       "from": "screen:verify/verify-screen",
       "to": "lib:format",
       "kind": "imports"
     },
     {
       "from": "screen:verify/verify-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/add-money-screen",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/add-money-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/add-money-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/add-money-screen",
+      "to": "lib:uuid",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/send-screen",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/send-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/send-screen",
       "to": "lib:i18n",
       "kind": "imports"
     },
@@ -2266,6 +2772,11 @@
     },
     {
       "from": "store:review-prompt",
+      "to": "lib:storage",
+      "kind": "imports"
+    },
+    {
+      "from": "store:savings-goal",
       "to": "lib:storage",
       "kind": "imports"
     },

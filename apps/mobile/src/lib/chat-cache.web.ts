@@ -13,4 +13,6 @@ export async function writeCachedMessages(
   _messages: readonly unknown[]
 ): Promise<void> {}
 
+export async function removeCachedMessages(_conversationId: string): Promise<void> {}
+
 export async function clearChatCache(): Promise<void> {}

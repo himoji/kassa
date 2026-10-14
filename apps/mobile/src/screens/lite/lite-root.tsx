@@ -11,8 +11,9 @@ import { I18nProvider, useKassaT } from "@/lib/i18n";
 import { QueryProvider } from "@/lib/query";
 import { registerApproveInWebApp } from "@/lite/approve";
 import { applyServerUrl, loadServerUrl } from "@/lite/server-url";
+import { useNotificationLinks } from "@/lite/notifier";
 import { useAppLock } from "@/lite/use-app-lock";
-import { inlineTitleOptions } from "@/navigation/stack-options";
+import { inlineTitleOptions, largeTitleOptions } from "@/navigation/stack-options";
 import { useSessionStore } from "@/stores/session";
 import { hydrateThemeMode } from "@/stores/theme-mode";
 
@@ -40,6 +41,8 @@ function LiteNavigator() {
   const status = useSessionStore((s) => s.status);
   const { locked, unlock } = useAppLock();
   const [ready, setReady] = useState(false);
+  // A tapped purchase notification opens that purchase, once the navigator is up and the phone is paired.
+  useNotificationLinks(ready && status === "authenticated");
 
   useEffect(() => {
     let cancelled = false;
@@ -73,11 +76,20 @@ function LiteNavigator() {
               sheetCornerRadius: 24,
             }}
           />
+          <Stack.Screen
+            name="purchase/[id]"
+            options={{
+              ...inlineTitleOptions,
+              headerShown: true,
+              title: t("insights:detail.title"),
+            }}
+          />
         </Stack.Protected>
         <Stack.Screen
           name="pair"
-          options={{ ...inlineTitleOptions, headerShown: true, title: t("lite:pair.title") }}
+          options={{ ...largeTitleOptions, headerShown: true, title: t("lite:pair.title") }}
         />
+        <Stack.Screen name="+not-found" />
       </Stack>
       {/* Covers every screen while locked; the navigator below keeps its state. */}
       {locked ? (

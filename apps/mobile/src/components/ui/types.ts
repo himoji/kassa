@@ -2,11 +2,15 @@
  * Prop types for the components in this folder. Plain types: no stack imports,
  * so a component can be rewritten without touching its public shape.
  */
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type {
   FlexAlignType,
   KeyboardTypeOptions,
+  ReturnKeyTypeOptions,
   StyleProp,
+  SubmitBehavior,
+  TextInput,
+  TextInputProps,
   TextStyle,
   ViewStyle,
 } from "react-native";
@@ -168,6 +172,20 @@ export interface InputProps {
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** Focus it from the previous field's `onSubmitEditing` (React 19: a plain prop). */
+  ref?: Ref<TextInput>;
+  /** The keyboard's return key: "next" to move on, "done" / "go" / "send" on the last field. */
+  returnKeyType?: ReturnKeyTypeOptions;
+  /** Return key pressed (single-line fields). */
+  onSubmitEditing?: () => void;
+  /** Keep the keyboard up on return (when submitting moves focus to the next field). Default: blur. */
+  submitBehavior?: SubmitBehavior;
+  autoCorrect?: boolean;
+  autoComplete?: TextInputProps["autoComplete"];
+  textContentType?: TextInputProps["textContentType"];
+  autoFocus?: boolean;
+  maxLength?: number;
+  testID?: string;
 }
 
 export interface SwitchProps {
