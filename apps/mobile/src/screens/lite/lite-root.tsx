@@ -13,7 +13,7 @@ import { registerApproveInWebApp } from "@/lite/approve";
 import { applyServerUrl, loadServerUrl } from "@/lite/server-url";
 import { useNotificationLinks } from "@/lite/notifier";
 import { useAppLock } from "@/lite/use-app-lock";
-import { inlineTitleOptions, largeTitleOptions } from "@/navigation/stack-options";
+import { inlineTitleOptions } from "@/navigation/stack-options";
 import { useSessionStore } from "@/stores/session";
 import { hydrateThemeMode } from "@/stores/theme-mode";
 
@@ -87,7 +87,7 @@ function LiteNavigator() {
         </Stack.Protected>
         <Stack.Screen
           name="pair"
-          options={{ ...largeTitleOptions, headerShown: true, title: t("lite:pair.title") }}
+          options={{ ...inlineTitleOptions, headerShown: true, title: t("lite:pair.title") }}
         />
         <Stack.Screen name="+not-found" />
       </Stack>

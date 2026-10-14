@@ -8,7 +8,7 @@ import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { RowGroup } from "@/components/row-group";
-import { Box, EmptyState, Icon, Input, Row, Text, toast, useTheme } from "@/components/ui";
+import { Box, EmptyState, Icon, Input, Row, toast } from "@/components/ui";
 import { confirm } from "@/lib/confirm";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
@@ -172,7 +172,6 @@ function RenameRow({ chat, onDone }: { chat: ConversationSummary; onDone: () => 
  */
 export function ChatHistoryScreen() {
   const t = useKassaT();
-  const { colors } = useTheme();
   const list = useConversations();
   const remove = useDeleteConversation();
   const conversationId = useChatStore((s) => s.conversationId);
@@ -253,16 +252,6 @@ export function ChatHistoryScreen() {
             }
           />
         ) : null}
-        <RowGroup icons>
-          <Row
-            leading={
-              <Icon name="plus.bubble.fill" fallback="add_comment" size={22} color="brandAccent" />
-            }
-            title={t("chat:history.newChat")}
-            onPress={startNew}
-            testID="new-chat"
-          />
-        </RowGroup>
         <QueryView
           query={list}
           skeletonRows={5}
@@ -300,9 +289,6 @@ export function ChatHistoryScreen() {
                     )}
                   </RowGroup>
                 ))}
-                <Text variant="caption" align="center" style={{ color: colors.mutedForeground }}>
-                  {t("chat:history.footer", { count: d.conversations.length })}
-                </Text>
               </>
             );
           }}

@@ -1,6 +1,6 @@
 import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 import { router } from "expo-router";
-import { Pressable } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useSpendingInsights } from "@/api/hooks/insights";
 import { QueryView } from "@/components/kassa/query-view";
@@ -88,13 +88,23 @@ function CaptureRow({ capture }: { capture: RecentCapture }) {
   );
 }
 
+/** What a day's purchases came to in the home currency; null when one has no converted amount yet. */
+export function dayTotal(captures: readonly RecentCapture[]): number | null {
+  let total = 0;
+  for (const c of captures) {
+    if (c.homeAmountMinor === null) return null;
+    total += c.homeAmountMinor;
+  }
+  return total;
+}
+
 function dayTitle(day: string, t: ReturnType<typeof useKassaT>, f: ReturnType<typeof useFormat>) {
   const now = new Date();
   if (day === localDay(now.toISOString())) return t("lite:activity.today");
   const y = new Date(now);
   y.setDate(now.getDate() - 1);
   if (day === localDay(y.toISOString())) return t("lite:activity.yesterday");
-  return f.date(day, "long");
+  return f.weekdayDay(day);
 }
 
 export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
@@ -102,14 +112,18 @@ export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
   const f = useFormat();
   const insights = useSpendingInsights();
   const groups = groupByDay(data.captures);
+  const home = insights.data?.homeCurrency;
   return (
     <>
       {insights.data ? <MonthSummaryCard data={insights.data} onPress={openInsights} /> : null}
       {data.nudges.length > 0 ? (
         <RowGroup title={t("lite:activity.nudgesTitle")}>
-          {data.nudges.slice(0, 3).map((n) => (
+          {/* The latest one: older nudges repeat what the purchases below already show. */}
+          {data.nudges.slice(0, 1).map((n) => (
             <Box key={n.id} p={4} row gap={3}>
-              <Icon name="sparkles" fallback="auto_awesome" size={18} color="brandAccent" />
+              <View style={{ paddingTop: 2 }}>
+                <Icon name="sparkles" fallback="auto_awesome" size={18} color="brandAccent" />
+              </View>
               <Box gap={1} style={{ flex: 1 }}>
                 <Text weight="semibold">{n.title}</Text>
                 <Text variant="caption">{n.body}</Text>
@@ -131,22 +145,27 @@ export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
           </Box>
         </RowGroup>
       ) : null}
-      {groups.map((g, i) => (
-        <RowGroup
-          key={g.day}
-          icons
-          title={dayTitle(g.day, t, f)}
-          footer={
-            i === groups.length - 1
-              ? t("lite:activity.updated", { time: f.dateTime(data.serverTime) })
-              : undefined
-          }
-        >
-          {g.captures.map((c) => (
-            <CaptureRow key={c.id} capture={c} />
-          ))}
-        </RowGroup>
-      ))}
+      {groups.map((g) => {
+        const total = dayTotal(g.captures);
+        return (
+          <RowGroup
+            key={g.day}
+            icons
+            title={
+              total !== null && home
+                ? t("lite:activity.dayTotal", {
+                    day: dayTitle(g.day, t, f),
+                    amount: f.money(total, home),
+                  })
+                : dayTitle(g.day, t, f)
+            }
+          >
+            {g.captures.map((c) => (
+              <CaptureRow key={c.id} capture={c} />
+            ))}
+          </RowGroup>
+        );
+      })}
     </>
   );
 }
