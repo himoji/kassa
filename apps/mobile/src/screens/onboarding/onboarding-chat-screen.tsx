@@ -2,7 +2,7 @@ import type { ChoiceAnswer, DataChoices, OnboardingProfileDraft } from "@kassa/s
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { ChatLayout } from "@/components/kassa/chat-layout";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 import { fetchOnboardingConversation } from "@/api/hooks/chat";
@@ -166,14 +166,62 @@ export function OnboardingChatScreen() {
   if (!hydrated || !loaded) return <Loading label={t("chat:loadingHistory")} />;
 
   return (
-    <KeyboardAvoidingView
-      behavior="padding"
-      style={{ flex: 1, backgroundColor: colors.background }}
+    <ChatLayout
+      composer={
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 8,
+            padding: 12,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            alignItems: "flex-end",
+          }}
+        >
+          <TextInput
+            editable={!consentFirst}
+            value={input}
+            onChangeText={setInput}
+            placeholder={t("onboarding:placeholder")}
+            placeholderTextColor={colors.mutedForeground}
+            accessibilityLabel={t("chat:inputA11y")}
+            multiline
+            style={{
+              flex: 1,
+              minHeight: 44,
+              maxHeight: 140,
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 22,
+              backgroundColor: colors.muted,
+              color: colors.foreground,
+              fontSize: 16,
+            }}
+          />
+          <Pressable
+            onPress={() => void submit(input.trim())}
+            disabled={Boolean(consentFirst)}
+            accessibilityRole="button"
+            accessibilityLabel={t("chat:send")}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.brandAccent,
+            }}
+          >
+            <Icon name="arrow.up" fallback="arrow_upward" size={20} color="primaryForeground" />
+          </Pressable>
+        </View>
+      }
     >
       <ScrollView
         ref={scroll}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
         contentContainerStyle={{ padding: 16, gap: 12 }}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
       >
@@ -234,53 +282,6 @@ export function OnboardingChatScreen() {
           </Button>
         ) : null}
       </ScrollView>
-      <View
-        style={{
-          flexDirection: "row",
-          gap: 8,
-          padding: 12,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          alignItems: "flex-end",
-        }}
-      >
-        <TextInput
-          editable={!consentFirst}
-          value={input}
-          onChangeText={setInput}
-          placeholder={t("onboarding:placeholder")}
-          placeholderTextColor={colors.mutedForeground}
-          accessibilityLabel={t("chat:inputA11y")}
-          multiline
-          style={{
-            flex: 1,
-            minHeight: 44,
-            maxHeight: 140,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            borderRadius: 22,
-            backgroundColor: colors.muted,
-            color: colors.foreground,
-            fontSize: 16,
-          }}
-        />
-        <Pressable
-          onPress={() => void submit(input.trim())}
-          disabled={Boolean(consentFirst)}
-          accessibilityRole="button"
-          accessibilityLabel={t("chat:send")}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: colors.brandAccent,
-          }}
-        >
-          <Icon name="arrow.up" fallback="arrow_upward" size={20} color="primaryForeground" />
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+    </ChatLayout>
   );
 }

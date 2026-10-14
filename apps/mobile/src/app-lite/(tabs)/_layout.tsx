@@ -7,10 +7,17 @@ export default function LiteTabsLayout() {
   const { colors } = useTheme();
   const t = useKassaT();
   return (
-    <NativeTabs tintColor={colors.brandAccent}>
+    <NativeTabs tintColor={colors.brandAccent} minimizeBehavior="onScrollDown">
       <NativeTabs.Trigger name="activity">
         <NativeTabs.Trigger.Icon sf="list.bullet.rectangle" md="receipt_long" />
         <NativeTabs.Trigger.Label>{t("lite:tabs.activity")}</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="insights">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "chart.bar", selected: "chart.bar.fill" }}
+          md="insights"
+        />
+        <NativeTabs.Trigger.Label>{t("lite:tabs.insights")}</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="chat">
         <NativeTabs.Trigger.Icon

@@ -1,0 +1,93 @@
+{
+  "title": "Insights",
+  "tab": "Insights",
+  "month": {
+    "spentLabel": "Spent in {{month}}",
+    "purchases_one": "{{count}} purchase",
+    "purchases_other": "{{count}} purchases",
+    "daysLeft_one": "{{count}} day left",
+    "daysLeft_other": "{{count}} days left",
+    "vsLastMonthMore": "{{amount}} more than this point last month",
+    "vsLastMonthLess": "{{amount}} less than this point last month",
+    "vsLastMonthSame": "About the same as this point last month",
+    "projected": "At this pace: {{amount}} by the end of the month",
+    "usual": "A usual month: {{amount}}",
+    "incomeUsed": "{{pct}}% of your monthly income so far",
+    "open": "See insights",
+    "a11y": "Spent {{amount}} this month in {{count}} purchases"
+  },
+  "daily": {
+    "title": "Day by day",
+    "caption": "Tap a day to see what you spent.",
+    "selected": "{{date}}: {{amount}}",
+    "peak": "Biggest day: {{date}}, {{amount}}",
+    "a11y": "{{date}}, {{amount}}"
+  },
+  "categories": {
+    "title": "Where it went",
+    "other": "Everything else",
+    "share": "{{pct}}%",
+    "usual": "usually {{amount}}",
+    "noBudget": "No budget",
+    "left": "{{amount}} left of {{limit}}",
+    "over": "{{amount}} over {{limit}}",
+    "outsideBudgets": "Outside your budgets this month: {{amount}}",
+    "a11y": "{{category}}: {{amount}}, {{pct}}% of the month"
+  },
+  "merchants": {
+    "title": "Where you spend most",
+    "row_one": "{{count}} visit",
+    "row_other": "{{count}} visits"
+  },
+  "highlights": {
+    "title": "Worth knowing",
+    "overBudget": "{{category}} is over budget by {{amount}}.",
+    "fastBudget": "{{category}} is going faster than the month: {{amount}} left for {{days}} days.",
+    "aboveUsual": "{{category}} is already {{amount}} above a usual month.",
+    "bigShare": "{{category}} is {{pct}}% of everything you spent this month.",
+    "quietMonth": "You are spending less than a usual month. Nice.",
+    "projectedOverIncome": "At this pace the month ends above your income."
+  },
+  "empty": {
+    "title": "Nothing spent yet this month",
+    "body": "Pay with Apple Pay or log a purchase in Chat, and the month fills in here."
+  },
+  "detail": {
+    "title": "Purchase",
+    "when": "When",
+    "where": "Where",
+    "kind": "Place",
+    "card": "Card",
+    "cardValue": "{{label}} ·· {{last4}}",
+    "via": "Paid via",
+    "source": "Logged by",
+    "status": "Status",
+    "home": "In {{currency}}",
+    "rate": "Rate {{rate}} on {{date}}",
+    "fee": "Hidden card fee",
+    "statementName": "Statement name",
+    "category": "Category",
+    "changeCategory": "Change category",
+    "categoryChanged": "Category changed. Kassa will remember it for {{merchant}}.",
+    "uncategorised": "No category",
+    "monthTitle": "{{category}} this month",
+    "monthSpent": "{{amount}} in {{count}} purchases",
+    "monthSpent_one": "{{amount}} in {{count}} purchase",
+    "monthShare": "{{pct}}% of all your spending this month",
+    "monthUsual": "A usual month: {{amount}}",
+    "budgetLeft": "{{amount}} left of {{limit}} · {{days}} days to go",
+    "budgetOver": "{{amount}} over the {{limit}} budget",
+    "noBudget": "No budget for this category.",
+    "historyTitle": "At {{merchant}}",
+    "historyVisits_one": "Your first purchase here",
+    "historyVisits_other": "{{count}} purchases here, {{total}} in total",
+    "historyAverage": "Usually {{amount}} a visit",
+    "historySince": "Since {{date}}",
+    "earlier": "Earlier visits",
+    "openMap": "Open in Maps",
+    "copyId": "Copy reference",
+    "copied": "Reference copied",
+    "share": "Share",
+    "shareText": "{{merchant}}: {{amount}} on {{date}}"
+  }
+}
