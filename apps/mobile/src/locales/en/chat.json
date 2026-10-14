@@ -63,7 +63,6 @@
   "history": {
     "title": "Chats",
     "open": "All chats",
-    "newChat": "New chat",
     "untitled": "Untitled chat",
     "messages_one": "{{count}} message",
     "messages_other": "{{count}} messages",
@@ -72,8 +71,6 @@
     "noMatch": "No chats match “{{query}}”",
     "emptyTitle": "No chats yet",
     "emptyBody": "Ask Kassa about a bill, a budget or a purchase. Every chat is kept here.",
-    "footer_one": "{{count}} chat",
-    "footer_other": "{{count}} chats",
     "bucket": {
       "today": "Today",
       "yesterday": "Yesterday",

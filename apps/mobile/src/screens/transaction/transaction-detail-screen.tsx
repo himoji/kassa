@@ -64,7 +64,9 @@ function Hero({ d }: { d: TransactionDetailResponse }) {
       ) : null}
       {/* Settled is the normal case and needs no badge; a pending one may still change. */}
       {tx.status !== "SETTLED" ? (
-        <StatusChip tone="neutral" label={t(`activity:txStatus.${tx.status}`)} />
+        <View style={{ alignSelf: "center", paddingTop: 4 }}>
+          <StatusChip tone="neutral" label={t(`activity:txStatus.${tx.status}`)} />
+        </View>
       ) : null}
     </Box>
   );
@@ -161,7 +163,9 @@ function CategoryPicker({ d }: { d: TransactionDetailResponse }) {
         leading={<Text style={{ fontSize: 20 }}>{categoryEmoji(current ?? "other")}</Text>}
         title={current ? categoryLabel(t, current) : t("insights:detail.uncategorised")}
         trailing={
-          <Text style={{ color: colors.brandAccent }}>{t("insights:detail.changeCategory")}</Text>
+          <Text style={{ color: colors.brandAccent }}>
+            {open ? t("common:close") : t("insights:detail.changeCategory")}
+          </Text>
         }
         onPress={() => setOpen((o) => !o)}
         testID="change-category"

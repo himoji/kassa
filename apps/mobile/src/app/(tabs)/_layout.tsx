@@ -34,7 +34,7 @@ export default function TabsLayout() {
   const business = me.data?.accountType === "BUSINESS";
 
   return (
-    <NativeTabs tintColor={colors.brandAccent} minimizeBehavior="onScrollDown">
+    <NativeTabs tintColor={colors.brandAccent}>
       {inReadingOrder(
         <>
           <NativeTabs.Trigger name="today" hidden={!business}>
