@@ -74,7 +74,17 @@
     "serverInvalid": "Use an https:// address.",
     "signOut": "Sign out",
     "signOutTitle": "Sign out of KassaLite?",
-    "signOutBody": "The tokens on this iPhone are deleted. The Shortcut keeps working until you revoke it in the full app."
+    "signOutBody": "The tokens on this iPhone are deleted. The Shortcut keeps working until you revoke it in the full app.",
+    "updatesTitle": "App updates",
+    "updatesCheck": "Check for updates",
+    "updatesChecking": "Checking for updates",
+    "updatesOff": "Over-the-air updates are off in this build. Rebuild it from Xcode after setting the EAS project id (docs/OTA_UPDATES.md).",
+    "updatesDebug": "Debug build: the app loads from Metro and ignores updates. Run the Release configuration.",
+    "updatesInfo": "Channel {{channel}}, version {{runtime}}. Running {{running}}.",
+    "updatesEmbedded": "the bundle built in Xcode",
+    "updatesFrom": "update {{id}} from {{date}}",
+    "updatesNone": "Up to date",
+    "updatesFailed": "Could not check for updates: {{message}}"
   },
   "approve": {
     "opened": "Approve this in the Kassa web app. KassaLite cannot use a passkey."
