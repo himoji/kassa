@@ -29,8 +29,12 @@ if [[ "${1:-}" != "--redeploy" ]]; then
 
   put DEMO_ENABLED true
   put ISSUING_PROVIDER fake
-  put AGENT_MODE "${AGENT_MODE:-REPLAY}"
+  # LIVE by default: with no key or an unreachable model a turn falls back to its recording, labelled Replay.
+  put AGENT_MODE "${AGENT_MODE:-LIVE}"
   [[ -n "${ANTHROPIC_API_KEY:-}" ]] && put ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
+  [[ -n "${OPENROUTER_API_KEY:-}" ]] && put OPENROUTER_API_KEY "$OPENROUTER_API_KEY"
+  [[ -n "${PLANNER_MODEL:-}" ]] && put PLANNER_MODEL "$PLANNER_MODEL"
+  [[ -n "${READER_MODEL:-}" ]] && put READER_MODEL "$READER_MODEL"
 
   # The domain comes from Vercel now; drop values an earlier version of this script set by hand.
   for name in PUBLIC_ORIGIN RP_ID MOCK_PUBLIC_URL KASSA_APP_URL; do

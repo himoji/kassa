@@ -38,7 +38,12 @@ export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
   const accountMissing = p.accountEnc === null;
   let masked = accountMissing ? "" : "••••";
   try {
-    if (p.accountEnc !== null) masked = maskAccount(decryptAccount(p.userId, p.accountEnc));
+    if (p.accountEnc !== null) {
+      const account = decryptAccount(p.userId, p.accountEnc);
+      // A merchant's "account" is its normalised name for card/QR matching, not a bank account: say what it is
+      // instead of masking the end of the name ("•••• OPIN").
+      masked = p.kind === "MERCHANT" && decodePayeeAccount(account).scheme === "OTHER" ? "card or QR" : maskAccount(account);
+    }
   } catch {
     // undecryptable (key rotated): show nothing rather than fail the list
   }

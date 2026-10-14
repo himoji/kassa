@@ -149,10 +149,10 @@ describe("decide: step 4 sanctions screening", () => {
 });
 
 describe("decide: step 5 caps and reserve", () => {
-  it("per-payment breach within 2x asks under SMART", () => {
+  it("per-payment breach refuses under SMART, even just above the cap (a cap is a hard limit)", () => {
     const r = decide({ ...base(), caps: { ...base().caps, amountHomeMinor: 200_000_000 } });
-    expect(r.decision).toBe("ASK");
-    expect(r.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
+    expect(r.decision).toBe("REFUSE");
+    expect(r.reasonCodes).toEqual(["REFUSE_CAP"]);
   });
 
   it("per-payment breach beyond 2x refuses under SMART", () => {
@@ -171,22 +171,22 @@ describe("decide: step 5 caps and reserve", () => {
     expect(r.reasonCodes).toContain("REFUSE_CAP");
   });
 
-  it("daily breach within 2x asks under SMART", () => {
+  it("daily breach refuses under SMART", () => {
     const r = decide({
       ...base(),
       caps: { ...base().caps, usedTodayHomeMinor: 199_900_000, amountHomeMinor: 500_000 },
     });
-    expect(r.decision).toBe("ASK");
-    expect(r.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
+    expect(r.decision).toBe("REFUSE");
+    expect(r.reasonCodes).toEqual(["REFUSE_CAP"]);
   });
 
-  it("monthly breach within 2x asks under SMART", () => {
+  it("monthly breach refuses under SMART", () => {
     const r = decide({
       ...base(),
       caps: { ...base().caps, usedThisMonthHomeMinor: 299_900_000, amountHomeMinor: 500_000 },
     });
-    expect(r.decision).toBe("ASK");
-    expect(r.reasonCodes).toContain("CAP_WITHIN_2X_ASK");
+    expect(r.decision).toBe("REFUSE");
+    expect(r.reasonCodes).toEqual(["REFUSE_CAP"]);
   });
 
   it("reserve breached refuses even under SMART", () => {
@@ -412,9 +412,10 @@ describe("decide: Phase 2 fix pass (X1, X2, X3)", () => {
     expect(o.reasonCodes).toContain("MANDATE_OUT_OF_SCOPE");
   });
 
-  it("X2: over payments' own daily cap → REFUSE_CAP + PAYMENTS_DAILY_CAP, also where SMART would ask within 2×", () => {
-    const within2x = { ...base().caps, amountHomeMinor: 50_000_000, usedTodayHomeMinor: 180_000_000, paymentsDailyHomeMinor: 200_000_000 };
-    expect(decide({ ...base(), caps: within2x })).toMatchObject({ decision: "REFUSE", reasonCodes: ["REFUSE_CAP", "PAYMENTS_DAILY_CAP"] });
+  it("X2: over payments' own daily cap → REFUSE_CAP + PAYMENTS_DAILY_CAP", () => {
+    // Over both the rules' daily cap and payments' own: the rules cap answers first.
+    const overBoth = { ...base().caps, amountHomeMinor: 50_000_000, usedTodayHomeMinor: 180_000_000, paymentsDailyHomeMinor: 200_000_000 };
+    expect(decide({ ...base(), caps: overBoth })).toMatchObject({ decision: "REFUSE", reasonCodes: ["REFUSE_CAP"] });
     const underRulesCaps = { ...base().caps, amountHomeMinor: 500_000, usedTodayHomeMinor: 0, dailyHomeMinor: 900_000_000, paymentsDailyHomeMinor: 400_000 };
     expect(decide({ ...base(), caps: underRulesCaps }).reasonCodes).toEqual(["REFUSE_CAP", "PAYMENTS_DAILY_CAP"]);
     expect(decide({ ...base(), caps: { ...base().caps, paymentsDailyHomeMinor: 200_000_000 } }).decision).toBe("AUTO");

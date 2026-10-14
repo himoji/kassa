@@ -2,6 +2,8 @@ import { isStepCount, streamText, wrapLanguageModel, type LanguageModel, type La
 
 import type { AgentMode } from "@kassa/shared";
 
+import { AiConfigError } from "../ai/errors.ts";
+import { newFallbackState, replayFallbackEnabled, withReplayFallback } from "../ai/fallback.ts";
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
 import { SDK_MAX_RETRIES } from "../ai/retry.ts";
 import { redactionMiddleware } from "./middleware.ts";
@@ -116,19 +118,39 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   };
   const tools = buildTools(ctx);
 
-  // Model: injected (tests) → REPLAY recording → live planner from the registry.
+  // Model: injected (tests) → REPLAY recording → live planner from the registry, falling back to the recording when
+  // the provider can't be used (ai/fallback.ts; the message is then labelled Replay).
+  const priorUserTurns = history.filter((m) => m.role === "user").length;
+  const recording = () => replayModel(selectTurn(redactedText, { scenario: o.scenario, priorUserTurns, exclude: ONBOARDING_ONLY }).turn, { chunkDelayInMs: o.replayChunkDelayMs ?? 12 });
+  const recordingOrNull = () => {
+    try {
+      return recording();
+    } catch {
+      return null;
+    }
+  };
+  const fallback = newFallbackState();
   let base: LanguageModel;
   let recordedWith = "injected";
   if (o.model) base = o.model;
   else if (o.mode === "REPLAY") {
-    const priorUserTurns = history.filter((m) => m.role === "user").length;
-    base = replayModel(selectTurn(redactedText, { scenario: o.scenario, priorUserTurns, exclude: ONBOARDING_ONLY }).turn, { chunkDelayInMs: o.replayChunkDelayMs ?? 12 });
+    base = recording();
     recordedWith = "replay";
   } else {
-    base = getPlannerModel();
-    recordedWith = plannerSpec().id;
+    try {
+      base = withReplayFallback(getPlannerModel(), recordingOrNull, fallback);
+      recordedWith = plannerSpec().id;
+    } catch (e) {
+      // No key / bad model spec: serve the recording when there is one, else surface the configuration error.
+      const r = e instanceof AiConfigError && replayFallbackEnabled() ? recordingOrNull() : null;
+      if (!r) throw e;
+      base = r;
+      fallback.used = true;
+      fallback.reason = (e as AiConfigError).code;
+      recordedWith = "replay";
+    }
   }
-  const recorder = o.record && o.mode === "LIVE" && !o.model ? new StepRecorder() : null;
+  const recorder = o.record && o.mode === "LIVE" && !o.model && recordedWith !== "replay" ? new StepRecorder() : null;
   const middleware: LanguageModelMiddleware[] = [redactionMiddleware(redactor), ...(recorder ? [recorder.middleware()] : [])];
   const model = typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware });
 
@@ -157,7 +179,9 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   const payeeNames = new Map(payees.map((p) => [p.id, p.name]));
   const uiStream = result
     .toUIMessageStream({
-      messageMetadata: ({ part }) => (part.type === "start" ? { replay: o.mode === "REPLAY" && !o.model } : undefined),
+      // `replay` is known at the start for REPLAY mode, and at the finish when a live turn fell back to a recording.
+      messageMetadata: ({ part }) =>
+        part.type === "start" ? { replay: (o.mode === "REPLAY" || fallback.used) && !o.model } : part.type === "finish" && fallback.used ? { replay: true } : undefined,
       onError: (e) => (e instanceof Error && "code" in e ? `${(e as { code: string }).code}: ${e.message}` : "The assistant could not answer. Please try again."),
     })
     .pipeThrough(rehydrateStream(redactor, payeeNames));
@@ -167,7 +191,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     const [responseMessages, steps, text] = await Promise.all([result.responseMessages, result.steps, result.text]);
     await o.store.saveMessages([userMsg, ...responseMessages]);
     await o.store.savePlaceholders(redactor.drainNew());
-    const recordedTo = recorder ? recorder.save(o.scenario ?? redactedText, redactedText, recordedWith) : null;
+    const recordedTo = recorder && !fallback.used ? recorder.save(o.scenario ?? redactedText, redactedText, recordedWith) : null;
     return {
       steps: steps.length,
       toolCalls: steps.flatMap((s) => s.toolCalls.map((c) => ({ toolName: c.toolName, input: c.input }))),

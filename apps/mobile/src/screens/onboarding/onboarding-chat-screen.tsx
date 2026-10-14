@@ -6,7 +6,9 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 import { fetchOnboardingConversation } from "@/api/hooks/chat";
+import { useMe } from "@/api/hooks/me";
 import { useOnboardingMessage } from "@/api/hooks/onboarding";
+import { ReplayBadge } from "@/components/kassa/badges";
 import { ChoiceCard, withReplyAnswers } from "@/components/kassa/choice-card";
 import { errorText } from "@/components/kassa/error-text";
 import { Markdown } from "@/components/kassa/markdown";
@@ -25,6 +27,8 @@ interface Turn {
   role: "user" | "assistant";
   text: string;
   ui: DataChoices[];
+  /** Served from a recorded replay (REPLAY mode, or the live model was unavailable). */
+  replay?: boolean;
 }
 
 /** Text of the first user turn after index `i`: a picker in turn `i` was answered by it. */
@@ -79,6 +83,17 @@ export function OnboardingChatScreen() {
   const conversationId = useChatStore((s) => s.onboardingConversationId);
   const setConversationId = useChatStore((s) => s.setOnboardingConversationId);
   const send = useOnboardingMessage();
+  const me = useMe();
+  // Ask for AI consent before the first message, not after it is refused (the PIPL step, which depends on the region
+  // the chat learns, still arrives as a refusal below).
+  const consentFirst: ConsentNeeded | null =
+    me.data && me.data.aiConsentAt === null
+      ? {
+          code: "AI_CONSENT_REQUIRED",
+          noticeText: me.data.aiNotice?.text ?? null,
+          endpoint: "/privacy/ai-consent",
+        }
+      : null;
   const [loaded, setLoaded] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([
     { id: 0, role: "assistant", text: t("onboarding:greeting"), ui: [] },
@@ -125,7 +140,7 @@ export function OnboardingChatScreen() {
       const res = await send.mutateAsync({ conversationId, text, ...(choice ? { choice } : {}) });
       setTurns((prev) => [
         ...prev,
-        { id: prev.length, role: "assistant", text: res.reply, ui: res.ui },
+        { id: prev.length, role: "assistant", text: res.reply, ui: res.ui, replay: res.replay },
       ]);
       setDraft(res.draft);
       setComplete(res.complete);
@@ -183,6 +198,7 @@ export function OnboardingChatScreen() {
                 <Markdown>{turn.text}</Markdown>
               )}
             </View>
+            {turn.replay ? <ReplayBadge force /> : null}
             {withReplyAnswers(turn.ui, laterUserText(turns, index)).map((part) => (
               <ChoiceCard
                 key={part.id}
@@ -195,8 +211,17 @@ export function OnboardingChatScreen() {
         ))}
         {send.isPending ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
         {error ? <Text color="destructive">{error}</Text> : null}
+        {consentFirst && !consent ? (
+          <ConsentCard need={consentFirst} onGiven={() => void me.refetch()} />
+        ) : null}
         {consent ? (
-          <ConsentCard need={consent.need} onGiven={() => void ask(consent.text, consent.choice)} />
+          <ConsentCard
+            need={consent.need}
+            onGiven={() => {
+              void me.refetch();
+              void ask(consent.text, consent.choice);
+            }}
+          />
         ) : null}
         {draft && hasContent(draft) ? (
           <Animated.View entering={FadeIn}>
@@ -220,6 +245,7 @@ export function OnboardingChatScreen() {
         }}
       >
         <TextInput
+          editable={!consentFirst}
           value={input}
           onChangeText={setInput}
           placeholder={t("onboarding:placeholder")}
@@ -240,6 +266,7 @@ export function OnboardingChatScreen() {
         />
         <Pressable
           onPress={() => void submit(input.trim())}
+          disabled={Boolean(consentFirst)}
           accessibilityRole="button"
           accessibilityLabel={t("chat:send")}
           style={{
