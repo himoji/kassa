@@ -1,7 +1,28 @@
 # Demo script (5 minutes)
 
-Judges are WeBank industry experts. The pitch line is: "The agent can prepare anything, but only your signature can move your money."
-Everything shown is simulated.
+Reviewers are WeBank industry experts and university scholars. The theme is "AI as a Financial Participant", so the video shows the agent doing the work, and the limits that keep it safe.
+
+Pitch line: "Kassa's agent pays your bills across borders on its own, inside the limits you signed with your passkey."
+Safety line: "The agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money."
+Everything shown is simulated: sandbox money, mock bank, fictitious companies.
+
+## The 5-minute video (five beats)
+
+Before recording: `AGENT_MODE=LIVE` with a working key, and check that a chat turn shows no "Replay" badge. Press "Reset demo" on `/mock/stage`.
+
+| Time | Beat | Do | Viewer sees | Point |
+| --- | --- | --- | --- | --- |
+| 0:00–0:20 | Problem | Dana's home screen: money in KZT and USD, bills in HUF and EUR | Balances, bills, budgets in four currencies | Topic C: a student whose money lives in two countries |
+| 0:20–1:20 | 1. The agent meets Dana (live AI) | "Try the demo" as Dana, give AI consent, talk to the onboarding agent about her income, rent and budgets; review the caps and budgets it drafted; sign them with the passkey; sign the rent mandate it offers | Live chat (no Replay badge), drafted caps and budgets, passkey sheet, rent mandate signed | The AI does the setup; the user signs the limits once |
+| 1:20–2:20 | 2. Money from home pays tuition | `/mock/stage/home`: "Send money" (₸1,000,000 from parents). `/mock/stage/mail`: forward the tuition invoice. In chat: "pay my tuition". Approve with the passkey; on `/mock/stage/bank` press "Fast-forward +1 hour" | Remittance logged, cheapest route with FX cost, reader fields with evidence, exact order, passkey, SENT | Remittances and tuition; a large one-off payment needs the user's signature |
+| 2:20–3:00 | 3. Rent day: the agent pays on its own | `/mock/stage/mail?v=average` "Jump to rent day (+3 days)" | Rent paid to the verified landlord with no prompt; the notice names the mandate | The agent acts as a financial participant inside a signed mandate |
+| 3:00–3:50 | 4. Attacks fail | `/mock/stage/mail?v=bad`: forward the lookalike landlord email with a new IBAN and ask Kassa about it. `/mock/stage/supplier?v=bad`: "Show hidden text" | New payee held in 24 h cooling, never paid on autopilot; the hidden instruction is treated as data. Cut to `docs/evidence/attacks.json`: 0 of 8 paid vs 8 of 8 for a naive agent | Prompt injection and payee swaps do not move money |
+| 3:50–4:40 | 5. Credit record | Open Credit record, pick the last 6 months, include bills paid on time and income, export; open the verify link as the landlord would | Signed summary, PDF, public verify page that checks the signature and the ledger entry | Credit building for a student with no local credit history |
+| 4:40–5:00 | Close | Run `bun run ledger:verify` (or show `docs/evidence/ledger-verify.json`) | Hash chain and checkpoint signatures verified | Every action is in a tamper-evident ledger |
+
+Optional if time allows: a real Apple Pay tap logged through KassaLite ([KASSALITE.md](KASSALITE.md)), or the China QR handoff (scenes 3:30 to 4:30 below).
+
+If Dana's onboarding was already done on this database, press "Reset demo" first. To show the mandate without onboarding, sign it from the landlord's payee screen.
 
 ## Setup (before the pitch)
 
@@ -9,7 +30,9 @@ Everything shown is simulated.
 2. Phone: Kassa app signed in as the demo user (Dana), and a browser tab on `/mock/stage` (the Demo Stage director). A second screen can mirror the app.
 3. Press "Reset demo" on `/mock/stage`. Optional: in the app's Settings, set region CN only when you reach scene 2.
 
-## Timeline
+## Extended scenes (live final and Q&A)
+
+The full set of stage scenes, for the in-person final or for questions. Too many for the 5-minute video.
 
 | Time | Screen (URL) | Do | Kassa shows | Point (invariant) |
 | --- | --- | --- | --- | --- |
@@ -38,6 +61,8 @@ Devices (all on `https://HOST`):
 - Android emulator: Li Wei in Shanghai (persona `li-wei-cn`, region CN) in the browser.
 
 Picking the persona: the welcome screen shows persona chips above "Try the demo" (Dana, Li Wei, Li Wei (Shanghai), Pizzeria owner Budapest, Pizzeria owner Shanghai; default Dana). A demo link can preselect one with `/welcome?persona=<key>`, key one of `dana`, `li-wei`, `li-wei-cn`, `pizzeria-bud`, `pizzeria-sha` (unknown keys fall back to Dana). The app sends `demoClaim: true` for Dana and `demoClaim: "<key>"` otherwise on `POST /api/auth/register/options`; non-Dana personas need a seed with personas (`bun run seed`, sim up, or demo reset).
+
+Business mode is hidden by default. To show beats 2 to 9, start the web app with `EXPO_PUBLIC_SHOW_BUSINESS=true` or open `/welcome?persona=pizzeria-bud`.
 
 Beats, in order:
 

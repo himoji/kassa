@@ -46,6 +46,16 @@ export function fakePorts(opts: { decision?: ProposeOrderResult["decision"]; rea
     catalog: async () => ({ items: [] }),
     routes: async () => ({ homeCurrency: "KZT", routes }),
     forecast: async () => ({ horizonDays: 45, asOf: "2026-10-27", currencies: [], suggestions: [] }),
+    spending: async () => ({
+      homeCurrency: "KZT",
+      month: { start: "2026-10-01", end: "2026-10-31", daysTotal: 31, daysElapsed: 27, daysLeft: 5 },
+      category: { category: "other", spentMinor: 0, count: 0, budgeted: false, typicalMinor: null },
+      categories: [],
+      outsideBudgetsMinor: 0,
+      totalMinor: 0,
+      monthlyIncomeMinor: null,
+      incomeUsedPct: null,
+    }),
     readDocument: async (docId) => {
       log.reads.push(docId);
       const d = opts.docs?.[docId];

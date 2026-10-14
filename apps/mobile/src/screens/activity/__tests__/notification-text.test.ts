@@ -32,6 +32,46 @@ describe("notificationText", () => {
     expect(r.body).toContain("EUR 2400.00 (about KZT 1469760.00) to University in Budapest");
   });
 
+  it("renders budget.unbudgeted: the month so far, the usual month and spending outside budgets", () => {
+    const r = notificationText(
+      {
+        title: "x",
+        body: "y",
+        data: {
+          key: "budget.unbudgeted",
+          params: {
+            amount: { amountMinor: 1200000, currency: "HUF" },
+            merchant: "Zara",
+            category: "shopping",
+            where: "Budapest",
+            spent: { amountMinor: 1200000, currency: "HUF" },
+            count: 1,
+            typical: { amountMinor: 900000, currency: "HUF" },
+            outside: { amountMinor: 1200000, currency: "HUF" },
+            total: { amountMinor: 1500000, currency: "HUF" },
+            incomeUsedPct: 7,
+            days: 21,
+          },
+        },
+      },
+      t,
+      money
+    );
+    expect(r.title).toBe("Shopping: no budget");
+    expect(r.body).toBe(
+      "HUF 12000.00 at Zara in Budapest. Shopping this month: HUF 12000.00 in 1 purchase, usually HUF 9000.00 a month. Outside your budgets: HUF 12000.00. All spending: HUF 15000.00 (7% of monthly income), 21 days left this month."
+    );
+  });
+
+  it("budget.unbudgeted without the money fields falls back to the server text", () => {
+    const r = notificationText(
+      { title: "T", body: "B", data: { key: "budget.unbudgeted", params: { merchant: "Zara" } } },
+      t,
+      money
+    );
+    expect(r).toEqual({ title: "T", body: "B" });
+  });
+
   it("renders budget.each with the home equivalent", () => {
     const r = notificationText(
       {

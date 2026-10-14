@@ -9,6 +9,7 @@ import {
   AskConfirmInput,
   AskDateInput,
   ForecastCoverageInput,
+  GetSpendingSummaryInput,
   GetFxRateInput,
   ForecastStockInput,
   GetBalancesInput,
@@ -80,6 +81,7 @@ export type ToolName =
   | "forecast_stock"
   | "propose_purchase_order"
   | "get_fx_rate"
+  | "get_spending_summary"
   | "ask_choice"
   | "ask_amount"
   | "ask_budgets"
@@ -87,7 +89,7 @@ export type ToolName =
   | "ask_confirm";
 
 /** Read-only tools added on top of the spec's eleven; never part of proposal gating. */
-export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate"];
+export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate", "get_spending_summary"];
 
 /** UI tools: each emits a `data-choices` part and ends the turn (loop.ts stopWhen). */
 export const UI_TOOLS: readonly ToolName[] = ["ask_choice", "ask_amount", "ask_budgets", "ask_date", "ask_confirm"];
@@ -405,6 +407,24 @@ export function buildTools(ctx: ToolContext): ToolSet {
           ctx.emit({ type: "data-routes", data: { toCurrency, amountMinor, homeCurrency: r.homeCurrency, routes: r.routes } });
         }
         return { homeCurrency: r.homeCurrency, routes: r.routes };
+      }),
+    }),
+
+    get_spending_summary: tool({
+      description:
+        "This month's spending per category in the home currency, with or without a budget, each against its usual month; spending outside budgets; all spending against monthly income; days left in the month. Use it for advice and for 'where does my money go'.",
+      inputSchema: GetSpendingSummaryInput,
+      execute: safe(async () => {
+        const s = await ports.spending();
+        return {
+          homeCurrency: s.homeCurrency,
+          month: { start: s.month.start, end: s.month.end, daysLeft: s.month.daysLeft },
+          categories: s.categories.map((c) => ({ category: c.category, spentMinor: c.spentMinor, purchases: c.count, hasBudget: c.budgeted, usualMonthMinor: c.typicalMinor })),
+          outsideBudgetsMinor: s.outsideBudgetsMinor,
+          totalMinor: s.totalMinor,
+          monthlyIncomeMinor: s.monthlyIncomeMinor,
+          incomeUsedPct: s.incomeUsedPct,
+        };
       }),
     }),
 
