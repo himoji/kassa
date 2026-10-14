@@ -53,7 +53,7 @@ Details, phone testing and deployment are below.
 | Technical documentation | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
 | Source code | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md)) |
 | Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7) |
-| Execution evidence | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations |
+| Execution evidence | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations, and testnet transaction hashes of the anchored ledger checkpoints (`anchors.json`, see "On-chain anchoring") |
 
 ## Documents
 
@@ -176,11 +176,27 @@ bun run typecheck      # tsc in every workspace
 bun run lint           # ESLint: root config for api, mock-world and shared (includes the I1 and I2 import rules); mobile runs `expo lint`
 bun run test           # Vitest suites (api, mock-world, shared) and the mobile Jest suite
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
+bun run ledger:anchor:verify  # re-reads each anchor transaction from the testnet and compares it with the ledger
 ```
 
-- Counts from the latest run (2026-10-14): API 828 tests in 104 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 527. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-14): API 849 tests in 106 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 527. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.
+
+## On-chain anchoring (testnet)
+
+Every 20 ledger entries Kassa writes a checkpoint signed with Ed25519. `bun run ledger:anchor` publishes each checkpoint not yet anchored on an EVM testnet (Sepolia by default): a zero-value transaction from the anchor account to itself, with the plain-text memo `kassa:ledger-anchor:v1:<seq>:<headHash>:<keyId>` as its input data, so a block explorer shows it as text. It also adds a `LEDGER_ANCHORED` entry to the ledger and keeps the list, with explorer links, in `docs/evidence/anchors.json`.
+
+```bash
+ANCHOR_PRIVATE_KEY=0x... bun run ledger:anchor          # a testnet-only account with a little test ETH from a faucet
+bun run ledger:anchor:verify                            # chain vs. evidence file vs. current ledger; exits 1 on any mismatch
+bun run ledger:anchor:verify --no-db                    # chain vs. evidence file only, for a reviewer without the database
+```
+
+- Options: `ANCHOR_CHAIN` (`sepolia` or `holesky`), `ANCHOR_RPC_URL` (defaults to the chain's public RPC), `ANCHOR_EXPLORER_URL`.
+- What it proves: a checkpoint changed or removed after it was anchored no longer matches its transaction, and a mined transaction cannot be edited. It closes the rollback gap in SECURITY.md R28 up to the last anchored checkpoint.
+- What it does not do: no money or tokens move (value 0, test gas only), no personal data goes on chain (only the checkpoint hash and key id), and the anchor key is separate from every Kassa signing key.
+- Code: `apps/api/src/modules/ledger/anchor.ts`, `apps/api/scripts/ledger-anchor.ts`, `apps/api/scripts/ledger-anchor-verify.ts`; tests: `apps/api/test/core/ledger-anchor.test.ts`.
 
 ## Deploy on Vercel
 

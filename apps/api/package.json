@@ -13,7 +13,9 @@
     "db:migrate": "bun scripts/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "seed": "bun scripts/seed.ts",
-    "ledger:verify": "bun scripts/ledger-verify.ts"
+    "ledger:verify": "bun scripts/ledger-verify.ts",
+    "ledger:anchor": "bun scripts/ledger-anchor.ts",
+    "ledger:anchor:verify": "bun scripts/ledger-anchor-verify.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.78",
@@ -40,6 +42,7 @@
     "postgres": "^3.4.9",
     "stripe": "^23.0.0",
     "transliteration": "^2.6.1",
+    "viem": "^2.57.6",
     "zod": "^4.6.5"
   },
   "devDependencies": {
