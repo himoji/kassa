@@ -9,7 +9,8 @@
 import { z } from "zod";
 
 const schema = z.object({
-  APP_VARIANT: z.enum(["dev", "preview", "prod"]).default("dev"),
+  /** `lite` is KassaLite as `bun run ota lite` bundles it; its Xcode build leaves this unset (dev). */
+  APP_VARIANT: z.enum(["dev", "preview", "prod", "lite"]).default("dev"),
   API_URL: z.string().optional(),
   /**
    * Set only by `bun run dev:all` (never in .env): the API for localhost tabs. Under dev:all the web app ignores
