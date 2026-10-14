@@ -23,6 +23,7 @@ export function errorText(t: TFn, err: unknown): string {
   if (err instanceof NetworkError) return t("common:errors.network");
   if (err instanceof ContractError) return t("common:errors.contract");
   if (err instanceof KassaApiError) {
+    if (err.missingRoute) return t("common:errors.serverOutdated");
     const [code] = err.allReasonCodes;
     if (code) return t(`reasonCodes:${code}.text`);
     if (err.status === 401) return t("common:errors.signedOut");

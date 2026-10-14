@@ -8,7 +8,7 @@ import { whereLabel } from "../capture/place.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { addDays } from "../fx/dates.ts";
 import { toTransactionDto } from "../money/transaction-dto.ts";
-import { dayStart, monthlyIncome, monthWindow, totalsByCategory, typicalByCategory } from "./context.ts";
+import { dayStart, firstFullMonth, monthlyIncome, monthWindow, totalsByCategory, typicalByCategory } from "./context.ts";
 import { listBudgets } from "./service.ts";
 
 /*
@@ -45,13 +45,20 @@ async function sumBetween(db: DbOrTx, userId: string, from: string, toExclusive:
   return Number(r[0]?.total ?? 0);
 }
 
-async function spentBefore(db: DbOrTx, userId: string, date: string): Promise<boolean> {
-  const r = await db
-    .select({ id: transactions.id })
-    .from(transactions)
-    .where(and(eq(transactions.userId, userId), isNull(transactions.mergedIntoId), lt(transactions.occurredAt, dayStart(date))))
-    .limit(1);
-  return r.length > 0;
+/** Days of recent spending the month-end projection is paced on. */
+export const PACE_DAYS = 14;
+
+/**
+ * Where the month ends at the recent pace: what is spent so far plus the days left at the average of the last
+ * PACE_DAYS days. With a week or more to go on, the single biggest day is left out of the pace, so rent paid on the
+ * 1st or one big purchase is counted once and not repeated for every remaining day.
+ */
+export function projectMonth(daily: readonly { spentMinor: number }[], totalMinor: number, daysLeftAfterToday: number): number {
+  const window = daily.slice(-PACE_DAYS).map((d) => d.spentMinor);
+  if (window.length === 0 || daysLeftAfterToday <= 0) return totalMinor;
+  if (window.length >= 7) window.splice(window.indexOf(Math.max(...window)), 1);
+  const pace = window.reduce((a, v) => a + v, 0) / window.length;
+  return totalMinor + Math.round(pace * daysLeftAfterToday);
 }
 
 export async function spendingInsights(userId: string, db: DbOrTx = getDb()): Promise<SpendingInsightsResponse> {
@@ -81,8 +88,10 @@ export async function spendingInsights(userId: string, db: DbOrTx = getDb()): Pr
   const outsideBudgetsMinor = categories.filter((c) => !c.budget).reduce((a, c) => a + c.spentMinor, 0);
 
   // Last month: whole, and up to the same day of the month (a short month stops at its last day).
-  const hadHistory = await spentBefore(db, userId, month.start);
+  // Only against a month that was tracked in full: one that started on the 27th would make any month look huge.
   const prev = monthWindow(addDays(month.start, -1));
+  const fullFrom = await firstFullMonth(db, userId, month.start);
+  const hadHistory = fullFrom !== null && fullFrom <= prev.start;
   const prevToDateEnd = addDays(prev.start, Math.min(month.daysElapsed, prev.daysTotal));
   const lastMonthToDateMinor = hadHistory ? await sumBetween(db, userId, prev.start, prevToDateEnd) : null;
   const lastMonthTotalMinor = hadHistory ? await sumBetween(db, userId, prev.start, month.start) : null;
@@ -128,7 +137,7 @@ export async function spendingInsights(userId: string, db: DbOrTx = getDb()): Pr
     lastMonthToDateMinor,
     lastMonthTotalMinor,
     typicalMonthMinor,
-    projectedMinor: month.daysElapsed > 0 ? Math.round((totalMinor * month.daysTotal) / month.daysElapsed) : totalMinor,
+    projectedMinor: projectMonth(daily, totalMinor, month.daysLeft - 1),
     monthlyIncomeMinor,
     incomeUsedPct: monthlyIncomeMinor ? Math.floor((totalMinor * 100) / monthlyIncomeMinor) : null,
     outsideBudgetsMinor,
