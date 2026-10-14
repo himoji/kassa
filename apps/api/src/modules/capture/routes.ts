@@ -40,7 +40,9 @@ const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string(),
 
 function recentPlace(p: PlaceJson): { name?: string; kind?: string; where?: string } {
   const where = whereLabel(p);
-  return { ...(p.name ? { name: p.name } : {}), ...(p.kind ? { kind: p.kind } : {}), ...(where ? { where } : {}) };
+  // A name only cleaned from the statement text is named afresh (the merchant field), so cleaning fixes reach old rows.
+  const name = p.source === "CLEANED" ? undefined : p.name;
+  return { ...(name ? { name } : {}), ...(p.kind ? { kind: p.kind } : {}), ...(where ? { where } : {}) };
 }
 
 /** Device-token owner per request (set in onRequest, read by the handler). */

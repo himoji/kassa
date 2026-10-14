@@ -43,6 +43,18 @@ export function formatDayMonth(iso: string, locale: string): string {
   }).format(date);
 }
 
+/** "Monday, Oct 27" for a `YYYY-MM-DD` day (a list's day heading). */
+export function formatWeekdayDay(isoDate: string, locale: string): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return new Intl.DateTimeFormat(locale, {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 /** "October" for a `YYYY-MM-DD` date in that month. */
 export function formatMonthName(isoDate: string, locale: string): string {
   const date = new Date(`${isoDate.slice(0, 10)}T00:00:00Z`);
@@ -102,6 +114,7 @@ export function useFormat() {
       date: (iso: string, style?: "medium" | "long" | "short") => formatDate(iso, locale, style),
       dateTime: (iso: string) => formatDateTime(iso, locale),
       dayMonth: (iso: string) => formatDayMonth(iso, locale),
+      weekdayDay: (isoDate: string) => formatWeekdayDay(isoDate, locale),
       monthName: (isoDate: string) => formatMonthName(isoDate, locale),
       time: (iso: string) => formatTime(iso, locale),
       bps: (bps: number) => formatBps(bps, locale),

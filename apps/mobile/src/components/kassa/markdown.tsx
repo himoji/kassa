@@ -28,6 +28,15 @@ class LinkRenderer extends Renderer {
   }
 }
 
+const HEADING = (fontSize: number, lineHeight: number): TextStyle => ({
+  fontSize,
+  lineHeight,
+  fontWeight: "600",
+  marginVertical: 0,
+  paddingBottom: 0,
+  borderBottomWidth: 0,
+});
+
 /**
  * Assistant markdown (agent chat, onboarding). Safe on partial input: react-native-marked tolerates
  * an unclosed `**` or fence, so the text can be re-rendered on every streamed delta.
@@ -51,7 +60,14 @@ export function Markdown({ children }: { children: string }) {
     renderer,
     theme,
     colorScheme: mode,
-    styles: { paragraph: { paddingVertical: 0 } },
+    // Chat-sized headings: a reply's "# Food budget" is a bold line, not a page title.
+    styles: {
+      paragraph: { paddingVertical: 0 },
+      h1: HEADING(18, 24),
+      h2: HEADING(17, 23),
+      h3: HEADING(16, 22),
+      h4: HEADING(15, 21),
+    },
   });
   return (
     <View style={{ gap: 8 }}>
