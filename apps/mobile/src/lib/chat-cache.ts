@@ -76,6 +76,15 @@ export async function writeCachedMessages(
   }
 }
 
+/** A deleted conversation: drop its cached copy. */
+export async function removeCachedMessages(conversationId: string): Promise<void> {
+  try {
+    await storage.removeItem(KEY_PREFIX + conversationId);
+  } catch (err) {
+    console.warn("[chat-cache] remove failed", err);
+  }
+}
+
 /** Sign-out / account erase: drop every cached conversation and the key itself. */
 export async function clearChatCache(): Promise<void> {
   try {

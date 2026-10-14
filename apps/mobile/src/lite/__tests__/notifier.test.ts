@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 
 import { storage } from "@/lib/storage";
-import { capturesSince, LAST_SEEN_KEY, notifyNewCaptures } from "../notifier";
+import { capturesSince, LAST_SEEN_KEY, notificationRoute, notifyNewCaptures } from "../notifier";
 
 const mockSchedule = jest.fn((_: unknown) => Promise.resolve("id"));
 let mockGranted = true;
@@ -65,6 +65,8 @@ describe("notifyNewCaptures", () => {
     expect(arg.trigger).toBeNull();
     expect(arg.content.body).toContain("New shop");
     expect(arg.content.body).not.toContain("Old shop");
+    // A tap opens that purchase.
+    expect((arg.content as { data?: { url?: string } }).data?.url).toMatch(/^\/purchase\/0{8}-/);
     expect(await storage.getItem(LAST_SEEN_KEY)).toBe("2026-10-27T10:05:00.000Z");
   });
 
@@ -100,5 +102,18 @@ describe("capturesSince", () => {
     const b = capture("2026-10-27T10:03:00.000Z");
     const edge = capture("2026-10-27T10:00:00.000Z");
     expect(capturesSince([b, edge, a], "2026-10-27T10:00:00.000Z")).toEqual([a, b]);
+  });
+});
+
+describe("notificationRoute", () => {
+  const res = (url: unknown) =>
+    ({ notification: { request: { content: { data: { url } } } } }) as unknown as Parameters<
+      typeof notificationRoute
+    >[0];
+  it("follows in-app routes only", () => {
+    expect(notificationRoute(res("/purchase/abc"))).toBe("/purchase/abc");
+    expect(notificationRoute(res("https://evil.example"))).toBeNull();
+    expect(notificationRoute(res("//evil.example/x"))).toBeNull();
+    expect(notificationRoute(res(42))).toBeNull();
   });
 });

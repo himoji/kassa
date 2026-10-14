@@ -31,6 +31,32 @@ export function formatDate(
   }).format(date);
 }
 
+/** "Oct 2" (a calendar date or an instant in local time): chart axes, day headers. */
+export function formatDayMonth(iso: string, locale: string): string {
+  const dateOnly = DATE_ONLY.test(iso);
+  const date = new Date(dateOnly ? `${iso}T00:00:00Z` : iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    ...(dateOnly ? { timeZone: "UTC" } : {}),
+  }).format(date);
+}
+
+/** "October" for a `YYYY-MM-DD` date in that month. */
+export function formatMonthName(isoDate: string, locale: string): string {
+  const date = new Date(`${isoDate.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(date);
+}
+
+/** "14:05" / "2:05 PM": the time of an instant, local. */
+export function formatTime(iso: string, locale: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale, { timeStyle: "short" }).format(date);
+}
+
 export function formatDateTime(iso: string, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -75,6 +101,9 @@ export function useFormat() {
       money: (amountMinor: number, currency: string) => formatAmount(amountMinor, currency, locale),
       date: (iso: string, style?: "medium" | "long" | "short") => formatDate(iso, locale, style),
       dateTime: (iso: string) => formatDateTime(iso, locale),
+      dayMonth: (iso: string) => formatDayMonth(iso, locale),
+      monthName: (isoDate: string) => formatMonthName(isoDate, locale),
+      time: (iso: string) => formatTime(iso, locale),
       bps: (bps: number) => formatBps(bps, locale),
       percent: (ratio: number) => formatPercent(ratio, locale),
       currencyName: (code: string) => currencyName(code, locale),

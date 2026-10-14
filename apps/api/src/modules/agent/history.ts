@@ -2,7 +2,7 @@ import type { ModelMessage } from "ai";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
-import { agentMessages, conversations, onboardingDrafts } from "../../db/schema.intel.ts";
+import { agentDocuments, agentMessages, conversations, onboardingDrafts } from "../../db/schema.intel.ts";
 import { placeholderMaps } from "../../db/schema.ts";
 import { clock } from "../clock/index.ts";
 import type { PlaceholderEntry, PlaceholderKind } from "./redact.ts";
@@ -68,13 +68,69 @@ export async function ownsConversation(conversationId: string, userId: string, c
   return o !== null && o.userId === userId && o.channel === channel;
 }
 
-export async function listConversations(userId: string, channel: Channel): Promise<Array<{ id: string; title: string | null; createdAt: Date }>> {
-  return getDb()
-    .select({ id: conversations.id, title: conversations.title, createdAt: conversations.createdAt })
+/**
+ * The caller's conversations on a channel, most recently active first, with when the last message was stored and
+ * how many there are (chat history list).
+ */
+export async function listConversations(
+  userId: string,
+  channel: Channel,
+): Promise<Array<{ id: string; title: string | null; createdAt: Date; lastMessageAt: Date | null; messageCount: number }>> {
+  const stats = getDb()
+    .select({
+      conversationId: agentMessages.conversationId,
+      last: sql<Date | string>`max(${agentMessages.createdAt})`.as("last"),
+      n: sql<string>`count(*)`.as("n"),
+    })
+    .from(agentMessages)
+    .where(and(eq(agentMessages.userId, userId), eq(agentMessages.channel, channel)))
+    .groupBy(agentMessages.conversationId)
+    .as("stats");
+  const rows = await getDb()
+    .select({ id: conversations.id, title: conversations.title, createdAt: conversations.createdAt, last: stats.last, n: stats.n })
     .from(conversations)
+    .leftJoin(stats, eq(stats.conversationId, sql`${conversations.id}::text`))
     .where(and(eq(conversations.userId, userId), eq(conversations.channel, channel)))
-    .orderBy(desc(conversations.createdAt))
+    .orderBy(desc(sql`coalesce(${stats.last}, ${conversations.createdAt})`))
     .limit(100);
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    createdAt: r.createdAt,
+    lastMessageAt: r.last ? new Date(r.last) : null,
+    messageCount: Number(r.n ?? 0),
+  }));
+}
+
+/** Rename one of the caller's conversations (the history list shows it). False when it is not theirs on this channel. */
+export async function renameConversation(conversationId: string, userId: string, channel: Channel, title: string): Promise<boolean> {
+  const rows = await getDb()
+    .update(conversations)
+    .set({ title })
+    .where(and(eq(conversations.id, conversationId), eq(conversations.userId, userId), eq(conversations.channel, channel)))
+    .returning({ id: conversations.id });
+  return rows.length > 0;
+}
+
+/**
+ * Delete one of the caller's conversations with everything stored for it: messages, the placeholder map and
+ * uploaded documents (data minimisation: a chat the user deletes is gone, GDPR Art. 17). Payments it led to keep
+ * their own records in the ledger. False when it is not theirs on this channel.
+ */
+export async function deleteConversation(conversationId: string, userId: string, channel: Channel): Promise<boolean> {
+  return getDb().transaction(async (tx) => {
+    const own = await tx
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(and(eq(conversations.id, conversationId), eq(conversations.userId, userId), eq(conversations.channel, channel)));
+    if (own.length === 0) return false;
+    await tx.delete(agentMessages).where(and(eq(agentMessages.conversationId, conversationId), eq(agentMessages.userId, userId)));
+    // Ownership is checked above; legacy placeholder rows have no user id.
+    await tx.delete(placeholderMaps).where(eq(placeholderMaps.conversationId, conversationId));
+    await tx.delete(agentDocuments).where(and(eq(agentDocuments.conversationId, conversationId), eq(agentDocuments.userId, userId)));
+    await tx.delete(conversations).where(eq(conversations.id, conversationId));
+    return true;
+  });
 }
 
 /** Every stored message of a conversation (not trimmed), oldest first. */
