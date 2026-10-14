@@ -119,11 +119,13 @@ try {
     );
   }
 
-  // Run (Cmd-R) in Release: the JS is bundled with the lite stubs. A Debug binary loads JS from whatever Metro
+  // Run (Cmd-R) in Release:  the JS is bundled with the lite stubs. A Debug binary loads JS from whatever Metro
   // is on :8081, usually dev:all's full-app Metro, and then crashes on the missing StripeSdk native module.
   const schemes = join(liteDir, "KassaLite.xcodeproj/xcshareddata/xcschemes");
   if (existsSync(schemes)) {
-    for (const f of readdirSync(schemes).filter((n) => n.endsWith(".xcscheme"))) {
+    for (const f of readdirSync(schemes).filter((n) =>
+      n.endsWith(".xcscheme"),
+    )) {
       const file = join(schemes, f);
       writeFileSync(
         file,
