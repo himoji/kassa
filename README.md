@@ -1,8 +1,12 @@
 # Kassa
 
-**The agent can prepare anything, but only your signature can move your money.**
+**An AI agent that pays your bills across borders, inside the limits you signed.**
 
-Kassa is a student finance assistant for cross-border payments, built for the WeBank FinTechathon 2026, Topic C (Cross-border and Student Finance Assistant). It logs spending in every currency, exposes hidden card fees, plans bills against the forecast, and pays by the cheapest route. The AI agent only drafts. Deterministic rules decide what is allowed. Money moves only with a passkey signature over the exact order, or inside a mandate the user signed with a passkey earlier.
+Kassa is a finance agent for people whose money lives in one country and whose bills live in another, starting with international students. It was built for the 2026 Shenzhen International FinTech Competition (FinTechathon), International Track, Topic C (Cross-border and Student Finance Assistant), under the theme "AI as a Financial Participant".
+
+The agent does real financial work: it logs spending in every currency, exposes hidden card fees, plans bills against the forecast and pays by the cheapest route. Inside a mandate the user signed with a passkey (rent and insurance to verified payees, small purchases under a signed limit), it pays on its own, with no prompt at payment time. Anything else it prepares as an exact order that the user approves with a passkey. Plain code, not the model, decides which case applies: the agent cannot raise a limit, skip the 24-hour cooling period for a new payee, or pay above a signed cap.
+
+The safety line: **the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money.**
 
 Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT and USD, her bills are in HUF and EUR.
 
@@ -22,7 +26,7 @@ Details, phone testing and deployment are below.
 
 ## What it does
 
-- **Chat with an AI that only drafts.** The planner reads balances, budgets, bills and documents and can propose an order. It cannot pay. Rules decide, and money moves only with a passkey over the exact order or inside a signed mandate ([SECURITY.md](docs/SECURITY.md)).
+- **An agent that acts within signed limits.** The planner reads balances, budgets, bills and documents and proposes orders. Rules decide: inside a passkey-signed mandate or small-auto limit the payment goes through on its own; otherwise the user approves the exact order with a passkey. The model itself has no payment tool ([SECURITY.md](docs/SECURITY.md)).
 - **AI runs LIVE by default** (`AGENT_MODE=LIVE`). It needs `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` (or another provider, see "AI configuration"). Without a key, or if the model cannot be reached, the turn falls back to a recorded replay and the message is labelled **Replay** in the chat.
 - **Spending in every currency.** Captures card taps, wallet notifications and Shortcut events, categorises them, and keeps budgets with a pace forecast.
 - **Fee x-ray and cheapest route.** Shows hidden card FX fees and compares funding routes for each bill.
@@ -31,7 +35,25 @@ Details, phone testing and deployment are below.
 - **Add money.** A stand-in for the phone's wallet sheet (Apple Pay, Google Pay, Samsung Pay or a test card). The tap is simulated, or a Stripe test-mode charge with `sk_test_` keys. Test money only ([docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md)).
 - **Send to another Kassa user** by Kassa ID (for example `KSA-ZVMS-3NXE`). The new payee cools down for 24 hours like any payee, and each send needs the passkey ([docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md)).
 - **China handoff.** In region CN Kassa prepares the payment and hands off to the user's QR wallet after checking the QR payee name.
-- **Small business mode.** Stock forecast, purchase orders signed with the passkey, and a three-way invoice match that refuses swapped bank details (attack A9).
+- **Small business mode** (hidden by default; `EXPO_PUBLIC_SHOW_BUSINESS=true` shows it). Stock forecast, purchase orders signed with the passkey, and a three-way invoice match that refuses swapped bank details (attack A9).
+
+## How Kassa covers Topic C
+
+| Pain point named in the brief | What Kassa does | Where |
+| --- | --- | --- |
+| Remittances | Money from home (KZT, USD) is logged as it arrives; each bill gets the cheapest funding route with the FX cost shown | Route and FX optimizer, [ARCHITECTURE.md §4.1](docs/ARCHITECTURE.md) |
+| Tuition payments | The agent reads the invoice, checks the payee, and prepares the transfer; the student approves the exact order with a passkey | Demo beat 2, [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
+| Credit building | A signed credit record (bills paid on time, income, budgets) the student can share with a landlord or bank, with a public verify link | `apps/api/src/modules/credit-record/` |
+| Multi-currency management | Spending in every currency with a home-currency equivalent, budgets with a pace forecast, and a fee x-ray for card FX markups | Capture, budget and fee x-ray modules |
+
+## Submission map
+
+| Brief checklist item | In this repository |
+| --- | --- |
+| Technical documentation | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
+| Source code | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md)) |
+| Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7) |
+| Execution evidence | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations |
 
 ## Documents
 
@@ -62,24 +84,6 @@ Details, phone testing and deployment are below.
 | `scripts` | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys) |
 | `api/index.ts`, `vercel.json` | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel" |
 | `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below |
-| [docs/DECISIONS.md](docs/DECISIONS.md)                       | Dated log of every deviation from the technical spec                                                  |
-| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md)             | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits        |
-| [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md)             | Technical specification (source of truth for how)                                                     |
-| [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference                                            |
-
-## Repository layout
-
-| Path                                                   | Contents                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api`                                             | Fastify 5 API (TypeScript, Bun). Modules under `src/modules/`: `agent`, `reader`, `rules`, `payments`, `rails`, `capture`, `budget`, `fx`, `screening`, `ledger`, `privacy`, `payees`, `mandates`, `users`, `auth`, `scheduler`, `demo`, `webhooks`. Drizzle schema in `src/db/`, migrations in `drizzle/`, tests in `test/` |
-| `apps/mock-world`                                      | Fastify mock services: a Wise-shaped mock bank, a pizza shop, two food suppliers, a university, a landlord, an insurer, an email inbox, a "QR Wallet (simulated)", a POS emitter, and a remittance sender                                                                                                                    |
-| `apps/mobile`                                          | Expo app (Expo Router, React Native Web, native passkeys). Source in `src/app/`. Generated from the ReadyNative Pro boilerplate, see Licences                                                                                                                                                                                |
-| `packages/shared`                                      | `@kassa/shared`: zod schemas, `CanonicalOrder`, `orderHash` and `mandateHash` (RFC 8785 JCS), reason codes, money helpers (integer minor units), IBAN helpers, mock webhook HMAC                                                                                                                                             |
-| `fixtures`                                             | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays                                                                                                                                                                                  |
-| `docs`                                                 | The documents above, the spec, decisions, and evidence                                                                                                                                                                                                                                                                       |
-| `scripts`                                              | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys)                                                                                                                                                                                                                                               |
-| `api/index.ts`, `vercel.json`                          | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel"                                                                                                                                                                                                                                      |
-| `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below                                                                                                                                                                                                                                                                                          |
 
 ## Run locally (without Docker)
 
@@ -140,10 +144,6 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 | --- | --- | --- |
 | Live (default) | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider, for example `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`. Without a key, or if the model is unreachable, the turn is served from the matching recording and labelled Replay |
 | Replay | `AGENT_MODE=REPLAY` | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
-| Mode                            | Setting                                            | Needs                                                                                                   |
-| ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Replay (default in `env:setup`) | `AGENT_MODE=REPLAY`                                | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
-| Live                            | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider                                                                         |
 
 - Models are `provider:model` strings. Providers: `anthropic`, `openai`, `google`, `openrouter`, `local`. Bare ids are treated as Anthropic.
 - Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`, `READER_MODEL=anthropic:claude-haiku-5-5`.
@@ -178,7 +178,7 @@ bun run test           # Vitest suites (api, mock-world, shared) and the mobile 
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
 ```
 
-- Counts from the latest run (2026-10-14): API 821 tests in 101 files (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 526. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-14): API 828 tests in 104 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 527. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - CI: `.github/workflows/ci.yml` runs on every push and pull request (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`).
 
@@ -209,7 +209,8 @@ grep -v '^#' .env.vercel | while IFS= read -r line; do
   printf '%s' "${line#*=}" | vercel env add "${line%%=*}" production --force
 done
 printf '%s' true   | vercel env add DEMO_ENABLED production
-printf '%s' REPLAY | vercel env add AGENT_MODE production        # or LIVE plus ANTHROPIC_API_KEY (etc.)
+printf '%s' LIVE   | vercel env add AGENT_MODE production
+printf '%s' "$ANTHROPIC_API_KEY" | vercel env add ANTHROPIC_API_KEY production   # or OPENROUTER_API_KEY; without a key every turn is a labelled Replay
 printf '%s' fake   | vercel env add ISSUING_PROVIDER production
 
 vercel deploy --prod                          # migrations run in the build
