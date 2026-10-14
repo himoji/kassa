@@ -29,6 +29,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 
+import mobileConfig from "../apps/mobile/readynative.config.ts";
+
 const root = join(import.meta.dir, "..");
 const mobile = join(root, "apps/mobile");
 const packageJsonPath = join(mobile, "package.json");
@@ -160,3 +162,13 @@ A free profile expires after 7 days: run again from Xcode weekly.
 For a Debug build start Metro with:  APP_VARIANT=lite bunx expo start (from apps/mobile)
 Full guide: docs/KASSALITE.md
 `);
+
+// Over-the-air updates (docs/OTA_UPDATES.md) only work in a build made with an EAS project id.
+const easProjectId = (process.env.EAS_PROJECT_ID ?? mobileConfig.app.easProjectId ?? "").trim();
+console.log(
+  easProjectId
+    ? `Over-the-air updates: ON (EAS project ${easProjectId}, channel "lite"). Publish with: bun run ota lite "message"\n`
+    : `Over-the-air updates: OFF in this build. No EAS project id is set, so this build can never receive
+\`bun run ota lite\` updates. Run \`npx eas-cli@latest init\` in apps/mobile, paste the id into
+apps/mobile/readynative.config.ts (app.easProjectId), then run \`bun run lite:ios\` again (docs/OTA_UPDATES.md).\n`,
+);
