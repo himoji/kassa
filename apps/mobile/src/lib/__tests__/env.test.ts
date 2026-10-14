@@ -35,6 +35,11 @@ describe("env", () => {
     expect(loadEnv().env.APP_VARIANT).toBe("preview");
   });
 
+  it("accepts lite, the variant `bun run ota lite` bundles with", () => {
+    process.env.EXPO_PUBLIC_APP_VARIANT = "lite";
+    expect(loadEnv().env.APP_VARIANT).toBe("lite");
+  });
+
   it("envPresence says which keys are set, never their values", () => {
     delete process.env.EXPO_PUBLIC_APP_VARIANT;
     const unset = loadEnv().envPresence;
