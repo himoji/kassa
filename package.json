@@ -27,6 +27,7 @@
     "dev:all": "bun scripts/dev-all.ts",
     "dev:tunnel": "bun scripts/dev-tunnel.ts",
     "lite:ios": "bun scripts/lite.ts",
+    "ota": "bun scripts/ota.ts",
     "vercel-build": "bun scripts/vercel-build.ts"
   },
   "devDependencies": {
