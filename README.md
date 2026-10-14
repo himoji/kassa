@@ -68,6 +68,7 @@ Details, phone testing and deployment are below.
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Dated log of every deviation from the technical spec |
 | [docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md) | Sandbox payouts for EU, China and US; Add money (test money); sending to another Kassa user by Kassa ID |
 | [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md) | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits |
+| [docs/OTA_UPDATES.md](docs/OTA_UPDATES.md) | Over-the-air updates for KassaLite and the full app: one-time setup, `bun run ota`, what needs a rebuild |
 | [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md) | Technical specification (source of truth for how) |
 | [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference |
 

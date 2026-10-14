@@ -62,6 +62,10 @@ In Xcode:
 - **Face ID**: the app asks the first time; accept.
 - **Notifications**: accept when KassaLite asks (needed for the local notifications).
 
+### Updates without Xcode
+
+Once an EAS project id is set and the app was built with it, JS and UI changes reach the installed KassaLite with `bun run ota lite "message"` (channel `lite`). Native changes still need Xcode. See [OTA_UPDATES.md](OTA_UPDATES.md).
+
 ### The 7-day limit
 
 A free provisioning profile **expires after 7 days**: the app then refuses to open. Re-run it from Xcode (Cmd-R with the phone connected) about once a week. Your pairing and data survive, because the bundle id does not change. A free account can also have only a few apps and App IDs per week, so keep the bundle id stable.
