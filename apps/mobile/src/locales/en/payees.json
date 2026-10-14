@@ -1,15 +1,15 @@
 {
   "accountMissing": "Account details needed",
-  "accountMissingBody": "This payee came from your setup chat without account details. Kassa will not pay it until its account details are added and verified.",
+  "accountMissingBody": "This recipient came from your setup chat without account details. Kassa will not pay it until its account details are added and verified.",
   "accountNotAdded": "Not added yet",
   "add": {
     "accountNumber": "Account number",
     "alipayId": "Alipay ID",
     "cardNumber": "UnionPay card number",
     "checking": "Checking",
-    "coolingNote": "A new or changed payee cools down for 24 hours before you can pay it.",
+    "coolingNote": "A new or changed recipient cools down for 24 hours before you can pay it.",
     "country": "Country",
-    "created": "Payee added",
+    "created": "Recipient added",
     "currency": "Currency",
     "errors": {
       "ACCOUNT_TOO_SHORT": "Enter at least 4 characters.",
@@ -23,34 +23,49 @@
       "UNIONPAY_CARD_INVALID": "This isn't a valid UnionPay card number. It starts with 62 and has 16 to 19 digits.",
       "KASSA_ID_INVALID": "A Kassa ID looks like KSA-7QMX-2HVA: 8 letters and digits after KSA.",
       "KASSA_ID_SELF": "That's your own Kassa ID. Top up from Home instead.",
-      "KASSA_ID_UNKNOWN": "No Kassa user has this ID. Ask them to read it from Settings."
+      "KASSA_ID_UNKNOWN": "No Kassa user has this ID. Ask them to read it from Settings.",
+      "DETAILS_MISSING": "Fill this in.",
+      "DETAILS_CATEGORY_MISMATCH": "These details don't fit this kind of recipient.",
+      "URL_INVALID": "Use a full https:// link.",
+      "KNP_INVALID": "A KNP code is 3 digits, for example 311 for wages."
     },
     "how": "How they get paid",
     "iban": "IBAN",
-    "kind": "Type",
+    "kind": "Category",
     "name": "Name on the account",
     "other": "Account or merchant ID",
     "preview": "Kassa will pay",
     "routingNumber": "Routing number",
     "savings": "Savings",
-    "submit": "Add payee",
-    "title": "Add payee",
-    "kassaId": "Kassa ID"
+    "submit": "Add recipient",
+    "title": "Add recipient",
+    "kassaId": "Kassa ID",
+    "pickCategory": "What are you paying?",
+    "changeCategory": "Change",
+    "nameFor": {
+      "PEOPLE": "Name on their account",
+      "TUITION": "School or university",
+      "RENT": "Landlord or dorm, as on their account",
+      "BILLS": "Company name",
+      "SHOPS": "Shop name"
+    }
   },
   "coolingEndsIn": "Can be paid in {{remaining}}",
   "coolingFor": "Cooling, {{remaining}} left",
-  "coolingRule": "You can pay this payee once the 24 hours are over.",
-  "detailTitle": "Payee",
+  "coolingRule": "You can pay this recipient once the 24 hours are over.",
+  "detailTitle": "Recipient",
   "detailsTitle": "Details",
-  "empty": "No payees yet.",
-  "explainerBody": "Changing a payee's account details creates a new payee. A changed account is treated as a brand-new payee that cools down for 24 hours before it can be paid.",
-  "explainerTitle": "Why payees cool down",
+  "empty": "No recipients yet.",
+  "explainerBody": "Changing a recipient's account details creates a new recipient. A changed account is treated as a brand-new recipient that cools down for 24 hours before it can be paid.",
+  "explainerTitle": "Why recipients cool down",
   "field": {
     "account": "Account",
     "country": "Country",
     "currency": "Currency",
     "kind": "Type",
-    "verifiedAt": "Verified"
+    "verifiedAt": "Verified",
+    "category": "Category",
+    "reference": "Reference"
   },
   "kind": {
     "LANDLORD": "Landlord",
@@ -59,12 +74,13 @@
     "MERCHANT": "Merchant",
     "SUPPLIER": "Supplier",
     "PERSON": "Person",
-    "OWN_ACCOUNT": "Own account"
+    "OWN_ACCOUNT": "Own account",
+    "BILLER": "Biller"
   },
   "meta": "{{kind}} · {{account}} · {{country}} · {{currency}}",
   "never": "Never",
-  "newPayeeExplainer": "This is a new payee. It cools down for 24 hours before any payment can go to it.",
-  "notFound": "This payee could not be found.",
+  "newPayeeExplainer": "This is a new recipient. It cools down for 24 hours before any payment can go to it.",
+  "notFound": "This recipient could not be found.",
   "replaces": "Replaces {{name}} ({{account}})",
   "simulateVerify": "Simulate verification",
   "simulateVerifyDone": "Verification simulated",
@@ -73,7 +89,7 @@
     "COOLING": "Cooling",
     "BLOCKED": "Blocked"
   },
-  "title": "Payees",
+  "title": "Recipients",
   "scheme": {
     "IBAN": {
       "short": "IBAN",
@@ -99,5 +115,84 @@
       "short": "Other",
       "hint": "A merchant ID or an account Kassa can't check, for QR handoffs. Bank transfers can't reach it."
     }
+  },
+  "category": {
+    "ALL": "All",
+    "PEOPLE": "People",
+    "TUITION": "Tuition",
+    "RENT": "Rent",
+    "BILLS": "Bills",
+    "SHOPS": "Shops"
+  },
+  "categoryHint": {
+    "PEOPLE": "Family, friends, wages for someone who works for you",
+    "TUITION": "Your school or university, matched by your student ID",
+    "RENT": "Your landlord or dorm, every month",
+    "BILLS": "Electricity, water, phone, internet, insurance",
+    "SHOPS": "Shops and cafés you pay by card or QR"
+  },
+  "emptyCategory": "Nothing in {{category}} yet.",
+  "details": {
+    "relationship": "Who they are",
+    "note": "Note on their statement",
+    "notePlaceholder": "Monthly support",
+    "purposeCode": "KNP purpose code (Kazakhstan)",
+    "purposeCodeHint": "Kazakh banks ask for it on transfers. 311 is wages, 119 transfers to family.",
+    "studentId": "Student ID",
+    "studentIdHint": "The school matches your payment by it. It goes into every payment's reference.",
+    "portalUrl": "School payment portal",
+    "portalUrlHint": "The link your school gave you for paying fees (for example Flywire or the bursar's page).",
+    "term": "Term",
+    "termPlaceholder": "Fall 2026",
+    "rentReference": "Contract, room or unit",
+    "rentReferenceHint": "What your landlord wants to see in the reference.",
+    "dueDay": "Due on day",
+    "dueDayHint": "Day of the month rent is due (1 to 28).",
+    "billType": "Kind of bill",
+    "customerNumber": "Customer or account number",
+    "customerNumberHint": "Printed on your bill. The company matches your payment by it.",
+    "billReference": "Reference (if the bill asks for one)",
+    "shopNote": "Note"
+  },
+  "relationship": {
+    "FAMILY": "Family",
+    "FRIEND": "Friend",
+    "EMPLOYEE": "Works for me",
+    "OTHER": "Other"
+  },
+  "billType": {
+    "UTILITIES": "Utilities",
+    "PHONE": "Phone",
+    "INTERNET": "Internet",
+    "INSURANCE": "Insurance",
+    "OTHER": "Other"
+  },
+  "actions": {
+    "send": "Send money",
+    "edit": "Edit details",
+    "schedule": "Set up a schedule",
+    "openPortal": "Open school portal",
+    "remove": "Remove recipient",
+    "removeConfirm": "Remove {{name}}? You can add them again later, but they will cool down for 24 hours.",
+    "removed": "Recipient removed",
+    "saved": "Details saved",
+    "hasBills": "Remove this recipient's bills first (Bills)."
+  },
+  "edit": {
+    "title": "Edit details",
+    "note": "Changing these doesn't change where the money goes, so there is no new cooling period. To change the account, add a new recipient.",
+    "save": "Save"
+  },
+  "schedule": {
+    "title": "Set up a schedule",
+    "body": "Kassa plans this payment and asks you (or pays inside a signed mandate) when it is due.",
+    "amount": "Amount",
+    "firstDue": "First payment on",
+    "monthly": "Every month",
+    "once": "Once",
+    "reference": "Reference",
+    "create": "Create schedule",
+    "created": "Schedule created. You'll find it in Bills.",
+    "dateInvalid": "Use a date like 2026-11-01, today or later."
   }
 }

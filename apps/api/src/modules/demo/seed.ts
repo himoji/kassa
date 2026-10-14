@@ -13,7 +13,7 @@
  * Ledger (p2 B2): one DEMO_SEEDED entry per seeded user, naming only that user, so a DSAR export
  * (payload userId = subject) never contains another persona's identifiers.
  */
-import { PRESET_DEFAULTS } from "@kassa/shared";
+import { PRESET_DEFAULTS, type PayeeKind, type RecipientDetails } from "@kassa/shared";
 import { sql } from "drizzle-orm";
 
 import type { Db } from "../../db/client.ts";
@@ -37,7 +37,7 @@ import {
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { clearDekCache } from "../privacy/keys.ts";
-import { accountHash, encryptAccount, normalizeAccount } from "../payees/crypto.ts";
+import { accountHash, encryptAccount, encryptDetails, normalizeAccount } from "../payees/crypto.ts";
 import { DEFAULT_CAPS } from "../users/service.ts";
 
 type SeedCaps = { perPaymentMinor: number; perDayMinor: number; perMonthMinor: number; smallAutoMinor: number; reserveMinor: number };
@@ -90,7 +90,7 @@ export type SeedData = {
   payees: {
     id: string;
     name: string;
-    kind: "LANDLORD" | "UNIVERSITY" | "INSURER" | "MERCHANT" | "SUPPLIER" | "PERSON" | "OWN_ACCOUNT";
+    kind: PayeeKind;
     account: string;
     country: string;
     currency: string;
@@ -98,6 +98,7 @@ export type SeedData = {
     verifiedAt: string | null;
     coolingUntil: string | null;
     replacesPayeeId: string | null;
+    details?: RecipientDetails;
   }[];
   obligations: { id: string; payeeId: string; amountMinor: number; currency: string; dueDate: string; recurrence: "MONTHLY" | "ONCE" | "TERM"; reference: string | null; category: string }[];
   budgets: { id: string; category: string; periodStart: string; periodEnd: string; limitHomeMinor: number }[];
@@ -219,6 +220,7 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
       verifiedAt: p.verifiedAt ? new Date(p.verifiedAt) : null,
       coolingUntil: p.coolingUntil ? new Date(p.coolingUntil) : null,
       replacesPayeeId: p.replacesPayeeId,
+      detailsEnc: p.details ? encryptDetails(u.id, p.details) : null,
     });
   }
   if (data.obligations.length) {

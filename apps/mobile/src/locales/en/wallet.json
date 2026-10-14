@@ -45,13 +45,13 @@
   "kassaIdCopy": "Copy",
   "kassaIdCopied": "Kassa ID copied",
   "to": "To",
-  "noPayees": "No one to pay yet. Add a payee first: new payees cool down for 24 hours before the first payment.",
-  "addPayee": "Add a payee",
+  "noPayees": "No one to pay yet. Add a recipient first: new recipients cool down for 24 hours before the first payment.",
+  "addPayee": "Add a recipient",
   "purpose": "What it's for",
   "purposePlaceholder": "Concert tickets",
   "review": "Review and approve",
   "reviewHint": "Nothing is sent until you approve it with your passkey.",
   "refused": "Kassa refused this payment",
   "pickPayee": "Choose who to pay.",
-  "cooling": "new payee, cooling for 24 hours"
+  "cooling": "new recipient, cooling for 24 hours"
 }

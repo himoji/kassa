@@ -253,8 +253,8 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     if (!u) refuse("NO_APPROVAL", "user not found");
     if (u.frozenAt) refuse("REFUSE_FROZEN", "user frozen");
     const payee = (await db.select().from(payees).where(eq(payees.id, order.payeeId)))[0];
-    if (!payee || payee.userId !== order.userId || payee.accountHash !== order.payeeAccountHash || payee.status === "BLOCKED") {
-      refuse("REFUSE_UNVERIFIED_PAYEE", "payee missing, changed or blocked");
+    if (!payee || payee.userId !== order.userId || payee.accountHash !== order.payeeAccountHash || payee.status === "BLOCKED" || payee.archivedAt !== null) {
+      refuse("REFUSE_UNVERIFIED_PAYEE", "payee missing, changed, blocked or removed");
     }
     // A payee captured without account details (onboarding) is never payable, whatever the order says.
     if (payee.accountEnc === null || payee.accountHash === null) refuse("REFUSE_UNVERIFIED_PAYEE", "payee has no account details");

@@ -200,6 +200,7 @@ async function authenticateSession(req: FastifyRequest): Promise<{ userId: strin
  */
 export const LITE_DENIED: ReadonlySet<string> = new Set([
   "POST /api/orders/:proposalId/approve",
+  "POST /api/payees/:id/verify-callback",
   "POST /api/onboarding/confirm",
   "POST /api/onboarding/confirm/options",
   "POST /api/mandates",

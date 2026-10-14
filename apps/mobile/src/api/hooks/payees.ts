@@ -1,11 +1,14 @@
 import {
+  CreateObligationRequest,
   CreatePayeeRequest,
   MandateDto,
   MandateOptionsResponse,
   MandatesResponse,
   PayeeDto,
   PayeesResponse,
+  UpdatePayeeRequest,
   type MandateOptionsRequest,
+  type RecipientDetails,
 } from "@kassa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -32,6 +35,44 @@ export function useCreatePayee() {
     mutationFn: (body: CreatePayeeRequest) =>
       api.request("/payees", { json: CreatePayeeRequest.parse(body), schema: PayeeDto }),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.payees }),
+  });
+}
+
+/** PATCH /payees/:id - details only (student ID, customer number…); no new cooling period. */
+export function useUpdatePayeeDetails(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (details: RecipientDetails | null) =>
+      api.request(`/payees/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        json: UpdatePayeeRequest.parse({ details }),
+        schema: PayeeDto,
+      }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.payees }),
+  });
+}
+
+/** DELETE /payees/:id - hidden and never payable again; refused (409 PAYEE_HAS_BILLS) while it has bills. */
+export function useRemovePayee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.request(`/payees/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.payees }),
+  });
+}
+
+/** POST /obligations - a schedule (rent, a bill, wages) the scheduler proposes when due. */
+export function useCreateObligation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateObligationRequest) =>
+      api.request("/obligations", { json: CreateObligationRequest.parse(body) }),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: keys.obligations }),
+        qc.invalidateQueries({ queryKey: keys.forecast }),
+      ]),
   });
 }
 

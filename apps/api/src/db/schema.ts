@@ -327,6 +327,13 @@ export const payees = pgTable(
     verifiedAt: tstz("verified_at"),
     coolingUntil: tstz("cooling_until"),
     replacesPayeeId: uuid("replaces_payee_id"),
+    /**
+     * (0013) Recipient details (student ID, customer number, relationship…; shared/recipient.ts), AES-256-GCM like
+     * the account but under its own AAD (payees/crypto.ts). NULL = none given. Never where money goes.
+     */
+    detailsEnc: text("details_enc"),
+    /** (0013) Removed by the user: hidden from lists and never payable again. Kept for the ledger and old orders. */
+    archivedAt: tstz("archived_at"),
     createdAt: tstz("created_at").notNull().defaultNow(),
   },
   (t) => [index("payees_user_idx").on(t.userId)],

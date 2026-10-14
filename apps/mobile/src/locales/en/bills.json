@@ -10,7 +10,7 @@
   "empty": "No bills yet.",
   "forecastFooter": "Based on your income and bills. Changes can shift it.",
   "forecastTitle": "45-day forecast",
-  "needsPayeeDetails": "Add payee details",
+  "needsPayeeDetails": "Add recipient details",
   "needsPayeeDetailsBody": "Kassa can't pay this bill until you add the account details for {{payee}}.",
   "shortfall": "Short on {{date}} by {{amount}}",
   "suggestion": "Move {{amount}} from {{from}} to {{to}} by {{date}} to cover this",

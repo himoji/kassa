@@ -3,12 +3,12 @@
  * 24 h on the Clock. Cooling payees are never usable on autopilot (T1) and need a passkey (T2) after
  * coolingUntil. The account is stored AES-256-GCM encrypted plus its hash (payees/crypto.ts).
  */
-import { decodePayeeAccount, isSupportedCurrency, jcsHash, normalizeKassaId, validatePayeeAccount, type CreatePayeeRequest, type PayeeDto, type PayPayeeRequest } from "@kassa/shared";
-import { and, eq } from "drizzle-orm";
+import { categoryOfKind, decodePayeeAccount, detailsFitKind, isSupportedCurrency, jcsHash, normalizeKassaId, validatePayeeAccount, type CreatePayeeRequest, type PayeeDto, type PayPayeeRequest, type RecipientDetails } from "@kassa/shared";
+import { and, eq, isNull } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
-import { payees } from "../../db/schema.ts";
+import { obligations, payees } from "../../db/schema.ts";
 import { auditAssertionFailure, ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
@@ -20,7 +20,7 @@ import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { screenName } from "../screening/index.ts";
 import { proposeOrder } from "../rules/index.ts";
 import { kassaIdFor, userByKassaId } from "../wallet/service.ts";
-import { accountHash, decryptAccount, encryptAccount, maskAccount, normalizeAccount } from "./crypto.ts";
+import { accountHash, decryptAccount, encryptAccount, encryptDetails, maskAccount, normalizeAccount, readDetails } from "./crypto.ts";
 
 export const COOLING_MS = DAY_MS;
 
@@ -59,11 +59,63 @@ export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
     verifiedAt: p.verifiedAt?.toISOString() ?? null,
     coolingUntil: p.coolingUntil?.toISOString() ?? null,
     replacesPayeeId: p.replacesPayeeId,
+    category: categoryOfKind(p.kind),
+    details: readDetails(p),
   };
 }
 
+/** The user's recipients, without the ones they removed. */
 export async function listPayees(userId: string) {
-  return getDb().select().from(payees).where(eq(payees.userId, userId));
+  return getDb().select().from(payees).where(and(eq(payees.userId, userId), isNull(payees.archivedAt)));
+}
+
+function assertDetailsFit(kind: CreatePayeeRequest["kind"], details: RecipientDetails | null | undefined) {
+  if (details && !detailsFitKind(kind, details)) {
+    throw new HttpProblem(422, "DETAILS_CATEGORY_MISMATCH", `These details are for ${details.category.toLowerCase()}, not for this kind of recipient`, { details: { field: "details" } });
+  }
+}
+
+async function ownedPayee(userId: string, payeeId: string) {
+  const db = getDb();
+  const p = (await db.select().from(payees).where(and(eq(payees.id, payeeId), eq(payees.userId, userId), isNull(payees.archivedAt))))[0];
+  if (!p) throw await ownedNotFound(userId, "payee", payeeId, async () => (await db.select({ id: payees.id }).from(payees).where(eq(payees.id, payeeId))).length > 0);
+  return p;
+}
+
+/**
+ * Edit a recipient's details (student ID, customer number, relationship…). Where the money goes (account, name,
+ * currency) never changes here: that is a new payee with replacesPayeeId and a new cooling period (I7).
+ */
+export async function updatePayeeDetails(userId: string, payeeId: string, details: RecipientDetails | null) {
+  const p = await ownedPayee(userId, payeeId);
+  assertDetailsFit(p.kind, details);
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const r = await tx
+      .update(payees)
+      .set({ detailsEnc: details ? encryptDetails(userId, details) : null })
+      .where(eq(payees.id, p.id))
+      .returning();
+    await ledger.append("PAYEE_DETAILS_UPDATED", { userId, payeeId: p.id, category: categoryOfKind(p.kind), cleared: details === null }, tx);
+    return r[0]!;
+  });
+}
+
+/**
+ * Remove a recipient: hidden from lists and refused by the rules and the payment executor from now on. Its bills
+ * would keep proposing payments nobody can make, so a recipient with bills is refused until they are removed.
+ */
+export async function archivePayee(userId: string, payeeId: string) {
+  const p = await ownedPayee(userId, payeeId);
+  const db = getDb();
+  const bills = await db.select({ id: obligations.id }).from(obligations).where(eq(obligations.payeeId, p.id));
+  if (bills.length > 0) {
+    throw conflict("PAYEE_HAS_BILLS", `Remove the ${bills.length === 1 ? "bill" : "bills"} for ${p.name} first`, { details: { obligationIds: bills.map((b) => b.id) } });
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(payees).set({ archivedAt: clock.now() }).where(eq(payees.id, p.id));
+    await ledger.append("PAYEE_ARCHIVED", { userId, payeeId: p.id }, tx);
+  });
 }
 
 export async function createPayee(userId: string, req: CreatePayeeRequest & { source?: string }) {
@@ -84,6 +136,7 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
     if (!isSupportedCurrency(req.currency)) throw new HttpProblem(422, "SCHEME_CURRENCY_MISMATCH", ACCOUNT_PROBLEM_TEXT.SCHEME_CURRENCY_MISMATCH, { details: { field: "currency" } });
   }
   if (!/^[A-Z]{2}$/.test(req.country)) throw new HttpProblem(422, "INVALID_COUNTRY", "country must be ISO 3166-1 alpha-2");
+  assertDetailsFit(req.kind, req.details);
   // I9 / X4: screen the name at creation. A hit is refused and not stored (a payee that can never be paid is no
   // use); the hit is ledgered with the name sealed under the user's key (GDPR Art. 17 crypto-shredding).
   const screening = screenName(req.name);
@@ -96,7 +149,7 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
       source: req.source ?? "user",
       ...(await sealPii(userId, { name: req.name })),
     });
-    throw new HttpProblem(422, "REFUSE_SANCTIONS", "This name matches a sanctions list entry; the payee was not added", { reasonCodes: ["REFUSE_SANCTIONS"] });
+    throw new HttpProblem(422, "REFUSE_SANCTIONS", "This name matches a sanctions list entry; the recipient was not added", { reasonCodes: ["REFUSE_SANCTIONS"] });
   }
   if (req.replacesPayeeId) {
     const old = (await db.select().from(payees).where(and(eq(payees.id, req.replacesPayeeId), eq(payees.userId, userId))))[0];
@@ -119,6 +172,7 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
         verifiedAt: null,
         coolingUntil,
         replacesPayeeId: req.replacesPayeeId ?? null,
+        detailsEnc: req.details ? encryptDetails(userId, req.details) : null,
         createdAt: now,
       })
       .returning();
@@ -135,8 +189,8 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
   const p = rows[0]!;
   await notify(userId, {
     kind: "PAYEE_COOLING",
-    title: "New payee is cooling",
-    body: `${p.name} can be paid with your passkey after ${coolingUntil.toISOString()}. A changed account is a new payee.`,
+    title: "New recipient is cooling",
+    body: `${p.name} can be paid with your passkey after ${coolingUntil.toISOString()}. A changed account is a new recipient.`,
     data: { payeeId: p.id, coolingUntil: coolingUntil.toISOString(), replacesPayeeId: p.replacesPayeeId },
   });
   return p;
@@ -153,19 +207,18 @@ export type PayeeVerifyCore = { v: 1; kind: "PAYEE_VERIFY"; userId: string; paye
  */
 export async function verifyCallback(userId: string, payeeId: string, body: { challengeId?: string | undefined; assertion?: unknown } = {}) {
   const db = getDb();
-  const p = (await db.select().from(payees).where(and(eq(payees.id, payeeId), eq(payees.userId, userId))))[0];
-  if (!p) throw await ownedNotFound(userId, "payee", payeeId, async () => (await db.select({ id: payees.id }).from(payees).where(eq(payees.id, payeeId))).length > 0);
+  const p = await ownedPayee(userId, payeeId);
   if (p.status === "VERIFIED") return p;
-  if (p.status === "BLOCKED") throw conflict("REFUSE_UNVERIFIED_PAYEE", "Payee is blocked");
+  if (p.status === "BLOCKED") throw conflict("REFUSE_UNVERIFIED_PAYEE", "Recipient is blocked");
   // A payee without account details (captured in onboarding) has nothing to confirm: verifying it would make an
   // account-less payee look payable. Checked before the cooling window (its coolingUntil is null).
   if (p.accountHash === null) {
-    throw conflict("PAYEE_ACCOUNT_MISSING", "Add the payee's account details first", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_ACCOUNT_MISSING"] });
+    throw conflict("PAYEE_ACCOUNT_MISSING", "Add the recipient's account details first", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_ACCOUNT_MISSING"] });
   }
   const accountHashValue = p.accountHash;
   const now = clock.now();
   if (p.coolingUntil && p.coolingUntil.getTime() > now.getTime()) {
-    throw conflict("PAYEE_COOLING", "Payee is still cooling", { reasonCodes: ["PAYEE_COOLING"], details: { coolingUntil: p.coolingUntil.toISOString() } });
+    throw conflict("PAYEE_COOLING", "Recipient is still cooling", { reasonCodes: ["PAYEE_COOLING"], details: { coolingUntil: p.coolingUntil.toISOString() } });
   }
 
   if (!body.challengeId || !body.assertion) {
@@ -181,7 +234,7 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
   const core = gated?.payload as PayeeVerifyCore | undefined;
   // The challenge must be for THIS payee, with the account it still has.
   if (!gated || !core || core.payeeId !== p.id || core.accountHash !== p.accountHash || core.payeeName !== p.name) {
-    throw conflict("CHALLENGE_MISMATCH", "The signed request no longer matches this payee; start again");
+    throw conflict("CHALLENGE_MISMATCH", "The signed request no longer matches this recipient; start again");
   }
   const check = await verifyRulesAssertion(db, { userId, assertion: body.assertion, expectedChallenge: gated.hash, challengeReason: "ASSERTION_INVALID" });
   if (!check.ok) {
@@ -194,7 +247,7 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
       .set({ status: "VERIFIED", verifiedAt: now })
       .where(and(eq(payees.id, payeeId), eq(payees.status, "COOLING")))
       .returning();
-    if (r.length === 0) throw conflict("CHALLENGE_MISMATCH", "Payee changed while you were confirming it; start again");
+    if (r.length === 0) throw conflict("CHALLENGE_MISMATCH", "Recipient changed while you were confirming it; start again");
     await ledger.append("PAYEE_VERIFIED", { userId, payeeId, source: "verify-callback (simulated)", challengeHash: gated.hash, credentialId: check.credentialId }, tx);
     return r;
   });
@@ -206,9 +259,7 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
  * so cooling (I7), caps, the reserve and the passkey all apply, and the app opens the order to approve it.
  */
 export async function payPayee(userId: string, payeeId: string, req: PayPayeeRequest) {
-  const db = getDb();
-  const p = (await db.select().from(payees).where(and(eq(payees.id, payeeId), eq(payees.userId, userId))))[0];
-  if (!p) throw await ownedNotFound(userId, "payee", payeeId, async () => (await db.select({ id: payees.id }).from(payees).where(eq(payees.id, payeeId))).length > 0);
+  const p = await ownedPayee(userId, payeeId);
   if (req.currency !== p.currency) throw new HttpProblem(422, "CURRENCY_MISMATCH", `${p.name} is paid in ${p.currency}`, { reasonCodes: ["CURRENCY_MISMATCH"] });
   const r = await proposeOrder({ userId, createdBy: "USER", payeeId: p.id, amountMinor: req.amountMinor, currency: req.currency, purpose: req.purpose });
   return { proposalId: r.proposalId, decision: r.decision, reasonCodes: r.reasonCodes, summary: r.summary };
