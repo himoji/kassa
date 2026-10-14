@@ -50,7 +50,7 @@ function envBlock(host: string): string {
     `EXPO_PUBLIC_API_URL=${origin}`,
     ``,
     `# Start (each in its own terminal, from the repo root):`,
-    `cd apps/api && RP_ID=${host} PUBLIC_ORIGIN=${origin} EXTRA_ORIGINS=${origin} TRUST_PROXY=true DEMO_ENABLED=true ISSUING_PROVIDER=fake AGENT_MODE=REPLAY bun src/index.ts`,
+    `cd apps/api && RP_ID=${host} PUBLIC_ORIGIN=${origin} EXTRA_ORIGINS=${origin} TRUST_PROXY=true DEMO_ENABLED=true ISSUING_PROVIDER=fake AGENT_MODE=${process.env.AGENT_MODE ?? "LIVE"} bun src/index.ts`,
     `cd apps/mock-world && MOCK_PUBLIC_URL=${origin} KASSA_APP_URL=${origin} DEMO_ENABLED=true ISSUING_PROVIDER=fake bun src/index.ts`,
     `cd apps/mobile && EXPO_PUBLIC_API_URL=${origin} EXPO_PUBLIC_DEMO_ADMIN_TOKEN=not-available-in-web-build bunx expo export -p web -c`,
   ].join("\n");

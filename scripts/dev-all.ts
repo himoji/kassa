@@ -6,7 +6,7 @@
  *   bun run dev:all --no-tunnel     localhost only: plain `turbo run dev` with the current env
  *
  * Tunnel: a named tunnel when CLOUDFLARED_TUNNEL and PHONE_HOST are set (stable host, passkeys survive restarts),
- * otherwise a quick tunnel whose host changes every run; then DEV_LOGIN=true is set as the sign-in fallback.
+ * otherwise a quick tunnel whose host changes every run. Dev sign-in stays off on a tunnel unless DEV_LOGIN=true is set.
  * The web app on the tunnel calls its own origin (/api through the proxy); localhost tabs call the API directly.
  * The derived env (PUBLIC_ORIGIN, EXTRA_ORIGINS, RP_ID, EXPO_PUBLIC_API_URL, ...) is written to the gitignored
  * `.env.dev-runtime` and merged into turbo's environment (declared in globalPassThroughEnv in turbo.json).
@@ -64,7 +64,7 @@ if (noTunnel) {
   if (!stable) {
     console.warn(
       "\nQuick tunnel: the host changes every run, so passkeys will not survive a restart.\n" +
-        "Dev login (DEV_LOGIN=true, POST /auth/dev/login, 'Continue as dev user') is enabled as the fallback.\n" +
+        "Dev sign-in is off: anyone with the tunnel URL could approve payments with it. Opt in with DEV_LOGIN=true.\n" +
         "For a stable host set CLOUDFLARED_TUNNEL=<named tunnel> and PHONE_HOST=<hostname>.\n",
     );
   }
@@ -106,7 +106,9 @@ if (noTunnel) {
     MOCK_PUBLIC_URL: tunnel.url,
     KASSA_APP_URL: tunnel.url,
     DEMO_ENABLED: process.env.DEMO_ENABLED ?? "true",
-    ...(stable ? {} : { DEV_LOGIN: "true" }),
+    // Dev sign-in (a server-held test passkey) over a public tunnel lets anyone with the URL approve payments as the
+    // dev user, so it is off unless asked for: DEV_LOGIN=true bun run dev:all (SECURITY.md §7.0).
+    ...(process.env.DEV_LOGIN === "true" ? { DEV_LOGIN: "true" } : {}),
   };
   writeFileSync(
     join(root, ".env.dev-runtime"),

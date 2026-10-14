@@ -51,7 +51,7 @@ const ROOT_KEYS: Entry[] = [
   { key: "READER_MODEL", example: "anthropic:claude-haiku-5-5" },
   { key: "AI_MAX_RETRIES", example: "5", comment: "retries for 429 / 5xx model errors (backoff + jitter, honours Retry-After)" },
   { key: "AI_STRUCTURED_MODE", example: "", comment: "first structured-output mode to try: native | tool | json (empty = auto-detect per model)" },
-  { key: "AGENT_MODE", example: "LIVE", comment: "or REPLAY (recorded tool calls, no API key needed)" },
+  { key: "AGENT_MODE", example: "LIVE", comment: "LIVE falls back to recordings (labelled Replay) when the model is unavailable; REPLAY = recordings only" },
   { key: "RECORD", example: "", comment: "1 = record live agent runs to fixtures/agent-recordings" },
   { key: "FX_OFFLINE", example: "", comment: "1 = use fixtures/fx-rates.json example rates (no network)" },
   { key: "STRIPE_SECRET_KEY", example: "sk_test_..." },
@@ -97,7 +97,8 @@ const DEV_DEFAULTS: Record<string, string> = {
   PUBLIC_ORIGIN: "http://localhost:8081",
   RP_ID: "localhost",
   RP_NAME: "Kassa",
-  AGENT_MODE: "REPLAY",
+  // LIVE with a key; without one each turn falls back to its recording (labelled Replay in the app).
+  AGENT_MODE: "LIVE",
   ISSUING_PROVIDER: "fake",
   PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000",
   SCHEDULER_ENABLED: "true",
