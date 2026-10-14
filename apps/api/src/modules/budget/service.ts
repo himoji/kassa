@@ -9,6 +9,7 @@ import { notify } from "../notifications/service.ts";
 import { addDays } from "../fx/dates.ts";
 import { zoneFor } from "../rules/facts.ts";
 import { crossedThresholds, renderEn, type BudgetMessage, type MoneyParam } from "./messages.ts";
+import { spendContext } from "./context.ts";
 import { computePace } from "./pace.ts";
 
 /*
@@ -110,6 +111,8 @@ export interface LoggedSpend {
   amount: MoneyParam;
   /** Home-currency equivalent of a foreign spend (shown next to the amount). */
   home?: MoneyParam;
+  /** Where the purchase was made ("Budapest", "Váci utca, Budapest"), when the capture knows. */
+  where?: string;
 }
 
 /**
@@ -122,13 +125,37 @@ export async function onSpendLogged(userId: string, s: LoggedSpend, db: DbOrTx =
   const p = (await db.select({ mode: profiles.notificationMode }).from(profiles).where(eq(profiles.userId, userId)))[0];
   const mode = p?.mode ?? "EACH";
   const b = (await activeBudgets(db, userId, today, s.category))[0];
-  if (!b) return null;
+  if (!b) {
+    // No budget for this category: still say where the month stands, so spending outside budgets is never silent.
+    if (mode !== "EACH") return null;
+    const c = await spendContext(userId, s.category, db);
+    const m = (amountMinor: number) => ({ amountMinor, currency: c.homeCurrency });
+    const msg: BudgetMessage = {
+      key: "budget.unbudgeted",
+      params: {
+        amount: s.amount,
+        ...(s.home ? { home: s.home } : {}),
+        merchant: s.merchantDisplay,
+        category: s.category,
+        ...(s.where ? { where: s.where } : {}),
+        spent: m(c.category.spentMinor),
+        count: c.category.count,
+        ...(c.category.typicalMinor ? { typical: m(c.category.typicalMinor) } : {}),
+        outside: m(c.outsideBudgetsMinor),
+        total: m(c.totalMinor),
+        ...(c.incomeUsedPct !== null ? { incomeUsedPct: c.incomeUsedPct } : {}),
+        days: c.month.daysLeft,
+      },
+    };
+    await send(db, userId, "SPEND_UNBUDGETED", msg, { transactionId: s.transactionId });
+    return msg;
+  }
   const spentAfter = await spentInPeriod(db, userId, s.category, b.periodStart, b.periodEnd);
   const after = computePace({ limitHomeMinor: b.limitHomeMinor, spentHomeMinor: spentAfter, periodStart: b.periodStart, periodEnd: b.periodEnd, today });
   if (mode === "EACH") {
     const msg: BudgetMessage = {
       key: "budget.each",
-      params: { amount: s.amount, ...(s.home ? { home: s.home } : {}), merchant: s.merchantDisplay, category: s.category, usedPct: after.usedPct, leftPct: after.leftPct, days: after.daysLeft, pace: after.pace },
+      params: { amount: s.amount, ...(s.home ? { home: s.home } : {}), merchant: s.merchantDisplay, category: s.category, usedPct: after.usedPct, leftPct: after.leftPct, days: after.daysLeft, pace: after.pace, ...(s.where ? { where: s.where } : {}) },
     };
     await send(db, userId, "BUDGET_EACH", msg, { transactionId: s.transactionId, budgetId: b.id });
     return msg;
@@ -180,6 +207,7 @@ export async function sendDigestIfDue(userId: string, db: DbOrTx = getDb()): Pro
     .orderBy(desc(transactions.occurredAt));
   const spentToday = todays.reduce((a, t) => a + (t.home ?? 0), 0);
   const bs = await listBudgets(userId, undefined, db);
+  const outside = (await spendContext(userId, "other", db)).outsideBudgetsMinor;
   const msg: BudgetMessage = {
     key: "budget.digest",
     params: {
@@ -190,6 +218,7 @@ export async function sendDigestIfDue(userId: string, db: DbOrTx = getDb()): Pro
         const used = b.limitHomeMinor > 0 ? Math.floor((b.spentHomeMinor * 100) / b.limitHomeMinor) : 100;
         return { category: b.category, usedPct: used, leftPct: Math.max(0, 100 - used), pace: b.pace };
       }),
+      ...(outside > 0 ? { outside: { amountMinor: outside, currency: u.homeCurrency } } : {}),
     },
   };
   await send(db, userId, "BUDGET_DIGEST", msg, { dedupeKey });
