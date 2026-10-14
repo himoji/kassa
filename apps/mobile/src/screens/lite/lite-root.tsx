@@ -7,6 +7,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { bootstrapSession } from "@/api/session";
 import { ThemeProvider as UiThemeProvider, ToastHost, useTheme } from "@/components/ui";
+import { UpdatesBanner } from "@/components/updates-banner";
 import { I18nProvider, useKassaT } from "@/lib/i18n";
 import { QueryProvider } from "@/lib/query";
 import { registerApproveInWebApp } from "@/lite/approve";
@@ -64,6 +65,8 @@ function LiteNavigator() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* A downloaded over-the-air update otherwise waits for the next cold start. */}
+      <UpdatesBanner />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={status === "authenticated"}>
           <Stack.Screen name="(tabs)" />

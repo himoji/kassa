@@ -61,7 +61,7 @@ update again on its next starts.
 
 ## When an update does not arrive
 
-Open KassaLite → **Settings → App updates**. It says which case you are in:
+Open KassaLite → **Settings → App updates**. It shows the running update (its id, publish date, commit and message, stamped by `bun run ota`) or "Built in Xcode", and which case you are in:
 
 - **"Over-the-air updates are off in this build"**: the installed app was built without an EAS project id
   (`bun run lite:ios` also prints this). Do the one-time setup above, then build again. No publish can reach it.
