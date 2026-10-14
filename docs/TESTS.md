@@ -1,6 +1,6 @@
 # Kassa test catalogue
 
-Counts from the final root run `bun run test` (2026-10-12, after the final fix pass; see "Changelog" at the end).
+Workspace totals from the run of 2026-10-14 (see "Changelog" at the end). Per-file rows below were last counted on 2026-10-12, after the final fix pass; files added since then are counted in the totals and listed where they matter for security.
 
 ## How to run
 - Everything: `bun run typecheck && bun run lint && bun run test` (turbo; all workspaces incl. mobile jest).
@@ -12,12 +12,12 @@ Counts from the final root run `bun run test` (2026-10-12, after the final fix p
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 72 | 633 | all pass |
-| apps/mock-world | 6 | 279 | all pass |
-| packages/shared | 4 | 34 | all pass |
-| apps/mobile (jest) | 46 | 410 | all pass |
+| apps/api | 101 | 821 | all pass |
+| apps/mock-world | 9 | 338 | all pass |
+| packages/shared | 7 | 53 | all pass |
+| apps/mobile (jest) | 65 | 526 | all pass |
 
-Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of 8 paid**.
+Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of 8 paid** (`docs/evidence/attacks.json`, A1 to A8). A9 was added later and is refused by its own test; it is not in the naive baseline.
 
 ## Attacks (`apps/api/test/attacks/`)
 | File | Threat | Expected | Actual | Maps to |
@@ -30,6 +30,7 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | A6.test.ts | Sanctions (Cyrillic, transliterated, fuzzy) | REFUSE_SANCTIONS | 6 passed | A6; I9 |
 | A7.test.ts | Fake POS trigger 10× (end to end) | logged only; ASK TRIGGER_ORIGIN; REFUSE_CAP | 4 passed | A7; I6 |
 | A8.test.ts | Lying confirmation; tampered order | canonical values shown; ORDER_HASH_MISMATCH | 3 passed | A8; I3 |
+| A9.test.ts | Swapped bank details on a supplier invoice (Budapest IBAN, Shanghai QR merchant) | INVOICE_ACCOUNT_MISMATCH; ledgered; owner notified; no proposal, no payment; genuine invoice still matches | 2 passed | A9; Verification of Payee |
 
 ## Invariants (`apps/api/test/invariants/`)
 | File | Expected | Actual | Maps to |
@@ -71,6 +72,7 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | settings-derived.test.ts | PATCH /settings returns `derivedChanges` and notifies SETTINGS_DERIVED_CHANGE | 2 passed | Y6 |
 | summary-reasons.test.ts | order summary ends with reasonsSentenceEn(codes); reasonCodes stay structured | 1 passed | Y6 |
 | webhooks.test.ts | HMAC webhooks; one-time card (second charge declined) | 7 passed | I13 |
+| dev-login-pairing.test.ts | dev sign-in is off unless DEMO_ENABLED + DEV_LOGIN + a local or tunnel RP_ID; dev assert refused for KassaLite; KassaLite pairing | added after 2026-10-12 | SECURITY.md §7.0 |
 
 ## Rules, screening
 | File | Flow | Actual | Maps to |
@@ -103,6 +105,7 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 | demos/cn1-shanghai-handoff.test.ts | Shanghai handoff in CNY; swapped QR cancelled | 4 passed |
 | demos/cn2-wallet-capture.test.ts | Alipay/WeChat capture; 4% hidden card fee | 3 passed |
 | demos/cn3-li-wei.test.ts | second persona, CNY→EUR tuition; BOLA 404 | 8 passed |
+| demos/wallet-p2p.test.ts | Add money (simulated wallet tap, test money) and Send to another Kassa user by Kassa ID ([SANDBOX_PAYMENTS.md](SANDBOX_PAYMENTS.md)) | added after 2026-10-12 |
 | naive/naive-baseline.test.ts | raw agent intent without rules: 8 of 8 attacks pay | 10 passed |
 | sim/sim-smoke.test.ts | sim CLI end to end on ports 4190–4192 | 1 passed |
 | sim/sim-down.test.ts | `sim down` kills the whole daemon tree; a test sim stops when its owner dies (Y7) | 2 passed |
@@ -117,3 +120,4 @@ Guarded attack suite: **0 of 8 attacks paid**; naive baseline (no rules): **8 of
 
 ## Changelog
 - 2026-10-12: catalogue created from the review run. Final fix pass: counts refreshed from the final `bun run test` (api 72 files / 633 tests, mock-world 6 / 279, shared 4 / 34, mobile 46 / 410) and rows added for the new and changed test files (X1–X10, Y1–Y7, cap currency, settings derived changes).
+- 2026-10-14: workspace totals refreshed (api 101 files / 821 tests, mock-world 9 / 338, shared 7 / 53, mobile 65 / 526). Rows added for A9, dev sign-in and wallet P2P. Shared and mock-world totals re-run with `npx vitest run`; api and mobile totals from the team's latest full run.

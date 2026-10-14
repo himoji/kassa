@@ -1,9 +1,10 @@
 {
   "ok": true,
-  "entries": 4,
-  "checkpoints": 0,
-  "headHash": "pUTllFxRHmFnUlkjTR--razCfjBE264ZoGZy3rAqSlw",
-  "headAnchorSeq": 4,
+  "entries": 55,
+  "checkpoints": 2,
+  "headHash": "bJrTk_aPlXmoZ0Rmc2_PErTXz0-G0ZJ4L6zDeIb9_mU",
+  "headAnchorSeq": 55,
   "problems": [],
-  "verifiedAt": "2026-10-11T20:12:45.141Z"
+  "verifiedAt": "2026-10-27T09:00:06.461Z",
+  "source": "bun run sim story (docs/evidence/story.json): every beat of the connected world, then ledger:verify"
 }

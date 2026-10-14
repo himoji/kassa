@@ -9,11 +9,12 @@ import { useDemoAvailability, useDevLogin, useRegister } from "@/api/hooks/auth"
 import { errorText } from "@/components/kassa/error-text";
 import { Box, Button, Icon, Text, useTheme } from "@/components/ui";
 import {
-  DEMO_PERSONAS,
   demoClaimFor,
   parseDemoPersona,
+  visibleDemoPersonas,
   type DemoPersona,
 } from "@/lib/demo-personas";
+import { env } from "@/lib/env";
 import { haptics } from "@/lib/haptics";
 import { useKassaT, type TFn } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
@@ -121,7 +122,7 @@ function DemoButton() {
       <Text variant="label">{t("auth:welcome.demoModeLabel")}</Text>
       <Text variant="caption">{t("auth:welcome.demoPersonaLabel")}</Text>
       <Box row gap={2} style={{ flexWrap: "wrap" }}>
-        {DEMO_PERSONAS.map((p) => (
+        {visibleDemoPersonas(persona, env.SHOW_BUSINESS === "true").map((p) => (
           <Button
             key={p}
             size="sm"

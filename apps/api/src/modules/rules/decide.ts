@@ -10,7 +10,7 @@
  *  3 reader mismatch on amount or account → REFUSE_SOURCE_MISMATCH
  *  4 screening hit (X4: every rail, not only bank transfers) → REFUSE_SANCTIONS
  *  4b (added, B2) bank transfer with no funding route that covers it (spec §12) → INSUFFICIENT_FUNDS
- *  5 caps / protected reserve → REFUSE_CAP (SMART: ASK when within 2× the cap); (X2) first the payments module's
+ *  5 caps / protected reserve → REFUSE_CAP under every preset (no "within 2×" ask since 2026-10-14); (X2) the payments module's
  *    own daily cap on today's home-currency usage → REFUSE_CAP + PAYMENTS_DAILY_CAP (hard, payments would refuse)
  *  6 region CN or money mode HANDOFF → HANDOFF
  *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1); the draft must be linked server-side to a bill in
@@ -130,12 +130,9 @@ export function decide(f: DecideFacts): DecideResult {
   const paymentsCapHit = c.paymentsDailyHomeMinor !== undefined && c.usedTodayHomeMinor + c.amountHomeMinor > c.paymentsDailyHomeMinor;
   const paymentsCapRefusal = (): DecideResult =>
     f.triggerOrigin ? refuse("REFUSE_CAP", "PAYMENTS_DAILY_CAP", "TRIGGER_ORIGIN") : refuse("REFUSE_CAP", "PAYMENTS_DAILY_CAP");
+  // A cap is a hard limit under every preset (T3): above it the order is refused, and the user raises the cap with a
+  // passkey-signed settings change instead. (Until 2026-10-14 SMART asked within 2× the cap; SECURITY.md §2 T3.)
   if (breaches.length > 0 || c.reserveBreached === true) {
-    const within2x = c.reserveBreached !== true && breaches.every((b) => b.total <= 2 * b.cap);
-    if (f.preset === "SMART" && within2x && !paymentsCapHit) {
-      return withFlags({ decision: "ASK", reasonCodes: ["CAP_WITHIN_2X_ASK"], tier: "T2", mandateId: null }, f);
-    }
-    if (f.preset === "SMART" && within2x) return paymentsCapRefusal();
     // A7 (spec §19): a trigger-originated draft over the caps is refused WITH the anomaly flag.
     return capRefusal();
   }
