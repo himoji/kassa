@@ -5,7 +5,7 @@ import type { BudgetDto, BudgetImpact, CaptureEventResponse, ForecastResponse, P
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
 import { agentDocuments } from "../../db/schema.intel.ts";
-import { budgetImpact, listBudgets } from "../budget/index.ts";
+import { budgetImpact, listBudgets, spendContext, type SpendContext } from "../budget/index.ts";
 import { draftPurchaseOrder, type DraftLineInput, type DraftResult } from "../business/drafts.ts";
 import type { Forecast } from "../business/forecast.ts";
 import { loadForecast } from "../business/forecastData.ts";
@@ -101,6 +101,8 @@ export interface AgentPorts {
   catalogDirectory?(): Promise<Array<{ id: string; name: string; storeId?: string }>>;
   routes(a: { fromCurrency?: string; toCurrency: string; amountMinor: number; dueDate?: string }): Promise<{ homeCurrency: string; routes: RouteDto[] }>;
   forecast(): Promise<ForecastResponse>;
+  /** This month's spending per category, budgeted or not, against a usual month and monthly income (budget/context.ts). */
+  spending(): Promise<SpendContext>;
   readDocument(docId: string): Promise<ReaderResult>;
   /**
    * Persisted Reader results of this user's documents (I10, B1), independent of turn and conversation.
@@ -249,6 +251,7 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
       return { homeCurrency: r.homeCurrency, routes: r.routes.map(({ amountInFundingMinor: _a, totalDebitFundingMinor: _t, ...dto }) => dto) };
     },
     forecast: () => forecastCoverage(userId),
+    spending: () => spendContext(userId, "other"),
     async readDocument(docId) {
       const r = await readDocument(docId, { userId });
       await bindToConversation(userId, docId, conversationId);

@@ -33,6 +33,11 @@ export function notificationText(
           home: money(home.amountMinor, home.currency),
         })
       : money(amount.amountMinor, amount.currency);
+  /** " in Budapest", unless the merchant name already says where. */
+  const whereText = (merchant: string, where: unknown) =>
+    isStr(where) && !merchant.toLowerCase().includes(where.toLowerCase())
+      ? t("activity:notify.where", { where })
+      : "";
   switch (data.key) {
     case "payment.sent":
     case "payment.failed": {
@@ -57,11 +62,57 @@ export function notificationText(
         body: t("activity:notify.budgetEachBody", {
           amount: amountWithHome(p.amount, p.home),
           merchant: p.merchant,
+          where: whereText(p.merchant, p.where),
           category,
           used: Number(p.usedPct ?? 0),
           left: Number(p.leftPct ?? 0),
           days: Number(p.days ?? 0),
         }),
+      };
+    }
+    case "budget.unbudgeted": {
+      // A spend in a category without a budget: the month so far, the usual month, spending outside budgets.
+      if (
+        !isMoney(p.amount) ||
+        !isStr(p.merchant) ||
+        !isStr(p.category) ||
+        !isMoney(p.spent) ||
+        !isMoney(p.outside) ||
+        !isMoney(p.total)
+      )
+        return fallback;
+      const category = t(`common:category.${p.category}`);
+      const m = (v: Money) => money(v.amountMinor, v.currency);
+      return {
+        title: t("activity:notify.unbudgetedTitle", { category }),
+        body: [
+          t("activity:notify.spendLine", {
+            amount: amountWithHome(p.amount, p.home),
+            merchant: p.merchant,
+            where: whereText(p.merchant, p.where),
+          }),
+          (Number(p.count) === 1
+            ? t("activity:notify.unbudgetedMonthOne", { category, spent: m(p.spent), count: 1 })
+            : t("activity:notify.unbudgetedMonth", {
+                category,
+                spent: m(p.spent),
+                count: Number(p.count ?? 0),
+              })) +
+            (isMoney(p.typical)
+              ? t("activity:notify.unbudgetedUsual", { usual: m(p.typical) })
+              : "") +
+            ".",
+          t("activity:notify.unbudgetedOutside", { outside: m(p.outside) }),
+          (typeof p.incomeUsedPct === "number"
+            ? t("activity:notify.unbudgetedTotalIncome", {
+                total: m(p.total),
+                pct: p.incomeUsedPct,
+              })
+            : t("activity:notify.unbudgetedTotal", { total: m(p.total) })) +
+            (Number(p.days) === 1
+              ? t("activity:notify.daysLeftMonthOne", { count: 1 })
+              : t("activity:notify.daysLeftMonth", { count: Number(p.days ?? 0) })),
+        ].join(" "),
       };
     }
     case "fees.settled": {

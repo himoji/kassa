@@ -47,7 +47,7 @@ Source: `apps/api/drizzle/0000_init.sql`, `0001_security_privacy.sql` and `apps/
 | `profiles` | Incomes, reserve rules, caps, signed base rules, bank profile and Stripe cardholder IDs | Plain JSON and IDs | Incomes and reserve rules emptied; bank profile and Stripe cardholder IDs cleared. Caps and signed base rules are kept (they are not in the erasure categories) |
 | `payees` | Payee name, account (encrypted), account hash | AES-256-GCM with `ACCOUNT_ENC_KEY`, AAD binds the user ID | Deleted |
 | `obligations`, `budgets`, `cards`, `card_fee_profiles` | Bill purposes and references, budget limits, card label and last 4 digits | Plain | Deleted |
-| `transactions` | Raw merchant text (until minimised), normalised merchant, amount, card | Raw text minimised after 90 days | Deleted |
+| `transactions` | Raw merchant text (until minimised), normalised merchant, amount, card, and where the tap happened when the Shortcut sends it (`place`: street, city, country, coordinates rounded to about 100 m, the likely place) | Raw text, street and coordinates minimised after 90 days; city, country and place name kept for spending history | Deleted |
 | `merchant_category_memory` | Merchant to category corrections | Plain | Deleted |
 | `mandates` | Payee IDs, caps, signed mandate assertion | Assertion verified on every use | Revoked and kept without names (Art. 17(3)(e)) |
 | `rule_changes` | Before and after values, assertion | Plain | Kept without names (Art. 17(3)(e)) |
@@ -89,6 +89,7 @@ Notes:
 | --- | --- | --- |
 | Planner model | The user's chat text after redaction. Tool results after redaction: balances, budgets, obligations, payee facts, route options, forecast | Real names, IBANs, card numbers, emails, phone numbers, real payee IDs, raw documents, the database |
 | Reader model | The raw text (or image) of a document or message the user asked Kassa to read, and the extraction instructions | Tools, other users' data, the ledger, keys. The output is checked against the source by the server |
+| Reader model, payment note (`advice/enrich.ts`, AI consent only) | After a Shortcut or wallet tap: the merchant text as printed (quoted as data), the city, street and country if sent, the amount, category, and the budget and spending figures the server computed | Names, card numbers, coordinates, other purchases' merchants, tools. A place guess the model is unsure of is dropped; a tip that quotes a number not in the figures is dropped |
 
 The planner's prompt and tool results are the subject of the I11 test (`apps/api/test/security/llm-redaction.test.ts`). The test runs a multi-tool turn on the seeded user, including a document's Reader output, and checks the planner prompt for personal data.
 

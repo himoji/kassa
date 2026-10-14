@@ -10,6 +10,7 @@ import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { captureNudge } from "./nudge.ts";
+import { whereLabel, type PlaceJson } from "./place.ts";
 import { ForwardedNotification, ShortcutPayload } from "./parsers/index.ts";
 import { ingestCapture, reconcileSettlement, SettlementError } from "./service.ts";
 
@@ -34,8 +35,13 @@ async function shortcutDeviceUser(req: FastifyRequest): Promise<string> {
   return row.userId;
 }
 
-/** The Shortcut shows `nudge` as its notification (docs/SHORTCUT_SETUP.md); the rest is the usual capture result. */
-const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string() });
+/** The Shortcut shows `nudge` (or `nudgeTitle` + `nudgeBody`) as its notification (docs/SHORTCUT_SETUP.md); the rest is the usual capture result. */
+const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string(), nudgeTitle: z.string(), nudgeBody: z.string() });
+
+function recentPlace(p: PlaceJson): { name?: string; kind?: string; where?: string } {
+  const where = whereLabel(p);
+  return { ...(p.name ? { name: p.name } : {}), ...(p.kind ? { kind: p.kind } : {}), ...(where ? { where } : {}) };
+}
 
 /** Device-token owner per request (set in onRequest, read by the handler). */
 const shortcutUsers = new WeakMap<FastifyRequest, string>();
@@ -57,7 +63,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (!userId) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
       const body = req.body;
       const result = await ingestCapture(userId, "text" in body ? { source: "SHORTCUT", forwarded: body } : { source: "SHORTCUT", shortcut: body });
-      return { ...result, nudge: await captureNudge(userId, result) };
+      const n = await captureNudge(userId, result);
+      return { ...result, nudge: n.nudge, nudgeTitle: n.title, nudgeBody: n.body };
     },
   );
 
@@ -110,6 +117,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           category: t.category,
           occurredAt: t.occurredAt.toISOString(),
           createdAt: t.createdAt.toISOString(),
+          ...(t.place ? { place: recentPlace(t.place) } : {}),
         })),
         nudges: nudges.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),
         serverTime: clock.now().toISOString(),

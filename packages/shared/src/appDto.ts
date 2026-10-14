@@ -675,6 +675,8 @@ export const RecentCapture = z.object({
   category: z.string().nullable(),
   occurredAt: IsoDateTime,
   createdAt: IsoDateTime,
+  /** The likely place ("Blue Bottle Coffee", "café") and where the tap happened ("Váci utca 10, Budapest"), when known. */
+  place: z.object({ name: z.string().optional(), kind: z.string().optional(), where: z.string().optional() }).optional(),
 });
 export type RecentCapture = z.infer<typeof RecentCapture>;
 export const RecentCapturesResponse = z.object({
