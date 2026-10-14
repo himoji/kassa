@@ -2,17 +2,27 @@ import * as Updates from "expo-updates";
 import { useState } from "react";
 
 import { RowGroup } from "@/components/row-group";
-import { Box, Button, Text, toast } from "@/components/ui";
+import { Box, Button, Icon, Row, Text, toast } from "@/components/ui";
 import { crash } from "@/lib/crash";
+import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
 /**
- * Settings → App updates (docs/OTA_UPDATES.md): what this build runs (channel, runtime version, embedded
- * bundle or an over-the-air update) and a button that checks, downloads and restarts into a new update
- * right away instead of waiting for the next cold start. Explains instead when updates cannot work here.
+ * Stamped into the bundle by `bun run ota` (scripts/ota.ts) when it publishes: the update's message and the git
+ * commit it was built from. Absent in the bundle Xcode builds. Spelled out statically so Expo inlines them.
+ */
+const OTA_MESSAGE = process.env.EXPO_PUBLIC_OTA_MESSAGE || undefined;
+const OTA_COMMIT = process.env.EXPO_PUBLIC_OTA_COMMIT || undefined;
+
+/**
+ * Settings → App updates (docs/OTA_UPDATES.md): which bundle this build runs (the bundle built in Xcode, or an
+ * over-the-air update with its id, publish date, message and commit), the channel and app version, and a button
+ * that checks, downloads and restarts into a new update right away instead of waiting for the next cold start.
+ * Explains instead when updates cannot work here.
  */
 export function UpdatesSection() {
   const t = useKassaT();
+  const f = useFormat();
   const [checking, setChecking] = useState(false);
 
   if (__DEV__ || !Updates.isEnabled) {
@@ -27,13 +37,22 @@ export function UpdatesSection() {
     );
   }
 
-  const running =
-    Updates.isEmbeddedLaunch || !Updates.updateId
-      ? t("lite:settings.updatesEmbedded")
-      : t("lite:settings.updatesFrom", {
-          id: Updates.updateId.slice(0, 8),
-          date: Updates.createdAt?.toLocaleString() ?? "?",
-        });
+  const updateId = Updates.isEmbeddedLaunch ? null : Updates.updateId;
+  const embedded = !updateId;
+  const title = updateId
+    ? t("lite:settings.updatesRunning", { id: updateId.slice(0, 8) })
+    : t("lite:settings.updatesEmbedded");
+  const details = embedded
+    ? [t("lite:settings.updatesEmbeddedHint")]
+    : [
+        [
+          Updates.createdAt ? f.dateTime(Updates.createdAt.toISOString()) : undefined,
+          OTA_COMMIT ? t("lite:settings.updatesCommit", { commit: OTA_COMMIT }) : undefined,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        OTA_MESSAGE,
+      ].filter(Boolean);
 
   const check = async (): Promise<void> => {
     setChecking(true);
@@ -57,12 +76,25 @@ export function UpdatesSection() {
   return (
     <RowGroup
       title={t("lite:settings.updatesTitle")}
+      icons
       footer={t("lite:settings.updatesInfo", {
         channel: Updates.channel ?? "?",
         runtime: Updates.runtimeVersion ?? "?",
-        running,
       })}
     >
+      <Row
+        testID="updates-running"
+        leading={
+          <Icon
+            name={embedded ? "hammer.fill" : "arrow.down.circle.fill"}
+            fallback={embedded ? "build" : "downloading"}
+            size={24}
+            color="brandAccent"
+          />
+        }
+        title={title}
+        subtitle={details.join("\n")}
+      />
       <Box p={4}>
         <Button variant="outline" loading={checking} onPress={() => void check()}>
           {checking ? t("lite:settings.updatesChecking") : t("lite:settings.updatesCheck")}
