@@ -10,32 +10,32 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 
 ## Documents
 
-| Document | What it covers |
-| --- | --- |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System parts, request flow, the three core algorithms, data model, AI layer |
-| [docs/SECURITY.md](docs/SECURITY.md) | Security self-assessment: permission tiers, invariants I1 to I13, threat model, known risks |
-| [docs/PRIVACY.md](docs/PRIVACY.md) | GDPR record of processing, data map, data subject rights, retention, DPIA summary |
-| [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned) |
-| [docs/TESTS.md](docs/TESTS.md) | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence |
+| Document                                                     | What it covers                                                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                 | System parts, request flow, the three core algorithms, data model, AI layer                           |
+| [docs/SECURITY.md](docs/SECURITY.md)                         | Security self-assessment: permission tiers, invariants I1 to I13, threat model, known risks           |
+| [docs/PRIVACY.md](docs/PRIVACY.md)                           | GDPR record of processing, data map, data subject rights, retention, DPIA summary                     |
+| [docs/COMPLIANCE.md](docs/COMPLIANCE.md)                     | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned)                      |
+| [docs/TESTS.md](docs/TESTS.md)                               | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence            |
 | [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Dated log of every deviation from the technical spec |
-| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md) | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits |
-| [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md) | Technical specification (source of truth for how) |
-| [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference |
+| [docs/DECISIONS.md](docs/DECISIONS.md)                       | Dated log of every deviation from the technical spec                                                  |
+| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md)             | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits        |
+| [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md)             | Technical specification (source of truth for how)                                                     |
+| [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference                                            |
 
 ## Repository layout
 
-| Path | Contents |
-| --- | --- |
-| `apps/api` | Fastify 5 API (TypeScript, Bun). Modules under `src/modules/`: `agent`, `reader`, `rules`, `payments`, `rails`, `capture`, `budget`, `fx`, `screening`, `ledger`, `privacy`, `payees`, `mandates`, `users`, `auth`, `scheduler`, `demo`, `webhooks`. Drizzle schema in `src/db/`, migrations in `drizzle/`, tests in `test/` |
-| `apps/mock-world` | Fastify mock services: a Wise-shaped mock bank, a pizza shop, two food suppliers, a university, a landlord, an insurer, an email inbox, a "QR Wallet (simulated)", a POS emitter, and a remittance sender |
-| `apps/mobile` | Expo app (Expo Router, React Native Web, native passkeys). Source in `src/app/`. Generated from the ReadyNative Pro boilerplate, see Licences |
-| `packages/shared` | `@kassa/shared`: zod schemas, `CanonicalOrder`, `orderHash` and `mandateHash` (RFC 8785 JCS), reason codes, money helpers (integer minor units), IBAN helpers, mock webhook HMAC |
-| `fixtures` | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays |
-| `docs` | The documents above, the spec, decisions, and evidence |
-| `scripts` | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys) |
-| `api/index.ts`, `vercel.json` | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel" |
-| `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below |
+| Path                                                   | Contents                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api`                                             | Fastify 5 API (TypeScript, Bun). Modules under `src/modules/`: `agent`, `reader`, `rules`, `payments`, `rails`, `capture`, `budget`, `fx`, `screening`, `ledger`, `privacy`, `payees`, `mandates`, `users`, `auth`, `scheduler`, `demo`, `webhooks`. Drizzle schema in `src/db/`, migrations in `drizzle/`, tests in `test/` |
+| `apps/mock-world`                                      | Fastify mock services: a Wise-shaped mock bank, a pizza shop, two food suppliers, a university, a landlord, an insurer, an email inbox, a "QR Wallet (simulated)", a POS emitter, and a remittance sender                                                                                                                    |
+| `apps/mobile`                                          | Expo app (Expo Router, React Native Web, native passkeys). Source in `src/app/`. Generated from the ReadyNative Pro boilerplate, see Licences                                                                                                                                                                                |
+| `packages/shared`                                      | `@kassa/shared`: zod schemas, `CanonicalOrder`, `orderHash` and `mandateHash` (RFC 8785 JCS), reason codes, money helpers (integer minor units), IBAN helpers, mock webhook HMAC                                                                                                                                             |
+| `fixtures`                                             | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays                                                                                                                                                                                  |
+| `docs`                                                 | The documents above, the spec, decisions, and evidence                                                                                                                                                                                                                                                                       |
+| `scripts`                                              | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys)                                                                                                                                                                                                                                               |
+| `api/index.ts`, `vercel.json`                          | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel"                                                                                                                                                                                                                                      |
+| `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below                                                                                                                                                                                                                                                                                          |
 
 ## Run locally (without Docker)
 
@@ -43,10 +43,10 @@ This is the primary path. The database is file-backed PGlite in `.data/`, so no 
 
 ### Prerequisites
 
-| Tool | Version |
-| --- | --- |
-| Bun | 1.4.0 (`packageManager` in the root `package.json`). The root `bunfig.toml` sets the hoisted linker, which Expo needs |
-| Node.js | 22.18 or later (`engines` of `apps/mobile`). Only needed for the mobile app |
+| Tool    | Version                                                                                                               |
+| ------- | --------------------------------------------------------------------------------------------------------------------- |
+| Bun     | 1.4.0 (`packageManager` in the root `package.json`). The root `bunfig.toml` sets the hoisted linker, which Expo needs |
+| Node.js | 22.18 or later (`engines` of `apps/mobile`). Only needed for the mobile app                                           |
 
 ### Start the API and the mock world
 
@@ -92,10 +92,10 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 
 ### AI configuration
 
-| Mode | Setting | Needs |
-| --- | --- | --- |
-| Replay (default in `env:setup`) | `AGENT_MODE=REPLAY` | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
-| Live | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider |
+| Mode                            | Setting                                            | Needs                                                                                                   |
+| ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Replay (default in `env:setup`) | `AGENT_MODE=REPLAY`                                | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
+| Live                            | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider                                                                         |
 
 - Models are `provider:model` strings. Providers: `anthropic`, `openai`, `google`, `openrouter`, `local`. Bare ids are treated as Anthropic.
 - Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`, `READER_MODEL=anthropic:claude-haiku-5-5`.
@@ -138,9 +138,9 @@ bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; ex
 
 One Vercel project serves everything from one origin (needed for WebAuthn), the same layout as the Caddy setup:
 
-| Path | Served by |
-| --- | --- |
-| `/` | Static web export of `apps/mobile` (`apps/mobile/dist`) |
+| Path                | Served by                                                                                                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                 | Static web export of `apps/mobile` (`apps/mobile/dist`)                                                                                                           |
 | `/api/*`, `/mock/*` | One Vercel Function, `api/index.ts` (Bun runtime). It starts the API and the mock world on loopback inside the instance and proxies each request to the right one |
 
 Files: `vercel.json`, `api/index.ts`, `scripts/vercel-build.ts` (build command: migrations on production builds, then `expo export`), `.vercelignore`.
@@ -185,13 +185,13 @@ This path is not used for local development. The Dockerfiles exist, but this rep
 
 ## Licences
 
-| Item | Where | Note |
-| --- | --- | --- |
-| Kassa's own code | `LICENSE` (repository root) | MIT License, Copyright (c) 2026 Madiyar Baizhigitov and the Kassa team. `package.json` files of the root, `apps/api`, `apps/mock-world` and `packages/shared` carry `"license": "MIT"` |
+| Item                                    | Where                                                 | Note                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kassa's own code                        | `LICENSE` (repository root)                           | MIT License, Copyright (c) 2026 Madiyar Baizhigitov and the Kassa team. `package.json` files of the root, `apps/api`, `apps/mock-world` and `packages/shared` carry `"license": "MIT"`                                                                                                                                                                                                                                                       |
 | ReadyNative Pro (base of `apps/mobile`) | `apps/mobile/LICENSE`; notice at the end of `LICENSE` | Commercial ReadyNative licence, unchanged. The licensor (Madiyar Baizhigitov, trading as ReadyNative) is also an author of Kassa and permits publication of these files in this repository as part of the Kassa entry to the 2026 Shenzhen International FinTech Competition (FinTechathon). Further redistribution of the boilerplate outside this entry requires a ReadyNative licence. Recorded in [docs/DECISIONS.md](docs/DECISIONS.md) |
-| Third-party notices | `apps/mobile/LICENSES/` | `expo-skills-MIT.txt`, `expo-template-MIT.txt`. Do not remove |
-| npm dependencies | `package.json` files and `bun.lock` | Licences come from each package. Not audited in this pass |
-| Mock companies | `apps/mock-world/src/world/` | Fictitious, generic names (for example "Pizza Shop in Budapest", "QR Wallet (simulated)"). No real brand logos |
-| Sanctions sample | `fixtures/sanctions-sample.json` | Fictitious entries in the EU Financial Sanctions Files schema, with a licence note inside the file. The screening module can load the real FSF export, which has the same structure |
-| Invoice PDFs | `fixtures/invoices/` | Generated by `apps/mock-world` with pdf-lib, using the standard 14 PDF fonts (no embedded fonts) |
-| FX reference rates | `fixtures/fx-rates.json` | Example values, labelled `STATIC_EXAMPLE` in every quote. Live sources are ECB (via Frankfurter) and the National Bank of Kazakhstan |
+| Third-party notices                     | `apps/mobile/LICENSES/`                               | `expo-skills-MIT.txt`, `expo-template-MIT.txt`. Do not remove                                                                                                                                                                                                                                                                                                                                                                                |
+| npm dependencies                        | `package.json` files and `bun.lock`                   | Licences come from each package. Not audited in this pass                                                                                                                                                                                                                                                                                                                                                                                    |
+| Mock companies                          | `apps/mock-world/src/world/`                          | Fictitious, generic names (for example "Pizza Shop in Budapest", "QR Wallet (simulated)"). No real brand logos                                                                                                                                                                                                                                                                                                                               |
+| Sanctions sample                        | `fixtures/sanctions-sample.json`                      | Fictitious entries in the EU Financial Sanctions Files schema, with a licence note inside the file. The screening module can load the real FSF export, which has the same structure                                                                                                                                                                                                                                                          |
+| Invoice PDFs                            | `fixtures/invoices/`                                  | Generated by `apps/mock-world` with pdf-lib, using the standard 14 PDF fonts (no embedded fonts)                                                                                                                                                                                                                                                                                                                                             |
+| FX reference rates                      | `fixtures/fx-rates.json`                              | Example values, labelled `STATIC_EXAMPLE` in every quote. Live sources are ECB (via Frankfurter) and the National Bank of Kazakhstan                                                                                                                                                                                                                                                                                                         |

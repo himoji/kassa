@@ -118,6 +118,22 @@ try {
       `${existing.endsWith("\n") || !existing ? "" : "\n"}export APP_VARIANT=lite\n`,
     );
   }
+
+  // Run (Cmd-R) in Release: the JS is bundled with the lite stubs. A Debug binary loads JS from whatever Metro
+  // is on :8081, usually dev:all's full-app Metro, and then crashes on the missing StripeSdk native module.
+  const schemes = join(liteDir, "KassaLite.xcodeproj/xcshareddata/xcschemes");
+  if (existsSync(schemes)) {
+    for (const f of readdirSync(schemes).filter((n) => n.endsWith(".xcscheme"))) {
+      const file = join(schemes, f);
+      writeFileSync(
+        file,
+        readFileSync(file, "utf8").replace(
+          /(<LaunchAction\s+buildConfiguration = )"Debug"/,
+          '$1"Release"',
+        ),
+      );
+    }
+  }
 } finally {
   restorePackageJson();
 }
@@ -137,7 +153,7 @@ In Xcode:
   1. Select the KassaLite target > Signing & Capabilities > Team: your Apple ID ("Personal Team").
      If "app.kassa.lite" is taken, change the Bundle Identifier (e.g. app.kassa.lite.<yourname>).
   2. Pick your iPhone (Developer Mode on: Settings > Privacy & Security > Developer Mode).
-  3. Product > Scheme > Edit Scheme > Run > Build Configuration: Release (runs without Metro), then Run.
+  3. Run (Cmd-R). The scheme already runs Release (JS bundled, no Metro needed).
   4. On the iPhone: Settings > General > VPN & Device Management > trust your developer certificate.
 A free profile expires after 7 days: run again from Xcode weekly.
 
