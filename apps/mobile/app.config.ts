@@ -172,8 +172,21 @@ const intentFilters = linksDomain
 // the buyer pastes it into `readynative.config.ts` (app.easProjectId), CI sets EAS_PROJECT_ID.
 // `updates.url` is derived from it and stays absent until then (an empty url breaks expo-updates).
 const easProjectId = (process.env.EAS_PROJECT_ID ?? config.app.easProjectId ?? "").trim();
-const updates =
-  easProjectId && !LITE ? { updates: { url: `https://u.expo.dev/${easProjectId}` } } : {};
+/**
+ * Update channel baked into builds that EAS Build does not make (`eas build` writes the channel of its
+ * eas.json profile and overrides this). KassaLite is built in Xcode (`bun run lite:ios`), so it always
+ * asks for the `lite` channel and never receives a full-app bundle; UPDATES_CHANNEL sets one for a local
+ * full-app build (`expo run:ios --configuration Release`). Publish with `bun run ota` (scripts/ota.ts).
+ */
+const updatesChannel = (process.env.UPDATES_CHANNEL ?? (LITE ? "lite" : "")).trim();
+const updates = easProjectId
+  ? {
+      updates: {
+        url: `https://u.expo.dev/${easProjectId}`,
+        ...(updatesChannel ? { requestHeaders: { "expo-channel-name": updatesChannel } } : {}),
+      },
+    }
+  : {};
 
 // iOS icon: an Icon Composer file (layered, Liquid Glass) at `assets/expo.icon` wins when you add
 // one; otherwise iOS uses the same `icon` PNG as everything else, which `bun run gen:assets`
