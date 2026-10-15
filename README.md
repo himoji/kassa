@@ -6,7 +6,7 @@ Kassa is a finance agent for people whose money lives in one country and whose b
 
 The agent does real financial work: it logs spending in every currency, exposes hidden card fees, plans bills against the forecast and pays by the cheapest route. Inside a mandate the user signed with a passkey (rent and insurance to verified payees, small purchases under a signed limit), it pays on its own, with no prompt at payment time. Anything else it prepares as an exact order that the user approves with a passkey. Plain code, not the model, decides which case applies: the agent cannot raise a limit, skip the 24-hour cooling period for a new payee, or pay above a signed cap.
 
-The safety line: **the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money.**
+The safety line: the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money
 
 Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT and USD, her bills are in HUF and EUR.
 
@@ -44,52 +44,52 @@ Details, phone testing and deployment are below.
 
 ## How Kassa covers Topic C
 
-| Pain point named in the brief | What Kassa does | Where |
-| --- | --- | --- |
-| Remittances | Money from home (KZT, USD) is logged as it arrives; each bill gets the cheapest funding route with the FX cost shown | Route and FX optimizer, [ARCHITECTURE.md §4.1](docs/ARCHITECTURE.md) |
-| Tuition payments | The agent reads the invoice, checks the payee, and prepares the transfer; the student approves the exact order with a passkey | Demo beat 2, [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) |
-| Credit building | A signed credit record (bills paid on time, income, budgets) the student can share with a landlord or bank, with a public verify link | `apps/api/src/modules/credit-record/` |
-| Multi-currency management | Spending in every currency with a home-currency equivalent, budgets with a pace forecast, and a fee x-ray for card FX markups | Capture, budget and fee x-ray modules |
+| Pain point named in the brief | What Kassa does                                                                                                                       | Where                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Remittances                   | Money from home (KZT, USD) is logged as it arrives; each bill gets the cheapest funding route with the FX cost shown                  | Route and FX optimizer, [ARCHITECTURE.md §4.1](docs/ARCHITECTURE.md) |
+| Tuition payments              | The agent reads the invoice, checks the payee, and prepares the transfer; the student approves the exact order with a passkey         | Demo beat 2, [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)                   |
+| Credit building               | A signed credit record (bills paid on time, income, budgets) the student can share with a landlord or bank, with a public verify link | `apps/api/src/modules/credit-record/`                                |
+| Multi-currency management     | Spending in every currency with a home-currency equivalent, budgets with a pace forecast, and a fee x-ray for card FX markups         | Capture, budget and fee x-ray modules                                |
 
 ## Submission map
 
-| Brief checklist item | In this repository |
-| --- | --- |
-| Technical documentation | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
-| Source code | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md)) |
-| Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7) |
-| Execution evidence | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations |
+| Brief checklist item     | In this repository                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Technical documentation  | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
+| Source code              | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md))                                                  |
+| Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7)                                               |
+| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations    |
 
 ## Documents
 
-| Document                                                     | What it covers                                                                                        |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                 | System parts, request flow, the three core algorithms, data model, AI layer                           |
-| [docs/SECURITY.md](docs/SECURITY.md)                         | Security self-assessment: permission tiers, invariants I1 to I13, threat model, known risks           |
-| [docs/PRIVACY.md](docs/PRIVACY.md)                           | GDPR record of processing, data map, data subject rights, retention, DPIA summary                     |
-| [docs/COMPLIANCE.md](docs/COMPLIANCE.md)                     | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned)                      |
-| [docs/TESTS.md](docs/TESTS.md)                               | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence            |
-| [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | Dated log of every deviation from the technical spec |
-| [docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md) | Sandbox payouts for EU, China and US; Add money (test money); sending to another Kassa user by Kassa ID |
-| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md) | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits |
-| [docs/OTA_UPDATES.md](docs/OTA_UPDATES.md) | Over-the-air updates for KassaLite and the full app: one-time setup, `bun run ota`, what needs a rebuild |
-| [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md) | Technical specification (source of truth for how) |
-| [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference |
+| Document                                                     | What it covers                                                                                           |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                 | System parts, request flow, the three core algorithms, data model, AI layer                              |
+| [docs/SECURITY.md](docs/SECURITY.md)                         | Security self-assessment: permission tiers, invariants I1 to I13, threat model, known risks              |
+| [docs/PRIVACY.md](docs/PRIVACY.md)                           | GDPR record of processing, data map, data subject rights, retention, DPIA summary                        |
+| [docs/COMPLIANCE.md](docs/COMPLIANCE.md)                     | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned)                         |
+| [docs/TESTS.md](docs/TESTS.md)                               | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence               |
+| [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding    |
+| [docs/DECISIONS.md](docs/DECISIONS.md)                       | Dated log of every deviation from the technical spec                                                     |
+| [docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md)         | Sandbox payouts for EU, China and US; Add money (test money); sending to another Kassa user by Kassa ID  |
+| [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md)             | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits           |
+| [docs/OTA_UPDATES.md](docs/OTA_UPDATES.md)                   | Over-the-air updates for KassaLite and the full app: one-time setup, `bun run ota`, what needs a rebuild |
+| [docs/spec/TECH_SPEC.md](docs/spec/TECH_SPEC.md)             | Technical specification (source of truth for how)                                                        |
+| [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md) | Simulation runbook: personas, attackers, command reference                                               |
 
 ## Repository layout
 
-| Path | Contents |
-| --- | --- |
-| `apps/api` | Fastify 5 API (TypeScript, Bun). Modules under `src/modules/` include `agent`, `ai`, `reader`, `rules`, `payments`, `rails`, `capture`, `budget`, `fx`, `screening`, `ledger`, `privacy`, `payees`, `mandates`, `users`, `auth`, `scheduler`, `demo`, `webhooks`, `wallet`, `credit-record`, `business` and `commerce`. Drizzle schema in `src/db/`, migrations in `drizzle/`, tests in `test/` |
-| `apps/mock-world` | Fastify mock services: a Wise-shaped mock bank, a pizza shop, two food suppliers, a university, a landlord, an insurer, an email inbox, a "QR Wallet (simulated)", a POS emitter, and a remittance sender |
-| `apps/mobile` | Expo app (Expo Router, React Native Web, native passkeys). Source in `src/app/`. Generated from the ReadyNative Pro boilerplate, see Licences |
-| `packages/shared` | `@kassa/shared`: zod schemas, `CanonicalOrder`, `orderHash` and `mandateHash` (RFC 8785 JCS), reason codes, money helpers (integer minor units), IBAN helpers, mock webhook HMAC |
-| `fixtures` | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays |
-| `docs` | The documents above, the spec, decisions, and evidence |
-| `scripts` | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys) |
-| `api/index.ts`, `vercel.json` | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel" |
-| `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below |
+| Path                                                   | Contents                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api`                                             | Fastify 5 API (TypeScript, Bun). Modules under `src/modules/` include `agent`, `ai`, `reader`, `rules`, `payments`, `rails`, `capture`, `budget`, `fx`, `screening`, `ledger`, `privacy`, `payees`, `mandates`, `users`, `auth`, `scheduler`, `demo`, `webhooks`, `wallet`, `credit-record`, `business` and `commerce`. Drizzle schema in `src/db/`, migrations in `drizzle/`, tests in `test/` |
+| `apps/mock-world`                                      | Fastify mock services: a Wise-shaped mock bank, a pizza shop, two food suppliers, a university, a landlord, an insurer, an email inbox, a "QR Wallet (simulated)", a POS emitter, and a remittance sender                                                                                                                                                                                       |
+| `apps/mobile`                                          | Expo app (Expo Router, React Native Web, native passkeys). Source in `src/app/`. Generated from the ReadyNative Pro boilerplate, see Licences                                                                                                                                                                                                                                                   |
+| `packages/shared`                                      | `@kassa/shared`: zod schemas, `CanonicalOrder`, `orderHash` and `mandateHash` (RFC 8785 JCS), reason codes, money helpers (integer minor units), IBAN helpers, mock webhook HMAC                                                                                                                                                                                                                |
+| `fixtures`                                             | Seed data for Dana, 30 labelled invoice PDFs, notification samples, a fictitious sanctions sample, FX example rates, recorded agent replays                                                                                                                                                                                                                                                     |
+| `docs`                                                 | The documents above, the spec, decisions, and evidence                                                                                                                                                                                                                                                                                                                                          |
+| `scripts`                                              | `env-setup.ts` (local `.env` files), `keys-generate.ts` (Ed25519 and AES keys)                                                                                                                                                                                                                                                                                                                  |
+| `api/index.ts`, `vercel.json`                          | Vercel deployment (one function for the API and the mock world), see "Deploy on Vercel"                                                                                                                                                                                                                                                                                                         |
+| `docker-compose.yml`, `Caddyfile`, `apps/*/Dockerfile` | Optional deployment path, see below                                                                                                                                                                                                                                                                                                                                                             |
 
 ## Run locally (without Docker)
 
@@ -146,10 +146,10 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 
 ### AI configuration
 
-| Mode | Setting | Needs |
-| --- | --- | --- |
+| Mode           | Setting                                            | Needs                                                                                                                                                                                                       |
+| -------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Live (default) | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider, for example `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`. Without a key, or if the model is unreachable, the turn is served from the matching recording and labelled Replay |
-| Replay | `AGENT_MODE=REPLAY` | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model |
+| Replay         | `AGENT_MODE=REPLAY`                                | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model                                                                                                     |
 
 - Models are `provider:model` strings. Providers: `anthropic`, `openai`, `google`, `openrouter`, `local`. Bare ids are treated as Anthropic.
 - Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`, `READER_MODEL=anthropic:claude-haiku-5-5`.
