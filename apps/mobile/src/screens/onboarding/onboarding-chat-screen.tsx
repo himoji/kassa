@@ -112,6 +112,7 @@ export function OnboardingChatScreen() {
   const commitImport = useImportCommit();
   const historyTurn = useOnboardingHistory();
   const [statements, setStatements] = useState<ImportPreviewResponse | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [statementSections, setStatementSections] = useState<SectionSwitches>(ALL_ON);
   const me = useMe();
   // Ask for AI consent before the first message, not after it is refused (the PIPL step, which depends on the region
@@ -221,11 +222,14 @@ export function OnboardingChatScreen() {
     const items = selectedItems(statements, statementSections);
     try {
       await commitImport.mutateAsync({
-        transactions: items.transactions,
-        cards: items.cards,
-        bills: [],
-        budgets: [],
-        incomes: [],
+        items: {
+          transactions: items.transactions,
+          cards: items.cards,
+          bills: [],
+          budgets: [],
+          incomes: [],
+        },
+        onProgress: (d, n) => setProgress({ done: d, total: n }),
       });
       const res = await historyTurn.mutateAsync({
         conversationId,
@@ -377,7 +381,10 @@ export function OnboardingChatScreen() {
         {upload.isPending ? <Text variant="caption">{t("settings:data.reading")}</Text> : null}
         {commitImport.isPending && statements ? (
           <Text variant="caption">
-            {t("settings:data.importing", { count: statements.items.transactions.length })}
+            {t("settings:data.importing", {
+              done: progress?.done ?? 0,
+              count: progress?.total ?? statements.items.transactions.length,
+            })}
           </Text>
         ) : null}
         {statements ? (

@@ -6,7 +6,7 @@ import { budgets, cards, obligations, payees, profiles, transactions, users } fr
 import { HttpProblem } from "../../http/problem.ts";
 import { dedupeCandidates } from "../capture/dedupe.ts";
 import { normalizeMerchant } from "../capture/normalize.ts";
-import { ingestCapture, reconcileSettlement } from "../capture/service.ts";
+import { ingestCapture, reconcileSettlement, refreshCardProfile } from "../capture/service.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { addBills } from "../onboarding/service.ts";
@@ -117,6 +117,7 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
   // Duplicates are rows that existed before this import (a statement imported twice, or a purchase already captured
   // from Apple Pay); rows of this import never count as each other's duplicates.
   const ours = new Set<string>();
+  const feeProfiles = new Map<string, [string, string, string]>();
   for (const t of items.transactions) {
     const occurredAt = new Date(t.occurredAt);
     const merchantNorm = normalizeMerchant(t.merchant) || "unknown";
@@ -145,7 +146,9 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
       // The file's own category wins over the guess (without teaching the merchant memory).
       if (t.category) await db.update(transactions).set({ category: t.category }).where(eq(transactions.id, r.transactionId));
       if (t.settledAmountMinor && t.settledCurrency && t.settledCurrency !== t.currency && r.status === "LOGGED") {
-        await reconcileSettlement(userId, { transactionId: r.transactionId, amountMinor: t.amountMinor, currency: t.currency, settledAmountMinor: t.settledAmountMinor, settledCurrency: t.settledCurrency }, db, { notify: false }).catch(() => null);
+        const settled = await reconcileSettlement(userId, { transactionId: r.transactionId, amountMinor: t.amountMinor, currency: t.currency, settledAmountMinor: t.settledAmountMinor, settledCurrency: t.settledCurrency }, db, { notify: false, profile: false }).catch(() => null);
+        const cardId = settled ? (await db.select({ cardId: transactions.cardId }).from(transactions).where(eq(transactions.id, r.transactionId)))[0]?.cardId : null;
+        if (cardId) feeProfiles.set(`${cardId}|${t.currency}|${t.settledCurrency}`, [cardId, t.currency, t.settledCurrency]);
       }
       result.transactions.imported++;
     } catch {
@@ -154,6 +157,8 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
     }
   }
 
+  // Each card's markup profile once per currency pair, after all its samples are in (not once per row).
+  for (const [cardId, from, to] of feeProfiles.values()) await refreshCardProfile(db, cardId, from, to);
   await ledger.append("DATA_IMPORTED", { userId, ...result });
   return result;
 }

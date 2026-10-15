@@ -14,6 +14,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 
+import { commitChunks } from "@/lib/commit-chunks";
+
 import { KassaApiError } from "../errors";
 
 import { shareDataExport } from "@/lib/privacy";
@@ -55,11 +57,47 @@ export function useImportPreview() {
   });
 }
 
+/** POST /import/commit in chunks (cards, bills and incomes ride with the first), with progress. */
 export function useImportCommit() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (items: ImportItems) =>
-      api.request("/import/commit", { json: { items }, schema: ImportCommitResponse }),
+    mutationFn: async ({
+      items,
+      onProgress,
+    }: {
+      items: ImportItems;
+      onProgress?: (done: number, total: number) => void;
+    }) => {
+      const chunks = commitChunks(items.transactions);
+      if (chunks.length === 0) chunks.push([]);
+      const total = items.transactions.length;
+      let done = 0;
+      const sum = ImportCommitResponse.parse({
+        transactions: { imported: 0, duplicates: 0, failed: 0 },
+        bills: { added: 0, skipped: 0 },
+        cards: { added: 0, skipped: 0 },
+      });
+      for (const [i, transactions] of chunks.entries()) {
+        const part =
+          i === 0
+            ? { ...items, transactions }
+            : { transactions, bills: [], cards: [], budgets: [], incomes: [] };
+        const r = await api.request("/import/commit", {
+          method: "POST",
+          json: { items: part },
+          schema: ImportCommitResponse,
+        });
+        for (const k of ["imported", "duplicates", "failed"] as const)
+          sum.transactions[k] += r.transactions[k];
+        for (const g of ["bills", "cards", "incomes"] as const) {
+          sum[g].added += r[g].added;
+          sum[g].skipped += r[g].skipped;
+        }
+        done += transactions.length;
+        onProgress?.(done, total);
+      }
+      return sum;
+    },
     onSettled: () =>
       Promise.all([...moneyKeys, keys.cards].map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
