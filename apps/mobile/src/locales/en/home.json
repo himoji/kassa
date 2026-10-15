@@ -1,8 +1,8 @@
 {
-  "alertBlocked_one": "{{count}} payee blocked",
-  "alertBlocked_other": "{{count}} payees blocked",
-  "alertCooling_one": "{{count}} new payee cooling down",
-  "alertCooling_other": "{{count}} new payees cooling down",
+  "alertBlocked_one": "{{count}} recipient blocked",
+  "alertBlocked_other": "{{count}} recipients blocked",
+  "alertCooling_one": "{{count}} new recipient cooling down",
+  "alertCooling_other": "{{count}} new recipients cooling down",
   "alertCoolingHint": "Payments to it wait 24 hours.",
   "alertDcc_one": "{{count}} card payment converted at a worse rate",
   "alertDcc_other": "{{count}} card payments converted at a worse rate",
@@ -72,5 +72,7 @@
   "showAllBudgets": "Show all {{count}}",
   "showFewerBudgets": "Show fewer",
   "addMoney": "Add money",
-  "send": "Send"
+  "send": "Send",
+  "payTo": "Pay",
+  "allRecipients": "All recipients"
 }

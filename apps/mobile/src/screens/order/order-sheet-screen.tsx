@@ -15,6 +15,7 @@ import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useKassaT } from "@/lib/i18n";
 
 import { ShopOrderTimeline } from "../shop/shop-order-timeline";
+import { DeliveredReceipt } from "../wallet/delivered-receipt";
 import { OrderSheetView } from "./order-sheet-view";
 
 /** order/[proposalId] - native form sheet (presentation set in the root layout). */
@@ -27,6 +28,13 @@ export function OrderSheetScreen() {
   const reject = useRejectOrder(proposalId);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<ApproveOrderResponse | null>(null);
+  // A bank transfer the bank already delivered (instant payout): the receipt with the measured time.
+  const [delivered, setDelivered] = useState<{
+    result: ApproveOrderResponse;
+    amountMinor: number;
+    currency: string;
+    payeeName: string;
+  } | null>(null);
   // (M2/M3) A merchant order (signed itemsHash): after approval the sheet stays open on the shop's status timeline.
   const [tracking, setTracking] = useState(false);
   const shopOrder = useShopOrderOfProposal(proposalId, { poll: tracking });
@@ -46,6 +54,16 @@ export function OrderSheetScreen() {
       }
       if (rail === "PAY_IN_PLACE" && result.paymentId) {
         setOutcome(result);
+        return;
+      }
+      if (rail === "BANK_TRANSFER" && result.paymentStatus === "SENT") {
+        const o = query.data.canonicalOrder;
+        setDelivered({
+          result,
+          amountMinor: o.amountMinor,
+          currency: o.currency,
+          payeeName: o.payeeName,
+        });
         return;
       }
       if (query.data.canonicalOrder.itemsHash && result.paymentId) {
@@ -106,7 +124,19 @@ export function OrderSheetScreen() {
           <StatusChip tone="positive" label={t("order:approvedChip")} />
           <Text variant="caption">{t("shop:timelineHint")}</Text>
         </Box>
-      ) : tracking ? null : outcome?.paymentId ? (
+      ) : tracking ? null : delivered ? (
+        <Box p={5} gap={4}>
+          <DeliveredReceipt
+            deliveredInMs={delivered.result.deliveredInMs}
+            amountMinor={delivered.amountMinor}
+            currency={delivered.currency}
+            payeeName={delivered.payeeName}
+          />
+          <Button size="lg" onPress={close}>
+            {t("common:close")}
+          </Button>
+        </Box>
+      ) : outcome?.paymentId ? (
         <Box p={5} gap={4}>
           <StatusChip tone="positive" label={t("order:approvedChip")} />
           <Text variant="heading">{t("order:payInPlaceTitle")}</Text>

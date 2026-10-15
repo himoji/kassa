@@ -91,7 +91,8 @@ describe("sim CLI smoke", () => {
     expect(ap.code, JSON.stringify(ap.json)).toBe(0);
     const apd = ap.json.data as { tier: string; paymentStatus: string; approvalId: string };
     expect(apd.tier).toBe("T2");
-    expect(apd.paymentStatus).toBe("PROCESSING");
+    // The dev mock bank pays out instantly (MOCK_BANK_INSTANT, on by default outside tests).
+    expect(apd.paymentStatus).toBe("SENT");
 
     // Approving the same order again is refused (single use, I4).
     const again = sim("as", "dana", "approve", po.proposalId);

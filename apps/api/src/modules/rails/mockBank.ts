@@ -175,10 +175,12 @@ export const mockBankRail: Rail = {
       // Idempotency key (Wise customerTransactionId): one transfer per proposal.
       customerTransactionId: order.proposalId,
       details: { reference },
+      // Mock bank extension: pay out the moment it is funded when the bank runs instant payouts (fast send).
+      ...(wiseMode ? {} : { instant: true }),
     });
-    let funded: { status?: string; simulated?: boolean };
+    let funded: { status?: string; simulated?: boolean; transferState?: string };
     try {
-      funded = await bankCall<{ status?: string }>("POST", `/v3/profiles/${profile}/transfers/${transfer.id}/payments`, { type: "BALANCE" });
+      funded = await bankCall<{ status?: string; transferState?: string }>("POST", `/v3/profiles/${profile}/transfers/${transfer.id}/payments`, { type: "BALANCE" });
     } catch (err) {
       // Wise refuses balance funding with a personal token for EU/UK profiles (PSD2 SCA, HTTP 403). In the sandbox
       // nothing real moves either way, so the transfer is moved on with the sandbox's own simulation instead.
@@ -186,13 +188,15 @@ export const mockBankRail: Rail = {
       await simulateNextWiseState(String(transfer.id), transfer.status ?? "incoming_payment_waiting");
       funded = { status: "COMPLETED", simulated: true };
     }
-    // Funding moves the transfer out of incoming_payment_waiting; later states arrive by webhook/poll.
-    const status = mapWiseStatus(funded.status === "REJECTED" ? "cancelled" : (transfer.status ?? "processing"));
+    // Funding moves the transfer out of incoming_payment_waiting; later states arrive by webhook/poll. An instant
+    // payout (mock bank) reports its state right in the funding answer: delivered already.
+    const instantSent = !wiseMode && funded.transferState === "outgoing_payment_sent";
+    const status = instantSent ? "SENT" : mapWiseStatus(funded.status === "REJECTED" ? "cancelled" : (transfer.status ?? "processing"));
     return {
       status,
       railRef: String(transfer.id),
       // bankState: last Wise state Kassa saw (webhooks/routes.ts refuses later states before funding, I13 / S9).
-      details: { bank: wiseMode ? "wise-sandbox" : "mock", ...(funded.simulated ? { fundedBy: "sandbox-simulation" } : {}), quoteId: quote.id, recipientId: recipient.id, recipientType: recipientBody.type, bankState: funded.status === "COMPLETED" ? "processing" : (transfer.status ?? "incoming_payment_waiting"), sourceCurrency, sourceAmountMinor: quote.sourceAmountMinor ?? null, ...(funding ? { signedMaxMinor: funding.maxAmountMinor } : {}) },
+      details: { bank: wiseMode ? "wise-sandbox" : "mock", ...(funded.simulated ? { fundedBy: "sandbox-simulation" } : {}), quoteId: quote.id, recipientId: recipient.id, recipientType: recipientBody.type, ...(instantSent ? { instantPayout: true } : {}), bankState: instantSent ? "outgoing_payment_sent" : funded.status === "COMPLETED" ? "processing" : (transfer.status ?? "incoming_payment_waiting"), sourceCurrency, sourceAmountMinor: quote.sourceAmountMinor ?? null, ...(funding ? { signedMaxMinor: funding.maxAmountMinor } : {}) },
     };
   },
 };

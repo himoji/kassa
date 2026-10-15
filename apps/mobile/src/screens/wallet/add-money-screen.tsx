@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Modal, Platform, Pressable, View } from "react-native";
 
 import { KassaApiError } from "@/api/errors";
+import { useFundingSources } from "@/api/hooks/funding-sources";
 import { useTopUp, useWallet } from "@/api/hooks/wallet";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { errorText } from "@/components/kassa/error-text";
@@ -11,11 +12,14 @@ import { MoneyInput } from "@/components/kassa/money-input";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Segmented } from "@/components/kassa/segmented";
-import { Box, Button, Card, Icon, Text, useTheme } from "@/components/ui";
+import { RowGroup } from "@/components/row-group";
+import { Box, Button, Card, Icon, Row, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { uuidv4 } from "@/lib/uuid";
+
+import { sourceIcon } from "./linked-accounts-screen";
 
 /** Currencies offered for a top-up: the ones the demo's corridors use. */
 const TOP_UP_CURRENCIES = ["EUR", "KZT", "CNY", "USD"] as const;
@@ -196,6 +200,13 @@ export function AddMoneyScreen() {
     toMinor(String(QUICK_AMOUNTS[currency]![1]), currency)
   );
   const [method, setMethod] = useState<TopUpMethod>(defaultMethod);
+  // (linked accounts) Add from a linked card or bank instead of a wallet tap.
+  const sources = useFundingSources();
+  const linkable = (sources.data?.sources ?? []).filter(
+    (s) => s.status === "ACTIVE" && TOP_UP_CURRENCIES.includes(s.currency as never)
+  );
+  const [linkedId, setLinkedId] = useState<string | null>(null);
+  const linked = linkable.find((s) => s.id === linkedId) ?? null;
   const [phase, setPhase] = useState<SheetPhase | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TopUpResponse | null>(null);
@@ -212,21 +223,30 @@ export function AddMoneyScreen() {
       return;
     }
     haptics.selection();
+    // A linked account needs no wallet sheet: it was confirmed with the passkey when it was linked.
+    if (linked) return void confirm();
     setPhase("confirm");
   };
 
   const confirm = async () => {
-    setPhase("processing");
+    setPhase(linked ? null : "processing");
     try {
       const [res] = await Promise.all([
         topUp.mutateAsync({
           amountMinor: amountMinor!,
           currency,
-          method,
+          method: linked ? "LINKED" : method,
+          ...(linked ? { fundingSourceId: linked.id } : {}),
           idempotencyKey: attemptKey.current,
         }),
-        sleep(900),
+        sleep(linked ? 0 : 900),
       ]);
+      if (linked) {
+        haptics.success();
+        setResult(res);
+        attemptKey.current = uuidv4();
+        return;
+      }
       setPhase("done");
       haptics.success();
       await sleep(700);
@@ -313,6 +333,7 @@ export function AddMoneyScreen() {
                 <Segmented
                   value={currency}
                   onChange={(c) => {
+                    if (linked && linked.currency !== c) setLinkedId(null);
                     setCurrency(c);
                     setAmountMinor(toMinor(String(QUICK_AMOUNTS[c]![1]), c));
                   }}
@@ -352,8 +373,11 @@ export function AddMoneyScreen() {
               <Box gap={2}>
                 <Text variant="label">{t("wallet:method")}</Text>
                 <Segmented
-                  value={method}
-                  onChange={setMethod}
+                  value={linked ? ("" as TopUpMethod) : method}
+                  onChange={(m) => {
+                    setLinkedId(null);
+                    setMethod(m);
+                  }}
                   options={(["APPLE_PAY", "GOOGLE_PAY", "SAMSUNG_PAY", "CARD"] as const).map(
                     (m) => ({
                       value: m,
@@ -362,6 +386,45 @@ export function AddMoneyScreen() {
                   )}
                 />
               </Box>
+
+              {linkable.length > 0 ? (
+                <RowGroup title={t("wallet:fromLinked")} icons>
+                  {linkable.map((s) => {
+                    const icon = sourceIcon(s);
+                    return (
+                      <Row
+                        key={s.id}
+                        testID={`top-up-from-${s.id}`}
+                        leading={
+                          <Icon
+                            name={icon.name}
+                            fallback={icon.fallback}
+                            size={20}
+                            color="brandAccent"
+                          />
+                        }
+                        title={s.label}
+                        subtitle={s.currency}
+                        onPress={() => {
+                          haptics.selection();
+                          setLinkedId(s.id);
+                          if (s.currency !== currency) {
+                            setCurrency(s.currency);
+                            setAmountMinor(
+                              toMinor(String(QUICK_AMOUNTS[s.currency]![1]), s.currency)
+                            );
+                          }
+                        }}
+                        trailing={
+                          s.id === linkedId ? (
+                            <Icon name="checkmark" fallback="check" size={20} color="brandAccent" />
+                          ) : undefined
+                        }
+                      />
+                    );
+                  })}
+                </RowGroup>
+              ) : null}
 
               {error ? <Text color="destructive">{error}</Text> : null}
 
@@ -385,7 +448,9 @@ export function AddMoneyScreen() {
                     fontSize: 17,
                   }}
                 >
-                  {t("wallet:payButton", { method: t(`wallet:methods.${method}`) })}
+                  {linked
+                    ? t("wallet:addFrom", { label: linked.label })
+                    : t("wallet:payButton", { method: t(`wallet:methods.${method}`) })}
                   {amountLabel ? ` · ${amountLabel}` : ""}
                 </Text>
               </Pressable>

@@ -1,7 +1,10 @@
-import type { PayeeDto } from "@kassa/shared";
-import { useLocalSearchParams } from "expo-router";
+import { suggestedReference, type PayeeDto, type RecipientDetails } from "@kassa/shared";
+import { router, useLocalSearchParams } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useState } from "react";
 
-import { useSimulatePayeeVerification, usePayees } from "@/api/hooks/payees";
+import { KassaApiError } from "@/api/errors";
+import { useRemovePayee, useSimulatePayeeVerification, usePayees } from "@/api/hooks/payees";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { Countdown } from "@/components/kassa/countdown";
 import { errorText } from "@/components/kassa/error-text";
@@ -10,14 +13,82 @@ import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Card, EmptyState, Icon, Row, Text, toast } from "@/components/ui";
+import { confirm } from "@/lib/confirm";
 import { haptics } from "@/lib/haptics";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+
+import { EditDetailsSheet, ScheduleSheet } from "./recipient-sheets";
+
+/** The category's details as label/value rows (only what was filled in). */
+function detailRows(
+  t: ReturnType<typeof useKassaT>,
+  d: RecipientDetails | null
+): { label: string; value: string }[] {
+  if (!d) return [];
+  const rows: { label: string; value: string | undefined }[] =
+    d.category === "PEOPLE"
+      ? [
+          {
+            label: t("payees:details.relationship"),
+            value: t(`payees:relationship.${d.relationship}`),
+          },
+          { label: t("payees:details.note"), value: d.note },
+          { label: t("payees:details.purposeCode"), value: d.purposeCode },
+        ]
+      : d.category === "TUITION"
+        ? [
+            { label: t("payees:details.studentId"), value: d.studentId },
+            { label: t("payees:details.term"), value: d.term },
+          ]
+        : d.category === "RENT"
+          ? [
+              { label: t("payees:details.rentReference"), value: d.reference },
+              { label: t("payees:details.dueDay"), value: d.dueDay ? String(d.dueDay) : undefined },
+            ]
+          : d.category === "BILLS"
+            ? [
+                { label: t("payees:details.billType"), value: t(`payees:billType.${d.billType}`) },
+                { label: t("payees:details.customerNumber"), value: d.customerNumber },
+                { label: t("payees:details.billReference"), value: d.reference },
+              ]
+            : [{ label: t("payees:details.shopNote"), value: d.note }];
+  return rows.filter((r): r is { label: string; value: string } => Boolean(r.value));
+}
 
 function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto | undefined }) {
   const t = useKassaT();
   const f = useFormat();
   const simulate = useSimulatePayeeVerification();
+  const remove = useRemovePayee();
+  const [editing, setEditing] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  const payable = !payee.accountMissing && payee.status !== "BLOCKED" && payee.category !== "SHOPS";
+  const portalUrl = payee.details?.category === "TUITION" ? payee.details.portalUrl : undefined;
+  const reference = suggestedReference(payee.details);
+
+  const onRemove = async () => {
+    const ok = await confirm({
+      title: t("payees:actions.remove"),
+      message: t("payees:actions.removeConfirm", { name: payee.name }),
+      confirmLabel: t("payees:actions.remove"),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await remove.mutateAsync(payee.id);
+      haptics.success();
+      toast.show({ title: t("payees:actions.removed"), kind: "success" });
+      router.back();
+    } catch (err) {
+      haptics.error();
+      const hasBills = err instanceof KassaApiError && err.code === "PAYEE_HAS_BILLS";
+      toast.show({
+        title: hasBills ? t("payees:actions.hasBills") : errorText(t, err),
+        kind: "error",
+      });
+    }
+  };
 
   const onSimulate = async () => {
     try {
@@ -50,11 +121,38 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
         </Box>
       </Card>
 
+      {payable || portalUrl ? (
+        <Box gap={2}>
+          {payable ? (
+            <Button
+              size="lg"
+              onPress={() => router.push(`/send?payeeId=${encodeURIComponent(payee.id)}`)}
+            >
+              {t("payees:actions.send")}
+            </Button>
+          ) : null}
+          {portalUrl ? (
+            <Button
+              variant="outline"
+              onPress={() => void WebBrowser.openBrowserAsync(portalUrl).catch(() => {})}
+            >
+              {t("payees:actions.openPortal")}
+            </Button>
+          ) : null}
+        </Box>
+      ) : null}
+
       <RowGroup title={t("payees:detailsTitle")}>
         <Row
-          title={t("payees:field.kind")}
-          trailing={<Text selectable>{t(`payees:kind.${payee.kind}`)}</Text>}
+          title={t("payees:field.category")}
+          trailing={<Text selectable>{t(`payees:category.${payee.category}`)}</Text>}
         />
+        {detailRows(t, payee.details).map((r) => (
+          <Row key={r.label} title={r.label} trailing={<Text selectable>{r.value}</Text>} />
+        ))}
+        {reference ? (
+          <Row title={t("payees:field.reference")} trailing={<Text selectable>{reference}</Text>} />
+        ) : null}
         <Row
           title={t("payees:field.account")}
           trailing={
@@ -98,6 +196,28 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
           </Box>
         </Card>
       ) : null}
+
+      <RowGroup>
+        <Row
+          title={t("payees:actions.edit")}
+          onPress={() => setEditing(true)}
+          testID="recipient-edit"
+        />
+        {payable ? (
+          <Row
+            title={t("payees:actions.schedule")}
+            onPress={() => setScheduling(true)}
+            testID="recipient-schedule"
+          />
+        ) : null}
+        <Row
+          title={t("payees:actions.remove")}
+          onPress={() => void onRemove()}
+          testID="recipient-remove"
+        />
+      </RowGroup>
+      <EditDetailsSheet payee={payee} visible={editing} onClose={() => setEditing(false)} />
+      <ScheduleSheet payee={payee} visible={scheduling} onClose={() => setScheduling(false)} />
 
       {/* Nothing to verify without account details (the server refuses: PAYEE_ACCOUNT_MISSING). */}
       {payee.status === "COOLING" && !payee.accountMissing ? (
