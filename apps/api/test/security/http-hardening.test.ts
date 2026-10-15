@@ -71,7 +71,7 @@ describe("deny-by-default route registration", () => {
 
   it("every input is schema-validated: bodies (zod) and path params, with documented exceptions", () => {
     // Bodies parsed by other means: HMAC/Stripe-verified webhook bodies (read defensively field by field
-    // after the signature check) and the multipart upload (type/size checked in the handler).
+    // after the signature check) and the multipart uploads (type/size checked in the handler; import files are sniffed by their bytes).
     const RAW_BODY_OK = new Set([
       "POST /api/webhooks/mock/bank",
       "POST /api/webhooks/mock/qr",
@@ -83,6 +83,7 @@ describe("deny-by-default route registration", () => {
       "POST /api/rails/fake-issuing/authorize",
       "POST /api/webhooks/stripe",
       "POST /api/agent/documents",
+      "POST /api/import/file",
     ]);
     // Action endpoints that take no body (path params or session only).
     const NO_BODY = /\/(freeze|read|revoke|verify-callback|intent|simulate-success|restrict|reset|login\/options|devices\/shortcut|school-invoices)$|\/demo\/trigger\/:scenario$/;

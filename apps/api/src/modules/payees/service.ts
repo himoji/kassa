@@ -5,7 +5,7 @@
  */
 import { categoryOfKind, decodePayeeAccount, detailsFitKind, isSupportedCurrency, jcsHash, normalizeKassaId, validatePayeeAccount, type CreatePayeeRequest, type PayeeDto, type PayPayeeRequest, type RecipientDetails } from "@kassa/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payees } from "../../db/schema.ts";
@@ -40,7 +40,7 @@ export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
   let masked = accountMissing ? "" : "••••";
   try {
     if (p.accountEnc !== null) {
-      const account = decryptAccount(p.userId, p.accountEnc);
+      const account = decryptAccount(p.userId, p.accountEnc, p.id);
       // A merchant's "account" is its normalised name for card/QR matching, not a bank account: say what it is
       // instead of masking the end of the name ("•••• OPIN").
       masked = p.kind === "MERCHANT" && decodePayeeAccount(account).scheme === "OTHER" ? "card or QR" : maskAccount(account);
@@ -160,14 +160,17 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
   }
   const now = clock.now();
   const coolingUntil = addMs(now, COOLING_MS);
+  // A12: the id is chosen here so the account ciphertext is bound to this row (payees/crypto.ts v2).
+  const id = randomUUID();
   const rows = await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(payees)
       .values({
+        id,
         userId,
         name: req.name.trim(),
         kind: req.kind,
-        accountEnc: encryptAccount(userId, normalizeAccount(req.account)),
+        accountEnc: encryptAccount(userId, normalizeAccount(req.account), id),
         accountHash: accountHash(req.account),
         country: req.country,
         currency: req.currency,

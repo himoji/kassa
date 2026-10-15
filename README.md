@@ -28,6 +28,7 @@ Details, phone testing and deployment are below.
 
 - **An agent that acts within signed limits.** The planner reads balances, budgets, bills and documents and proposes orders. Rules decide: inside a passkey-signed mandate or small-auto limit the payment goes through on its own; otherwise the user approves the exact order with a passkey. The model itself has no payment tool ([SECURITY.md](docs/SECURITY.md)).
 - **AI runs LIVE by default** (`AGENT_MODE=LIVE`). It needs `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` (or another provider, see "AI configuration"). Without a key, or if the model cannot be reached, the turn falls back to a recorded replay and the message is labelled **Replay** in the chat.
+- **Learns your history from bank statements.** Upload PDF, CSV, Excel, OFX or JSON statements from every bank you use (Kaspi, Kazakh card banks, US banks and others; Russian, Kazakh, English). Kassa reads them in code (ruled tables, statement lines, column names in any language), finds money from home, regular payments, spending per category and card conversion costs, and leaves out transfers between your own accounts so nothing is counted twice. The onboarding agent asks for statements first and prefills your draft; you still review and sign it. An AI fallback reads only redacted text, and every row it returns must be found in the statement ([docs/spec/IMPORT_PLAN.md](docs/spec/IMPORT_PLAN.md)).
 - **Spending in every currency.** Captures card taps, wallet notifications and Shortcut events, categorises them, and keeps budgets with a pace forecast.
 - **Fee x-ray and cheapest route.** Shows hidden card FX fees and compares funding routes for each bill.
 - **Bills and autopay.** Obligations (rent, tuition, insurance) are planned against the forecast; recurring ones can be paid inside a passkey-signed mandate.
@@ -183,7 +184,8 @@ bun run test           # Vitest suites (api, mock-world, shared) and the mobile 
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
 ```
 
-- Counts from the latest run (2026-10-14): API 828 tests in 104 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 338, shared 53, mobile Jest 527. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-15, per workspace): API 949 tests in 121 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 343, shared 53, mobile Jest 560. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Attack suite (`apps/api/test/attacks/`): A1 to A8 from the spec, A9 (swapped invoice bank details), and A10 to A17, which recreate real incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake memories, MCP tool poisoning and EchoLeak, the Chevrolet "$1 Tahoe" and Project Vend, salami splitting, "safe account" scams). The planner and Reader in them obey the attacker. `bun run evidence:attacks`: **guarded paid 0 of 16, naive paid 16 of 16** (`docs/evidence/attacks.json`; sources in [docs/SECURITY.md](docs/SECURITY.md) §6).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.
 

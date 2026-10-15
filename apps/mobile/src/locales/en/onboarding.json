@@ -13,7 +13,7 @@
   "draftHome": "Home currency: {{currency}}",
   "draftIncome": "{{source}}: {{amount}}, {{cadence}}",
   "draftTitle": "Your draft",
-  "greeting": "Hi. Tell me about your income, your bills and what you want to keep in budget. I will draft it, and you review it before anything is signed.",
+  "greeting": "Hi. The fastest start: upload your bank statements (PDF, CSV or Excel, from every bank you use) with the paperclip, and I will learn your money from home, bills and spending from them. Or just tell me about your income, bills and budgets. You review everything before anything is signed.",
   "mandateBody": "A mandate lets bills inside these limits pay themselves. Tightening or revoking it takes effect straight away.",
   "mandateDelay": "Creating a mandate needs your passkey and takes effect after 24 hours.",
   "mandatePayee": "Recipient",
@@ -54,5 +54,8 @@
     "fromAi": "Kassa AI suggests",
     "fromRules": "Kassa suggests",
     "apply": "Apply to my budgets"
-  }
+  },
+  "uploadStatements": "Upload bank statements",
+  "useStatements": "Use this history",
+  "statementsShared": "I shared {{count}} bank statement(s)."
 }

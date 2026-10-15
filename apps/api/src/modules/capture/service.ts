@@ -197,7 +197,13 @@ export async function setTransactionCategory(userId: string, transactionId: stri
   return true;
 }
 
-export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean } = {}): Promise<CaptureEventResponse> {
+/**
+ * `notify: false` (data import): no "spent at ..." notification per row. `aiCategory: false`: no Reader call per unknown
+ * merchant (an import names categories in one batch before it commits, dataport/read.ts). `dedupe: false`: the caller
+ * has already checked for this purchase (a statement's rows are distinct purchases, even two same-price coffees on one
+ * day, so an import compares with what existed before it, not with its own rows).
+ */
+export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean; aiCategory?: boolean; dedupe?: boolean } = {}): Promise<CaptureEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   const aiAllowed = aiProcessingAllowedFor(u);
@@ -223,7 +229,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   // Dedupe (spec §13): own bucket + neighbouring bucket; later sources merge into the first.
   const fields = { userId, amountMinor: ev.amountMinor, currency: ev.currency, merchantNorm, occurredAt };
   const candidates = dedupeCandidates(fields);
-  const first = (
+  const first = opts.dedupe === false ? undefined : (
     await db
       .select()
       .from(transactions)
@@ -236,7 +242,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   const remembered = await rememberedCategory(db, userId, merchantNorm);
   const cat = first
     ? { category: first.category ?? "other", source: "DICTIONARY" as const, mcc: first.mcc }
-    : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, ...(aiAllowed ? { readerFallback: readerCategory } : {}) });
+    : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, ...(aiAllowed && opts.aiCategory !== false ? { readerFallback: readerCategory } : {}) });
 
   const named = await placeName(userId, merchantNorm, merchantRaw, db);
   const place = placeFrom(hint, ev.location, named);
@@ -310,6 +316,35 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   };
 }
 
+/** Recompute a card's rolling-median markup for one currency pair from its settled samples (fee x-ray, spec §12). */
+export async function refreshCardProfile(db: DbOrTx, cardId: string, fromCurrency: string, toCurrency: string): Promise<NonNullable<SettlementEventResponse["cardProfile"]>> {
+  const samples = await db
+    .select({ fee: transactions.feeHomeMinor, home: transactions.homeAmountMinor })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.cardId, cardId),
+        eq(transactions.currency, fromCurrency),
+        eq(transactions.settledCurrency, toCurrency),
+        isNotNull(transactions.feeHomeMinor),
+        isNull(transactions.mergedIntoId),
+      ),
+    )
+    .orderBy(asc(transactions.occurredAt));
+  const bps = samples
+    .filter((s) => s.fee !== null && s.home !== null && s.home > 0)
+    .map((s) => Number((BigInt(s.fee!) * 10000n) / BigInt(s.home!)));
+  const median = rollingMedianBps(bps);
+  await db
+    .insert(cardFeeProfiles)
+    .values({ cardId, fromCurrency, toCurrency, medianMarkupBps: median, fixedFeeMinor: 0, samples: bps.length })
+    .onConflictDoUpdate({
+      target: [cardFeeProfiles.cardId, cardFeeProfiles.fromCurrency, cardFeeProfiles.toCurrency],
+      set: { medianMarkupBps: median, samples: bps.length },
+    });
+  return { cardId, fromCurrency, toCurrency, medianMarkupBps: median, samples: bps.length };
+}
+
 export class SettlementError extends Error {
   constructor(readonly code: "SETTLEMENT_NO_MATCH" | "SETTLEMENT_ALREADY_SETTLED", message: string) {
     super(message);
@@ -321,7 +356,7 @@ export class SettlementError extends Error {
  * statement / demo trigger) fixes the real debit, computes the fee against mid on the purchase date,
  * updates the card's rolling-median markup profile and flags DCC.
  */
-export async function reconcileSettlement(userId: string, ev: SettlementEventRequest, db: DbOrTx = getDb()): Promise<SettlementEventResponse> {
+export async function reconcileSettlement(userId: string, ev: SettlementEventRequest, db: DbOrTx = getDb(), opts: { notify?: boolean; profile?: boolean } = {}): Promise<SettlementEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   let tx = ev.transactionId
@@ -368,38 +403,13 @@ export async function reconcileSettlement(userId: string, ev: SettlementEventReq
     .set({ settledAmountMinor: ev.settledAmountMinor, settledCurrency: ev.settledCurrency, feeHomeMinor: fee.feeHomeMinor, status: "SETTLED" })
     .where(eq(transactions.id, tx.id));
 
-  // Rolling median markup for (card, from → to) over the card's settled samples.
+  // Rolling median markup for (card, from → to) over the card's settled samples (an import refreshes it once at the end).
   let cardProfile: SettlementEventResponse["cardProfile"] = null;
-  if (tx.cardId && tx.currency !== ev.settledCurrency) {
-    const samples = await db
-      .select({ fee: transactions.feeHomeMinor, home: transactions.homeAmountMinor })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.cardId, tx.cardId),
-          eq(transactions.currency, tx.currency),
-          eq(transactions.settledCurrency, ev.settledCurrency),
-          isNotNull(transactions.feeHomeMinor),
-          isNull(transactions.mergedIntoId),
-        ),
-      )
-      .orderBy(asc(transactions.occurredAt));
-    const bps = samples
-      .filter((s) => s.fee !== null && s.home !== null && s.home > 0)
-      .map((s) => Number((BigInt(s.fee!) * 10000n) / BigInt(s.home!)));
-    const median = rollingMedianBps(bps);
-    await db
-      .insert(cardFeeProfiles)
-      .values({ cardId: tx.cardId, fromCurrency: tx.currency, toCurrency: ev.settledCurrency, medianMarkupBps: median, fixedFeeMinor: 0, samples: bps.length })
-      .onConflictDoUpdate({
-        target: [cardFeeProfiles.cardId, cardFeeProfiles.fromCurrency, cardFeeProfiles.toCurrency],
-        set: { medianMarkupBps: median, samples: bps.length },
-      });
-    cardProfile = { cardId: tx.cardId, fromCurrency: tx.currency, toCurrency: ev.settledCurrency, medianMarkupBps: median, samples: bps.length };
-  }
+  if (tx.cardId && tx.currency !== ev.settledCurrency && opts.profile !== false) cardProfile = await refreshCardProfile(db, tx.cardId, tx.currency, ev.settledCurrency);
 
   const display = await merchantDisplayName(userId, tx.merchantNorm, tx.merchantRaw, db);
-  if (fee.feeHomeMinor > 0) {
+  // A data import settles history in bulk: the fee is recorded without a notification per row.
+  if (fee.feeHomeMinor > 0 && opts.notify !== false) {
     const msg = { key: "fees.settled" as const, params: { merchant: display, fee: { amountMinor: fee.feeHomeMinor, currency: u.homeCurrency }, markupBps: fee.markupBps } };
     const en = renderEn(msg);
     await notify(userId, { kind: "FEES_SETTLED", title: en.title, body: en.body, data: { key: msg.key, params: msg.params, transactionId: tx.id } }, db);
@@ -410,7 +420,7 @@ export async function reconcileSettlement(userId: string, ev: SettlementEventReq
   if (tx.currency === u.homeCurrency && ev.localAmountMinor && ev.localCurrency && ev.localCurrency !== u.homeCurrency) {
     const midLocal = await svc.getRate(ev.localCurrency, u.homeCurrency, purchaseDate);
     dcc = dccFlag({ chargedHomeMinor: ev.settledAmountMinor, localAmountMinor: ev.localAmountMinor, localCurrency: ev.localCurrency, homeCurrency: u.homeCurrency, midLocalToHome: midLocal.rate });
-    if (dcc) {
+    if (dcc && opts.notify !== false) {
       const msg = { key: "fees.dcc" as const, params: { merchant: display, overMidBps: dcc.overMidBps, charged: { amountMinor: ev.settledAmountMinor, currency: ev.settledCurrency } } };
       const en = renderEn(msg);
       await notify(userId, {
