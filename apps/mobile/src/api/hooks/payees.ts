@@ -6,6 +6,8 @@ import {
   MandatesResponse,
   PayeeDto,
   PayeesResponse,
+  PayObligationRequest,
+  PayPayeeResponse,
   UpdatePayeeRequest,
   type MandateOptionsRequest,
   type RecipientDetails,
@@ -72,6 +74,23 @@ export function useCreateObligation() {
       Promise.all([
         qc.invalidateQueries({ queryKey: keys.obligations }),
         qc.invalidateQueries({ queryKey: keys.forecast }),
+      ]),
+  });
+}
+
+/** POST /obligations/:id/pay - pay a bill now; the order settles the bill (no second payment when it falls due). */
+export function usePayObligation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & PayObligationRequest) =>
+      api.request(`/obligations/${encodeURIComponent(id)}/pay`, {
+        json: PayObligationRequest.parse(body),
+        schema: PayPayeeResponse,
+      }),
+    onSettled: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: keys.obligations }),
+        qc.invalidateQueries({ queryKey: keys.proposalsPending }),
       ]),
   });
 }

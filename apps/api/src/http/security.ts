@@ -47,6 +47,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/webhooks/mock/remittance": "HMAC-SHA256 over timestamp.body, 5-min window (I13)",
   "POST /api/webhooks/mock/shop": "HMAC-SHA256 over timestamp.body, 5-min window (I13)",
   "POST /api/webhooks/mock/supplier": "HMAC-SHA256 over timestamp.body, 5-min window (I13); invoices three-way matched (M5)",
+  "POST /api/webhooks/mock/school": "HMAC-SHA256 over timestamp.body, 5-min window (I13); matched to a payment Kassa sent",
   "POST /api/rails/fake-issuing/authorize": "HMAC-SHA256 over timestamp.body, 5-min window (I13)",
   "POST /api/webhooks/stripe": "Stripe-Signature over the raw body (I13)",
   "POST /api/capture/shortcut": "per-device bearer token, only its hash is stored (I13)",

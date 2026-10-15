@@ -3,7 +3,7 @@
  * support to one of their recipients. The scheduler proposes each one when it falls due (scheduler/index.ts), so a
  * bill made here goes through the same rules, cooling period and passkey as every other order.
  */
-import { budgetCategoryFor, type CreateObligationRequest } from "@kassa/shared";
+import { budgetCategoryFor, type CreateObligationRequest, type PayObligationRequest } from "@kassa/shared";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
@@ -13,6 +13,7 @@ import { conflict, HttpProblem } from "../../http/problem.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { readDetails } from "../payees/crypto.ts";
+import { proposeOrder } from "../rules/index.ts";
 
 export async function createObligation(userId: string, req: CreateObligationRequest) {
   const db = getDb();
@@ -49,4 +50,34 @@ export async function deleteObligation(userId: string, obligationId: string) {
     await tx.delete(obligations).where(eq(obligations.id, o.id));
     await ledger.append("OBLIGATION_DELETED", { userId, obligationId: o.id, payeeId: o.payeeId }, tx);
   });
+}
+
+/**
+ * Pay a bill now (e.g. a tuition invoice from the school's portal) instead of waiting for the scheduler. The order
+ * claims the bill's settlement for its period exactly like the scheduler's would, so the bill is never paid twice.
+ */
+export async function payObligation(userId: string, obligationId: string, req: PayObligationRequest) {
+  const db = getDb();
+  const o = (await db.select().from(obligations).where(and(eq(obligations.id, obligationId), eq(obligations.userId, userId))))[0];
+  if (!o) throw await ownedNotFound(userId, "obligation", obligationId, async () => (await db.select({ id: obligations.id }).from(obligations).where(eq(obligations.id, obligationId))).length > 0);
+  const r = await proposeOrder({
+    userId,
+    createdBy: "USER",
+    payeeId: o.payeeId,
+    amountMinor: o.amountMinor,
+    currency: o.currency,
+    purpose: (o.reference ? `${o.category} ${o.reference}` : `${o.category} due ${o.dueDate}`).slice(0, 140),
+    category: o.category,
+    obligationId: o.id,
+    dueDate: o.dueDate,
+    ...(req.fundingSourceId ? { fundingSourceId: req.fundingSourceId } : {}),
+  });
+  return {
+    proposalId: r.proposalId,
+    decision: r.decision,
+    reasonCodes: r.reasonCodes,
+    summary: r.summary,
+    ...(r.paymentStatus !== undefined ? { paymentStatus: r.paymentStatus } : {}),
+    ...(r.deliveredInMs !== undefined ? { deliveredInMs: r.deliveredInMs } : {}),
+  };
 }
