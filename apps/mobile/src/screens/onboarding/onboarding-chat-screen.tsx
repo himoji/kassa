@@ -229,6 +229,7 @@ export function OnboardingChatScreen() {
           budgets: [],
           incomes: [],
         },
+        history: statements.history,
         onProgress: (d, n) => setProgress({ done: d, total: n }),
       });
       const res = await historyTurn.mutateAsync({

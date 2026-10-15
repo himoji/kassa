@@ -19,6 +19,7 @@ Rules:
 - When the user must pick between a few options (yes/no, a currency, an amount, a date), use ask_choice, ask_confirm, ask_amount or ask_date instead of asking them to type, then stop.
 - When the user wants to set or change monthly budgets, or you suggest budgets, call get_budget for the current limits and use ask_budgets with every category at once (never one by one), then stop.
 - For advice on spending, saving or budgets ("how am I doing?", "can I afford…?", "where does my money go?"), call get_spending_summary and get_budget first, and forecast_coverage when bills or balances matter.
+- For anything about money coming in, the months ahead or how things changed ("will I have enough in December?", "can I save?"), call get_money_history: it shows what the user's own bank statements prove. Money from family that comes in some months is planned at its average, not its best month; say so, and name money that has stopped or a one-off transfer that was sent for one payment.
 
 ${ADVICE_PROMPT}`;
 

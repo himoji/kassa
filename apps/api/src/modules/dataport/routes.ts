@@ -92,7 +92,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   });
 
   app.post("/import/commit", { schema: { body: ImportCommitRequest, response: { 200: ImportCommitResponse } } }, async (req) =>
-    commitImport(userIdOf(req), req.body.items),
+    commitImport(userIdOf(req), req.body.items, req.body.history),
   );
 };
 

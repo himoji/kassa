@@ -56,6 +56,19 @@ export function HistorySummary({ result }: { result: ImportPreviewResponse }) {
   const f = useFormat();
   const h = result.history;
   if (!h) return null;
+  // The server writes the history as plain lines from the numbers (statement periods, how regular money in is, one-off
+  // payments, a move abroad): shown as they are, so the preview and the onboarding chat say the same thing.
+  if (h.notes.length > 0)
+    return (
+      <Box gap={1}>
+        <Text weight="semibold">{t("settings:data.learned.title")}</Text>
+        {h.notes.map((n) => (
+          <Text key={n} variant="caption">
+            • {n}
+          </Text>
+        ))}
+      </Box>
+    );
   const home = h.homeCurrency;
   const top = h.spendingByCategory.filter((c) => c.category !== "transfers").slice(0, 4);
   return (
