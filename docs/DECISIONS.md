@@ -763,3 +763,15 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   (`name`, `kind`, `where`), shown in KassaLite's Activity.
 - **Tests:** `apps/api/test/core/payment-notes.test.ts`, `shortcut-devices.test.ts` (new format),
   `apps/mobile/src/screens/activity/__tests__/notification-text.test.ts`, `screens/lite/__tests__/activity-screen.test.tsx`.
+## 2026-10-15 — Real-world incident attacks A10–A17; payee account ciphertext bound to its row
+
+- **Attacks.** `apps/api/test/attacks/A10..A17` recreate public incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake
+  memories, MCP tool poisoning / EchoLeak, Chevrolet "$1 Tahoe" / Project Vend, salami splitting, APP "safe account"
+  scams) with a planner and Reader that obey the injection. Each also has a naive row (`test/naive/`). Sources and
+  mappings: `docs/SECURITY.md` §6 "Real-world incidents recreated". Result: guarded 0 of 16 paid, naive 16 of 16.
+- **Fix found by A12.** A row writer could copy a cooling payee's `accountEnc` + `accountHash` into a verified payee
+  covered by a mandate, and autopay paid the copied account. Spec §8 says only "AES-256-GCM, AAD userId". Deviation:
+  new ciphertexts are `v2` with AAD `kassa:payee:v2:<userId>:<payeeId>` (`payees/crypto.ts`; `createPayee` picks the id
+  before the insert). `v1` stays readable for existing rows and for callers that do not pass a payee id. Payments
+  decrypts for the payee row and requires `accountHash(account) = order.payeeAccountHash`, else
+  `REFUSE_UNVERIFIED_PAYEE`. Residual: v1 rows are not bound (SECURITY.md R30).

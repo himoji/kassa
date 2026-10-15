@@ -45,7 +45,7 @@ Source: `apps/api/drizzle/0000_init.sql`, `0001_security_privacy.sql` and `apps/
 | `webauthn_credentials_rules`, `webauthn_credentials_payments` | Credential ID and public key (pseudonymous) | Public keys only; no secrets | Deleted |
 | `devices` | Push token, platform, Shortcut device token hash | Shortcut token stored as SHA-256 digest only | Deleted |
 | `profiles` | Incomes, reserve rules, caps, signed base rules, bank profile and Stripe cardholder IDs | Plain JSON and IDs | Incomes and reserve rules emptied; bank profile and Stripe cardholder IDs cleared. Caps and signed base rules are kept (they are not in the erasure categories) |
-| `payees` | Payee name, account (encrypted), account hash | AES-256-GCM with `ACCOUNT_ENC_KEY`, AAD binds the user ID | Deleted |
+| `payees` | Payee name, account (encrypted), account hash | AES-256-GCM with `ACCOUNT_ENC_KEY`, AAD binds the user ID and (v2, since 2026-10-15) the payee ID | Deleted |
 | `obligations`, `budgets`, `cards`, `card_fee_profiles` | Bill purposes and references, budget limits, card label and last 4 digits | Plain | Deleted |
 | `transactions` | Raw merchant text (until minimised), normalised merchant, amount, card, and where the tap happened when the Shortcut sends it (`place`: street, city, country, coordinates rounded to about 100 m, the likely place) | Raw text, street and coordinates minimised after 90 days; city, country and place name kept for spending history | Deleted |
 | `merchant_category_memory` | Merchant to category corrections | Plain | Deleted |
