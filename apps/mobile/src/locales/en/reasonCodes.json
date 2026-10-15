@@ -211,6 +211,14 @@
     "label": "Already being paid",
     "text": "This bill for this period is already paid or waiting for your approval, so a second payment was refused."
   },
+  "FUNDING_SOURCE_UNAVAILABLE": {
+    "label": "Account no longer linked",
+    "text": "The card or bank account you chose to pay from is no longer linked, so nothing was sent."
+  },
+  "FUNDING_PULL_DECLINED": {
+    "label": "Declined",
+    "text": "Your linked card or bank declined the payment, so nothing was sent. Try another account or your Kassa wallet."
+  },
   "FUNDING_ABOVE_SIGNED_MAX": {
     "label": "Price changed",
     "text": "The bank asked for more than the maximum you signed, so nothing was sent. Review the new amount and sign again."

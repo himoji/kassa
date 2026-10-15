@@ -24,6 +24,9 @@
  *    SMALL_AUTO_BUDGET_EXHAUSTED; payment row CREATED
  *  9 rail dispatch; status + ledger. The bank rail quotes from the signed funding currency and refuses a
  *    quote whose source amount exceeds the signed fundingAmountMinor (FUNDING_ABOVE_SIGNED_MAX, B2).
+ *    (linked accounts) An order signed with fundingSourceId first pulls the signed fundingAmountMinor from that
+ *    source (re-checked here before the nonce: the user's, ACTIVE, in fundingCurrency → FUNDING_SOURCE_UNAVAILABLE)
+ *    into the wallet; a declined pull fails the payment before any payout (FUNDING_PULL_DECLINED).
  */
 import { CanonicalOrder, jcs, jcsHash, mandateHash, orderHash, poHash, type MandateCore, type PaymentStatus, type ReasonCode } from "@kassa/shared";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
@@ -34,6 +37,8 @@ import { approvals, mandates, merchants, payees, payments, profiles, proposals, 
 import { env } from "../../env.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { pullIntoWallet, PullDeclined } from "../funding-sources/pull.ts";
+import { activeFundingSource } from "../funding-sources/store.ts";
 import { decryptAccount } from "../payees/crypto.ts";
 import { railFor } from "../rails/index.ts";
 import { rulesPublicKey } from "../rules/publicKey.ts";
@@ -43,7 +48,13 @@ import { checkMandateScope } from "./mandateScope.ts";
 import { notifyPaymentOutcome } from "./notify.ts";
 import { updatePaymentStatus } from "./status.ts";
 
-export type ExecuteResult = { paymentId: string | null; status: PaymentStatus | null; reasonCodes: ReasonCode[] };
+export type ExecuteResult = {
+  paymentId: string | null;
+  status: PaymentStatus | null;
+  reasonCodes: ReasonCode[];
+  /** Wall-clock time from the start of execution to the bank reporting the money delivered (SENT), when it did. */
+  deliveredInMs?: number;
+};
 
 class Refusal extends Error {
   constructor(
@@ -221,6 +232,7 @@ async function verifyPurchaseOrder(db: DbOrTx, order: CanonicalOrder): Promise<v
 export async function executeApproval(approvalId: string): Promise<ExecuteResult> {
   const db = getDb();
   const now = clock.now();
+  const startedAt = performance.now();
   let userId: string | null = null;
   let proposalId: string | null = null;
   try {
@@ -279,6 +291,11 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
       smallAuto = await verifyBaseRules(db, order, now);
     }
     if (order.purchaseOrderId) await verifyPurchaseOrder(db, order);
+    // (linked accounts) the source the user signed: still theirs, still linked, in the signed funding currency.
+    const source = order.fundingSourceId ? await activeFundingSource(order.userId, order.fundingSourceId) : null;
+    if (order.fundingSourceId && (!source || source.currency !== order.fundingCurrency || order.rail !== "BANK_TRANSFER")) {
+      refuse("FUNDING_SOURCE_UNAVAILABLE", "the signed linked account is removed, someone else's or in another currency");
+    }
     // 7 (X4) every rail; both the signed name and the payee's current name.
     for (const name of new Set([order.payeeName, payee.name])) {
       const s = screenName(name);
@@ -350,6 +367,21 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     let status: PaymentStatus = "FAILED";
     let reasonCodes: ReasonCode[] = [];
     try {
+      if (source && order.fundingAmountMinor !== undefined && order.fundingCurrency) {
+        // Pull leg: the signed maximum (exact for a same-currency send; any FX head-room left stays in the wallet).
+        const pulled = await pullIntoWallet(source, order.fundingAmountMinor, order.fundingCurrency, paymentId);
+        await ledger.append("FUNDING_PULLED", {
+          userId: order.userId,
+          proposalId: order.proposalId,
+          paymentId,
+          sourceId: source.id,
+          kind: source.kind,
+          amountMinor: order.fundingAmountMinor,
+          currency: order.fundingCurrency,
+          providerRef: pulled.providerRef,
+          simulated: pulled.simulated,
+        });
+      }
       const result = await railFor(order.rail).execute(order, {
         db,
         paymentId,
@@ -373,7 +405,7 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
       if (status === "SENT") await updatePaymentStatus(paymentId, "SENT", { source: `rail:${order.rail}` });
     } catch (err) {
       status = "FAILED";
-      reasonCodes = ["RAIL_ERROR"];
+      reasonCodes = [err instanceof PullDeclined ? "FUNDING_PULL_DECLINED" : "RAIL_ERROR"];
       await db
         .update(payments)
         .set({ status: "FAILED", reasonCodes, details: { error: (err as Error).message }, updatedAt: clock.now() })
@@ -385,8 +417,9 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     if ((status === "FAILED" || status === "CANCELED") && order.purchaseOrderId) {
       await db.update(purchaseOrders).set({ status: "INVOICED", updatedAt: clock.now() }).where(and(eq(purchaseOrders.id, order.purchaseOrderId), eq(purchaseOrders.status, "PAYING")));
     }
-    await ledger.append("PAYMENT_STATUS", { userId: order.userId, proposalId: order.proposalId, paymentId, status, reasonCodes, rail: order.rail });
-    return { paymentId, status, reasonCodes };
+    const deliveredInMs = status === "SENT" ? Math.round(performance.now() - startedAt) : undefined;
+    await ledger.append("PAYMENT_STATUS", { userId: order.userId, proposalId: order.proposalId, paymentId, status, reasonCodes, rail: order.rail, ...(deliveredInMs !== undefined ? { deliveredInMs } : {}) });
+    return { paymentId, status, reasonCodes, ...(deliveredInMs !== undefined ? { deliveredInMs } : {}) };
   } catch (err) {
     if (!(err instanceof Refusal)) throw err;
     await ledger.append("PAYMENT_REFUSED", { userId, proposalId, approvalId, reasonCodes: [err.reason], detail: err.detail });

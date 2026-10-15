@@ -1279,6 +1279,25 @@ export const liWeiCn = {
   transactions: [] as SeedTransaction[],
 } as const;
 
+/**
+ * (added 2026-10-16) Dana's linked accounts, already confirmed: a Stripe test Visa and her Kaspi account in Kazakhstan
+ * (mock bank). Simulated: no Stripe PaymentMethod is saved by the seed, so charges run in the simulator.
+ */
+export type SeedFundingSource = {
+  id: string;
+  kind: "CARD" | "BANK";
+  provider: "STRIPE" | "MOCK_BANK";
+  institution: string;
+  last4: string;
+  country: string;
+  currency: string;
+  providerRef: string;
+};
+export const fundingSources: SeedFundingSource[] = [
+  { id: seedId("funding/dana-visa"), kind: "CARD", provider: "STRIPE", institution: "Visa", last4: "4242", country: "KZ", currency: "KZT", providerRef: "pm_card_visa" },
+  { id: seedId("funding/dana-kaspi"), kind: "BANK", provider: "MOCK_BANK", institution: "Kaspi Gold", last4: "4417", country: "KZ", currency: "KZT", providerRef: "mockbank:dana-kaspi" },
+];
+
 export const seed = {
   seedNow: SEED_NOW,
   homeCurrency: HOME_CURRENCY,
@@ -1294,6 +1313,7 @@ export const seed = {
   mandates,
   budgets,
   transactions,
+  fundingSources,
   /** Extra demo personas, inserted only with `seedDatabase(..., { personas: true })`. */
   personas: [liWei, liWeiCn, pizzeriaBud, pizzeriaSha],
 } as const;

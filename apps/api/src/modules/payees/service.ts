@@ -261,6 +261,13 @@ export async function verifyCallback(userId: string, payeeId: string, body: { ch
 export async function payPayee(userId: string, payeeId: string, req: PayPayeeRequest) {
   const p = await ownedPayee(userId, payeeId);
   if (req.currency !== p.currency) throw new HttpProblem(422, "CURRENCY_MISMATCH", `${p.name} is paid in ${p.currency}`, { reasonCodes: ["CURRENCY_MISMATCH"] });
-  const r = await proposeOrder({ userId, createdBy: "USER", payeeId: p.id, amountMinor: req.amountMinor, currency: req.currency, purpose: req.purpose });
-  return { proposalId: r.proposalId, decision: r.decision, reasonCodes: r.reasonCodes, summary: r.summary };
+  const r = await proposeOrder({ userId, createdBy: "USER", payeeId: p.id, amountMinor: req.amountMinor, currency: req.currency, purpose: req.purpose, ...(req.fundingSourceId ? { fundingSourceId: req.fundingSourceId } : {}) });
+  return {
+    proposalId: r.proposalId,
+    decision: r.decision,
+    reasonCodes: r.reasonCodes,
+    summary: r.summary,
+    ...(r.paymentStatus !== undefined ? { paymentStatus: r.paymentStatus } : {}),
+    ...(r.deliveredInMs !== undefined ? { deliveredInMs: r.deliveredInMs } : {}),
+  };
 }

@@ -51,6 +51,8 @@ export const REASON_TEXT_EN: Partial<Record<ReasonCode, string>> = {
   AMOUNT_OVER_LIMIT: "The amount is more than the card allows, so nothing was charged.",
   CURRENCY_MISMATCH: "The currency does not match the payment you approved, so nothing was charged.",
   RAIL_ERROR: "The payment provider failed or could not be reached, so nothing was confirmed. Try again later.",
+  FUNDING_SOURCE_UNAVAILABLE: "The card or bank account you chose to pay from is no longer linked, so nothing was sent.",
+  FUNDING_PULL_DECLINED: "Your linked card or bank declined the payment, so nothing was sent. Try another account or your Kassa wallet.",
   FUNDING_ABOVE_SIGNED_MAX: "The bank asked for more than the maximum you signed, so nothing was sent. Review the new amount and sign again.",
   INVOICE_ABOVE_PO: "The supplier's invoice is for more than the purchase order you signed, so it was refused. Ask the supplier for a corrected invoice.",
   INVOICE_ACCOUNT_MISMATCH: "The invoice asks you to pay an account that is not the supplier's verified account, so it was refused. Check with the supplier by phone before paying anything.",

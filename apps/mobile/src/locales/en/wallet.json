@@ -10,7 +10,8 @@
     "APPLE_PAY": "Apple Pay",
     "GOOGLE_PAY": "Google Pay",
     "SAMSUNG_PAY": "Samsung Pay",
-    "CARD": "Test card"
+    "CARD": "Test card",
+    "LINKED": "Linked account"
   },
   "payButton": "Pay with {{method}}",
   "todayLimit": "Today: {{used}} of {{limit}} (your signed per-day cap)",
@@ -38,7 +39,11 @@
     "TOPUP_DAILY_LIMIT": "That would go over today's top-up limit, which is your signed per-day cap.",
     "TOPUP_NEEDS_WALLET": "Top-ups need the capped wallet money mode.",
     "TOPUP_DECLINED": "The test charge was declined.",
-    "AMOUNT": "Enter an amount."
+    "AMOUNT": "Enter an amount.",
+    "FUNDING_SOURCE_UNAVAILABLE": "That card or bank account is not linked any more.",
+    "CODE_WRONG": "That code does not match. Check the test payment's note.",
+    "CODE_LOCKED": "Too many wrong codes. Remove this account and link it again.",
+    "CODE_REQUIRED": "Enter the 4-digit code."
   },
   "kassaId": "Your Kassa ID",
   "kassaIdHint": "Anyone on Kassa can pay you with this ID. It is public, like a username.",
@@ -53,5 +58,75 @@
   "reviewHint": "Nothing is sent until you approve it with your passkey.",
   "refused": "Kassa refused this payment",
   "pickPayee": "Choose who to pay.",
-  "cooling": "new recipient, cooling for 24 hours"
+  "cooling": "new recipient, cooling for 24 hours",
+  "fromLinked": "Or add from a linked account",
+  "addFrom": "Add from {{label}}",
+  "from": "From",
+  "fromWallet": "Kassa wallet",
+  "fromWalletHint": "Your {{currency}} balance",
+  "fromLinkedHint": "Linked {{kind}} · {{currency}}",
+  "kind": {
+    "CARD": "card",
+    "BANK": "bank account"
+  },
+  "linkAccount": "Link a card or bank",
+  "quote": {
+    "loading": "Getting a quote…",
+    "line": "You pay {{debit}} incl. fees from {{from}}",
+    "fx": "Includes {{pct}}% exchange margin. At most {{max}}.",
+    "instant": "Arrives in seconds (simulated instant payout)",
+    "arrives": "Arrives by {{date}}",
+    "none": "Your wallet can't cover this. Add money, or send from a linked account.",
+    "unknown": "Your bank checks the balance when you send."
+  },
+  "sendAgain": "Send again",
+  "sendAgainLine": "{{amount}} to {{name}} from {{from}}",
+  "sent": {
+    "title": "Delivered in {{seconds}} s",
+    "body": "{{amount}} reached {{name}}. Simulated payout on the mock bank: no real money moved.",
+    "processing": "Sent. The bank is delivering it.",
+    "auto": "Sent without a passkey prompt: it's inside a mandate you signed."
+  },
+  "linked": {
+    "title": "Linked accounts",
+    "rowHint": "Cards and bank accounts you send from",
+    "intro": "Link a card or bank account once, then send from it next to your Kassa wallet. Each new account is confirmed with your passkey, the same as any new way for money to move.",
+    "testMode": "Test mode: cards are Stripe test cards and banks are the mock bank. No real money moves.",
+    "empty": "Nothing linked yet.",
+    "linkCard": "Link a card",
+    "linkBank": "Link a bank account",
+    "pending": "Not confirmed yet",
+    "finish": "Finish",
+    "remove": "Remove",
+    "removeTitle": "Remove {{label}}?",
+    "removeBody": "Sends from it stop. Past payments stay as they are.",
+    "removed": "Removed",
+    "linkedToast": "{{label}} is linked",
+    "card": {
+      "title": "Link a card",
+      "body": "Pick a Stripe test card. In production this is the card form from Stripe; Kassa never sees the card number.",
+      "VISA": "Visa ending 4242",
+      "MASTERCARD": "Mastercard ending 4444",
+      "DECLINED": "Visa ending 0341 (declines every charge)",
+      "currency": "Charge in",
+      "continue": "Confirm with passkey"
+    },
+    "bank": {
+      "title": "Link a bank account",
+      "body": "Any bank, by IBAN or account number. The bank then sends a tiny test payment with a code in its note; type the code to prove the account is yours.",
+      "bank": "Bank",
+      "other": "Other bank",
+      "bankName": "Bank name",
+      "account": "IBAN or account number",
+      "country": "Country (2 letters)",
+      "currency": "Account currency",
+      "continue": "Continue",
+      "codeTitle": "Enter the code",
+      "codeBody": "{{bank}} sent a tiny test payment to the account ending {{last4}}. Its note has a 4-digit code.",
+      "codeSimulated": "Simulated: the code is {{code}}.",
+      "code": "Code",
+      "confirm": "Confirm with passkey"
+    },
+    "viewOnly": "Linking opens the web app, where your passkey is."
+  }
 }

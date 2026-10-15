@@ -125,6 +125,12 @@ const routes: FastifyPluginAsync = async (app) => {
       await ledger.append("WEBHOOK_UNMATCHED", { kind: "bank", transferId, state });
       return { ok: true, matched: false };
     }
+    // An instant payout is SENT by the rail itself; the bank's webhooks for the states it passed on the way arrive
+    // after that. A state at or before the one Kassa already recorded is a late echo: acknowledged, nothing moves.
+    const stateRank = (BANK_FLOW as readonly string[]).indexOf(state);
+    if (p.status === "SENT" && p.details.instantPayout === true && stateRank >= 0 && stateRank <= (BANK_FLOW as readonly string[]).indexOf(String(p.details.bankState ?? ""))) {
+      return { ok: true, matched: true };
+    }
     const owner = (await getDb().select({ bankProfileId: profiles.bankProfileId }).from(profiles).where(eq(profiles.userId, p.userId)))[0];
     const rejection = bankEventRejection(p, state, resource.profile_id, owner?.bankProfileId ?? null);
     if (rejection) {
