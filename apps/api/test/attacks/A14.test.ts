@@ -144,7 +144,8 @@ describe("A14: tool poisoning / indirect injection in tool output", () => {
   it("the planner's tools are fixed in code: no tool can be registered or described from outside, one write tool", () => {
     const tools = buildTools({ ports: dbPorts(randomUUID(), randomUUID()), redactor: new Redactor(), emit: () => undefined, readDocs: new Map(), stop: { requested: false, reason: null }, proposals: [] });
     expect(Object.keys(tools).sort()).toEqual(
-      ["forecast_coverage", "get_balances", "get_budget", "get_obligations", "get_payee_facts", "get_profile_summary", "get_routes", "log_expense", "propose_order", "read_document", "search_catalog"].sort(),
+      // The whole list, so adding a tool is a reviewed change to this test (no tool comes from outside the code).
+      ["ask_amount", "ask_budgets", "ask_choice", "ask_confirm", "ask_date", "forecast_coverage", "get_balances", "get_budget", "get_fx_rate", "get_obligations", "get_payee_facts", "get_profile_summary", "get_routes", "get_spending_summary", "log_expense", "propose_order", "read_document", "search_catalog"].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
   });
