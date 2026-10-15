@@ -106,6 +106,8 @@ struct LogPaymentIntent: AppIntent {
     request.httpMethod = "POST"
     request.setValue("Bearer \(config.token)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    // KassaLite's tap check tells the action apart from a hand-built Shortcut.
+    request.setValue("log-payment-action", forHTTPHeaderField: "X-Kassa-Client")
     request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
     let data: Data
