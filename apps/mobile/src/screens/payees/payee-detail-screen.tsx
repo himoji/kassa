@@ -4,7 +4,9 @@ import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 
 import { KassaApiError } from "@/api/errors";
+import { useObligations } from "@/api/hooks/money";
 import { useRemovePayee, useSimulatePayeeVerification, usePayees } from "@/api/hooks/payees";
+import { useRefreshSchoolInvoices } from "@/api/hooks/schools";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { Countdown } from "@/components/kassa/countdown";
 import { errorText } from "@/components/kassa/error-text";
@@ -64,7 +66,13 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
   const [editing, setEditing] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const payable = !payee.accountMissing && payee.status !== "BLOCKED" && payee.category !== "SHOPS";
-  const portalUrl = payee.details?.category === "TUITION" ? payee.details.portalUrl : undefined;
+  // Added from the school directory: the school's own portal page for this student; else the link they typed.
+  const portalUrl =
+    payee.portalLink ??
+    (payee.details?.category === "TUITION" ? payee.details.portalUrl : undefined);
+  const fromDirectory =
+    payee.details?.category === "TUITION" && Boolean(payee.details.portalSchoolId);
+  const refresh = useRefreshSchoolInvoices();
   const reference = suggestedReference(payee.details);
 
   const onRemove = async () => {
@@ -87,6 +95,27 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
         title: hasBills ? t("payees:actions.hasBills") : errorText(t, err),
         kind: "error",
       });
+    }
+  };
+
+  const onRefresh = async () => {
+    try {
+      const r = await refresh.mutateAsync(payee.id);
+      haptics.success();
+      toast.show({
+        title:
+          r.createdObligationIds.length > 0
+            ? t("payees:school.billAdded", { count: r.createdObligationIds.length })
+            : t("payees:school.noNewBills"),
+        kind: "success",
+      });
+    } catch (err) {
+      haptics.error();
+      const known =
+        err instanceof KassaApiError && err.code === "SCHOOL_ACCOUNT_CHANGED"
+          ? t("payees:school.errors.SCHOOL_ACCOUNT_CHANGED")
+          : errorText(t, err);
+      toast.show({ title: known, kind: "error" });
     }
   };
 
@@ -141,6 +170,8 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
           ) : null}
         </Box>
       ) : null}
+
+      {payee.category === "TUITION" ? <TuitionBills payee={payee} payable={payable} /> : null}
 
       <RowGroup title={t("payees:detailsTitle")}>
         <Row
@@ -203,6 +234,14 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
           onPress={() => setEditing(true)}
           testID="recipient-edit"
         />
+        {fromDirectory ? (
+          <Row
+            title={t("payees:school.checkInvoices")}
+            onPress={() => void onRefresh()}
+            disabled={refresh.isPending}
+            testID="recipient-check-invoices"
+          />
+        ) : null}
         {payable ? (
           <Row
             title={t("payees:actions.schedule")}
@@ -236,6 +275,48 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
         </Box>
       ) : null}
     </>
+  );
+}
+
+/** A tuition recipient's bills (an invoice from the school's portal is one): pay one now, with its reference. */
+function TuitionBills({ payee, payable }: { payee: PayeeDto; payable: boolean }) {
+  const t = useKassaT();
+  const f = useFormat();
+  const bills = useObligations();
+  const mine = (bills.data?.obligations ?? []).filter((o) => o.payeeId === payee.id);
+  if (mine.length === 0) return null;
+
+  // Through the Send screen: pick where it is paid from and see the quote; the bill's amount and reference are fixed.
+  const onPay = (id: string) => router.push(`/send?obligationId=${encodeURIComponent(id)}`);
+
+  return (
+    <Box gap={2}>
+      <Box px={4}>
+        <Text variant="label" color="mutedForeground">
+          {t("payees:school.openInvoices")}
+        </Text>
+      </Box>
+      {mine.map((o) => (
+        <Card key={o.id}>
+          <Box gap={2}>
+            <Box gap={1}>
+              <Text variant="title">{f.money(o.amountMinor, o.currency)}</Text>
+              <Text variant="caption">{t("payees:school.dueOn", { date: f.date(o.dueDate) })}</Text>
+              {o.reference ? (
+                <Text variant="caption" selectable>
+                  {t("payees:school.reference", { reference: o.reference })}
+                </Text>
+              ) : null}
+            </Box>
+            {payable ? (
+              <Button variant="outline" onPress={() => onPay(o.id)}>
+                {t("payees:school.payInvoice")}
+              </Button>
+            ) : null}
+          </Box>
+        </Card>
+      ))}
+    </Box>
   );
 }
 

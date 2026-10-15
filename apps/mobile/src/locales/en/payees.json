@@ -194,5 +194,42 @@
     "create": "Create schedule",
     "created": "Schedule created. You'll find it in Bills.",
     "dateInvalid": "Use a date like 2026-11-01, today or later."
+  },
+  "school": {
+    "title": "Find your school",
+    "body": "Pick your school and enter your student ID. Kassa fetches your invoice and adds it as a bill, with the exact amount and reference.",
+    "search": "School",
+    "searchPlaceholder": "Search by name or city",
+    "noneFound": "No school matches that. You can add it by hand instead.",
+    "directoryNote": "The school list and invoices come from the schools' payment portals. In this demo they are fictitious schools.",
+    "manual": "My school isn't listed: enter its details by hand",
+    "findInvoice": "Find my invoice",
+    "invoiceFor": "{{term}} tuition, student {{studentId}}",
+    "dueOn": "due {{date}}",
+    "reference": "Reference {{reference}}",
+    "status": {
+      "OPEN": "Open",
+      "PARTLY_PAID": "Partly paid",
+      "PAID": "Paid"
+    },
+    "noInvoices": "There is no open invoice for this student right now.",
+    "willAdd": "Kassa adds the school as a recipient (paid to the account the school lists) and the invoice as a bill. Like every new recipient, it cools down for 24 hours first.",
+    "existing": "You already pay this school. Kassa links it to the school's portal and adds any invoice that isn't a bill yet.",
+    "add": "Add {{name}} and the bill",
+    "update": "Link to the school's portal",
+    "added": "{{name}} added",
+    "updated": "Linked to the school's portal",
+    "billAdded_one": "The invoice is now a bill in Bills.",
+    "billAdded_other": "{{count}} invoices are now bills in Bills.",
+    "noNewBills": "No new invoices to add.",
+    "checkInvoices": "Check for new invoices",
+    "payInvoice": "Pay this invoice",
+    "openInvoices": "Bills to pay",
+    "errors": {
+      "STUDENT_ID_INVALID": "A student ID is 4 to 20 letters, digits or dashes.",
+      "SCHOOL_DIRECTORY_UNAVAILABLE": "The school directory isn't answering. Try again in a moment.",
+      "SCHOOL_ACCOUNT_CHANGED": "The school now lists a different bank account. Add the school again: it becomes a new recipient and cools down for 24 hours."
+    },
+    "otherCategory": "Pay something else"
   }
 }

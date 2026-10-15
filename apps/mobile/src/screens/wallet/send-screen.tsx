@@ -1,9 +1,15 @@
-import { suggestedReference, type PayeeDto } from "@kassa/shared";
+import {
+  suggestedReference,
+  type ObligationDto,
+  type PayeeDto,
+  type PayPayeeResponse,
+} from "@kassa/shared";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 
 import { useFundingSources, useSendQuote } from "@/api/hooks/funding-sources";
-import { usePayees } from "@/api/hooks/payees";
+import { useObligations } from "@/api/hooks/money";
+import { usePayees, usePayObligation } from "@/api/hooks/payees";
 import { usePayPayee, useWallet } from "@/api/hooks/wallet";
 import { errorText } from "@/components/kassa/error-text";
 import { MoneyInput } from "@/components/kassa/money-input";
@@ -187,7 +193,14 @@ function QuoteLine({
  */
 export function SendScreen() {
   const t = useKassaT();
-  const params = useLocalSearchParams<{ payeeId?: string }>();
+  const f = useFormat();
+  // `obligationId`: pay that bill now (Pay this invoice); its amount and reference are fixed, the user picks From.
+  const params = useLocalSearchParams<{ payeeId?: string; obligationId?: string }>();
+  const bills = useObligations();
+  const payBill = usePayObligation();
+  const bill: ObligationDto | undefined = params.obligationId
+    ? bills.data?.obligations.find((o) => o.id === params.obligationId)
+    : undefined;
   const payees = usePayees();
   const sources = useFundingSources();
   const pay = usePayPayee();
@@ -210,14 +223,22 @@ export function SendScreen() {
   ) => {
     setError(null);
     try {
-      const res = await pay.mutateAsync({
-        payeeId: payee.id,
-        amountMinor: req.amountMinor,
-        currency: payee.currency,
-        purpose: req.purpose,
-        ...(req.fundingSourceId ? { fundingSourceId: req.fundingSourceId } : {}),
-      });
-      rememberSend({ payeeId: payee.id, currency: payee.currency, ...req });
+      let res: PayPayeeResponse;
+      if (bill) {
+        res = await payBill.mutateAsync({
+          id: bill.id,
+          ...(req.fundingSourceId ? { fundingSourceId: req.fundingSourceId } : {}),
+        });
+      } else {
+        res = await pay.mutateAsync({
+          payeeId: payee.id,
+          amountMinor: req.amountMinor,
+          currency: payee.currency,
+          purpose: req.purpose,
+          ...(req.fundingSourceId ? { fundingSourceId: req.fundingSourceId } : {}),
+        });
+        rememberSend({ payeeId: payee.id, currency: payee.currency, ...req });
+      }
       haptics.success();
       // Inside a signed mandate (or the small-auto limit) it already went: show the receipt right here.
       if (res.decision === "AUTO" && res.paymentStatus && res.paymentStatus !== "FAILED") {
@@ -230,6 +251,12 @@ export function SendScreen() {
         });
         return;
       }
+      // A bill that is already paid or waiting for approval is refused right away: say why here.
+      if (bill && res.decision === "REFUSE") {
+        const code = res.reasonCodes[0];
+        setError(code ? t(`reasonCodes:${code}.text`, { defaultValue: res.summary }) : res.summary);
+        return;
+      }
       router.push(`/order/${res.proposalId}`);
     } catch (err) {
       haptics.error();
@@ -239,6 +266,8 @@ export function SendScreen() {
 
   const submit = (payee: PayeeDto | undefined) => {
     if (!payee) return setError(t("wallet:pickPayee"));
+    if (bill)
+      return send(payee, { amountMinor: bill.amountMinor, purpose: "", fundingSourceId: fromId });
     if (!amountMinor) return setError(t("wallet:errors.AMOUNT"));
     // The recipient's own reference (student ID, customer number) unless the user wrote one.
     const p = purpose.trim() || suggestedReference(payee.details) || t("wallet:purposePlaceholder");
@@ -273,7 +302,43 @@ export function SendScreen() {
       <QueryView query={payees} skeletonRows={3}>
         {(data) => {
           const list = data.payees.filter(payable);
-          const chosen = list.find((p) => p.id === payeeId);
+          const chosen = list.find((p) => p.id === (bill ? bill.payeeId : payeeId));
+          if (bill && chosen) {
+            return (
+              <>
+                <Card>
+                  <Box gap={1} testID="send-bill">
+                    <Text variant="caption">{t("wallet:bill.paying", { name: chosen.name })}</Text>
+                    <Text variant="title">{f.money(bill.amountMinor, bill.currency)}</Text>
+                    <Text variant="caption">
+                      {t("wallet:bill.due", { date: f.date(bill.dueDate) })}
+                    </Text>
+                    {bill.reference ? (
+                      <Text variant="caption" selectable>
+                        {t("wallet:bill.reference", { reference: bill.reference })}
+                      </Text>
+                    ) : null}
+                  </Box>
+                </Card>
+                <FromPicker value={fromId} onChange={setFromId} currency={chosen.currency} />
+                <QuoteLine
+                  payeeId={chosen.id}
+                  amountMinor={bill.amountMinor}
+                  sourceId={fromId}
+                  fromLabel={labelOf(fromId)}
+                />
+                {error ? <Text color="destructive">{error}</Text> : null}
+                <Box gap={1}>
+                  <Button size="lg" loading={payBill.isPending} onPress={() => void submit(chosen)}>
+                    {t("wallet:review")}
+                  </Button>
+                  <Text variant="caption" style={{ textAlign: "center" }}>
+                    {t("wallet:reviewHint")}
+                  </Text>
+                </Box>
+              </>
+            );
+          }
           const again = last ? list.find((p) => p.id === last.payeeId) : undefined;
           return (
             <>
