@@ -145,6 +145,7 @@ Stale items fixed in this pass: R3 (cross-currency cap) is fixed; R4 (Reader che
 | D4 | **Statement text is data.** Hidden instructions in a statement reach no tool: the import path has none, and the onboarding model sees aggregates computed in code, never rows | `onboarding/history.ts` | `test/dataport/import-file.test.ts` ("keeps only aggregates for the model") |
 | D5 | **Import loosens nothing.** Spending goes through capture (I6), incomes only feed the forecast, budgets still need the passkey (`PUT /budgets`). Without AI consent no model is called | `dataport/service.ts`, `dataport/routes.ts` | `test/dataport/statements.test.ts` ("never calls a model without AI consent") |
 | D6 | **Uploads are untrusted bytes.** The format comes from magic bytes, files are capped at 10 MB (6 per upload), spreadsheet cells and inflated XML are capped, formulas are never evaluated, legacy XLS and images are refused | `dataport/files.ts` | `test/dataport/statements.test.ts` ("file formats") |
+| D7 | **The agent reads history, never acts on it.** `get_money_history` is read-only (READ_TOOLS); its output is the stored aggregates, redacted like every tool result, with senders as person_N. It cannot add a payee, an income or a budget | `agent/tools.ts`, `agent/loop.ts` (`knownNames`) | `test/intel/agent-loop.test.ts` ("get_money_history") |
 
 ## 6. Attack suite
 

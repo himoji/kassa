@@ -12,7 +12,7 @@ Workspace totals from the run of 2026-10-15, after the real-world incident attac
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 121 | 950 (+1 opt-in live smoke test, skipped) | all pass |
+| apps/api | 121 | 954 (+1 opt-in live smoke test, skipped) | all pass |
 | apps/mock-world | 10 | 343 | all pass |
 | packages/shared | 7 | 53 | all pass |
 | apps/mobile (jest) | 75 | 562 | all pass |
@@ -23,7 +23,7 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 
 | File | What it proves | Tests |
 |---|---|---|
-| dataport/statements.test.ts | File sniffing (PDF, XLSX, CSV in Windows-1251, OFX; XLS and photos refused); the three statement layouts (a Kazakh card bank's ruled table with page-split rows, Kaspi lines with the shop's currency, US lines with wrapped fee rows) match the statements' own totals; own transfers, reversals, fees, income; redaction leaves no IBAN, id, account, card, name or address; AI rows that are invented, altered or re-dated are dropped; no model call without consent; history (money from home, bills, budgets, FX markup) | 19 passed |
+| dataport/statements.test.ts | What the history really shows (statement periods, irregular money in planned at its average, earmarked transfers, stopped senders, the same person across scripts, a move abroad); file sniffing (PDF, XLSX, CSV in Windows-1251, OFX; XLS and photos refused); the three statement layouts (a Kazakh card bank's ruled table with page-split rows, Kaspi lines with the shop's currency, US lines with wrapped fee rows) match the statements' own totals; own transfers, reversals, fees, income; redaction leaves no IBAN, id, account, card, name or address; AI rows that are invented, altered or re-dated are dropped; no model call without consent; history (money from home, bills, budgets, FX markup) | 22 passed |
 | dataport/import-file.test.ts | `POST /import/file` with several files; commit keeps the amount really charged and the fee x-ray; no payee or account from a statement; same-day duplicates inside a statement kept, a re-import adds nothing; `POST /onboarding/history` prefills the draft in code and leaves only aggregates for the model | 4 passed |
 | mobile lib/__tests__/commit-chunks.test.ts | Commit chunks keep every row in time order and never split rows that could be the same purchase | 2 passed |
 
@@ -140,3 +140,4 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 - 2026-10-14 (later): totals re-run with `bun run test` after the live-AI round (api 104 files / 828 tests, 1 opt-in live smoke test skipped; mobile 65 / 527).
 - 2026-10-15: attacks A10 to A17 added (real-world incidents, see SECURITY.md §6); naive baseline 16 of 16; totals re-run per workspace (api 121 files / 949 tests, 1 opt-in live smoke test skipped; mock-world 10 / 343; shared 7 / 53; mobile 74 / 560).
 - 2026-10-15 (later): bank statement import (IMPORT_PLAN.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
+- 2026-10-15 (latest): history patterns (IMPORT_PLAN S14) and `get_money_history`; api 121 files / 954 tests, 1 skipped; mobile 75 / 562; mock-world 10 / 343; shared 7 / 53.

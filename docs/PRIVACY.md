@@ -94,7 +94,7 @@ Notes:
 | Reader model, statement categories (AI consent only) | Merchant names the dictionary does not know, redacted, in one batch | Amounts, dates, people's names known to Kassa, accounts |
 | Onboarding planner, after a statement import | Aggregates computed in code (monthly spending per category, money in per source with people as person_N, fees) | Transactions, statement text, accounts, merchants |
 
-Bank statements uploaded for import are not stored: the server reads them in memory for the preview, and only the rows the user imports are kept (as spending, through capture).
+Bank statements uploaded for import are not stored: the server reads them in memory for the preview, and only the rows the user imports are kept (as spending, through capture). What the statements showed (the aggregates in `profiles.money_history`: periods, monthly totals, money in per sender as printed, one-off payments) is kept with the profile for the agent, replaced by the next import, and erased with the account. The agent reads it with `get_money_history`; senders' names reach the planner as person_N.
 
 The planner's prompt and tool results are the subject of the I11 test (`apps/api/test/security/llm-redaction.test.ts`). The test runs a multi-tool turn on the seeded user, including a document's Reader output, and checks the planner prompt for personal data.
 

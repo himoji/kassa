@@ -43,6 +43,8 @@ export interface StatementFacts {
   holderNames: string[];
   /** The bank, as printed (for the preview label). */
   bank: string | null;
+  /** The period the statement says it covers (ISO dates), when its header states one. */
+  period: { from: string; to: string } | null;
 }
 
 const CURRENCY_WORDS: Array<[RegExp, string]> = [[/теңге|тенге|tenge/i, "KZT"], [/доллар|dollar/i, "USD"], [/евро|euro/i, "EUR"], [/форинт|forint/i, "HUF"], [/юан|yuan|renminbi/i, "CNY"]];
@@ -100,7 +102,43 @@ export function statementFacts(text: string): StatementFacts {
   for (const m of head.matchAll(/^\s*([A-Z][A-Z'-]+(?:\s+[A-Z][A-Z'-]+){1,3})\s*[|!]\s*Account\s*(?:#|number)/gmu)) holderNames.add(m[1]!.trim());
   // The bank named first (its letterhead), not one mentioned later in a transfer's details.
   const bank = BANKS.map(([re, name]) => ({ name, at: re.exec(head)?.index ?? Infinity })).sort((a, b) => a.at - b.at).find((b) => b.at < Infinity)?.name ?? null;
-  return { accountCurrency, cardLast4: masked, holderNames: [...holderNames].filter((n) => n.split(/\s+/).length >= 2 || n.length >= 4), bank };
+  return { accountCurrency, cardLast4: masked, period: statementPeriod(head), holderNames: [...holderNames].filter((n) => n.split(/\s+/).length >= 2 || n.length >= 4), bank };
+}
+
+const NUM_DATE = String.raw`\d{1,2}[./-]\d{1,2}[./-](?:\d{4}|\d{2})`;
+const EN_DATE = String.raw`(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}`;
+const PERIODS = [
+  // "За период: 15.10.2025 - 15.10.2026", "Period: 01.09.2026 – 30.09.2026", "с 01.09.2026 по 30.09.2026"
+  new RegExp(String.raw`(?:период|period|с|from)\s*:?\s*(${NUM_DATE})\s*(?:-|–|—|по|to|до)\s*(${NUM_DATE})`, "iu"),
+  // "15.10.25ж. бастап 15.10.26ж. дейінгі кезең"
+  new RegExp(String.raw`(${NUM_DATE})\s*ж?\.?\s*бастап\s*(${NUM_DATE})`, "iu"),
+  // "for April 14, 2026 to May 11, 2026", "Statement period: April 1, 2026 - April 30, 2026"
+  new RegExp(String.raw`(?:for|period:?|from)\s+(${EN_DATE})\s*(?:to|-|–|through)\s*(${EN_DATE})`, "i"),
+];
+
+/** The statement's own period from its header (day-first numeric dates, or English month names). */
+export function statementPeriod(head: string): { from: string; to: string } | null {
+  for (const re of PERIODS) {
+    const m = re.exec(head);
+    if (!m) continue;
+    const [a, b] = [toIso(m[1]!), toIso(m[2]!)];
+    if (a && b && a <= b) return { from: a, to: b };
+  }
+  return null;
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+function toIso(s: string): string | null {
+  const n = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})$/.exec(s.trim());
+  const pad = (x: number) => String(x).padStart(2, "0");
+  if (n) {
+    const y = n[3]!.length === 2 ? 2000 + Number(n[3]) : Number(n[3]);
+    const [d, mo] = [Number(n[1]), Number(n[2])];
+    return mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(mo)}-${pad(d)}` : null;
+  }
+  const e = /^([A-Za-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(s.trim());
+  const mo = e ? MONTHS.indexOf(e[1]!.slice(0, 3).toLowerCase()) + 1 : 0;
+  return e && mo ? `${e[3]}-${pad(mo)}-${pad(Number(e[2]))}` : null;
 }
 
 /** Lower-case Latin letters of a name token ("Нұрланқызы" → "nurlanqyzy"), for matching across scripts. */

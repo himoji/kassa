@@ -9,6 +9,7 @@ import { decodeText, FileFormatError, parseCsv, readOfx, readPdf, readXlsx, snif
 import { gridRecords, joinContinuation, type GridRecords } from "./grid.ts";
 import { buildHistory } from "./history.ts";
 import { lineRows } from "./lines.ts";
+import { historyLines } from "./notes.ts";
 import { cardKindFor, ImportFormatError, mapJson, mapRecordArrays, type MappedRecords, type RecordArray } from "./mapper.ts";
 import { redactStatement, statementRedactor } from "./redact.ts";
 import { statementFacts, type StatementFacts, type StatementRow } from "./statement.ts";
@@ -93,7 +94,7 @@ async function readOne(input: ImportFileInput, index: number, o: PreviewOptions)
   if (format === "csv" && !gridArrays([{ name: input.name, rows: parseCsv(decodeText(input.data)) }]).arrays.length) format = "text";
   const file: ImportFile = { name: input.name.slice(0, 200), format, via: "none", bank: null, accountCurrency: null, cardLast4: null, rows: 0, from: null, to: null, rejected: 0 };
   let mapped = emptyMapped();
-  let facts: StatementFacts = { accountCurrency: null, cardLast4: null, holderNames: [], bank: null };
+  let facts: StatementFacts = { accountCurrency: null, cardLast4: null, holderNames: [], bank: null, period: null };
   let missed = 0;
   let text = "";
 
@@ -156,7 +157,9 @@ async function readOne(input: ImportFileInput, index: number, o: PreviewOptions)
   }
 
   const days = mapped.rows.map((r) => r.occurredAt.slice(0, 10)).sort();
-  Object.assign(file, { bank: facts.bank, accountCurrency: facts.accountCurrency ?? mostCommonCurrency(mapped.rows), cardLast4: facts.cardLast4, rows: mapped.rows.length, from: days[0] ?? null, to: days.at(-1) ?? null });
+  // The statement's own period when its header states it (a quiet first week is still covered), else its rows' span.
+  const period = facts.period && days.length && facts.period.from <= days[0]! && facts.period.to >= days.at(-1)! ? facts.period : null;
+  Object.assign(file, { bank: facts.bank, accountCurrency: facts.accountCurrency ?? mostCommonCurrency(mapped.rows), cardLast4: facts.cardLast4, rows: mapped.rows.length, from: period?.from ?? days[0] ?? null, to: period?.to ?? days.at(-1) ?? null });
   if (facts.cardLast4) for (const r of mapped.rows) r.cardLast4 ??= facts.cardLast4;
   return { file, mapped, facts, missed };
 }
@@ -249,7 +252,8 @@ export async function previewImport(inputs: ImportFileInput[], o: PreviewOptions
       settledCurrency: r.settled?.currency ?? null,
     }));
 
-  const { history, suggestions } = await buildHistory(rows, { homeCurrency: o.homeCurrency, today: o.today, categoryOf: (r) => categoryOf.get(r) ?? "other" });
+  const statements = reads.flatMap((r, i) => (r.file.from && r.file.to ? [{ file: reads[i]!.mapped.rows[0]?.file ?? i, name: r.file.name, bank: r.file.bank, from: r.file.from, to: r.file.to }] : []));
+  const { history, suggestions } = await buildHistory(rows, { homeCurrency: o.homeCurrency, today: o.today, categoryOf: (r) => categoryOf.get(r) ?? "other", statements });
 
   // Cards: the files' own lists, plus each statement's card (last 4 digits only).
   const cards: ImportItems["cards"] = [...fileCards];
@@ -277,7 +281,7 @@ export async function previewImport(inputs: ImportFileInput[], o: PreviewOptions
     mappings,
     warnings,
     files: reads.map((r) => r.file),
-    history: rows.length ? history : null,
+    history: rows.length ? { ...history, notes: historyLines(history) } : null,
   };
 }
 

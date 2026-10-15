@@ -15,7 +15,7 @@ export const US_ACCOUNT = "4417 2290 1186";
 
 /** Kaspi Gold "үзінді көшірме" as pdf.js extracts it: date, signed ₸ amount, operation, details; foreign amount below. */
 export const KASPI_TEXT = `«Kaspi Bank» АҚ ${HOLDER_KK}, ЖСН ${IIN}, ${IBAN_KZ} шоты бар клиент екенін растайды:
-15.10.25ж. бастап 15.10.26ж. дейінгі кезеңге Kaspi Gold бойынша
+15.08.26ж. бастап 15.10.26ж. дейінгі кезеңге Kaspi Gold бойынша
 Карта нөмірі: *4821
 Шот нөмірі: ${IBAN_KZ}
 Шот валютасы: теңге

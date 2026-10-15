@@ -35,6 +35,7 @@ export const GetRoutesInput = z.object({
 });
 export const ForecastCoverageInput = z.object({});
 export const GetSpendingSummaryInput = z.object({});
+export const GetMoneyHistoryInput = z.object({});
 export const ReadDocumentInput = z.object({
   docId: z.string().min(1).max(64),
 });
