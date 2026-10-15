@@ -365,6 +365,15 @@
       }
     },
     {
+      "id": "route:/linked-accounts",
+      "kind": "route",
+      "label": "/linked-accounts",
+      "file": "src/app/linked-accounts.tsx",
+      "meta": {
+        "type": "page"
+      }
+    },
+    {
       "id": "route:/login",
       "kind": "route",
       "label": "/login",
@@ -710,6 +719,18 @@
       "file": "src/screens/lite/settings-screen.tsx"
     },
     {
+      "id": "screen:lite/shortcut-setup",
+      "kind": "screen",
+      "label": "@/screens/lite/shortcut-setup",
+      "file": "src/screens/lite/shortcut-setup.tsx"
+    },
+    {
+      "id": "screen:lite/updates-section",
+      "kind": "screen",
+      "label": "@/screens/lite/updates-section",
+      "file": "src/screens/lite/updates-section.tsx"
+    },
+    {
       "id": "screen:onboarding/draft-content",
       "kind": "screen",
       "label": "@/screens/onboarding/draft-content",
@@ -752,6 +773,12 @@
       "file": "src/screens/payees/add-payee-sheet.tsx"
     },
     {
+      "id": "screen:payees/find-school",
+      "kind": "screen",
+      "label": "@/screens/payees/find-school",
+      "file": "src/screens/payees/find-school.tsx"
+    },
+    {
       "id": "screen:payees/payee-detail-screen",
       "kind": "screen",
       "label": "@/screens/payees/payee-detail-screen",
@@ -762,6 +789,18 @@
       "kind": "screen",
       "label": "@/screens/payees/payees-screen",
       "file": "src/screens/payees/payees-screen.tsx"
+    },
+    {
+      "id": "screen:payees/recipient-fields",
+      "kind": "screen",
+      "label": "@/screens/payees/recipient-fields",
+      "file": "src/screens/payees/recipient-fields.tsx"
+    },
+    {
+      "id": "screen:payees/recipient-sheets",
+      "kind": "screen",
+      "label": "@/screens/payees/recipient-sheets",
+      "file": "src/screens/payees/recipient-sheets.tsx"
     },
     {
       "id": "screen:settings/backup-codes-section",
@@ -786,6 +825,12 @@
       "kind": "screen",
       "label": "@/screens/settings/data-screen",
       "file": "src/screens/settings/data-screen.tsx"
+    },
+    {
+      "id": "screen:settings/import-preview",
+      "kind": "screen",
+      "label": "@/screens/settings/import-preview",
+      "file": "src/screens/settings/import-preview.tsx"
     },
     {
       "id": "screen:settings/mandates-section",
@@ -860,6 +905,18 @@
       "file": "src/screens/wallet/add-money-screen.tsx"
     },
     {
+      "id": "screen:wallet/delivered-receipt",
+      "kind": "screen",
+      "label": "@/screens/wallet/delivered-receipt",
+      "file": "src/screens/wallet/delivered-receipt.tsx"
+    },
+    {
+      "id": "screen:wallet/linked-accounts-screen",
+      "kind": "screen",
+      "label": "@/screens/wallet/linked-accounts-screen",
+      "file": "src/screens/wallet/linked-accounts-screen.tsx"
+    },
+    {
       "id": "screen:wallet/send-screen",
       "kind": "screen",
       "label": "@/screens/wallet/send-screen",
@@ -924,6 +981,12 @@
       "kind": "store",
       "label": "@/stores/create-store",
       "file": "src/stores/create-store.ts"
+    },
+    {
+      "id": "store:last-send",
+      "kind": "store",
+      "label": "@/stores/last-send",
+      "file": "src/stores/last-send.ts"
     },
     {
       "id": "store:onboarding",
@@ -1032,6 +1095,12 @@
       "kind": "lib",
       "label": "@/lib/clipboard",
       "file": "src/lib/clipboard.ts"
+    },
+    {
+      "id": "lib:commit-chunks",
+      "kind": "lib",
+      "label": "@/lib/commit-chunks",
+      "file": "src/lib/commit-chunks.ts"
     },
     {
       "id": "lib:confirm",
@@ -1826,6 +1895,11 @@
       "kind": "renders"
     },
     {
+      "from": "route:/linked-accounts",
+      "to": "screen:wallet/linked-accounts-screen",
+      "kind": "renders"
+    },
+    {
       "from": "route:/login",
       "to": "screen:auth/login-screen",
       "kind": "renders"
@@ -2216,6 +2290,11 @@
       "kind": "imports"
     },
     {
+      "from": "screen:home/home-screen",
+      "to": "screen:payees/recipient-fields",
+      "kind": "imports"
+    },
+    {
       "from": "screen:insights/insights-screen",
       "to": "lib:format",
       "kind": "imports"
@@ -2277,16 +2356,46 @@
     },
     {
       "from": "screen:lite/settings-screen",
-      "to": "lib:clipboard",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:lite/settings-screen",
       "to": "lib:confirm",
       "kind": "imports"
     },
     {
       "from": "screen:lite/settings-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/shortcut-setup",
+      "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/shortcut-setup",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/shortcut-setup",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/shortcut-setup",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/updates-section",
+      "to": "lib:crash",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/updates-section",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:lite/updates-section",
       "to": "lib:i18n",
       "kind": "imports"
     },
@@ -2313,6 +2422,11 @@
     {
       "from": "screen:onboarding/onboarding-chat-screen",
       "to": "screen:chat/consent-card",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:onboarding/onboarding-chat-screen",
+      "to": "screen:settings/import-preview",
       "kind": "imports"
     },
     {
@@ -2406,6 +2520,26 @@
       "kind": "imports"
     },
     {
+      "from": "screen:payees/find-school",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/find-school",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/find-school",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/payee-detail-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
       "from": "screen:payees/payee-detail-screen",
       "to": "lib:format",
       "kind": "imports"
@@ -2422,6 +2556,21 @@
     },
     {
       "from": "screen:payees/payees-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/recipient-fields",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/recipient-sheets",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:payees/recipient-sheets",
       "to": "lib:i18n",
       "kind": "imports"
     },
@@ -2497,11 +2646,6 @@
     },
     {
       "from": "screen:settings/data-screen",
-      "to": "lib:format",
-      "kind": "imports"
-    },
-    {
-      "from": "screen:settings/data-screen",
       "to": "lib:haptics",
       "kind": "imports"
     },
@@ -2513,6 +2657,16 @@
     {
       "from": "screen:settings/data-screen",
       "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/import-preview",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:settings/import-preview",
+      "to": "lib:i18n",
       "kind": "imports"
     },
     {
@@ -2731,8 +2885,43 @@
       "kind": "imports"
     },
     {
+      "from": "screen:wallet/delivered-receipt",
+      "to": "lib:format",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/delivered-receipt",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/linked-accounts-screen",
+      "to": "lib:confirm",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/linked-accounts-screen",
+      "to": "lib:haptics",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/linked-accounts-screen",
+      "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/linked-accounts-screen",
+      "to": "lib:passkey-errors",
+      "kind": "imports"
+    },
+    {
       "from": "screen:wallet/send-screen",
       "to": "lib:clipboard",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/send-screen",
+      "to": "lib:format",
       "kind": "imports"
     },
     {
@@ -2743,6 +2932,11 @@
     {
       "from": "screen:wallet/send-screen",
       "to": "lib:i18n",
+      "kind": "imports"
+    },
+    {
+      "from": "screen:wallet/send-screen",
+      "to": "store:last-send",
       "kind": "imports"
     },
     {
@@ -2763,6 +2957,11 @@
     {
       "from": "store:create-store",
       "to": "lib:storage-adapter",
+      "kind": "imports"
+    },
+    {
+      "from": "store:last-send",
+      "to": "lib:storage",
       "kind": "imports"
     },
     {

@@ -61,6 +61,7 @@ flowchart LR
     nroute__handoff__paymentId_["/handoff/[paymentId]"]
     nroute__home["/home"]
     nroute__insights["/insights"]
+    nroute__linked_accounts["/linked-accounts"]
     nroute__login["/login"]
     nroute__onboarding_chat["/onboarding/chat"]
     nroute__onboarding_review["/onboarding/review"]
@@ -111,6 +112,8 @@ flowchart LR
     nscreen_lite_lock_screen["@/screens/lite/lock-screen"]
     nscreen_lite_pair_screen["@/screens/lite/pair-screen"]
     nscreen_lite_settings_screen["@/screens/lite/settings-screen"]
+    nscreen_lite_shortcut_setup["@/screens/lite/shortcut-setup"]
+    nscreen_lite_updates_section["@/screens/lite/updates-section"]
     nscreen_onboarding_draft_content["@/screens/onboarding/draft-content"]
     nscreen_onboarding_mandate_offer["@/screens/onboarding/mandate-offer"]
     nscreen_onboarding_onboarding_chat_screen["@/screens/onboarding/onboarding-chat-screen"]
@@ -118,12 +121,16 @@ flowchart LR
     nscreen_order_order_sheet_screen["@/screens/order/order-sheet-screen"]
     nscreen_order_order_sheet_view["@/screens/order/order-sheet-view"]
     nscreen_payees_add_payee_sheet["@/screens/payees/add-payee-sheet"]
+    nscreen_payees_find_school["@/screens/payees/find-school"]
     nscreen_payees_payee_detail_screen["@/screens/payees/payee-detail-screen"]
     nscreen_payees_payees_screen["@/screens/payees/payees-screen"]
+    nscreen_payees_recipient_fields["@/screens/payees/recipient-fields"]
+    nscreen_payees_recipient_sheets["@/screens/payees/recipient-sheets"]
     nscreen_settings_backup_codes_section["@/screens/settings/backup-codes-section"]
     nscreen_settings_budgets_section["@/screens/settings/budgets-section"]
     nscreen_settings_caps_section["@/screens/settings/caps-section"]
     nscreen_settings_data_screen["@/screens/settings/data-screen"]
+    nscreen_settings_import_preview["@/screens/settings/import-preview"]
     nscreen_settings_mandates_section["@/screens/settings/mandates-section"]
     nscreen_settings_pair_lite_screen["@/screens/settings/pair-lite-screen"]
     nscreen_settings_pending_changes["@/screens/settings/pending-changes"]
@@ -136,6 +143,8 @@ flowchart LR
     nscreen_transaction_transaction_detail_screen["@/screens/transaction/transaction-detail-screen"]
     nscreen_verify_verify_screen["@/screens/verify/verify-screen"]
     nscreen_wallet_add_money_screen["@/screens/wallet/add-money-screen"]
+    nscreen_wallet_delivered_receipt["@/screens/wallet/delivered-receipt"]
+    nscreen_wallet_linked_accounts_screen["@/screens/wallet/linked-accounts-screen"]
     nscreen_wallet_send_screen["@/screens/wallet/send-screen"]
   end
   subgraph hooks["hook"]
@@ -151,6 +160,7 @@ flowchart LR
     nstore_chat["@/stores/chat"]
     nstore_consent["@/stores/consent"]
     nstore_create_store["@/stores/create-store"]
+    nstore_last_send["@/stores/last-send"]
     nstore_onboarding["@/stores/onboarding"]
     nstore_review_prompt["@/stores/review-prompt"]
     nstore_savings_goal["@/stores/savings-goal"]
@@ -171,6 +181,7 @@ flowchart LR
     nlib_chat_cache["@/lib/chat-cache"]
     nlib_chat_cache_web["@/lib/chat-cache.web"]
     nlib_clipboard["@/lib/clipboard"]
+    nlib_commit_chunks["@/lib/commit-chunks"]
     nlib_confirm["@/lib/confirm"]
     nlib_consent["@/lib/consent"]
     nlib_countries["@/lib/countries"]
@@ -325,6 +336,7 @@ flowchart LR
   nroute__handoff__paymentId_ -->|renders| nscreen_handoff_handoff_screen
   nroute__home -->|renders| nscreen_home_home_screen
   nroute__insights -->|renders| nscreen_insights_insights_screen
+  nroute__linked_accounts -->|renders| nscreen_wallet_linked_accounts_screen
   nroute__login -->|renders| nscreen_auth_login_screen
   nroute__onboarding_chat -->|renders| nscreen_onboarding_onboarding_chat_screen
   nroute__onboarding_review -->|renders| nscreen_onboarding_onboarding_review_screen
@@ -403,6 +415,7 @@ flowchart LR
   nscreen_home_home_screen -->|imports| nlib_format
   nscreen_home_home_screen -->|imports| nlib_i18n
   nscreen_home_home_screen -->|imports| nscreen_insights_insights_screen
+  nscreen_home_home_screen -->|imports| nscreen_payees_recipient_fields
   nscreen_insights_insights_screen -->|imports| nlib_format
   nscreen_insights_insights_screen -->|imports| nlib_i18n
   nscreen_lite_activity_screen -->|imports| nlib_format
@@ -415,14 +428,21 @@ flowchart LR
   nscreen_lite_lite_root -->|imports| nstore_theme_mode
   nscreen_lite_lock_screen -->|imports| nlib_i18n
   nscreen_lite_pair_screen -->|imports| nlib_i18n
-  nscreen_lite_settings_screen -->|imports| nlib_clipboard
   nscreen_lite_settings_screen -->|imports| nlib_confirm
   nscreen_lite_settings_screen -->|imports| nlib_i18n
+  nscreen_lite_shortcut_setup -->|imports| nlib_clipboard
+  nscreen_lite_shortcut_setup -->|imports| nlib_format
+  nscreen_lite_shortcut_setup -->|imports| nlib_haptics
+  nscreen_lite_shortcut_setup -->|imports| nlib_i18n
+  nscreen_lite_updates_section -->|imports| nlib_crash
+  nscreen_lite_updates_section -->|imports| nlib_format
+  nscreen_lite_updates_section -->|imports| nlib_i18n
   nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_format
   nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_haptics
   nscreen_onboarding_onboarding_chat_screen -->|imports| nlib_i18n
   nscreen_onboarding_onboarding_chat_screen -->|imports| nscreen_chat_consent
   nscreen_onboarding_onboarding_chat_screen -->|imports| nscreen_chat_consent_card
+  nscreen_onboarding_onboarding_chat_screen -->|imports| nscreen_settings_import_preview
   nscreen_onboarding_onboarding_chat_screen -->|imports| nstore_chat
   nscreen_onboarding_onboarding_review_screen -->|imports| nlib_amount_slider
   nscreen_onboarding_onboarding_review_screen -->|imports| nlib_category_emoji
@@ -441,10 +461,17 @@ flowchart LR
   nscreen_payees_add_payee_sheet -->|imports| nlib_haptics
   nscreen_payees_add_payee_sheet -->|imports| nlib_i18n
   nscreen_payees_add_payee_sheet -->|imports| nlib_payee_form
+  nscreen_payees_find_school -->|imports| nlib_format
+  nscreen_payees_find_school -->|imports| nlib_haptics
+  nscreen_payees_find_school -->|imports| nlib_i18n
+  nscreen_payees_payee_detail_screen -->|imports| nlib_confirm
   nscreen_payees_payee_detail_screen -->|imports| nlib_format
   nscreen_payees_payee_detail_screen -->|imports| nlib_haptics
   nscreen_payees_payee_detail_screen -->|imports| nlib_i18n
   nscreen_payees_payees_screen -->|imports| nlib_i18n
+  nscreen_payees_recipient_fields -->|imports| nlib_i18n
+  nscreen_payees_recipient_sheets -->|imports| nlib_haptics
+  nscreen_payees_recipient_sheets -->|imports| nlib_i18n
   nscreen_settings_backup_codes_section -->|imports| nlib_clipboard
   nscreen_settings_backup_codes_section -->|imports| nlib_haptics
   nscreen_settings_backup_codes_section -->|imports| nlib_i18n
@@ -459,10 +486,11 @@ flowchart LR
   nscreen_settings_caps_section -->|imports| nlib_format
   nscreen_settings_caps_section -->|imports| nlib_i18n
   nscreen_settings_data_screen -->|imports| nlib_clipboard
-  nscreen_settings_data_screen -->|imports| nlib_format
   nscreen_settings_data_screen -->|imports| nlib_haptics
   nscreen_settings_data_screen -->|imports| nlib_i18n
   nscreen_settings_data_screen -->|imports| nlib_passkey_errors
+  nscreen_settings_import_preview -->|imports| nlib_format
+  nscreen_settings_import_preview -->|imports| nlib_i18n
   nscreen_settings_mandates_section -->|imports| nlib_categories
   nscreen_settings_mandates_section -->|imports| nlib_confirm
   nscreen_settings_mandates_section -->|imports| nlib_format
@@ -506,13 +534,22 @@ flowchart LR
   nscreen_wallet_add_money_screen -->|imports| nlib_haptics
   nscreen_wallet_add_money_screen -->|imports| nlib_i18n
   nscreen_wallet_add_money_screen -->|imports| nlib_uuid
+  nscreen_wallet_delivered_receipt -->|imports| nlib_format
+  nscreen_wallet_delivered_receipt -->|imports| nlib_i18n
+  nscreen_wallet_linked_accounts_screen -->|imports| nlib_confirm
+  nscreen_wallet_linked_accounts_screen -->|imports| nlib_haptics
+  nscreen_wallet_linked_accounts_screen -->|imports| nlib_i18n
+  nscreen_wallet_linked_accounts_screen -->|imports| nlib_passkey_errors
   nscreen_wallet_send_screen -->|imports| nlib_clipboard
+  nscreen_wallet_send_screen -->|imports| nlib_format
   nscreen_wallet_send_screen -->|imports| nlib_haptics
   nscreen_wallet_send_screen -->|imports| nlib_i18n
+  nscreen_wallet_send_screen -->|imports| nstore_last_send
   nservice_kassa_api -->|custom| nenv_EXPO_PUBLIC_API_URL
   nstore_chat -->|imports| nlib_uuid
   nstore_consent -->|imports| nlib_storage
   nstore_create_store -->|imports| nlib_storage_adapter
+  nstore_last_send -->|imports| nlib_storage
   nstore_onboarding -->|imports| nlib_storage
   nstore_review_prompt -->|imports| nlib_storage
   nstore_savings_goal -->|imports| nlib_storage
@@ -549,7 +586,7 @@ flowchart LR
 | `provider:ToastHost`       | ToastHost       | `src/providers.tsx` |
 | `provider:UiThemeProvider` | UiThemeProvider | `src/providers.tsx` |
 
-## route (45)
+## route (46)
 
 | id                              | label                | file                                  |
 | ------------------------------- | -------------------- | ------------------------------------- |
@@ -579,6 +616,7 @@ flowchart LR
 | `route:/handoff/[paymentId]`    | /handoff/[paymentId] | `src/app/handoff/[paymentId].tsx`     |
 | `route:/home`                   | /home                | `src/app/(tabs)/home/index.tsx`       |
 | `route:/insights`               | /insights            | `src/app/insights.tsx`                |
+| `route:/linked-accounts`        | /linked-accounts     | `src/app/linked-accounts.tsx`         |
 | `route:/login`                  | /login               | `src/app/(auth)/login.tsx`            |
 | `route:/onboarding/chat`        | /onboarding/chat     | `src/app/onboarding/chat.tsx`         |
 | `route:/onboarding/review`      | /onboarding/review   | `src/app/onboarding/review.tsx`       |
@@ -599,7 +637,7 @@ flowchart LR
 | `route:/welcome`                | /welcome             | `src/app/(auth)/welcome.tsx`          |
 | `route:onboarding/_layout`      | /onboarding (layout) | `src/app/onboarding/_layout.tsx`      |
 
-## screen (55)
+## screen (63)
 
 | id                                                 | label                                               | file                                                        |
 | -------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------- |
@@ -632,6 +670,8 @@ flowchart LR
 | `screen:lite/lock-screen`                          | @/screens/lite/lock-screen                          | `src/screens/lite/lock-screen.tsx`                          |
 | `screen:lite/pair-screen`                          | @/screens/lite/pair-screen                          | `src/screens/lite/pair-screen.tsx`                          |
 | `screen:lite/settings-screen`                      | @/screens/lite/settings-screen                      | `src/screens/lite/settings-screen.tsx`                      |
+| `screen:lite/shortcut-setup`                       | @/screens/lite/shortcut-setup                       | `src/screens/lite/shortcut-setup.tsx`                       |
+| `screen:lite/updates-section`                      | @/screens/lite/updates-section                      | `src/screens/lite/updates-section.tsx`                      |
 | `screen:onboarding/draft-content`                  | @/screens/onboarding/draft-content                  | `src/screens/onboarding/draft-content.ts`                   |
 | `screen:onboarding/mandate-offer`                  | @/screens/onboarding/mandate-offer                  | `src/screens/onboarding/mandate-offer.ts`                   |
 | `screen:onboarding/onboarding-chat-screen`         | @/screens/onboarding/onboarding-chat-screen         | `src/screens/onboarding/onboarding-chat-screen.tsx`         |
@@ -639,12 +679,16 @@ flowchart LR
 | `screen:order/order-sheet-screen`                  | @/screens/order/order-sheet-screen                  | `src/screens/order/order-sheet-screen.tsx`                  |
 | `screen:order/order-sheet-view`                    | @/screens/order/order-sheet-view                    | `src/screens/order/order-sheet-view.tsx`                    |
 | `screen:payees/add-payee-sheet`                    | @/screens/payees/add-payee-sheet                    | `src/screens/payees/add-payee-sheet.tsx`                    |
+| `screen:payees/find-school`                        | @/screens/payees/find-school                        | `src/screens/payees/find-school.tsx`                        |
 | `screen:payees/payee-detail-screen`                | @/screens/payees/payee-detail-screen                | `src/screens/payees/payee-detail-screen.tsx`                |
 | `screen:payees/payees-screen`                      | @/screens/payees/payees-screen                      | `src/screens/payees/payees-screen.tsx`                      |
+| `screen:payees/recipient-fields`                   | @/screens/payees/recipient-fields                   | `src/screens/payees/recipient-fields.tsx`                   |
+| `screen:payees/recipient-sheets`                   | @/screens/payees/recipient-sheets                   | `src/screens/payees/recipient-sheets.tsx`                   |
 | `screen:settings/backup-codes-section`             | @/screens/settings/backup-codes-section             | `src/screens/settings/backup-codes-section.tsx`             |
 | `screen:settings/budgets-section`                  | @/screens/settings/budgets-section                  | `src/screens/settings/budgets-section.tsx`                  |
 | `screen:settings/caps-section`                     | @/screens/settings/caps-section                     | `src/screens/settings/caps-section.tsx`                     |
 | `screen:settings/data-screen`                      | @/screens/settings/data-screen                      | `src/screens/settings/data-screen.tsx`                      |
+| `screen:settings/import-preview`                   | @/screens/settings/import-preview                   | `src/screens/settings/import-preview.tsx`                   |
 | `screen:settings/mandates-section`                 | @/screens/settings/mandates-section                 | `src/screens/settings/mandates-section.tsx`                 |
 | `screen:settings/pair-lite-screen`                 | @/screens/settings/pair-lite-screen                 | `src/screens/settings/pair-lite-screen.tsx`                 |
 | `screen:settings/pending-changes`                  | @/screens/settings/pending-changes                  | `src/screens/settings/pending-changes.tsx`                  |
@@ -657,6 +701,8 @@ flowchart LR
 | `screen:transaction/transaction-detail-screen`     | @/screens/transaction/transaction-detail-screen     | `src/screens/transaction/transaction-detail-screen.tsx`     |
 | `screen:verify/verify-screen`                      | @/screens/verify/verify-screen                      | `src/screens/verify/verify-screen.tsx`                      |
 | `screen:wallet/add-money-screen`                   | @/screens/wallet/add-money-screen                   | `src/screens/wallet/add-money-screen.tsx`                   |
+| `screen:wallet/delivered-receipt`                  | @/screens/wallet/delivered-receipt                  | `src/screens/wallet/delivered-receipt.tsx`                  |
+| `screen:wallet/linked-accounts-screen`             | @/screens/wallet/linked-accounts-screen             | `src/screens/wallet/linked-accounts-screen.tsx`             |
 | `screen:wallet/send-screen`                        | @/screens/wallet/send-screen                        | `src/screens/wallet/send-screen.tsx`                        |
 
 ## hook (7)
@@ -671,13 +717,14 @@ flowchart LR
 | `hook:use-require-backup-codes` | @/hooks/use-require-backup-codes | `src/hooks/use-require-backup-codes.ts` |
 | `hook:use-sign-out-cleanup`     | @/hooks/use-sign-out-cleanup     | `src/hooks/use-sign-out-cleanup.ts`     |
 
-## store (9)
+## store (10)
 
 | id                      | label                    | file                            |
 | ----------------------- | ------------------------ | ------------------------------- |
 | `store:chat`            | @/stores/chat            | `src/stores/chat.ts`            |
 | `store:consent`         | @/stores/consent         | `src/stores/consent.ts`         |
 | `store:create-store`    | @/stores/create-store    | `src/stores/create-store.ts`    |
+| `store:last-send`       | @/stores/last-send       | `src/stores/last-send.ts`       |
 | `store:onboarding`      | @/stores/onboarding      | `src/stores/onboarding.ts`      |
 | `store:review-prompt`   | @/stores/review-prompt   | `src/stores/review-prompt.ts`   |
 | `store:savings-goal`    | @/stores/savings-goal    | `src/stores/savings-goal.ts`    |
@@ -685,7 +732,7 @@ flowchart LR
 | `store:theme-mode`      | @/stores/theme-mode      | `src/stores/theme-mode.ts`      |
 | `store:zustand-storage` | @/stores/zustand-storage | `src/stores/zustand-storage.ts` |
 
-## lib (57)
+## lib (58)
 
 | id                       | label                    | file                            |
 | ------------------------ | ------------------------ | ------------------------------- |
@@ -701,6 +748,7 @@ flowchart LR
 | `lib:chat-cache`         | @/lib/chat-cache         | `src/lib/chat-cache.ts`         |
 | `lib:chat-cache.web`     | @/lib/chat-cache.web     | `src/lib/chat-cache.web.ts`     |
 | `lib:clipboard`          | @/lib/clipboard          | `src/lib/clipboard.ts`          |
+| `lib:commit-chunks`      | @/lib/commit-chunks      | `src/lib/commit-chunks.ts`      |
 | `lib:confirm`            | @/lib/confirm            | `src/lib/confirm.ts`            |
 | `lib:consent`            | @/lib/consent            | `src/lib/consent.ts`            |
 | `lib:countries`          | @/lib/countries          | `src/lib/countries.ts`          |

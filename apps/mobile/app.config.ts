@@ -29,13 +29,6 @@ const LITE_DROPPED_PLUGINS = new Set([
   "@stripe/stripe-react-native",
   "expo-dev-client",
 ]);
-/**
- * iCloud link of the "Kassa" Shortcut template that the lite Settings screen opens (Settings → Get the Shortcut;
- * the template contract is in docs/KASSALITE.md). Publish your own copy of the Shortcut (Shortcuts app → Share →
- * Copy iCloud Link) and put its link in KASSALITE_SHORTCUT_TEMPLATE_URL (or here). Empty: the screen shows the
- * manual steps.
- */
-const SHORTCUT_TEMPLATE_URL = process.env.KASSALITE_SHORTCUT_TEMPLATE_URL ?? "";
 
 const variantMeta: Record<Variant, { nameSuffix: string; idSuffix: string }> = {
   dev: { nameSuffix: " (Dev)", idSuffix: ".dev" },
@@ -266,7 +259,6 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
   },
   extra: {
     appVariant: VARIANT,
-    shortcutTemplateUrl: SHORTCUT_TEMPLATE_URL,
     eas: {
       // Empty until the buyer links their own EAS project (see `easProjectId` above).
       projectId: easProjectId,

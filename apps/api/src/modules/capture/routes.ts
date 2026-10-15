@@ -5,7 +5,7 @@ import type { FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { devices, notifications, payees, transactions } from "../../db/schema.ts";
+import { devices, notifications, payees, transactions, type ShortcutCheckJson } from "../../db/schema.ts";
 import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
@@ -21,10 +21,14 @@ import { ingestCapture, placeName, reconcileSettlement, SettlementError } from "
  * Triggers never approve (I6): these routes only log spending.
  */
 
-/** I13: `Authorization: Bearer <device token>`; devices.tokenHash = base64url(sha256(token)). */
+/**
+ * I13: `Authorization: Bearer <device token>`, or `?key=<device token>` so a hand-built Shortcut needs one pasted URL
+ * and no header (the server log redacts `key`, server.ts). devices.tokenHash = base64url(sha256(token)).
+ */
 async function shortcutDevice(req: FastifyRequest): Promise<{ userId: string; deviceId: string }> {
   const auth = req.headers.authorization;
-  const token = auth?.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const query = req.query as { key?: unknown } | undefined;
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7).trim() : typeof query?.key === "string" ? query.key.trim() : "";
   if (!token) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
   const rows = await getDb()
     .select({ userId: devices.userId, deviceId: devices.id })
@@ -36,20 +40,41 @@ async function shortcutDevice(req: FastifyRequest): Promise<{ userId: string; de
 }
 
 /**
- * A test run: the Shortcut started by hand or from KassaLite's "Test" button has no Transaction input, so iOS sends
- * the fields empty (`{merchant: "", amount: ""}`); the device's `lastUsedAt` moves, which is what KassaLite waits
- * for. `{test: true}` is KassaLite checking the server and token itself: same reply, `lastUsedAt` stays. Nothing is
- * logged either way.
+ * A body without an amount. Its merchant tells which:
+ *  - `{test: true}`: KassaLite checking the server and key itself. Nothing is recorded on the device.
+ *  - merchant empty too: the Shortcut or action ran without a Transaction input (by hand, a test). Recorded as TEST.
+ *  - a merchant but no amount: a tap reached Kassa through an automation whose Amount is not wired. Recorded as
+ *    INCOMPLETE, and the reply says so in the notification instead of a bare 400 the person never sees.
+ * Nothing is logged in any of them.
  */
-const ShortcutTest = PlaceHint.extend({
+const ShortcutNoAmount = PlaceHint.extend({
   test: z.literal(true).optional(),
-  merchant: z.literal("").optional(),
+  merchant: z.string().max(200).optional(),
   amount: z.literal("").optional(),
   card: z.string().max(200).optional(),
 });
-const ShortcutTestResponse = z.object({ status: z.literal("TEST"), nudge: z.string(), nudgeTitle: z.string(), nudgeBody: z.string() });
+const ShortcutNoAmountResponse = z.object({
+  status: z.enum(["TEST", "INCOMPLETE"]),
+  nudge: z.string(),
+  nudgeTitle: z.string(),
+  nudgeBody: z.string(),
+});
 const TEST_TITLE = "Kassa is connected";
 const TEST_BODY = "This Shortcut reaches your Kassa server. Your Apple Pay purchases will be logged.";
+const INCOMPLETE_TITLE = "Kassa got the tap, but no amount";
+const INCOMPLETE_BODY = "Open KassaLite → Settings: in the automation, set Amount to Shortcut Input › Amount.";
+
+const text = (v: unknown): boolean => typeof v === "string" ? v.trim() !== "" : typeof v === "number";
+
+/** Which Transaction fields the request carried (KassaLite's tap check names the missing ones). */
+function receivedFields(body: Record<string, unknown>): ShortcutCheckJson["fields"] {
+  return {
+    merchant: text(body.merchant) || text(body.text),
+    amount: text(body.amount) || text(body.text),
+    card: text(body.card),
+    place: text(body.street) || text(body.city) || text(body.country) || text(body.latitude),
+  };
+}
 
 /** The Shortcut shows `nudge` (or `nudgeTitle` + `nudgeBody`) as its notification (docs/SHORTCUT_SETUP.md); the rest is the usual capture result. */
 const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string(), nudgeTitle: z.string(), nudgeBody: z.string() });
@@ -73,10 +98,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         shortcutUsers.set(req, await shortcutDevice(req));
       },
       // The iOS Transaction fields, or a forwarded notification / SMS text (Android wallets, bank SMS for online
-      // and in-app Apple Pay): `text` marks the second shape. A body with neither is a test run (ShortcutTest).
+      // and in-app Apple Pay): `text` marks the second shape. A body without an amount: ShortcutNoAmount.
       schema: {
-        body: z.union([ForwardedNotification, ShortcutPayload, ShortcutTest]),
-        response: { 200: z.union([ShortcutCaptureResponse, ShortcutTestResponse]) },
+        body: z.union([ForwardedNotification, ShortcutPayload, ShortcutNoAmount]),
+        response: { 200: z.union([ShortcutCaptureResponse, ShortcutNoAmountResponse]) },
       },
     },
     async (req) => {
@@ -84,15 +109,27 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (!device) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
       const { userId, deviceId } = device;
       const body = req.body;
-      // `{test: true}` is KassaLite's own connection check, not the Shortcut: it does not count as used.
-      if (!("test" in body && body.test)) await getDb().update(devices).set({ lastUsedAt: clock.now() }).where(eq(devices.id, deviceId));
+      const via = req.headers["x-kassa-client"] === "log-payment-action" ? "action" : "shortcut";
+      const record = async (check: Omit<ShortcutCheckJson, "at" | "via" | "fields">) => {
+        const now = clock.now();
+        const lastCheck: ShortcutCheckJson = { at: now.toISOString(), via, fields: receivedFields(body as Record<string, unknown>), ...check };
+        await getDb().update(devices).set({ lastUsedAt: now, lastCheck }).where(eq(devices.id, deviceId));
+      };
+
       if (!("text" in body) && (body.amount === undefined || body.amount === "")) {
+        if ("test" in body && body.test) return { status: "TEST" as const, nudge: `${TEST_TITLE}\n${TEST_BODY}`, nudgeTitle: TEST_TITLE, nudgeBody: TEST_BODY };
+        if (text(body.merchant)) {
+          await record({ kind: "INCOMPLETE", status: null, transactionId: null });
+          return { status: "INCOMPLETE" as const, nudge: `${INCOMPLETE_TITLE}\n${INCOMPLETE_BODY}`, nudgeTitle: INCOMPLETE_TITLE, nudgeBody: INCOMPLETE_BODY };
+        }
+        await record({ kind: "TEST", status: null, transactionId: null });
         return { status: "TEST" as const, nudge: `${TEST_TITLE}\n${TEST_BODY}`, nudgeTitle: TEST_TITLE, nudgeBody: TEST_BODY };
       }
       const result = await ingestCapture(
         userId,
         "text" in body ? { source: "SHORTCUT", forwarded: body } : { source: "SHORTCUT", shortcut: body as ShortcutPayload },
       );
+      await record({ kind: "text" in body ? "FORWARDED" : "PAYMENT", status: result.status, transactionId: result.mergedIntoId ?? result.transactionId });
       const n = await captureNudge(userId, result);
       return { ...result, nudge: n.nudge, nudgeTitle: n.title, nudgeBody: n.body };
     },

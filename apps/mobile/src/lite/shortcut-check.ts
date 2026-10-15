@@ -1,83 +1,45 @@
 /**
- * KassaLite's Shortcut setup check (docs/KASSALITE.md, "Shortcut setup"): the setup checklist's progress, a
- * connection check from the app itself (POST /capture/shortcut `{test: true}` with the Shortcut's own token: the
- * server and the token work from this iPhone; nothing is logged) and the link that runs the installed Shortcut
- * once (`shortcuts://x-callback-url/run-shortcut`; without a Transaction input it sends empty fields, which the
- * server answers as a test run and records as the device's `lastUsedAt`).
+ * KassaLite's Apple Pay setup (docs/KASSALITE.md, "Shortcut setup"): the one link a hand-built Shortcut needs
+ * (endpoint with the key in it), the app's own connection check (POST /capture/shortcut `{test: true}` with that key;
+ * nothing is logged or recorded), the tap check that reads what the last request carried (GET /devices
+ * `lastCheck`), and the text for an AI assistant to walk someone through the automation.
  */
 import { storage } from "@/lib/storage";
 
 import { shortcutEndpointFor } from "./server-url";
 
-/** The name the Shortcut must have in the Shortcuts app (the template's name; the manual steps use it too). */
-export const SHORTCUT_NAME = "Kassa";
+const STARTED_KEY = "kassalite:shortcutSetup.v2";
+const OLD_PROGRESS_KEY = "kassalite:shortcutSetup.v1";
 
-/** Where Shortcuts sends the person back after the test run (KassaLite's Settings tab). */
-export const SHORTCUT_RETURN_URL = "kassalite://settings";
-
-/**
- * `manual`: the person chose the Shortcut that posts by itself (template or hand-built) over the "Log Payment in
- * Kassa" action, which is the default.
- */
-export type SetupProgress = {
-  copied: boolean;
-  added: boolean;
-  automated: boolean;
-  manual: boolean;
-};
-
-const PROGRESS_KEY = "kassalite:shortcutSetup.v1";
-export const EMPTY_PROGRESS: SetupProgress = {
-  copied: false,
-  added: false,
-  automated: false,
-  manual: false,
-};
-
-export async function loadSetupProgress(): Promise<SetupProgress> {
+/** The person tapped "Set up" on this iPhone: the card then waits for the first tap instead of offering setup. */
+export async function loadSetupStarted(): Promise<boolean> {
   try {
-    const raw = await storage.getItem(PROGRESS_KEY);
-    if (!raw) return EMPTY_PROGRESS;
-    const parsed = JSON.parse(raw) as Partial<SetupProgress>;
-    return {
-      copied: parsed.copied === true,
-      added: parsed.added === true,
-      automated: parsed.automated === true,
-      manual: parsed.manual === true,
-    };
+    return (await storage.getItem(STARTED_KEY)) === "1";
   } catch {
-    return EMPTY_PROGRESS;
+    return false;
   }
 }
 
-export async function saveSetupProgress(progress: SetupProgress): Promise<void> {
+export async function saveSetupStarted(): Promise<void> {
   try {
-    await storage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+    await storage.setItem(STARTED_KEY, "1");
   } catch {
-    // A lost checkmark only costs a tap; the connection status comes from the server.
+    // Only costs showing the setup button again; the server state decides the rest.
   }
 }
 
 export async function clearSetupProgress(): Promise<void> {
   try {
-    await storage.removeItem(PROGRESS_KEY);
+    await storage.removeItem(STARTED_KEY);
+    await storage.removeItem(OLD_PROGRESS_KEY);
   } catch {
     // ignore
   }
 }
 
-/** `shortcuts://x-callback-url/run-shortcut?name=Kassa&x-success=…`: runs the Shortcut once and comes back. */
-export function shortcutRunUrl(
-  name: string = SHORTCUT_NAME,
-  back: string = SHORTCUT_RETURN_URL
-): string {
-  const q = [
-    `name=${encodeURIComponent(name)}`,
-    `x-success=${encodeURIComponent(back)}`,
-    `x-cancel=${encodeURIComponent(back)}`,
-    `x-error=${encodeURIComponent(back)}`,
-  ].join("&");
-  return `shortcuts://x-callback-url/run-shortcut?${q}`;
+/** `https://<server>/api/capture/shortcut?key=<token>`: the only value a hand-built Shortcut needs pasted. */
+export function shortcutUrlWithKey(serverUrl: string, token: string): string {
+  return `${shortcutEndpointFor(serverUrl)}?key=${encodeURIComponent(token)}`;
 }
 
 export type ConnectionCheck = "ok" | "revoked" | "unreachable" | "failed";
@@ -112,9 +74,82 @@ export async function checkShortcutConnection(
   }
 }
 
-/** True when `after` is a later instant than `before` (null `before`: any `after`). */
-export function movedSince(after: string | null | undefined, before: string | null): boolean {
-  if (!after) return false;
-  if (!before) return true;
-  return Date.parse(after) > Date.parse(before);
+/** GET /devices `lastCheck`: what the last request from a Shortcut (or the action) carried. */
+export type TapCheck = {
+  at: string;
+  kind: "TEST" | "PAYMENT" | "FORWARDED" | "INCOMPLETE";
+  via: "action" | "shortcut";
+  fields: { merchant: boolean; amount: boolean; card: boolean; place: boolean };
+  status: "LOGGED" | "MERGED" | "IGNORED_INCOMING" | "UNPARSED" | null;
+  transactionId: string | null;
+};
+
+export type CheckLine = {
+  key: "reached" | "merchant" | "amount" | "card" | "place" | "logged";
+  /** ok: right; fix: wrong, must change; tip: missing but optional. */
+  state: "ok" | "fix" | "tip";
+};
+
+/**
+ * The tap check, line by line: did the tap reach Kassa, did the automation send each Transaction field, and did
+ * Kassa log it. Merchant, amount and the log are required; card and place are optional.
+ */
+export function tapCheckLines(check: TapCheck): CheckLine[] {
+  const forwarded = check.kind === "FORWARDED";
+  const lines: CheckLine[] = [
+    { key: "reached", state: "ok" },
+    { key: "merchant", state: check.fields.merchant ? "ok" : "fix" },
+    { key: "amount", state: check.fields.amount && check.status !== "UNPARSED" ? "ok" : "fix" },
+  ];
+  if (!forwarded) {
+    lines.push({ key: "card", state: check.fields.card ? "ok" : "tip" });
+    lines.push({ key: "place", state: check.fields.place ? "ok" : "tip" });
+  }
+  const logged =
+    check.status === "LOGGED" || check.status === "MERGED" || check.status === "IGNORED_INCOMING";
+  lines.push({ key: "logged", state: logged ? "ok" : "fix" });
+  return lines;
+}
+
+/** A real tap (not a test run) has reached Kassa and every required line is right. */
+export function tapCheckPassed(check: TapCheck): boolean {
+  return check.kind !== "TEST" && tapCheckLines(check).every((l) => l.state !== "fix");
+}
+
+/**
+ * Text to paste into an AI assistant (ChatGPT, Claude, Siri with Apple Intelligence…) so it walks the person through
+ * the automation. Never contains the key: the person pastes the copied link into Shortcuts themselves.
+ */
+export function aiSetupPrompt(viaAction: boolean): string {
+  const common = [
+    "Help me build an automation in the iPhone Shortcuts app (iOS 26). Walk me through it one tap at a time, tell me exactly what to tap, and wait for me to say “done” after each step.",
+    "",
+    "Goal: every time I pay with Apple Pay, the automation sends the payment to my Kassa budgeting app.",
+    "",
+    "1. Shortcuts app → Automation tab → + (top right) → Transaction.",
+    "2. Card: select all my Wallet cards. Leave Merchant and Category as Any. Choose “Run Immediately” and turn off “Notify When Run”. Tap Next → New Blank Automation.",
+  ];
+  const steps = viaAction
+    ? [
+        "3. Tap Add Action, search for “Log Payment in Kassa” (from the KassaLite app) and add it.",
+        "4. In that action: tap Merchant → Select Variable → Shortcut Input, then tap the Shortcut Input chip and choose Merchant. Do the same for Amount (choose Amount) and Card (choose Card or Pass). Leave Show Notification on.",
+        "5. Optional, so it also says where I paid: add “Get Current Location” above it, then set Street, City and Country in the Kassa action to the matching Current Location details.",
+        "6. Tap Done (top right).",
+        "",
+        "There is no URL or password to enter: the KassaLite app handles that.",
+      ]
+    : [
+        "3. Add the action “Get Contents of URL”. Tap its URL field and paste (I have the link on my clipboard from KassaLite; do not ask me to type or share it, it contains a private key).",
+        "4. Tap the › arrow on that action: set Method to POST and Request Body to JSON. Add three Text fields: key “merchant” = Shortcut Input › Merchant, key “amount” = Shortcut Input › Amount, key “card” = Shortcut Input › Card or Pass. (To pick these: tap the value, Select Variable → Shortcut Input, then tap the chip and choose the detail.)",
+        "5. Add “Get Dictionary Value”: Get Value for key “nudge” in Contents of URL.",
+        "6. Add “Show Notification” and set its text to Dictionary Value.",
+        "7. Optional, so it also says where I paid: add “Get Current Location” at the top and add Text fields “street”, “city”, “country” to the JSON body from Current Location.",
+        "8. Tap Done (top right).",
+      ];
+  return [
+    ...common,
+    ...steps,
+    "",
+    "Then I pay once with Apple Pay and open KassaLite → Settings: it checks that every field arrived. If it reports a problem, help me fix that field.",
+  ].join("\n");
 }
