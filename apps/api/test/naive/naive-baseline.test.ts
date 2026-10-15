@@ -1,8 +1,8 @@
 /*
- * Naive baseline (spec §19). Each attack A1..A8 is run as the agent's RAW intent through a stub rail with no rules,
- * payments verification, Reader, screening, caps, cooling or webhook checks. Every case must pay: that is the
- * baseline the guarded counterparts test/attacks/A1..A8 are measured against. No DB, no HTTP.
- * Evidence is written only with WRITE_EVIDENCE=1 (root `bun run evidence:attacks`).
+ * Naive baseline (spec §19). Each attack (A1..A8, and the real-world incidents A10..A17) is run as the agent's RAW
+ * intent through a stub rail with no rules, payments verification, Reader, screening, caps, cooling or webhook checks.
+ * Every case must pay: that is the baseline the guarded counterparts in test/attacks/ are measured against. No DB, no
+ * HTTP. Evidence is written only with WRITE_EVIDENCE=1 (root `bun run evidence:attacks`).
  */
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -15,27 +15,34 @@ const intents = naiveIntents({ perPaymentMinor: DEFAULT_CAPS.perPaymentMinor });
 const results: Partial<Record<AttackId, NaiveResult & { intent: RawIntent }>> = {};
 
 describe("naive baseline: the raw intent of every attack pays through a stub rail", () => {
+  it("covers every attack in the suite: A1..A8 and the real-world incidents A10..A17", () => {
+    expect(ids).toEqual(["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A10", "A11", "A12", "A13", "A14", "A15", "A16", "A17"]);
+  });
+
   it.each(ids)("%s pays exactly the intended payment", async (id) => {
     const intent = intents[id];
     const rail = new StubRail();
     const r = await naiveExecute(intent, rail);
     results[id] = r;
     expect(r.paid).toBe(true);
-    expect(rail.calls).toEqual([{ payeeName: intent.payeeName, account: intent.account, amountMinor: intent.amountMinor, currency: intent.currency }]);
+    const one = { payeeName: intent.payeeName, account: intent.account, amountMinor: intent.amountMinor, currency: intent.currency };
+    expect(rail.calls).toEqual(Array(intent.repeat ?? 1).fill(one));
   });
 
-  it("8 of 8 raw intents pay", () => {
+  it(`${ids.length} of ${ids.length} raw intents pay`, () => {
     expect(ids.map((id) => results[id]?.paid === true)).toEqual(ids.map(() => true));
-    expect(ids.filter((id) => results[id]?.paid)).toHaveLength(8);
+    expect(ids.filter((id) => results[id]?.paid)).toHaveLength(16);
   });
 
   it("the harness imports nothing from the guarded modules (rules, payments, reader, screening, webhooks, users)", async () => {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync(new URL("./harness.ts", import.meta.url), "utf8");
-    const specifiers = [...src.matchAll(/(?:from\s+|import\s*\(\s*|import\s+)["']([^"']+)["']/g)].map((m) => m[1]!);
-    expect(specifiers.length).toBeGreaterThan(0);
-    const banned = specifiers.filter((s) => /src\/modules\/(rules|payments|reader|screening|webhooks|users)(\/|\.ts$|$)/.test(s));
-    expect(banned).toEqual([]);
+    for (const file of ["./harness.ts", "../helpers/incidents.ts"]) {
+      const src = readFileSync(new URL(file, import.meta.url), "utf8");
+      const specifiers = [...src.matchAll(/(?:from\s+|import\s*\(\s*|import\s+)["']([^"']+)["']/g)].map((m) => m[1]!);
+      expect(specifiers.length).toBeGreaterThan(0);
+      const banned = specifiers.filter((s) => /src\/modules\/(rules|payments|reader|screening|webhooks|users)(\/|\.ts$|$)/.test(s));
+      expect(banned).toEqual([]);
+    }
   });
 });
 
