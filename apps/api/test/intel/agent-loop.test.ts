@@ -52,7 +52,7 @@ describe("agent tool surface (I1)", () => {
       ].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
-    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary"]);
+    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary", "get_money_history"]);
   });
 
   it("agent/** never imports payments, rails or ledger/internal (static import scan)", () => {
@@ -63,6 +63,58 @@ describe("agent tool surface (I1)", () => {
       const specs = [...src.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)].map((m) => m[1]!);
       for (const s of specs) expect(s, `${f} imports ${s}`).not.toMatch(/(^|\/)(payments|rails)(\/|$)|ledger\/internal/);
     }
+  });
+});
+
+describe("get_money_history (what the statements showed)", () => {
+  it("gives the planner the history computed by code, with the people who send money as placeholders", async () => {
+    const { ImportHistory } = await import("@kassa/shared");
+    const moneyHistory = ImportHistory.parse({
+      homeCurrency: "KZT",
+      from: "2025-11-01",
+      to: "2026-10-31",
+      months: 12,
+      counts: { rows: 120, spending: 100, incoming: 6, ownTransfers: 2, refunds: 0 },
+      spendingByCategory: [{ category: "groceries", monthlyHomeMinor: 8000000, totalHomeMinor: 96000000, count: 48 }],
+      monthlySpendingHomeMinor: 10000000,
+      monthlyIncomeHomeMinor: 9000000,
+      incomes: [
+        {
+          source: "Нұрлан Сейтқали",
+          amount: { amountMinor: 8300000, currency: "KZT" },
+          cadence: "MONTHLY",
+          count: 6,
+          lastDate: "2026-09-10",
+          regularity: "irregular",
+          monthsReceived: 5,
+          monthsCovered: 12,
+          minMonthlyMinor: 20000000,
+          maxMonthlyMinor: 20000000,
+          medianMonthlyMinor: 20000000,
+          trend: "flat",
+          stopped: false,
+          largest: { date: "2026-08-13", amountMinor: 100000000, paidFor: "DORM DEPOSIT" },
+        },
+      ],
+      recurring: [],
+      fees: { totalHomeMinor: 0, count: 0, fxMarkupBps: null, fxSamples: 0, fxCostHomeMinor: 0 },
+      topMerchants: [],
+      currencies: [],
+    });
+    const { ports } = fakePorts();
+    const base = ports.profile;
+    ports.profile = async () => ({ ...(await base()), moneyHistory });
+    const model = replayModel(turn([{ toolCalls: [{ toolName: "get_money_history", input: {} }] }, { text: "person_1 sends money in some months; I plan with the average." }])) as unknown as MockLanguageModelV4;
+    const h = await startTurn({ ports, store: memoryStore(), text: "Will I have enough in December?", mode: "LIVE", model, emit: () => undefined });
+    await drain(h.uiStream);
+    await h.done;
+    const seen = JSON.stringify(model.doStreamCalls.map((c) => c.prompt));
+    expect(seen).toContain("plannedMonthly");
+    expect(seen).toContain("8300000");
+    expect(seen).toContain("came in 5 of 12 months");
+    const at = seen.indexOf("Нұрлан");
+    expect(at === -1 ? "" : seen.slice(Math.max(0, at - 120), at + 60)).toBe("");
+    expect(seen).toMatch(/person_\d/);
   });
 });
 
