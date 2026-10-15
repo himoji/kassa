@@ -19,7 +19,9 @@ import { qrRoutes } from "./routes/qr.ts";
 import { ChargeLog, shopRoutes } from "./routes/shop.ts";
 import { shopOrderRoutes } from "./routes/shopOrders.ts";
 import { stageRoutes } from "./routes/stage.ts";
+import { schoolRoutes } from "./routes/schools.ts";
 import { supplierPortalRoutes } from "./routes/supplierPortal.ts";
+import { SchoolBook } from "./school/schools.ts";
 import { SupplierBook } from "./supplier/book.ts";
 import { StageApi } from "./stage/client.ts";
 import { FakeIssuerClient, type Issuer, StripeTestHelperClient } from "./shop/issuer.ts";
@@ -53,6 +55,8 @@ export interface MockWorld {
   shop: ShopOrderBook;
   /** (M5) Suppliers' purchase orders (portal, invoices). */
   suppliers: SupplierBook;
+  /** School payment portals: tuition invoices, paid from the mock bank's payouts. */
+  schools: SchoolBook;
   webhooks: WebhookSink & { outbox?: OutboxEntry[] };
   clock: Clock;
 }
@@ -108,6 +112,8 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
   const charges = new ChargeLog();
   const shop = new ShopOrderBook({ issuer, clock, log: charges, webhooks, qr, kassaAppUrl: config.kassaAppUrl, stepMs: config.shopStepMs, autopilot: config.shopAutopilot });
   const suppliers = new SupplierBook({ clock, webhooks, publicUrl: config.publicUrl });
+  const schools = new SchoolBook({ clock, webhooks });
+  bank.onPayout((t, account) => schools.onPayout(t, account));
   const docs = await renderDocuments();
 
   app.setErrorHandler((err: unknown, req, reply) => {
@@ -152,6 +158,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
         charges.reset();
         shop.reset();
         suppliers.reset();
+        schools.reset();
         return { ok: true, simulated: true };
       });
 
@@ -174,6 +181,8 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
           ["Tuition invoice, swapped account (PDF)", "/mock/payees/university/invoice.pdf?variant=swapped-account"],
           ["Rent invoice (PDF)", "/mock/payees/landlord/invoice.pdf"],
           ["Insurance invoice (PDF)", "/mock/payees/insurer/invoice.pdf"],
+          ["School directory (JSON)", "/mock/schools"],
+          ["University in Budapest payment portal (Dana)", "/mock/schools/budapest/portal?studentId=KZ26-0417"],
           ["Inbox (JSON)", "/mock/inbox"],
           ["Mock bank transfers (JSON)", "/mock/bank/transfers"],
           ["Webhook outbox (JSON)", "/mock/outbox"],
@@ -202,6 +211,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
       shopOrderRoutes(r, { config, book: shop });
       documentRoutes(r, { docs, publicUrl: config.publicUrl });
       qrRoutes(r, qr);
+      schoolRoutes(r, { book: schools });
       // (M5) own context: its raw-body JSON parser (HMAC check of Kassa's signed POs) stays local.
       await r.register(async (s) => supplierPortalRoutes(s, { config, book: suppliers, clock }));
       eventRoutes(r, { clock, webhooks, bank, defaultProfileId: MOCK_BANK_PROFILE_ID });
@@ -225,6 +235,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
             charges.reset();
             shop.reset();
             suppliers.reset();
+            schools.reset();
           },
           syncClock: () => {
             if (clock instanceof DemoClock) clock.invalidate();
@@ -244,5 +255,5 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     app.addHook("onClose", async () => clearInterval(timer));
   }
 
-  return { app, bank, qr, shop, suppliers, webhooks, clock };
+  return { app, bank, qr, shop, suppliers, schools, webhooks, clock };
 }

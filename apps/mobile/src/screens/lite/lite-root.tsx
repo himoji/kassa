@@ -14,7 +14,7 @@ import { registerApproveInWebApp } from "@/lite/approve";
 import { applyServerUrl, loadServerUrl } from "@/lite/server-url";
 import { useNotificationLinks } from "@/lite/notifier";
 import { useAppLock } from "@/lite/use-app-lock";
-import { inlineTitleOptions } from "@/navigation/stack-options";
+import { inlineTitleOptions, largeTitleOptions } from "@/navigation/stack-options";
 import { useSessionStore } from "@/stores/session";
 import { hydrateThemeMode } from "@/stores/theme-mode";
 
@@ -78,6 +78,57 @@ function LiteNavigator() {
               sheetGrabberVisible: true,
               sheetCornerRadius: 24,
             }}
+          />
+          {/* The full app's screens (docs/KASSALITE.md "What is in it"); approving and other passkey steps open the
+              web app (428 approveInWebApp). */}
+          <Stack.Screen
+            name="payees/index"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("payees:title") }}
+          />
+          <Stack.Screen
+            name="payees/[id]"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("payees:detailTitle") }}
+          />
+          <Stack.Screen
+            name="bills/index"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("bills:title") }}
+          />
+          <Stack.Screen
+            name="send"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("wallet:sendTitle") }}
+          />
+          <Stack.Screen
+            name="add-money"
+            options={{
+              ...inlineTitleOptions,
+              headerShown: true,
+              presentation: "modal",
+              title: t("wallet:addTitle"),
+            }}
+          />
+          <Stack.Screen
+            name="cards"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("cards:title") }}
+          />
+          <Stack.Screen
+            name="credit-record"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("credit:title") }}
+          />
+          <Stack.Screen
+            name="verify/[id]"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("credit:verifyTitle") }}
+          />
+          <Stack.Screen
+            name="data"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("settings:data.title") }}
+          />
+          <Stack.Screen
+            name="linked-accounts"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("wallet:linked.title") }}
+          />
+          <Stack.Screen
+            name="insights"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("insights:title") }}
           />
           <Stack.Screen
             name="purchase/[id]"

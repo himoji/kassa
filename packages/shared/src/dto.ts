@@ -295,6 +295,8 @@ export const PayeeDto = z.object({
   category: RecipientCategory,
   /** (added 2026-10-15) What this category asks for (student ID, customer number…); null when none was given. */
   details: RecipientDetails.nullable(),
+  /** (added 2026-10-15) A tuition recipient added from the school directory: its portal page for this student. */
+  portalLink: z.string().url().nullable().optional(),
 });
 export type PayeeDto = z.infer<typeof PayeeDto>;
 
@@ -329,6 +331,10 @@ export const CreateObligationRequest = z.object({
   reference: z.string().trim().min(1).max(140).optional(),
 });
 export type CreateObligationRequest = z.infer<typeof CreateObligationRequest>;
+
+/** POST /obligations/:id/pay (added 2026-10-15): pay a bill now instead of waiting for it to fall due. */
+export const PayObligationRequest = z.object({ fundingSourceId: Uuid.optional() });
+export type PayObligationRequest = z.infer<typeof PayObligationRequest>;
 
 export const MandateDto = z.object({
   id: Uuid,

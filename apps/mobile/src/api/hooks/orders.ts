@@ -13,6 +13,8 @@ import {
 } from "@kassa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { isLiteBuild } from "@/lite/variant";
+
 import { api } from "../client";
 import { KassaApiError } from "../errors";
 import { keys, moneyKeys } from "../keys";
@@ -65,7 +67,15 @@ export function useApproveOrder(proposalId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (view: OrderView) => {
-      if (!view.webauthnOptions || !verifyOrderIntegrity(view)) throw new OrderIntegrityError();
+      if (!verifyOrderIntegrity(view)) throw new OrderIntegrityError();
+      // KassaLite has no passkey: ask anyway, so the server's 428 opens this order in the web app (lite/approve.ts).
+      if (isLiteBuild()) {
+        return api.request(`/orders/${encodeURIComponent(proposalId)}/approve`, {
+          json: {},
+          schema: ApproveOrderResponse,
+        });
+      }
+      if (!view.webauthnOptions) throw new OrderIntegrityError();
       const assertion: AuthenticationResponseJSON = await signPasskeyChallenge(
         view.webauthnOptions
       );

@@ -32,3 +32,5 @@ export * from "./recipient.ts";
 export * from "./fundingSource.ts";
 // spending insights and purchase detail
 export * from "./insightsDto.ts";
+// school payment portals (Find your school)
+export * from "./school.ts";
