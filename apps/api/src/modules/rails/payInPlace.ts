@@ -67,7 +67,7 @@ export async function onIntentSucceeded(intentId: string): Promise<boolean> {
     paymentId: p.id,
     approvalId: p.approvalId,
     now: clock.now(),
-    payee: { id: payee.id, name: payee.name, kind: payee.kind, account: decryptAccount(payee.userId, payee.accountEnc) },
+    payee: { id: payee.id, name: payee.name, kind: payee.kind, account: decryptAccount(payee.userId, payee.accountEnc, payee.id) },
   });
   await updatePaymentStatus(p.id, "PROCESSING", { source: "pay-in-place", details: { card: card.details, intentId } });
   return true;
