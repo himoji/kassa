@@ -1,6 +1,6 @@
 # Statement import and "Kassa learns your history": plan
 
-Date: 2026-10-15. Status: in progress (this file is updated as items land).
+Date: 2026-10-15. Status: done for the competition build (2026-10-15). Open follow-ups are listed under Handoff.
 
 ## Why
 
@@ -81,11 +81,10 @@ file (PDF | CSV | TSV | XLSX | XLS | JSON | TXT)
 | S7 | AI fallback extraction with evidence checks; batched merchant categories | `dataport/ai.ts` | Done (no live key in the build container: evaluated with a mock model in tests and Haiku stand-ins, see Evaluation) |
 | S8 | History insights: incomes, recurring bills, budgets, cards, FX fees | `dataport/history.ts` | Done |
 | S9 | API: `POST /import/file` (multipart, several files), commit takes incomes and settled amounts (fee x-ray) | `dataport/routes.ts`, `service.ts` | Done (`POST /import/file`, up to 6 files, 10 MB each) |
-| S10 | App and KassaLite: file picker on web and native (guarded for builds without the module), preview with "What Kassa learned" | `apps/mobile/src/screens/settings/data-screen.tsx` | |
-| S11 | Onboarding: the agent offers statement upload first, the draft is prefilled from history, the model gets aggregates only | `onboarding/service.ts`, onboarding chat screen | |
-| S12 | Tests on synthetic statements in the three layouts (fictitious people and accounts); real statements are run locally only and never committed | `apps/api/test/dataport/` | Done for the API (`test/dataport/statements.test.ts`, 19 tests) |
-| S13 | Docs: README, SECURITY (new risks), PRIVACY (statement processing), TESTS | `docs/` | |
-
+| S10 | App and KassaLite: file picker on web and native (guarded for builds without the module), preview with "What Kassa learned" | `apps/mobile/src/screens/settings/data-screen.tsx` | Done: web file input and expo-document-picker on native (guarded with `requireOptionalNativeModule`), chunked commits with progress; shared preview `import-preview.tsx` |
+| S11 | Onboarding: the agent offers statement upload first, the draft is prefilled from history, the model gets aggregates only | `onboarding/service.ts`, onboarding chat screen | Done: `POST /onboarding/history`; the agent offers "Upload statements" right after the home currency; paperclip in the chat |
+| S12 | Tests on synthetic statements in the three layouts (fictitious people and accounts); real statements are run locally only and never committed | `apps/api/test/dataport/` | Done: `statements.test.ts` (19), `import-file.test.ts` (4), mobile `commit-chunks.test.ts` (2) |
+| S13 | Docs: README, SECURITY (new risks), PRIVACY (statement processing), TESTS | `docs/` | Done: README, SECURITY §5.3 (D1–D6) and R34–R35, PRIVACY §5 |
 ## Evaluation
 
 The three real statements (Kaspi Gold kk, a Kazakh card bank ru, a US bank en) are run through `POST /import/file`
@@ -106,11 +105,36 @@ Time: about 2.7 s for all three files. Known gaps: about 45 % of merchants fall 
 call (the build container has no model key); the FX markup needs live rates (the container cannot reach the rate
 sources, so the static example table is used and the markup is withheld rather than guessed).
 
+### The AI fallback on the real statements (Haiku as the Reader model)
+
+The build container has no model key, so Claude Haiku stood in for the Reader model: it was given exactly what the app
+sends (the redacted chunk and `STATEMENT_INSTRUCTIONS`) and its rows were put through the app's `verifyRow`.
+
+| Chunk | Rows from the model | Passed the evidence check | Agree with the deterministic reader |
+|---|---|---|---|
+| Kaspi, chunks 1–2 | 402 | 401 | 401 of 403 |
+| US bank, chunks 1–2 | 158 | 158 | 158 of 158 |
+| Kazakh card bank, chunks 1–2 | 199 | 198 | (table layout: no line baseline) |
+
+Redaction scan of everything that would reach a model, on all three real statements: 0 IBANs, 0 national ids,
+0 account or full card numbers, 0 holder names or addresses (one leak, the holder's surname in a relative's feminine
+form, was found and fixed before this count).
+
+### In the app (web, Chromium, local stack)
+
+A fresh user in onboarding taps the paperclip and picks the three real statements: the preview reads 1,501 rows in
+about 3 s; "Use this history" imports 1,130 spending rows in chunks of 100 with progress, and the chat answers with
+the code-written summary (money from home per parent, spending per category, fees, own transfers left out) and a
+prefilled draft, in about 10 s.
+
 ## Handoff (what is left)
 
-- S10: app and KassaLite file picker and the richer preview (`data-screen.tsx` is shared by both apps).
-- S11: onboarding asks for statements; the server merges the history into the draft; the model sees aggregates only.
-- S13: docs.
-- Evaluation with Haiku stand-ins for the AI path (redacted chunks of the real statements → model rows → `verifyRow`).
-- A parallel branch recreates real-world agent money attacks (Freysa, Grok/Bankrbot, AIXBT, memory injection) as
-  A10+ in `apps/api/test/attacks/`; merge it after this work.
+- Categories without a model key: about 45 % of merchants are "other". With a key, one batched Reader call names them.
+  More dictionary keywords (Kazakh and Hungarian chains) would help the offline case.
+- FX markup on history needs live rates; the build container cannot reach the rate sources. Check the "your card
+  charged about X % over the mid rate" line on a machine with network access.
+- The onboarding REPLAY recording does not include the "Upload statements" question; the paperclip works in REPLAY.
+- `MOBILE BANK` style incomes (transfers whose sender the bank does not name) cannot be told from own transfers unless
+  both statements are uploaded; the user can switch them off in the preview or the draft.
+- A real KassaLite build needs `bun run lite:ios` again for the file picker (new native module); an older build gets a
+  message instead of the picker.

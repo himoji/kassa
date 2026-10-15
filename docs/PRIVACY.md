@@ -90,6 +90,11 @@ Notes:
 | Planner model | The user's chat text after redaction. Tool results after redaction: balances, budgets, obligations, payee facts, route options, forecast | Real names, IBANs, card numbers, emails, phone numbers, real payee IDs, raw documents, the database |
 | Reader model | The raw text (or image) of a document or message the user asked Kassa to read, and the extraction instructions | Tools, other users' data, the ledger, keys. The output is checked against the source by the server |
 | Reader model, payment note (`advice/enrich.ts`, AI consent only) | After a Shortcut or wallet tap: the merchant text as printed (quoted as data), the city, street and country if sent, the amount, category, and the budget and spending figures the server computed | Names, card numbers, coordinates, other purchases' merchants, tools. A place guess the model is unsure of is dropped; a tip that quotes a number not in the figures is dropped |
+| Reader model, bank statement fallback (`dataport/ai.ts`, AI consent only, only when the deterministic readers cannot follow a layout) | The statement text after statement redaction (`dataport/redact.ts`): dates, amounts, merchants and the names of other people as printed | The holder's name and its forms, IBANs, card and account numbers, national ids, reference codes, addresses in the header. Rows it returns that are not in the statement are dropped |
+| Reader model, statement categories (AI consent only) | Merchant names the dictionary does not know, redacted, in one batch | Amounts, dates, people's names known to Kassa, accounts |
+| Onboarding planner, after a statement import | Aggregates computed in code (monthly spending per category, money in per source with people as person_N, fees) | Transactions, statement text, accounts, merchants |
+
+Bank statements uploaded for import are not stored: the server reads them in memory for the preview, and only the rows the user imports are kept (as spending, through capture).
 
 The planner's prompt and tool results are the subject of the I11 test (`apps/api/test/security/llm-redaction.test.ts`). The test runs a multi-tool turn on the seeded user, including a document's Reader output, and checks the planner prompt for personal data.
 
