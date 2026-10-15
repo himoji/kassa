@@ -36,7 +36,16 @@ KassaLite has no sign-in screen. You pair it from the full Kassa app or the web 
 
 The Shortcut is the capture path: it must be set up once. The reference is [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md); KassaLite mirrors its steps in **Settings → Apple Pay Shortcut** as a checklist with a status card on top.
 
-**Without a template link** (the default):
+**With the Kassa action** (offered first; needs a KassaLite built with it, see below):
+
+1. **Add the Kassa action to a Wallet automation**: Automation → + → Transaction → your cards → Run Immediately → New Blank Automation → **Log Payment in Kassa**, with Merchant, Amount and Card set to Shortcut Input › Merchant, › Amount, › Card or Pass (Street, City, Country optional). Nothing to copy or paste.
+2. **Check connection**: as below; the card turns green with the first purchase.
+
+**Set it up by hand instead** switches to the Shortcut that posts by itself (the two variants below); **Use the Kassa action instead** switches back.
+
+**Log Payment in Kassa** is an App Intent compiled into the app (`apps/mobile/plugins/log-payment-intent/LogPaymentIntent.swift`, added to the app target by `plugins/with-log-payment-intent.js` for `APP_VARIANT=lite`). App Intents need no entitlement, so a free Personal Team signs it. It POSTs `{merchant, amount, card, street?, city?, country?}` to `<server>/api/capture/shortcut` with the Shortcut's key (empty amount: a test run), posts the reply's `nudgeTitle` / `nudgeBody` as a local notification when KassaLite may notify (parameter **Show Notification**, on by default) and returns `nudge` as its result. It runs in the background without opening KassaLite. Server and key come from a Keychain copy the app writes at launch, after pairing and after a server change (`src/lite/intent-config.ts`, removed on sign out): unlike the session's key item it is *after first unlock, this device only*, because the Transaction automation can run while the iPhone is still locked after an Apple Pay tap — the same exposure as the key a hand-built Shortcut stores in Shortcuts. The action appears only in a KassaLite built (in Xcode) after it was added; an over-the-air update cannot add it, which is why the checklist keeps the hand-built path one tap away.
+
+**Without a template link**:
 
 1. **Copy URL** and **Copy key**: the endpoint (`https://<server>/api/capture/shortcut`) and the header value (`Bearer <token>`), one tap each, pasted into the automation in step 2.
 2. **Create the automation**: the steps of SHORTCUT_SETUP.md, shown on the screen, with **Open Shortcuts**.

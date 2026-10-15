@@ -6,6 +6,7 @@ import { RowGroup } from "@/components/row-group";
 import { Box, Button, Icon, Input, Row, Text, toast, useTheme } from "@/components/ui";
 import { confirm } from "@/lib/confirm";
 import { useKassaT } from "@/lib/i18n";
+import { syncIntentConfig } from "@/lite/intent-config";
 import { loadDisplayName } from "@/lite/profile";
 import {
   applyServerUrl,
@@ -41,6 +42,7 @@ export function LiteSettingsScreen() {
     setServerError(null);
     await saveServerUrl(normalized);
     applyServerUrl(normalized);
+    void syncIntentConfig();
     setServer(normalized);
     setEditServer(false);
     toast.show({ title: t("lite:settings.serverSaved"), kind: "success" });

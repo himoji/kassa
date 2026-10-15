@@ -15,10 +15,24 @@ export const SHORTCUT_NAME = "Kassa";
 /** Where Shortcuts sends the person back after the test run (KassaLite's Settings tab). */
 export const SHORTCUT_RETURN_URL = "kassalite://settings";
 
-export type SetupProgress = { copied: boolean; added: boolean; automated: boolean };
+/**
+ * `manual`: the person chose the Shortcut that posts by itself (template or hand-built) over the "Log Payment in
+ * Kassa" action, which is the default.
+ */
+export type SetupProgress = {
+  copied: boolean;
+  added: boolean;
+  automated: boolean;
+  manual: boolean;
+};
 
 const PROGRESS_KEY = "kassalite:shortcutSetup.v1";
-export const EMPTY_PROGRESS: SetupProgress = { copied: false, added: false, automated: false };
+export const EMPTY_PROGRESS: SetupProgress = {
+  copied: false,
+  added: false,
+  automated: false,
+  manual: false,
+};
 
 export async function loadSetupProgress(): Promise<SetupProgress> {
   try {
@@ -29,6 +43,7 @@ export async function loadSetupProgress(): Promise<SetupProgress> {
       copied: parsed.copied === true,
       added: parsed.added === true,
       automated: parsed.automated === true,
+      manual: parsed.manual === true,
     };
   } catch {
     return EMPTY_PROGRESS;

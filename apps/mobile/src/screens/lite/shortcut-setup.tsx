@@ -9,6 +9,7 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
+import { syncIntentConfig } from "@/lite/intent-config";
 import { loadServerUrl, shortcutEndpointFor } from "@/lite/server-url";
 import {
   checkShortcutConnection,
@@ -46,7 +47,10 @@ type Test =
   | { phase: "error"; result: Exclude<ConnectionCheck, "ok"> };
 
 /**
- * KassaLite Settings → "Apple Pay Shortcut": a checklist that ends in proof. With a Shortcut template link
+ * KassaLite Settings → "Apple Pay Shortcut": a checklist that ends in proof. First offered: the "Log Payment in Kassa"
+ * action (App Intent, plugins/with-log-payment-intent.js) in a Wallet automation, nothing to paste → "Check
+ * connection" and the first purchase. "Set it up by hand instead" switches to the Shortcut that posts itself. With a
+ * Shortcut template link
  * (`extra.shortcutTemplateUrl`) it is copy setup → get the Shortcut → automation → "Run test" (runs the Shortcut
  * once through Shortcuts' x-callback URL and waits for the server to see it); without one, copy URL/key → build the
  * automation → "Check connection" (the app posts a test with the same key) and the first purchase. The status card
@@ -57,6 +61,7 @@ export function ShortcutSetup() {
   const f = useFormat();
   const { colors } = useTheme();
   const template = shortcutTemplateUrl();
+  // The Kassa action unless the person chose the Shortcut that posts by itself.
   const [progress, setProgress] = useState<SetupProgress>(EMPTY_PROGRESS);
   const [server, setServer] = useState<string | null>(null);
   const [rawTest, setTest] = useState<Test>({ phase: "idle" });
@@ -80,6 +85,8 @@ export function ShortcutSetup() {
     void loadSetupProgress().then(setProgress);
     void loadServerUrl().then(setServer);
   }, []);
+
+  const viaAction = !progress.manual;
 
   const update = (patch: Partial<SetupProgress>) => {
     setProgress((p) => {
@@ -150,6 +157,8 @@ export function ShortcutSetup() {
   };
 
   const runTest = async () => {
+    // The action reads its own Keychain copy; make sure it exists before the person relies on it.
+    if (viaAction) await syncIntentConfig();
     const c = await credentials();
     if (!c) return;
     setTest({ phase: "checking" });
@@ -160,7 +169,7 @@ export function ShortcutSetup() {
       return;
     }
     celebrated.current = false;
-    if (!template) {
+    if (viaAction || !template) {
       if (connected) {
         setTest({ phase: "idle" });
         haptics.success();
@@ -180,34 +189,61 @@ export function ShortcutSetup() {
   };
 
   const steps: { key: string; done: boolean; toggle?: () => void; node: ReactNode }[] = [];
-  steps.push({
-    key: "copy",
-    done: progress.copied || connected,
-    node: (
-      <StepBody
-        title={t("lite:settings.setup.copy.title")}
-        body={t(
-          template ? "lite:settings.setup.copy.bodyTemplate" : "lite:settings.setup.copy.bodyManual"
-        )}
-      >
-        {template ? (
-          <Button size="sm" variant="outline" onPress={() => void copy("both")}>
-            {t("lite:settings.setup.copy.button")}
+  if (viaAction) {
+    steps.push({
+      key: "action",
+      done: progress.automated || connected,
+      toggle: () => update({ automated: !progress.automated }),
+      node: (
+        <StepBody
+          title={t("lite:settings.setup.action.title")}
+          body={t("lite:settings.setup.action.body")}
+        >
+          <Button
+            size="sm"
+            variant="outline"
+            onPress={() => {
+              void syncIntentConfig();
+              void open("shortcuts://", { automated: true });
+            }}
+          >
+            {t("lite:settings.setup.action.button")}
           </Button>
-        ) : (
-          <Box row gap={2}>
-            <Button size="sm" variant="outline" onPress={() => void copy("url")}>
-              {t("lite:settings.setup.copy.copyUrl")}
+        </StepBody>
+      ),
+    });
+  }
+  if (!viaAction)
+    steps.push({
+      key: "copy",
+      done: progress.copied || connected,
+      node: (
+        <StepBody
+          title={t("lite:settings.setup.copy.title")}
+          body={t(
+            template
+              ? "lite:settings.setup.copy.bodyTemplate"
+              : "lite:settings.setup.copy.bodyManual"
+          )}
+        >
+          {template ? (
+            <Button size="sm" variant="outline" onPress={() => void copy("both")}>
+              {t("lite:settings.setup.copy.button")}
             </Button>
-            <Button size="sm" variant="outline" onPress={() => void copy("header")}>
-              {t("lite:settings.setup.copy.copyHeader")}
-            </Button>
-          </Box>
-        )}
-      </StepBody>
-    ),
-  });
-  if (template) {
+          ) : (
+            <Box row gap={2}>
+              <Button size="sm" variant="outline" onPress={() => void copy("url")}>
+                {t("lite:settings.setup.copy.copyUrl")}
+              </Button>
+              <Button size="sm" variant="outline" onPress={() => void copy("header")}>
+                {t("lite:settings.setup.copy.copyHeader")}
+              </Button>
+            </Box>
+          )}
+        </StepBody>
+      ),
+    });
+  if (!viaAction && template) {
     steps.push({
       key: "add",
       done: progress.added || connected,
@@ -242,7 +278,7 @@ export function ShortcutSetup() {
         </StepBody>
       ),
     });
-  } else {
+  } else if (!viaAction) {
     steps.push({
       key: "build",
       done: progress.automated || connected,
@@ -289,7 +325,11 @@ export function ShortcutSetup() {
       <StepBody
         title={t("lite:settings.setup.test.title")}
         body={t(
-          template ? "lite:settings.setup.test.bodyTemplate" : "lite:settings.setup.test.bodyManual"
+          viaAction
+            ? "lite:settings.setup.test.bodyAction"
+            : template
+              ? "lite:settings.setup.test.bodyTemplate"
+              : "lite:settings.setup.test.bodyManual"
         )}
       >
         <Button
@@ -298,7 +338,11 @@ export function ShortcutSetup() {
           loading={test.phase === "checking"}
           onPress={() => void runTest()}
         >
-          {t(template ? "lite:settings.setup.test.run" : "lite:settings.setup.test.check")}
+          {t(
+            template && !viaAction
+              ? "lite:settings.setup.test.run"
+              : "lite:settings.setup.test.check"
+          )}
         </Button>
         <TestMessage test={test} host={server ? serverHost(server) : ""} />
       </StepBody>
@@ -351,6 +395,18 @@ export function ShortcutSetup() {
           </Box>
         </Box>
       ))}
+      <Box px={4} pb={4} align="flex-start">
+        <Button
+          size="sm"
+          variant="ghost"
+          onPress={() => {
+            setTest({ phase: "idle" });
+            update({ manual: viaAction });
+          }}
+        >
+          {t(viaAction ? "lite:settings.setup.useManual" : "lite:settings.setup.useAction")}
+        </Button>
+      </Box>
     </RowGroup>
   );
 }

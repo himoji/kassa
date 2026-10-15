@@ -67,9 +67,19 @@ describe("movedSince", () => {
 
 describe("setup progress", () => {
   it("round-trips and clears", async () => {
-    await saveSetupProgress({ copied: true, added: false, automated: true });
-    expect(await loadSetupProgress()).toEqual({ copied: true, added: false, automated: true });
+    await saveSetupProgress({ copied: true, added: false, automated: true, manual: true });
+    expect(await loadSetupProgress()).toEqual({
+      copied: true,
+      added: false,
+      automated: true,
+      manual: true,
+    });
     await clearSetupProgress();
-    expect(await loadSetupProgress()).toEqual({ copied: false, added: false, automated: false });
+    expect(await loadSetupProgress()).toEqual({
+      copied: false,
+      added: false,
+      automated: false,
+      manual: false,
+    });
   });
 });
