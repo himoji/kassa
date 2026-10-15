@@ -94,13 +94,15 @@ export async function addPayee(
   p: { name: string; kind?: "LANDLORD" | "UNIVERSITY" | "MERCHANT" | "PERSON" | "SUPPLIER"; account?: string; currency?: string; status?: "VERIFIED" | "COOLING" | "BLOCKED"; coolingUntil?: Date | null },
 ) {
   const account = p.account ?? IBAN_LANDLORD;
+  const id = randomUUID();
   const rows = await getDb()
     .insert(payees)
     .values({
+      id,
       userId,
       name: p.name,
       kind: p.kind ?? "LANDLORD",
-      accountEnc: encryptAccount(userId, normalizeAccount(account)),
+      accountEnc: encryptAccount(userId, normalizeAccount(account), id),
       accountHash: accountHash(account),
       country: "HU",
       currency: p.currency ?? "HUF",

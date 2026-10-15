@@ -40,6 +40,11 @@ export function toolResults(prompt: LanguageModelV4Prompt): ToolResultSeen[] {
   return out;
 }
 
+/** The user messages of a prompt (the system prompt's own examples such as "payee_3" left out). */
+export function userText(prompt: LanguageModelV4Prompt): string {
+  return JSON.stringify(prompt.filter((m) => m.role === "user"));
+}
+
 /** Every text the planner was given (system, user, tool results), for "what did the model see" assertions. */
 export function promptText(prompt: LanguageModelV4Prompt): string {
   return JSON.stringify(prompt);
