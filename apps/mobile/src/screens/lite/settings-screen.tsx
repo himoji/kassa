@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Linking } from "react-native";
 
@@ -107,6 +108,51 @@ export function LiteSettingsScreen() {
           }
           title={t("lite:settings.signedInAs", { name: name ?? t("lite:settings.unknownUser") })}
           subtitle={server ? serverHost(server) : undefined}
+        />
+      </RowGroup>
+
+      <RowGroup title={t("settings:moreTitle")} icons>
+        <Row
+          leading={<Icon name="person.2" fallback="group" size={20} color="foreground" />}
+          title={t("payees:title")}
+          onPress={() => router.push("/payees")}
+        />
+        <Row
+          leading={<Icon name="calendar" fallback="event" size={20} color="foreground" />}
+          title={t("bills:title")}
+          onPress={() => router.push("/bills")}
+        />
+        <Row
+          leading={<Icon name="creditcard" fallback="credit_card" size={20} color="foreground" />}
+          title={t("wallet:linked.title")}
+          subtitle={t("wallet:linked.rowHint")}
+          onPress={() => router.push("/linked-accounts")}
+          testID="lite-linked-accounts"
+        />
+        <Row
+          leading={
+            <Icon
+              name="arrow.up.arrow.down"
+              fallback="import_export"
+              size={20}
+              color="foreground"
+            />
+          }
+          title={t("settings:data.title")}
+          subtitle={t("settings:data.rowHint")}
+          onPress={() => router.push("/data")}
+        />
+        <Row
+          leading={
+            <Icon
+              name="doc.text.magnifyingglass"
+              fallback="description"
+              size={20}
+              color="foreground"
+            />
+          }
+          title={t("credit:title")}
+          onPress={() => router.push("/credit-record")}
         />
       </RowGroup>
 

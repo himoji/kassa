@@ -25,6 +25,7 @@ import { Box, Button, Card, Divider, Icon, Row, Text, useTheme } from "@/compone
 import { useRequireBackupCodes } from "@/hooks/use-require-backup-codes";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { isLiteBuild } from "@/lite/variant";
 import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
 import { CATEGORIES, CATEGORY_ICON } from "@/screens/payees/recipient-fields";
 
@@ -261,9 +262,12 @@ export function HomeScreen() {
         <Box gap={3}>
           <Box row justify="between" align="center">
             <Text variant="heading">{t("home:budgets")}</Text>
-            <Button size="sm" variant="ghost" onPress={() => router.push("/settings")}>
-              {t("home:editBudgets")}
-            </Button>
+            {/* Budgets are rules, changed with a passkey: KassaLite shows them but has no editor. */}
+            {isLiteBuild() ? null : (
+              <Button size="sm" variant="ghost" onPress={() => router.push("/settings")}>
+                {t("home:editBudgets")}
+              </Button>
+            )}
           </Box>
           <QueryView
             query={budgets}
@@ -272,9 +276,11 @@ export function HomeScreen() {
               <Card>
                 <Box gap={3}>
                   <Text variant="caption">{t("home:noBudgets")}</Text>
-                  <Button variant="outline" onPress={() => router.push("/settings")}>
-                    {t("home:addBudget.open")}
-                  </Button>
+                  {isLiteBuild() ? null : (
+                    <Button variant="outline" onPress={() => router.push("/settings")}>
+                      {t("home:addBudget.open")}
+                    </Button>
+                  )}
                 </Box>
               </Card>
             }
