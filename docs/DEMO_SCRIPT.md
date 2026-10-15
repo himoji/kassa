@@ -20,6 +20,8 @@ Before recording: `AGENT_MODE=LIVE` with a working key, and check that a chat tu
 | 3:50–4:40 | 5. Credit record | Open Credit record, pick the last 6 months, include bills paid on time and income, export; open the verify link as the landlord would | Signed summary, PDF, public verify page that checks the signature and the ledger entry | Credit building for a student with no local credit history |
 | 4:40–5:00 | Close | Run `bun run ledger:verify` (or show `docs/evidence/ledger-verify.json`) | Hash chain and checkpoint signatures verified | Every action is in a tamper-evident ledger |
 
+Optional beat, linked accounts and the school portal (about 40 s, replaces part of beat 2): open University in Budapest under Recipients, tap "Pay this invoice", pick From → Visa •4242 (seeded, already linked), approve with the passkey. The receipt reads "Delivered in 0.1 s" (simulated payout). Open the school portal from the recipient (`/mock/schools/budapest/portal?studentId=KZ26-0417`): the invoice shows Paid, and Kassa notifies "University in Budapest received your tuition". Point: money arrives in seconds from a card or bank you already have, and the school confirms it. To show linking itself, Settings → Linked accounts → Link a bank → Kaspi with the code from the bank's note.
+
 Optional if time allows: a real Apple Pay tap logged through KassaLite ([KASSALITE.md](KASSALITE.md)), or the China QR handoff (scenes 3:30 to 4:30 below).
 
 If Dana's onboarding was already done on this database, press "Reset demo" first. To show the mandate without onboarding, sign it from the landlord's payee screen.

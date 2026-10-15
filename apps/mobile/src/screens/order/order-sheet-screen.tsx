@@ -1,6 +1,7 @@
 import type { ApproveOrderResponse } from "@kassa/shared";
+import * as Linking from "expo-linking";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ScrollView } from "react-native";
 
 import { OrderReissuedError, useApproveOrder, useOrder, useRejectOrder } from "@/api/hooks/orders";
@@ -13,6 +14,7 @@ import { Box, Button, Text, toast, useTheme } from "@/components/ui";
 import { haptics } from "@/lib/haptics";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useKassaT } from "@/lib/i18n";
+import { approveInWebAppUrl, LITE_RETURN_URL } from "@/lite/approve";
 
 import { ShopOrderTimeline } from "../shop/shop-order-timeline";
 import { DeliveredReceipt } from "../wallet/delivered-receipt";
@@ -22,7 +24,13 @@ import { OrderSheetView } from "./order-sheet-view";
 export function OrderSheetScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
-  const { proposalId = "" } = useLocalSearchParams<{ proposalId: string }>();
+  // `from=lite`: opened from KassaLite (its approval link); after approving, send the person back there.
+  const { proposalId = "", from } = useLocalSearchParams<{ proposalId: string; from?: string }>();
+  const fromLite = from === "lite";
+  const [backToLite, setBackToLite] = useState(false);
+  useEffect(() => {
+    if (backToLite) void Linking.openURL(`${LITE_RETURN_URL}order/${proposalId}`).catch(() => {});
+  }, [backToLite, proposalId]);
   const query = useOrder(proposalId);
   const approve = useApproveOrder(proposalId);
   const reject = useRejectOrder(proposalId);
@@ -47,6 +55,11 @@ export function OrderSheetScreen() {
     try {
       const result = await approve.mutateAsync(query.data);
       haptics.success();
+      if (fromLite) {
+        // KassaLite shows the outcome; this page only sends the person back (the auth session closes on it).
+        setBackToLite(true);
+        return;
+      }
       const rail = query.data.canonicalOrder.rail;
       if (rail === "HANDOFF" && result.paymentId) {
         router.replace(`/handoff/${result.paymentId}`);
@@ -84,6 +97,12 @@ export function OrderSheetScreen() {
         setError(t("order:reissuedError"));
         return;
       }
+      // KassaLite: the web app opened for the passkey (lite/approve.ts).
+      if (approveInWebAppUrl(err)) {
+        haptics.warning();
+        setError(t("lite:approve.opened"));
+        return;
+      }
       haptics.error();
       setError(errorText(t, err));
     }
@@ -108,7 +127,21 @@ export function OrderSheetScreen() {
       contentContainerStyle={{ flexGrow: 1 }}
       contentInsetAdjustmentBehavior="automatic"
     >
-      {shopOrder.data ? (
+      {backToLite ? (
+        <Box p={5} gap={3}>
+          <StatusChip tone="positive" label={t("order:approvedChip")} />
+          <Text>{t("lite:approve.backHint")}</Text>
+          <Button
+            size="lg"
+            onPress={() =>
+              void Linking.openURL(`${LITE_RETURN_URL}order/${proposalId}`).catch(() => {})
+            }
+          >
+            {t("lite:approve.back")}
+          </Button>
+        </Box>
+      ) : null}
+      {backToLite ? null : shopOrder.data ? (
         <Box p={5} gap={4}>
           <Text variant="heading">{t("shop:timelineTitle")}</Text>
           <ShopOrderTimeline order={shopOrder.data} testID="shop-order-timeline" />
@@ -119,7 +152,7 @@ export function OrderSheetScreen() {
           ) : null}
         </Box>
       ) : null}
-      {tracking && !shopOrder.data ? (
+      {backToLite ? null : tracking && !shopOrder.data ? (
         <Box p={5} gap={4}>
           <StatusChip tone="positive" label={t("order:approvedChip")} />
           <Text variant="caption">{t("shop:timelineHint")}</Text>

@@ -22,6 +22,7 @@ import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { onSupplierWebhook } from "../business/supplier.ts";
 import { onShopWebhook } from "../commerce/service.ts";
+import { onSchoolWebhook } from "../schools/service.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
@@ -188,6 +189,12 @@ const routes: FastifyPluginAsync = async (app) => {
   app.post("/webhooks/mock/supplier", async (req) => {
     await assertMockWebhook(req, "supplier");
     return onSupplierWebhook(req.body);
+  });
+
+  // School portals: a payment booked against a tuition invoice. A claim only, recorded on the payment it names (I6).
+  app.post("/webhooks/mock/school", async (req) => {
+    await assertMockWebhook(req, "school");
+    return onSchoolWebhook(req.body);
   });
 
   app.post("/webhooks/mock/remittance", async (req) => {

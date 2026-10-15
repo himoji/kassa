@@ -125,6 +125,16 @@ Added after the sim persona reports (`docs/evidence/sim/*/REPORT.md`). Item IDs 
 
 Stale items fixed in this pass: R3 (cross-currency cap) is fixed; R4 (Reader checks across turns) is mitigated; R24 (A1, A5, A7 end to end) is covered by `apps/api/test/attacks/`. The new known risks are R26 to R29 (§7.3).
 
+### 5.2 Linked accounts, school portals and KassaLite (2026-10-15)
+
+| ID | Control | Code path | Test path |
+| --- | --- | --- | --- |
+| L1 | **Linking needs the passkey.** A card or bank becomes ACTIVE only after a 428 round trip whose challenge is the JCS hash of the link (`fundingSourceLinkHash`), single use. A bank also needs the one-tenge code (5 attempts). At most 10 accounts per user | `funding-sources/service.ts`, `funding-sources/routes.ts` | `test/core/linked-accounts.test.ts` ("links a test card only with the passkey", "links any bank with the one-tenge code and the passkey") |
+| L2 | **The From account is signed.** `fundingSourceId` is part of the canonical order, so the passkey covers it. Payments re-checks that the account is still ACTIVE, the user's own, in the signed currency and on the bank rail before pulling. The pull is idempotent per order, and a decline pays nothing out | `rules/index.ts`, `payments/index.ts`, `funding-sources/pull.ts` | `test/core/linked-accounts.test.ts` ("the source is part of what the passkey signs", "an order signed with an account removed since is refused…", "someone else's linked account cannot be used", "a declined card pays nothing out") |
+| L3 | **School notices are claims only (I6, I13).** The `school` webhook is HMAC-signed and single use. It is accepted only for a transfer Kassa sent, with the same amount and currency; it records a receipt and never pays or approves. A school recipient still cools for 24 h (I7), and refreshing invoices is refused if the school's listed account changed | `schools/service.ts`, `webhooks/routes.ts`, `http/security.ts` (`PUBLIC_ROUTES`) | `test/core/schools.test.ts` ("the portal books the tuition payment and tells Kassa; forged notices change nothing", "adds a school with its open invoice as a bill, once") |
+| L4 | **A bill is paid once.** Paying a bill now claims its settlement, so a second attempt or the scheduler gets `DUPLICATE_OBLIGATION_PAYMENT` | `obligations/service.ts` | `test/core/schools.test.ts` ("pays a bill now, once") |
+| L5 | **KassaLite never signs.** Every passkey-gated write from a Lite session answers 428 with a link to the web page that finishes the step (`approveInWebAppUrl`). The link is built by the server from `PUBLIC_ORIGIN`, and the app follows only https links | `auth/session.ts`; `apps/mobile/src/lite/approve.ts` | `test/core/dev-login-pairing.test.ts`; `apps/mobile/src/lite/__tests__/approve.test.ts` |
+
 ## 6. Attack suite
 
 The attack suite is `apps/api/test/attacks/` (A1 to A9). Each attack is a Vitest test that asserts: no payment, the expected reason code, and a ledger entry. The table lists where each attack is covered and what is missing.

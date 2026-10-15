@@ -26,6 +26,7 @@ import {
   type PayeeFormFields,
 } from "@/lib/payee-form";
 
+import { FindSchool } from "./find-school";
 import {
   CATEGORY_ICON,
   CategoryTiles,
@@ -73,6 +74,8 @@ export function AddPayeeSheet({
   const [picked, setCategory] = useState<RecipientCategory | null | undefined>(undefined);
   const category = picked === undefined ? initialCategory : picked;
   const [details, setDetails] = useState<DetailsForm>(EMPTY_DETAILS);
+  // Tuition starts with "Find your school"; typing the school's account by hand is the fallback.
+  const [manualTuition, setManualTuition] = useState(false);
   const [name, setName] = useState("");
   const [country, setCountry] = useState("HU");
   const [currency, setCurrency] = useState("HUF");
@@ -127,6 +130,7 @@ export function AddPayeeSheet({
     setName("");
     setDetails(EMPTY_DETAILS);
     setCategory(undefined);
+    setManualTuition(false);
     setFields(EMPTY_PAYEE_FIELDS);
     setShowErrors(false);
     setServerError(null);
@@ -178,6 +182,17 @@ export function AddPayeeSheet({
           <CategoryTiles onPick={setCategory} />
           <Button variant="ghost" onPress={onClose}>
             {t("common:cancel")}
+          </Button>
+        </Box>
+      ) : category === "TUITION" && !manualTuition ? (
+        <Box p={5} gap={4}>
+          <Box gap={1}>
+            <Text variant="heading">{t("payees:school.title")}</Text>
+            <Text variant="caption">{t("payees:school.body")}</Text>
+          </Box>
+          <FindSchool onDone={onClose} onManual={() => setManualTuition(true)} />
+          <Button variant="ghost" onPress={() => setCategory(null)}>
+            {t("payees:school.otherCategory")}
           </Button>
         </Box>
       ) : (
