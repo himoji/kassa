@@ -66,6 +66,10 @@ export async function knownNames(ports: AgentPorts): Promise<KnownName[]> {
   const [profile, payees] = await Promise.all([ports.profile(), ports.payees()]);
   return [
     { name: profile.displayName, kind: "PERSON", ref: profile.displayName, personal: true },
+    // People who send the user money (profile incomes, imported history) reach the planner as person_N.
+    ...[...new Set([...profile.incomes.map((i) => i.source), ...(profile.moneyHistory?.incomes ?? []).map((i) => i.source)])]
+      .filter((n) => /^\p{Lu}[\p{L}'-]+\s+\p{Lu}[\p{L}.'-]*$/u.test(n.trim()))
+      .map((name) => ({ name, kind: "PERSON" as const, ref: name })),
     // Only natural persons (PERSON, OWN_ACCOUNT) get token matching; redact.ts enforces that for organisations.
     // VERIFIED payees first: a name shared by several payees (an account change, I7) resolves to the verified one
     // when the text gives no other context (redact.ts RedactContext).

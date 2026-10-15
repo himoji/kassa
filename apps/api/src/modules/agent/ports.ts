@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
-import { categoryOfKind, suggestedReference, type BudgetDto, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
+import { categoryOfKind, suggestedReference, type BudgetDto, type ImportHistory, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
@@ -59,6 +59,8 @@ export interface ProfileRow {
   moneyMode: string;
   notificationMode: string;
   incomes: IncomeJson[];
+  /** What the user's imported statements showed (dataport/history.ts), or null before any import. */
+  moneyHistory?: ImportHistory | null;
   /** (M5) "BUSINESS" turns on the business tool set and prompt section. */
   accountType?: "PERSONAL" | "BUSINESS";
 }
@@ -155,6 +157,7 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         moneyMode: u.moneyMode,
         notificationMode: p?.notificationMode ?? "EACH",
         incomes: p?.incomes ?? [],
+        moneyHistory: p?.moneyHistory ?? null,
         accountType: u.accountType,
       };
     },

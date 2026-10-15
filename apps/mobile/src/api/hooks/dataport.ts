@@ -7,6 +7,7 @@ import {
   ImportPreviewResponse,
   KassaExport,
   OnboardingMessageResponse,
+  type ImportHistory,
   type ImportItems,
   type OnboardingHistoryRequest,
 } from "@kassa/shared";
@@ -63,9 +64,12 @@ export function useImportCommit() {
   return useMutation({
     mutationFn: async ({
       items,
+      history,
       onProgress,
     }: {
       items: ImportItems;
+      /** The preview's history: kept with the profile so the agent knows what the statements showed. */
+      history?: ImportHistory | null;
       onProgress?: (done: number, total: number) => void;
     }) => {
       const chunks = commitChunks(items.transactions);
@@ -84,7 +88,7 @@ export function useImportCommit() {
             : { transactions, bills: [], cards: [], budgets: [], incomes: [] };
         const r = await api.request("/import/commit", {
           method: "POST",
-          json: { items: part },
+          json: { items: part, ...(i === chunks.length - 1 && history ? { history } : {}) },
           schema: ImportCommitResponse,
         });
         for (const k of ["imported", "duplicates", "failed"] as const)
