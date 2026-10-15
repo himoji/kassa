@@ -162,14 +162,32 @@ The app shows the localised version of the same message in Activity.
 | `IGNORED_INCOMING` | A refund |
 | `UNPARSED` | Kassa could not read the payment |
 | `TEST` | A test run: nothing logged (see below) |
+| `INCOMPLETE` | A merchant without an amount: nothing logged (see below) |
 
-### Test run
+### Test run and incomplete taps
 
-A body without an amount (the Shortcut run by hand, so iOS sends `merchant` and `amount` empty) or `{"test": true}`
-is a test. Nothing is logged; the reply is `status: "TEST"` with the notification “Kassa is connected”. The empty-field
-form also records the device as used (`lastUsedAt` in GET `/api/devices`), which KassaLite's setup check waits for;
-`{"test": true}` is KassaLite checking the server and key itself and does not. A merchant with an empty amount is
-still a 400: the amount is not wired.
+A body without an amount is never logged:
+
+- `{"test": true}`: KassaLite checking the server and key itself. Reply `status: "TEST"`, “Kassa is connected”; the
+  device is not marked as used.
+- `merchant` empty too (the Shortcut run by hand: iOS sends the fields empty): `status: "TEST"`, recorded on the
+  device (`lastUsedAt`, `lastCheck.kind = "TEST"`).
+- a merchant but no amount (an automation whose Amount is not wired): `status: "INCOMPLETE"`, with a notification
+  that says to set Amount to Shortcut Input › Amount; recorded as `lastCheck.kind = "INCOMPLETE"`.
+
+### The key in the URL
+
+Instead of the `Authorization` header, the key can be the `key` query parameter:
+`https://<host>/api/capture/shortcut?key=<token>`. KassaLite copies this one link so a hand-built Shortcut needs a
+single paste. The server log redacts `key`.
+
+### Tap check (GET /api/devices)
+
+Every request from a Shortcut (or the KassaLite action, `X-Kassa-Client: log-payment-action`) records on its device
+`lastUsedAt` and `lastCheck`: when, which kind (`TEST`, `PAYMENT`, `FORWARDED`, `INCOMPLETE`), which fields arrived
+(`merchant`, `amount`, `card`, `place`: presence only, no values), the capture `status` and the transaction id.
+GET `/api/devices` returns the newest device's `lastCheck`; KassaLite's Settings reads it to tell the person whether
+their last Apple Pay tap arrived complete.
 
 ### Errors
 
