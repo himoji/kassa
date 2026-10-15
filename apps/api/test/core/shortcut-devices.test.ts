@@ -26,7 +26,11 @@ async function createDevice(userId: string): Promise<{ deviceId: string; token: 
 async function listDevices(userId: string) {
   const res = await app().inject({ method: "GET", url: "/api/devices", headers: await bearer(userId) });
   expect(res.statusCode).toBe(200);
-  return res.json() as { devices: { id: string; kind: string; createdAt: string }[]; lastCaptureAt: string | null };
+  return res.json() as {
+    devices: { id: string; kind: string; createdAt: string; lastUsedAt: string | null }[];
+    lastCaptureAt: string | null;
+    lastUsedAt: string | null;
+  };
 }
 
 async function capture(token: string, payload: Record<string, unknown>) {
@@ -100,6 +104,56 @@ describe("Shortcut devices: list and revoke", () => {
     const anon = await app().inject({ method: "DELETE", url: `/api/devices/${theirs.deviceId}` });
     expect(anon.statusCode).toBe(401);
     expect((await app().inject({ method: "GET", url: "/api/devices" })).statusCode).toBe(401);
+  });
+});
+
+describe("/capture/shortcut test run (KassaLite setup check)", () => {
+  beforeEach(async () => {
+    await t.reset();
+    offlineEnvironment();
+  });
+
+  it("empty Transaction fields → TEST, nothing logged, lastUsedAt moves on that device only; {test: true} does not move it", async () => {
+    const { userId } = await createUserWithPasskey();
+    const a = await createDevice(userId);
+    const b = await createDevice(userId);
+    expect((await listDevices(userId)).lastUsedAt).toBeNull();
+
+    // KassaLite's own check: the token works, but the Shortcut has not run.
+    const check = await capture(a.token, { test: true });
+    expect(check.statusCode).toBe(200);
+    expect(check.json().status).toBe("TEST");
+    expect((await listDevices(userId)).lastUsedAt).toBeNull();
+
+    // What iOS sends when the Shortcut runs without a Transaction input.
+    const empty = await capture(a.token, { merchant: "", amount: "", card: "" });
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toMatchObject({ status: "TEST", nudgeTitle: "Kassa is connected" });
+    expect((await capture(a.token, {})).json().status).toBe("TEST");
+    expect(await getDb().select().from(transactions).where(eq(transactions.userId, userId))).toEqual([]);
+
+    const list = await listDevices(userId);
+    expect(list.lastUsedAt).not.toBeNull();
+    expect(list.lastCaptureAt).toBeNull();
+    expect(list.devices.find((d) => d.id === a.deviceId)?.lastUsedAt).toBe(list.lastUsedAt);
+    expect(list.devices.find((d) => d.id === b.deviceId)?.lastUsedAt).toBeNull();
+  });
+
+  it("a merchant without an amount is still a bad request (a mis-wired Shortcut), and does not count as used", async () => {
+    const { userId } = await createUserWithPasskey();
+    const { token } = await createDevice(userId);
+    const res = await capture(token, { merchant: "Coffee House", amount: "" });
+    expect(res.statusCode).toBe(400);
+    expect((await listDevices(userId)).lastUsedAt).toBeNull();
+  });
+
+  it("a real purchase also sets lastUsedAt; a revoked token's test run is 401", async () => {
+    const { userId } = await createUserWithPasskey();
+    const { deviceId, token } = await createDevice(userId);
+    expect((await capture(token, { merchant: "Coffee House", amount: "1 200 Ft" })).json().status).toBe("LOGGED");
+    expect((await listDevices(userId)).lastUsedAt).not.toBeNull();
+    await app().inject({ method: "DELETE", url: `/api/devices/${deviceId}`, headers: await bearer(userId) });
+    expect((await capture(token, { test: true })).statusCode).toBe(401);
   });
 });
 
