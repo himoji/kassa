@@ -1,4 +1,9 @@
-import type { ChoiceAnswer, DataChoices, OnboardingProfileDraft } from "@kassa/shared";
+import type {
+  ChoiceAnswer,
+  DataChoices,
+  ImportPreviewResponse,
+  OnboardingProfileDraft,
+} from "@kassa/shared";
 import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
@@ -6,6 +11,13 @@ import { ChatLayout } from "@/components/kassa/chat-layout";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 import { fetchOnboardingConversation } from "@/api/hooks/chat";
+import {
+  canPickFiles,
+  pickImportFiles,
+  useImportCommit,
+  useImportFiles,
+  useOnboardingHistory,
+} from "@/api/hooks/dataport";
 import { useMe } from "@/api/hooks/me";
 import { useOnboardingMessage } from "@/api/hooks/onboarding";
 import { ReplayBadge } from "@/components/kassa/badges";
@@ -18,6 +30,12 @@ import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { consentNeeded, type ConsentNeeded } from "@/screens/chat/consent";
 import { ConsentCard } from "@/screens/chat/consent-card";
+import {
+  ALL_ON,
+  ImportPreviewCard,
+  selectedItems,
+  type SectionSwitches,
+} from "@/screens/settings/import-preview";
 import { useChatHydrated, useChatStore } from "@/stores/chat";
 
 import { hasContent } from "./draft-content";
@@ -75,7 +93,14 @@ function DraftSummary({ draft }: { draft: OnboardingProfileDraft }) {
   );
 }
 
-/** Onboarding by chat (spec §1, §8 POST /onboarding/message): the server builds the profile draft. */
+/** The agent's "Upload statements" option (ONBOARDING_INSTRUCTIONS): the app opens the file picker for it. */
+const UPLOAD_OPTION = "upload_statements";
+
+/**
+ * Onboarding by chat (spec §1, §8 POST /onboarding/message): the server builds the profile draft. Bank statements
+ * (POST /import/file) prefill it: the spending is imported, and what the history taught Kassa joins the draft through
+ * POST /onboarding/history, still to be reviewed and signed.
+ */
 export function OnboardingChatScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
@@ -83,6 +108,11 @@ export function OnboardingChatScreen() {
   const conversationId = useChatStore((s) => s.onboardingConversationId);
   const setConversationId = useChatStore((s) => s.setOnboardingConversationId);
   const send = useOnboardingMessage();
+  const upload = useImportFiles();
+  const commitImport = useImportCommit();
+  const historyTurn = useOnboardingHistory();
+  const [statements, setStatements] = useState<ImportPreviewResponse | null>(null);
+  const [statementSections, setStatementSections] = useState<SectionSwitches>(ALL_ON);
   const me = useMe();
   // Ask for AI consent before the first message, not after it is refused (the PIPL step, which depends on the region
   // the chat learns, still arrives as a refusal below).
@@ -163,6 +193,71 @@ export function OnboardingChatScreen() {
     await ask(text, choice);
   };
 
+  /** Pick statements and read them (nothing is written until "Use this history"). False when nothing was read. */
+  const uploadStatements = async (): Promise<boolean> => {
+    setError(null);
+    if (!canPickFiles()) {
+      setError(t("settings:data.chooseFileUnavailable"));
+      return false;
+    }
+    const files = await pickImportFiles();
+    if (!files) return false;
+    try {
+      const res = await upload.mutateAsync({ files });
+      setStatements(res);
+      setStatementSections(ALL_ON);
+      return true;
+    } catch (err) {
+      haptics.error();
+      setError(errorText(t, err));
+      return false;
+    }
+  };
+
+  /** Import the spending and cards now; incomes, bills and budgets go into the draft for review. */
+  const applyStatements = async () => {
+    if (!statements?.history) return;
+    setError(null);
+    const items = selectedItems(statements, statementSections);
+    try {
+      await commitImport.mutateAsync({
+        transactions: items.transactions,
+        cards: items.cards,
+        bills: [],
+        budgets: [],
+        incomes: [],
+      });
+      const res = await historyTurn.mutateAsync({
+        conversationId,
+        history: statements.history,
+        files: statements.files,
+        items: {
+          incomes: items.incomes,
+          bills: items.bills,
+          budgets: items.budgets,
+          cards: items.cards,
+        },
+      });
+      setTurns((prev) => [
+        ...prev,
+        {
+          id: prev.length,
+          role: "user",
+          text: t("onboarding:statementsShared", { count: statements.files.length }),
+          ui: [],
+        },
+        { id: prev.length + 1, role: "assistant", text: res.reply, ui: res.ui },
+      ]);
+      setDraft(res.draft);
+      setComplete(res.complete);
+      setStatements(null);
+      haptics.success();
+    } catch (err) {
+      haptics.error();
+      setError(errorText(t, err));
+    }
+  };
+
   if (!hydrated || !loaded) return <Loading label={t("chat:loadingHistory")} />;
 
   return (
@@ -178,6 +273,22 @@ export function OnboardingChatScreen() {
             alignItems: "flex-end",
           }}
         >
+          <Pressable
+            onPress={() => void uploadStatements()}
+            disabled={Boolean(consentFirst) || upload.isPending}
+            accessibilityRole="button"
+            accessibilityLabel={t("onboarding:uploadStatements")}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.muted,
+            }}
+          >
+            <Icon name="paperclip" fallback="attach_file" size={20} color="foreground" />
+          </Pressable>
           <TextInput
             editable={!consentFirst}
             value={input}
@@ -252,12 +363,28 @@ export function OnboardingChatScreen() {
                 key={part.id}
                 part={part}
                 disabled={send.isPending}
-                onAnswer={(a) => void submit(a.text, a.choice)}
+                onAnswer={(a) => {
+                  const picked = a.choice?.optionId ?? a.choice?.optionIds?.[0];
+                  // "Upload statements" opens the file picker instead of answering; cancelling unlocks the card.
+                  if (picked === UPLOAD_OPTION) return uploadStatements();
+                  void submit(a.text, a.choice);
+                }}
               />
             ))}
           </View>
         ))}
         {send.isPending ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
+        {upload.isPending ? <Text variant="caption">{t("settings:data.reading")}</Text> : null}
+        {statements ? (
+          <ImportPreviewCard
+            result={statements}
+            on={statementSections}
+            setOn={setStatementSections}
+            onImport={() => void applyStatements()}
+            busy={commitImport.isPending || historyTurn.isPending}
+            importLabel={t("onboarding:useStatements")}
+          />
+        ) : null}
         {error ? <Text color="destructive">{error}</Text> : null}
         {consentFirst && !consent ? (
           <ConsentCard need={consentFirst} onGiven={() => void me.refetch()} />
