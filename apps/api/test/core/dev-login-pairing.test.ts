@@ -140,8 +140,12 @@ describe("KassaLite pairing", () => {
       for (const url of [`/api/orders/${randomUUID()}/approve`, "/api/auth/pair/start", "/api/devices/shortcut", "/api/privacy/erase", `/api/payees/${randomUUID()}/verify-callback`, `/api/funding-sources/${randomUUID()}/confirm`]) {
         const res = await app().inject({ method: "POST", url, headers: h, payload: {} });
         expect(res.statusCode, url).toBe(428);
-        expect(res.json().details.approveInWebApp, url).toBeTruthy();
+        expect(res.json().details.approveInWebApp, url).toMatch(/\?from=lite$/);
       }
+      // The approval link opens that very order in the web app.
+      const id = randomUUID();
+      const approve = await app().inject({ method: "POST", url: `/api/orders/${id}/approve`, headers: h, payload: {} });
+      expect(approve.json().details.approveInWebApp).toMatch(new RegExp(`/order/${id}\\?from=lite$`));
     }
   });
 });
