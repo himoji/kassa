@@ -62,7 +62,7 @@ file (PDF | CSV | TSV | XLSX | XLS | JSON | TXT)
    direction and evidence only. Any IBAN-shaped text left in a description is cut.
 4. **Every AI row is checked against the source.** The evidence must occur in the redacted text, and the row's amount
    and date must occur in its evidence; rows that fail are dropped and counted.
-5. **Cards: last 4 digits only.** A masked `400000******7710` yields `3273`; a full PAN is never kept.
+5. **Cards: last 4 digits only.** A masked `400000******7710` yields `7710`; a full PAN is never kept.
 6. **Import only adds things that loosen nothing.** Budgets still need the passkey (`PUT /budgets`), incomes only feed
    the forecast, spending goes through capture (I6: capture only logs).
 7. **The onboarding model sees aggregates, not rows.** It gets "income from person_1, about 1,000 USD a month",
