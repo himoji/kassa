@@ -30,9 +30,10 @@ const LITE_DROPPED_PLUGINS = new Set([
   "expo-dev-client",
 ]);
 /**
- * iCloud link of the "Kassa Apple Pay" Shortcut template that the lite Settings screen opens (Settings →
- * Install Shortcut). Publish your own copy of the Shortcut (Shortcuts app → Share → Copy iCloud Link) and put
- * its link in KASSALITE_SHORTCUT_TEMPLATE_URL (or here). Empty: the screen only shows the manual steps.
+ * iCloud link of the "Kassa" Shortcut template that the lite Settings screen opens (Settings → Get the Shortcut;
+ * the template contract is in docs/KASSALITE.md). Publish your own copy of the Shortcut (Shortcuts app → Share →
+ * Copy iCloud Link) and put its link in KASSALITE_SHORTCUT_TEMPLATE_URL (or here). Empty: the screen shows the
+ * manual steps.
  */
 const SHORTCUT_TEMPLATE_URL = process.env.KASSALITE_SHORTCUT_TEMPLATE_URL ?? "";
 
@@ -255,6 +256,8 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
     ["expo-local-authentication", { faceIDPermission: "Allow KassaLite to unlock with Face ID." }],
     // iOS 27: adopt the UIScene life cycle (see the plugin header).
     "./plugins/with-scene-lifecycle.js",
+    // Lite: the "Log Payment in Kassa" Shortcuts action (App Intent; see the plugin header).
+    ...(LITE ? ["./plugins/with-log-payment-intent.js"] : []),
   ],
   experiments: {
     // Lite routes live in another directory: do not regenerate .expo/types from them.

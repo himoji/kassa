@@ -51,23 +51,80 @@
     "signedInAs": "Signed in as {{name}}",
     "unknownUser": "this iPhone",
     "shortcutTitle": "Apple Pay Shortcut",
-    "shortcutIntro": "An iOS Shortcut sends every Apple Pay purchase to your Kassa server. KassaLite then shows it here.",
-    "installShortcut": "Install Shortcut",
-    "installShortcutFooter": "Copies the endpoint and your token, then opens the Shortcut. iCloud Shortcuts cannot take parameters: paste them where the Shortcut asks.",
-    "copyFooter": "Copies the address and your token. Paste them into the Shortcut as the setup steps describe.",
-    "copiedToast": "Endpoint and token copied",
-    "copyAgain": "Copy endpoint and token again",
-    "noShortcutToken": "No Shortcut token stored. Pair this iPhone again.",
-    "stepsTitle": "How to set up the Shortcut",
-    "step": "{{n}}. {{text}}",
-    "steps": {
-      "1": "Tap Install Shortcut. The endpoint URL (first line) and the Authorization value (second line, “Bearer …”) are copied to the clipboard.",
-      "2": "Open Shortcuts → Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation.",
-      "3": "Add “Get Contents of URL”. URL: the first copied line (ends in /api/capture/shortcut). Method: POST. Headers: Authorization = the second copied line.",
-      "4": "Request Body: JSON with merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass. Optional: add “Get Current Location” first and send street, city and country from it, so the notification says where you paid.",
-      "5": "Add “Get Dictionary Value” (key nudge) and “Show Notification” with that value.",
-      "6": "Pay with Apple Pay. The purchase shows up in Activity within seconds."
+    "shortcutIntro": "An iOS Shortcut sends every Apple Pay purchase to your Kassa server. Set it up once; this card turns green when it works.",
+    "setup": {
+      "statusOk": "Shortcut is working",
+      "statusOkPurchase": "Last purchase logged {{time}}.",
+      "statusOkHeard": "Last heard from it {{time}}. Pay with Apple Pay and the purchase appears in Activity.",
+      "statusTodo": "Not set up yet",
+      "statusProgress": "{{done}} of {{total}} steps done",
+      "waiting": "Waiting for the Shortcut…",
+      "waitingPay": "Waiting for your first Apple Pay purchase…",
+      "done": "Done",
+      "markDone": "Mark as done",
+      "markUndone": "Mark as not done",
+      "useManual": "Set it up by hand instead",
+      "useAction": "Use the Kassa action instead",
+      "action": {
+        "title": "Add the Kassa action to a Wallet automation",
+        "body": "In Shortcuts: Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation. Search for “Log Payment in Kassa” and add it. Set Merchant, Amount and Card to Shortcut Input › Merchant, › Amount and › Card or Pass. Tap Done. Nothing to paste: the action uses this iPhone’s pairing. Not in the list? This KassaLite was built before the action existed: rebuild it in Xcode, or set it up by hand below.",
+        "button": "Open Shortcuts"
+      },
+      "copy": {
+        "title": "Copy your setup",
+        "bodyTemplate": "Your server address and private key, in two lines. Shortcuts asks for them in the next step.",
+        "bodyManual": "You paste these two values into the automation in the next step.",
+        "button": "Copy setup",
+        "copyUrl": "Copy URL",
+        "copyHeader": "Copy key",
+        "copied": "Setup copied",
+        "copiedUrl": "URL copied",
+        "copiedHeader": "Key copied (Bearer …)",
+        "noToken": "No Shortcut key on this iPhone. Sign out and pair again."
+      },
+      "add": {
+        "title": "Add the Kassa Shortcut",
+        "body": "Shortcuts opens. Tap Add Shortcut and, when it asks, paste the setup you copied.",
+        "button": "Get the Shortcut"
+      },
+      "automate": {
+        "title": "Run it on every Apple Pay tap",
+        "body": "In Shortcuts: Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation. Add “Run Shortcut”, pick Kassa, tap › and set Input to Shortcut Input.",
+        "button": "Open Shortcuts"
+      },
+      "build": {
+        "title": "Create the automation",
+        "body": "About two minutes in the Shortcuts app. Keep this screen open to copy the values.",
+        "button": "Open Shortcuts",
+        "show": "Show the steps",
+        "hide": "Hide the steps",
+        "step": "{{n}}. {{text}}",
+        "steps": {
+          "1": "Open Shortcuts → Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation.",
+          "2": "Add “Get Contents of URL”. URL: tap Copy URL above and paste. Tap › and set Method to POST.",
+          "3": "Headers: add Authorization; for its value tap Copy key above and paste (it starts with “Bearer ”).",
+          "4": "Request Body: JSON with merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass. Optional: add “Get Current Location” first and send street, city and country, so the notification says where you paid.",
+          "5": "Add “Get Dictionary Value” (key nudge) and “Show Notification” with that value. Tap Done."
+        }
+      },
+      "test": {
+        "title": "Test it",
+        "bodyTemplate": "Runs the Shortcut once without a purchase. You see a “Kassa is connected” notification and this card turns green.",
+        "bodyManual": "Checks that this iPhone reaches your server with the key. Then pay with Apple Pay once: this card turns green when the purchase arrives.",
+        "run": "Run test",
+        "check": "Check connection",
+        "checking": "Checking",
+        "checkOk": "Server and key work.",
+        "serverOk": "Server and key work. Last step: pay with Apple Pay once, a coffee is enough.",
+        "success": "It works! Your Apple Pay purchases now show up in Activity.",
+        "revoked": "The server refused the key: it was revoked or belongs to another server. Sign out and pair again.",
+        "unreachable": "This iPhone cannot reach {{host}}. Check that the server (and its tunnel) is running and the address is right.",
+        "failed": "The server answered, but not as Kassa. Check the server address.",
+        "timeout": "Kassa did not hear from the Shortcut. Check that it is named “Kassa”, that you pasted the setup when Shortcuts asked, and that Shortcuts may run it (allow it if iOS asks).",
+        "bodyAction": "Checks that this iPhone reaches your server. Then pay with Apple Pay once: this card turns green when the purchase arrives and Kassa shows a notification."
+      }
     },
+    "noShortcutToken": "No Shortcut token stored. Pair this iPhone again.",
     "serverTitle": "Server",
     "serverLabel": "Server URL",
     "serverFooter": "Must be a stable https address, for example your named tunnel. Changing it does not re-pair: sign out and pair again if the server is different.",
