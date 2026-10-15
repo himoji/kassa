@@ -19,9 +19,22 @@ const US_ADDRESS = /^.*\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b.*$/gm;
 const STREET = /^\s*\d+[A-Z]?\s+[\p{L}\d .'-]{2,40}\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|BLVD|LANE|LN|DR|DRIVE|WAY|PL|COURT|CT|NW|NE|SW|SE)\b.*$/gimu;
 const LOCAL_ADDRESS = /^.*(?:\bул\.|\bулица\b|көшесі|\bпр\.|проспект|даңғылы|мкр\.?|шағын аудан|\bд\.\s*\d|\bкв\.\s*\d|\bпәтер\b).*$/gimu;
 
-/** The holder's names as redactor entries: whole name and each name token of 3+ letters. */
+/** Feminine and case endings a family name takes in Russian and Kazakh ("Байжигитов" → "Байжигитова", "BAIZHIGITOVA"). */
+const NAME_ENDINGS = ["a", "а", "у", "ой", "ым", "ых", "ым", "е"];
+
+/**
+ * The holder's names as redactor entries: the whole name, each name token of 3+ letters, and each family-name token
+ * with its feminine and case endings, so a relative's "LYAZAT BAIZHIGITOVA" does not reveal the holder's surname.
+ */
 export function holderNames(names: string[]): KnownName[] {
-  return [...new Set(names.map((n) => n.trim()).filter((n) => n.length >= 3))].map((name) => ({ name, kind: "PERSON" as const, ref: name, personal: true }));
+  const full = [...new Set(names.map((n) => n.trim()).filter((n) => n.length >= 3))];
+  const variants = full.flatMap((n) =>
+    n
+      .split(/\s+/)
+      .filter((t) => t.length >= 5)
+      .flatMap((t) => NAME_ENDINGS.map((e) => (t === t.toUpperCase() ? t + e.toUpperCase() : t + e))),
+  );
+  return [...full, ...new Set(variants)].map((name) => ({ name, kind: "PERSON" as const, ref: name, personal: true }));
 }
 
 /** Redact one statement's text (see the header comment). `redactor` keeps placeholders stable across chunks. */
