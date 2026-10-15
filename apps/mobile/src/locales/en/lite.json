@@ -1,6 +1,7 @@
 {
   "name": "KassaLite",
   "tabs": {
+    "home": "Home",
     "activity": "Activity",
     "insights": "Insights",
     "chat": "Chat",
@@ -91,7 +92,9 @@
     "updatesFailed": "Could not check for updates: {{message}}"
   },
   "approve": {
-    "opened": "Approve this in the Kassa web app. KassaLite cannot use a passkey."
+    "opened": "Approve this in the Kassa web app. KassaLite cannot use a passkey.",
+    "back": "Back to KassaLite",
+    "backHint": "Approved. You can go back to KassaLite now."
   },
   "pairDevice": {
     "rowTitle": "Pair KassaLite",

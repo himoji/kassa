@@ -19,6 +19,7 @@ import { notify } from "../notifications/service.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { screenName } from "../screening/index.ts";
 import { proposeOrder } from "../rules/index.ts";
+import { portalLinkFor } from "../schools/portal.ts";
 import { kassaIdFor, userByKassaId } from "../wallet/service.ts";
 import { accountHash, decryptAccount, encryptAccount, encryptDetails, maskAccount, normalizeAccount, readDetails } from "./crypto.ts";
 
@@ -47,6 +48,7 @@ export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
   } catch {
     // undecryptable (key rotated): show nothing rather than fail the list
   }
+  const details = readDetails(p);
   return {
     id: p.id,
     name: p.name,
@@ -60,7 +62,8 @@ export function toPayeeDto(p: typeof payees.$inferSelect): PayeeDto {
     coolingUntil: p.coolingUntil?.toISOString() ?? null,
     replacesPayeeId: p.replacesPayeeId,
     category: categoryOfKind(p.kind),
-    details: readDetails(p),
+    details,
+    portalLink: portalLinkFor(details),
   };
 }
 

@@ -198,6 +198,8 @@ export class MockBank {
   /** Test top-ups by reference (idempotent: a retried tap adds the money once). */
   private readonly topUps = new Map<string, { profile: number; currency: string; amountMinor: number; balanceAfterMinor: number }>();
   private nextId: number;
+  /** Told about every transfer the moment it is paid out (the school portals match tuition payments this way). */
+  private readonly payoutListeners: ((t: Transfer, account: Recipient | undefined) => void)[] = [];
 
   constructor(private readonly opts: BankOptions) {
     this.nextId = opts.idStart ?? 50_000_000 + (Math.floor(Date.now() / 1000) % 10_000_000) * 10;
@@ -212,6 +214,10 @@ export class MockBank {
     this.balances = new Map(
       this.opts.initialBalances.map((p) => [p.profileId, new Map(p.balances.map((b) => [b.currency, b.amountMinor]))]),
     );
+  }
+
+  onPayout(fn: (t: Transfer, account: Recipient | undefined) => void): void {
+    this.payoutListeners.push(fn);
   }
 
   /** Forget all quotes, recipients and transfers and restore seed balances. Ids keep increasing. */
@@ -529,6 +535,16 @@ export class MockBank {
         simulated: true,
       },
     });
+    // After the bank's own webhook, so Kassa sees the payment SENT before a payee's system reports it received.
+    if (next === "outgoing_payment_sent") {
+      for (const fn of this.payoutListeners) {
+        try {
+          fn(t, account);
+        } catch {
+          // a listener's failure never undoes the payout
+        }
+      }
+    }
   }
 
   /** Kassa → Kassa: the money lands in the other wallet, and its owner is told (remittance webhook, wallet.received). */

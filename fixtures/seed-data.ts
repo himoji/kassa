@@ -320,7 +320,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-05T09:30:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
-    details: { category: "TUITION", studentId: "KZ26-0417", term: "Fall 2026" },
+    details: { category: "TUITION", studentId: "KZ26-0417", term: "Fall 2026", portalSchoolId: "budapest" },
   },
   {
     id: IDS.payees.insurer,
@@ -736,6 +736,7 @@ const liWeiPayees: SeedPayee[] = [
     verifiedAt: "2026-09-06T10:15:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "TUITION", studentId: "CN26-0331", term: "Fall 2026", portalSchoolId: "budapest" },
   },
 ];
 

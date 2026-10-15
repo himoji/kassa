@@ -220,6 +220,25 @@ export const LITE_DENIED: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Where the web app shows what a refused lite request was about (the order to approve, the recipient to verify), with
+ * `from=lite` so the web app can send the person back to KassaLite afterwards. Other routes open the web app's start.
+ */
+export function approveInWebAppUrl(route: string, params: unknown): string {
+  const origin = env().PUBLIC_ORIGIN.replace(/\/$/, "");
+  const p = (params ?? {}) as Record<string, unknown>;
+  const id = (k: string) => (typeof p[k] === "string" && /^[0-9a-f-]{36}$/i.test(p[k] as string) ? (p[k] as string) : null);
+  const path =
+    route === "POST /api/orders/:proposalId/approve" && id("proposalId")
+      ? `/order/${id("proposalId")}`
+      : route === "POST /api/payees/:id/verify-callback" && id("id")
+        ? `/payees/${id("id")}`
+        : route === "POST /api/funding-sources/:id/confirm"
+          ? "/linked-accounts"
+          : "/";
+  return `${origin}${path}?from=lite`;
+}
+
+/**
  * Session check (zero trust: every request, no network trust). Installed on every non-public route by
  * http/security.ts (deny by default); idempotent, so per-plugin hooks may still call it. Tokens of a user
  * that no longer exists or was erased (GDPR Art. 17) are refused even before they expire.
@@ -232,10 +251,11 @@ export async function requireUser(req: FastifyRequest): Promise<void> {
   const u = (await getDb().select({ erasedAt: users.erasedAt, sessionsRevokedAt: users.sessionsRevokedAt }).from(users).where(eq(users.id, userId)))[0];
   if (!u || revoked(s.iat, u.sessionsRevokedAt)) throw new HttpProblem(401, "UNAUTHENTICATED", "Sign in with your passkey");
   if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
-  if (s.claims.scope === "lite" && LITE_DENIED.has(`${req.method} ${req.routeOptions.url ?? ""}`)) {
+  const route = `${req.method} ${req.routeOptions.url ?? ""}`;
+  if (s.claims.scope === "lite" && LITE_DENIED.has(route)) {
     throw new HttpProblem(428, "PASSKEY_REQUIRED", "Approve this in the Kassa web app with your passkey", {
       reasonCodes: ["PASSKEY_REQUIRED"],
-      details: { approveInWebApp: env().PUBLIC_ORIGIN },
+      details: { approveInWebApp: approveInWebAppUrl(route, req.params) },
     });
   }
   req.userId = userId;

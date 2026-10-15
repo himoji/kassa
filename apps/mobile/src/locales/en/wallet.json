@@ -128,5 +128,10 @@
       "confirm": "Confirm with passkey"
     },
     "viewOnly": "Linking opens the web app, where your passkey is."
+  },
+  "bill": {
+    "paying": "Paying a bill to {{name}}",
+    "due": "Due {{date}}",
+    "reference": "Reference {{reference}} (the school matches your payment with it)"
   }
 }

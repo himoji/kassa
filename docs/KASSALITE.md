@@ -9,9 +9,16 @@ KassaLite (Activity tab) <── GET /api/capture/recent  ───────�
         └─ local notification when the app sees a new purchase
 ```
 
-What is in it: Face ID lock, **Activity** (purchases and nudges, refreshed every 30 s while the app is open), **Chat** (the normal Kassa chat), **Settings** (Shortcut install, server URL, sign out). Approvals that need a passkey open the Kassa web app instead (the server answers HTTP 428 with `details.approveInWebApp`).
+What is in it (since 2026-10-15 it matches the web app for everything that does not need a passkey):
 
-Not in it: remote push (KassaLite notifies when it is open or comes to the foreground, the Shortcut itself shows the instant banner), Apple Pay inside the app, passkey sign-in.
+- **Home**: balances, cards, recipients by category, bills, budgets (read only), month summary, Insights.
+- **Chat**, **Activity** (purchases and nudges, refreshed every 30 s while the app is open) and **Settings**.
+- **Recipients** and **Bills**: add a recipient (it cools for 24 h like anywhere else), find your school, pay a bill.
+- **Send** and **Add money**, from your Kassa balance or a linked card or bank, with the live quote.
+- **Linked accounts** (view only), **Your data** (export) and **Credit record**, from Settings.
+- Face ID lock, Shortcut install, server URL, updates, sign out.
+
+Not in it, by design: anything that signs with a passkey (approving a payment, linking a card or bank, confirming a recipient, changing rules and budgets, backup codes), remote push (KassaLite notifies when it is open or comes to the foreground, the Shortcut itself shows the instant banner), Apple Pay inside the app, passkey sign-in. Those steps hand off to the web app (see Approvals).
 
 ## Pairing
 
@@ -84,7 +91,16 @@ Note: the autolinking exclusion lives in `package.json` only while `lite:ios` ru
 
 ## Approvals
 
-A KassaLite session cannot sign with a passkey. When the chat proposes a payment, the order screen opens as usual; the approve action gets HTTP 428 `PASSKEY_REQUIRED` with `details.approveInWebApp = <origin>`, and KassaLite opens that page in the in-app browser (`src/lite/approve.ts`, wired once in the lite root layout through `onApiError`). Approve there with your passkey, then return to the app.
+A KassaLite session cannot sign with a passkey, so every passkey-gated write (approve an order, link a card or bank, confirm a recipient) answers HTTP 428 `PASSKEY_REQUIRED` with `details.approveInWebApp`. The server builds that link (`approveInWebAppUrl` in `apps/api/src/modules/auth/session.ts`) to the page that finishes the step, tagged `?from=lite`:
+
+| Refused write                       | Opens                           |
+| ----------------------------------- | ------------------------------- |
+| `POST /orders/:id/approve`          | `/order/<proposalId>?from=lite` |
+| `POST /payees/:id/verify-callback`  | `/payees/<id>?from=lite`        |
+| `POST /funding-sources/:id/confirm` | `/linked-accounts?from=lite`    |
+| anything else                       | `/?from=lite`                   |
+
+KassaLite opens it in an auth session (`src/lite/approve.ts`, wired once in the lite root layout through `onApiError`). On the order page, a `from=lite` approval ends with a "Back to KassaLite" box and sends the person to `kassalite://order/<id>`, which closes the browser by itself. Back in the app, orders, balances and bills are refreshed. In the Lite build the order screen's approve button posts `{}` on purpose, so this round trip starts on the first tap.
 
 ## Where the code is
 

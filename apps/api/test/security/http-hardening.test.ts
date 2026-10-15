@@ -79,12 +79,13 @@ describe("deny-by-default route registration", () => {
       "POST /api/webhooks/mock/remittance",
       "POST /api/webhooks/mock/shop",
       "POST /api/webhooks/mock/supplier",
+      "POST /api/webhooks/mock/school",
       "POST /api/rails/fake-issuing/authorize",
       "POST /api/webhooks/stripe",
       "POST /api/agent/documents",
     ]);
     // Action endpoints that take no body (path params or session only).
-    const NO_BODY = /\/(freeze|read|revoke|verify-callback|intent|simulate-success|restrict|reset|login\/options|devices\/shortcut)$|\/demo\/trigger\/:scenario$/;
+    const NO_BODY = /\/(freeze|read|revoke|verify-callback|intent|simulate-success|restrict|reset|login\/options|devices\/shortcut|school-invoices)$|\/demo\/trigger\/:scenario$/;
     const routes = registeredRoutes(app).filter((r) => r.url.startsWith("/api") && ["POST", "PATCH", "PUT"].includes(r.method));
     const unvalidated = routes.filter((r) => !r.bodySchema && !RAW_BODY_OK.has(`${r.method} ${r.url}`) && !NO_BODY.test(r.url)).map((r) => `${r.method} ${r.url}`);
     expect(unvalidated).toEqual([]);
