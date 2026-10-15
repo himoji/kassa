@@ -23,6 +23,23 @@ export const ShortcutDevicesResponse = z.object({
   lastCaptureAt: z.string().nullable(),
   /** The newest time a Shortcut reached Kassa (a purchase or a test run); absent on older servers. */
   lastUsedAt: z.string().nullable().optional(),
+  /** That device's last request: fields received and outcome (KassaLite's tap check); absent on older servers. */
+  lastCheck: z
+    .object({
+      at: z.string(),
+      kind: z.enum(["TEST", "PAYMENT", "FORWARDED", "INCOMPLETE"]),
+      via: z.enum(["action", "shortcut"]),
+      fields: z.object({
+        merchant: z.boolean(),
+        amount: z.boolean(),
+        card: z.boolean(),
+        place: z.boolean(),
+      }),
+      status: z.enum(["LOGGED", "MERGED", "IGNORED_INCOMING", "UNPARSED"]).nullable(),
+      transactionId: z.string().nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 export type ShortcutDevices = z.infer<typeof ShortcutDevicesResponse>;
 

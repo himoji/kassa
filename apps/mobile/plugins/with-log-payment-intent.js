@@ -10,9 +10,19 @@
 /* global __dirname */
 const fs = require("node:fs");
 const path = require("node:path");
-const { IOSConfig, withDangerousMod, withXcodeProject } = require("expo/config-plugins");
+const {
+  IOSConfig,
+  withDangerousMod,
+  withInfoPlist,
+  withXcodeProject,
+} = require("expo/config-plugins");
 
 const FILE = "LogPaymentIntent.swift";
+/**
+ * A URL scheme only builds with the action declare (and may query): the JS bundle, which can arrive over the air on
+ * an older build, asks `Linking.canOpenURL` before it offers the action (src/lite/intent-config.ts).
+ */
+const MARKER_SCHEME = "kassalite-log-payment";
 const SOURCE = path.join(__dirname, "log-payment-intent", FILE);
 
 function withIntentFile(config) {
@@ -39,6 +49,22 @@ function withIntentSource(config) {
   });
 }
 
+function withMarkerScheme(config) {
+  return withInfoPlist(config, (cfg) => {
+    const plist = cfg.modResults;
+    const types = plist.CFBundleURLTypes ?? [];
+    if (!types.some((t) => (t.CFBundleURLSchemes ?? []).includes(MARKER_SCHEME))) {
+      types.push({ CFBundleURLSchemes: [MARKER_SCHEME] });
+    }
+    plist.CFBundleURLTypes = types;
+    const queries = plist.LSApplicationQueriesSchemes ?? [];
+    if (!queries.includes(MARKER_SCHEME)) queries.push(MARKER_SCHEME);
+    plist.LSApplicationQueriesSchemes = queries;
+    return cfg;
+  });
+}
+
 module.exports = function withLogPaymentIntent(config) {
-  return withIntentSource(withIntentFile(config));
+  return withMarkerScheme(withIntentSource(withIntentFile(config)));
 };
+module.exports.MARKER_SCHEME = MARKER_SCHEME;

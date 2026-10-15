@@ -10,6 +10,7 @@ import { approvals, budgets, cardFeeProfiles, cards, ledgerEntries, notification
 import { rememberCategoryCorrection } from "../../src/modules/capture/service.ts";
 import { normalizeMerchant } from "../../src/modules/capture/normalize.ts";
 import { clock } from "../../src/modules/clock/index.ts";
+import { redactKey } from "../../src/server.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { createUserWithPasskey, offlineEnvironment } from "../helpers/fixtures.ts";
@@ -30,6 +31,7 @@ async function listDevices(userId: string) {
     devices: { id: string; kind: string; createdAt: string; lastUsedAt: string | null }[];
     lastCaptureAt: string | null;
     lastUsedAt: string | null;
+    lastCheck: Record<string, unknown> | null;
   };
 }
 
@@ -137,14 +139,59 @@ describe("/capture/shortcut test run (KassaLite setup check)", () => {
     expect(list.lastCaptureAt).toBeNull();
     expect(list.devices.find((d) => d.id === a.deviceId)?.lastUsedAt).toBe(list.lastUsedAt);
     expect(list.devices.find((d) => d.id === b.deviceId)?.lastUsedAt).toBeNull();
+    expect(list.lastCheck).toMatchObject({ kind: "TEST", fields: { merchant: false, amount: false } });
   });
 
-  it("a merchant without an amount is still a bad request (a mis-wired Shortcut), and does not count as used", async () => {
+  it("a merchant without an amount → INCOMPLETE: nothing logged, the reply and the tap check say what is missing", async () => {
     const { userId } = await createUserWithPasskey();
     const { token } = await createDevice(userId);
-    const res = await capture(token, { merchant: "Coffee House", amount: "" });
-    expect(res.statusCode).toBe(400);
-    expect((await listDevices(userId)).lastUsedAt).toBeNull();
+    const res = await capture(token, { merchant: "Coffee House", amount: "", card: "Visa" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ status: "INCOMPLETE", nudgeTitle: "Kassa got the tap, but no amount" });
+    expect(await getDb().select().from(transactions).where(eq(transactions.userId, userId))).toEqual([]);
+    const list = await listDevices(userId);
+    expect(list.lastUsedAt).not.toBeNull();
+    expect(list.lastCheck).toMatchObject({
+      kind: "INCOMPLETE",
+      via: "shortcut",
+      fields: { merchant: true, amount: false, card: true, place: false },
+      status: null,
+      transactionId: null,
+    });
+  });
+
+  it("a purchase records the tap check: fields received, status and the logged transaction; the action is told apart", async () => {
+    const { userId } = await createUserWithPasskey();
+    const { token } = await createDevice(userId);
+    const res = await app().inject({
+      method: "POST",
+      url: "/api/capture/shortcut",
+      headers: { authorization: `Bearer ${token}`, "x-kassa-client": "log-payment-action" },
+      payload: { merchant: "Coffee House", amount: "1 200 Ft", card: "Visa ••4821", city: "Budapest" },
+    });
+    expect(res.json().status).toBe("LOGGED");
+    const list = await listDevices(userId);
+    expect(list.lastCheck).toMatchObject({
+      kind: "PAYMENT",
+      via: "action",
+      fields: { merchant: true, amount: true, card: true, place: true },
+      status: "LOGGED",
+      transactionId: res.json().transactionId,
+    });
+    // No merchant text, amount or card value is kept on the device.
+    expect(JSON.stringify(list.lastCheck)).not.toContain("Coffee");
+    expect(JSON.stringify(list.lastCheck)).not.toContain("4821");
+  });
+
+  it("?key= works instead of the Authorization header (one pasted URL); a wrong key is 401", async () => {
+    const { userId } = await createUserWithPasskey();
+    const { token } = await createDevice(userId);
+    const ok = await app().inject({ method: "POST", url: `/api/capture/shortcut?key=${encodeURIComponent(token)}`, payload: { merchant: "Coffee House", amount: "1 200 Ft" } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().status).toBe("LOGGED");
+    const bad = await app().inject({ method: "POST", url: "/api/capture/shortcut?key=ksc_nope", payload: { merchant: "Coffee House", amount: "1 200 Ft" } });
+    expect(bad.statusCode).toBe(401);
+    expect(redactKey(`/api/capture/shortcut?key=${token}&x=1`)).toBe("/api/capture/shortcut?key=[redacted]&x=1");
   });
 
   it("a real purchase also sets lastUsedAt; a revoked token's test run is 401", async () => {

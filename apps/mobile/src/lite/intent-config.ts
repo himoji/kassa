@@ -9,7 +9,7 @@
  * Service and key are a contract with the Swift file (expo-secure-store adds ":no-auth" to the service).
  */
 import * as SecureStore from "expo-secure-store";
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 
 import { loadServerUrl } from "./server-url";
 import { loadShortcutToken } from "./shortcut-token";
@@ -45,5 +45,21 @@ export async function clearIntentConfig(): Promise<void> {
     await SecureStore.deleteItemAsync(INTENT_CONFIG_KEY, OPTIONS);
   } catch {
     // ignore
+  }
+}
+
+/** Declared only by builds that contain the action (plugins/with-log-payment-intent.js `MARKER_SCHEME`). */
+export const ACTION_MARKER_URL = "kassalite-log-payment://";
+
+/**
+ * Whether this build has the "Log Payment in Kassa" action. The JS can be newer than the build (over-the-air
+ * updates), so it asks the native side: only builds with the action declare and may query the marker scheme.
+ */
+export async function hasLogPaymentAction(): Promise<boolean> {
+  if (Platform.OS !== "ios") return false;
+  try {
+    return await Linking.canOpenURL(ACTION_MARKER_URL);
+  } catch {
+    return false;
   }
 }

@@ -1,7 +1,21 @@
 import type { ComponentProps } from "react";
 import type { Stack } from "expo-router";
+import { Platform } from "react-native";
 
 type StackOptions = NonNullable<ComponentProps<typeof Stack>["screenOptions"]>;
+
+/**
+ * iOS 26 draws its own scroll edge effect (Liquid Glass) under a transparent bar. A `headerBlurEffect` there adds
+ * a blur view on top of the bar that covers the large title, so the title reads as text behind frosted glass; only
+ * older iOS gets the explicit blur.
+ */
+export function iosHeaderBlur(
+  os: string | undefined = process.env.EXPO_OS,
+  version: string | number = Platform.Version
+): "systemChromeMaterial" | undefined {
+  if (os !== "ios") return undefined;
+  return Number.parseInt(String(version), 10) >= 26 ? undefined : "systemChromeMaterial";
+}
 
 /**
  * Native stack headers per Apple HIG: large titles that collapse into the inline title on scroll
@@ -13,7 +27,7 @@ export const largeTitleOptions: StackOptions = {
   headerLargeTitleShadowVisible: false,
   headerShadowVisible: false,
   headerTransparent: process.env.EXPO_OS === "ios",
-  headerBlurEffect: process.env.EXPO_OS === "ios" ? "systemChromeMaterial" : undefined,
+  headerBlurEffect: iosHeaderBlur(),
   headerBackButtonDisplayMode: "minimal",
 };
 

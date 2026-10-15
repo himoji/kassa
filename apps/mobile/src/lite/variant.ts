@@ -10,10 +10,3 @@ export function isLiteBuild(): boolean {
     (Constants.expoConfig?.extra as { appVariant?: string } | undefined)?.appVariant === "lite"
   );
 }
-
-/** iCloud link of the Shortcut template (app.config.ts `extra.shortcutTemplateUrl`); "" when unset. */
-export function shortcutTemplateUrl(): string {
-  const url = (Constants.expoConfig?.extra as { shortcutTemplateUrl?: unknown } | undefined)
-    ?.shortcutTemplateUrl;
-  return typeof url === "string" ? url.trim() : "";
-}

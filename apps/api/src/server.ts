@@ -54,10 +54,16 @@ async function loadOptionalPlugin(name: string, log: FastifyInstance["log"]): Pr
   return mod.default;
 }
 
+/** `/api/capture/shortcut?key=ksc_…` → `?key=[redacted]`. */
+export function redactKey(url: string): string {
+  return url.replace(/([?&]key=)[^&#]*/gi, "$1[redacted]");
+}
+
 export async function buildServer(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const e = env();
   const app = Fastify({
-    logger: opts.logger ?? e.NODE_ENV !== "test",
+    // `?key=` carries a Shortcut device token (capture/routes.ts): never written to the log.
+    logger: (opts.logger ?? e.NODE_ENV !== "test") ? { serializers: { req: (req) => ({ method: req.method, url: redactKey(req.url), host: req.host, remoteAddress: req.ip, remotePort: req.socket?.remotePort, reqId: req.id }) } } : false,
     // Body size (OWASP API4): JSON stays small; the document upload route gets its own limit (http/security.ts).
     bodyLimit: DEFAULT_BODY_LIMIT,
     // Rate limits key on req.ip: behind Caddy the client address comes from X-Forwarded-For (TRUST_PROXY).
