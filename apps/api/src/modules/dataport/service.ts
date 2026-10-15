@@ -1,4 +1,4 @@
-import { type ImportCommitResponse, type ImportItems, type KassaExport } from "@kassa/shared";
+import { type ImportCommitResponse, type ImportHistory, type ImportItems, type KassaExport } from "@kassa/shared";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
@@ -77,7 +77,7 @@ export async function exportData(userId: string): Promise<KassaExport> {
 }
 
 /** Adds the import's cards, bills and spending (see the header comment). */
-export async function commitImport(userId: string, items: ImportItems): Promise<ImportCommitResponse> {
+export async function commitImport(userId: string, items: ImportItems, history?: ImportHistory | null): Promise<ImportCommitResponse> {
   const db = getDb();
   await account(userId);
   const result: ImportCommitResponse = { transactions: { imported: 0, duplicates: 0, failed: 0 }, bills: { added: 0, skipped: 0 }, cards: { added: 0, skipped: 0 }, incomes: { added: 0, skipped: 0 } };
@@ -159,6 +159,8 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
 
   // Each card's markup profile once per currency pair, after all its samples are in (not once per row).
   for (const [cardId, from, to] of feeProfiles.values()) await refreshCardProfile(db, cardId, from, to);
+  // What the statements showed, for the agent (get_money_history). The latest import's analysis replaces the last one.
+  if (history) await db.update(profiles).set({ moneyHistory: history }).where(eq(profiles.userId, userId));
   await ledger.append("DATA_IMPORTED", { userId, ...result });
   return result;
 }

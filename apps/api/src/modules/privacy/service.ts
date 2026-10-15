@@ -54,7 +54,7 @@ export const ERASED_MARK = "[erased]";
 
 /** Erasure result categories (EraseResponse). */
 export const ERASED = [
-  "profile (name, incomes, reserve rules) and AI consent",
+  "profile (name, incomes, reserve rules, imported money history) and AI consent",
   "passkeys (both credential stores), devices and push tokens",
   "payees (names, encrypted accounts), obligations, budgets, cards and card fee profiles, linked accounts",
   "captured transactions and merchant category memory",
@@ -308,7 +308,7 @@ export async function eraseUser(userId: string): Promise<{ erasedAt: Date }> {
       .where(and(eq(ruleChanges.userId, userId), isNull(ruleChanges.appliedAt), isNull(ruleChanges.canceledAt)));
     await tx
       .update(profiles)
-      .set({ incomes: [], reserveRules: {}, bankProfileId: null, stripeCardholderId: null })
+      .set({ incomes: [], reserveRules: {}, bankProfileId: null, stripeCardholderId: null, moneyHistory: null })
       .where(eq(profiles.userId, userId));
     await tx
       .update(users)

@@ -9,6 +9,7 @@ import {
   AskConfirmInput,
   AskDateInput,
   ForecastCoverageInput,
+  GetMoneyHistoryInput,
   GetSpendingSummaryInput,
   GetFxRateInput,
   ForecastStockInput,
@@ -34,6 +35,7 @@ import { isAiConfigError } from "../ai/errors.ts";
 import { parseAmountString } from "../capture/amount.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { normalizeMerchant } from "../capture/normalize.ts";
+import { historyLines } from "../dataport/notes.ts";
 import { rates, type RateSource } from "../fx/rates.ts";
 import { convertMinor } from "../fx/rational.ts";
 import type { ReaderResult } from "../reader/index.ts";
@@ -82,6 +84,7 @@ export type ToolName =
   | "propose_purchase_order"
   | "get_fx_rate"
   | "get_spending_summary"
+  | "get_money_history"
   | "ask_choice"
   | "ask_amount"
   | "ask_budgets"
@@ -89,7 +92,7 @@ export type ToolName =
   | "ask_confirm";
 
 /** Read-only tools added on top of the spec's eleven; never part of proposal gating. */
-export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate", "get_spending_summary"];
+export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate", "get_spending_summary", "get_money_history"];
 
 /** UI tools: each emits a `data-choices` part and ends the turn (loop.ts stopWhen). */
 export const UI_TOOLS: readonly ToolName[] = ["ask_choice", "ask_amount", "ask_budgets", "ask_date", "ask_confirm"];
@@ -425,6 +428,41 @@ export function buildTools(ctx: ToolContext): ToolSet {
           totalMinor: s.totalMinor,
           monthlyIncomeMinor: s.monthlyIncomeMinor,
           incomeUsedPct: s.incomeUsedPct,
+        };
+      }),
+    }),
+
+    get_money_history: tool({
+      description:
+        "What the user's imported bank statements showed, computed by Kassa (not by a model): each statement's period, everyday spending per month and per category, the spending trend, one-off payments, a move to another currency, and money in per person: in how many covered months it came, its range, the planned monthly amount (the average for irregular money), whether it is falling or has stopped, and large transfers that were sent for one payment. Use it before advice about income, saving, affordability or the months ahead; plan with planned amounts, never the best month.",
+      inputSchema: GetMoneyHistoryInput,
+      execute: safe(async () => {
+        const h = (await ports.profile()).moneyHistory;
+        if (!h) return { imported: false, hint: "No bank statements imported yet. The user can add them in Settings → Import & export." };
+        return {
+          imported: true,
+          homeCurrency: h.homeCurrency,
+          summary: historyLines(h),
+          statements: h.statements,
+          monthly: h.monthly.slice(-12),
+          spendingTrend: h.spendingTrend,
+          oneOffs: h.oneOffs,
+          currencyShift: h.currencyShift,
+          monthsOverspent: h.monthsOverspent,
+          // "from", not "source": `source` is a code field the redactor passes through (redact.ts ENUM_KEYS).
+          moneyIn: h.incomes.map((i) => ({
+            from: i.source,
+            regularity: i.regularity,
+            plannedMonthly: i.amount,
+            monthsReceived: i.monthsReceived,
+            monthsCovered: i.monthsCovered,
+            minMonthlyMinor: i.minMonthlyMinor,
+            maxMonthlyMinor: i.maxMonthlyMinor,
+            trend: i.trend,
+            stopped: i.stopped,
+            lastDate: i.lastDate,
+            earmarked: i.largest,
+          })),
         };
       }),
     }),

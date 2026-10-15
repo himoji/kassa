@@ -80,6 +80,7 @@ export function DataScreen() {
     try {
       const res = await commit.mutateAsync({
         items: { ...selected, budgets: [] },
+        history: result.history,
         onProgress: (d, n) => setProgress({ done: d, total: n }),
       });
       let budgets = 0;
