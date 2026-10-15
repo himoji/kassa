@@ -13,7 +13,7 @@
  * Ledger (p2 B2): one DEMO_SEEDED entry per seeded user, naming only that user, so a DSAR export
  * (payload userId = subject) never contains another persona's identifiers.
  */
-import { PRESET_DEFAULTS } from "@kassa/shared";
+import { PRESET_DEFAULTS, type PayeeKind, type RecipientDetails } from "@kassa/shared";
 import { sql } from "drizzle-orm";
 
 import type { Db } from "../../db/client.ts";
@@ -26,6 +26,7 @@ import {
   merchants,
   obligations,
   payees,
+  fundingSources,
   profiles,
   recipes,
   salesDaily,
@@ -37,7 +38,7 @@ import {
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { clearDekCache } from "../privacy/keys.ts";
-import { accountHash, encryptAccount, normalizeAccount } from "../payees/crypto.ts";
+import { accountHash, encryptAccount, encryptDetails, normalizeAccount } from "../payees/crypto.ts";
 import { DEFAULT_CAPS } from "../users/service.ts";
 
 type SeedCaps = { perPaymentMinor: number; perDayMinor: number; perMonthMinor: number; smallAutoMinor: number; reserveMinor: number };
@@ -79,6 +80,8 @@ export type SeedData = {
   mockBankProfileId: number;
   /** Extra demo personas (only inserted with `{ personas: true }`). */
   personas?: readonly SeedPersonaData[];
+  /** (added 2026-10-16) Linked cards and bank accounts, inserted ACTIVE (simulated). */
+  fundingSources?: readonly { id: string; kind: "CARD" | "BANK"; provider: "STRIPE" | "MOCK_BANK"; institution: string; last4: string; country: string; currency: string; providerRef: string }[];
   user: { id: string; displayName: string; homeCurrency: string; region: "EU" | "CN"; preset: "ASK_ME" | "SMART" | "AUTOPILOT"; moneyMode: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF"; createdAt: string };
   profile: {
     incomes: { source: string; currency: string; amountMinor: number; cadence: "WEEKLY" | "MONTHLY" | "TERM" | "ONCE"; nextDate: string }[];
@@ -90,7 +93,7 @@ export type SeedData = {
   payees: {
     id: string;
     name: string;
-    kind: "LANDLORD" | "UNIVERSITY" | "INSURER" | "MERCHANT" | "SUPPLIER" | "PERSON" | "OWN_ACCOUNT";
+    kind: PayeeKind;
     account: string;
     country: string;
     currency: string;
@@ -98,6 +101,7 @@ export type SeedData = {
     verifiedAt: string | null;
     coolingUntil: string | null;
     replacesPayeeId: string | null;
+    details?: RecipientDetails;
   }[];
   obligations: { id: string; payeeId: string; amountMinor: number; currency: string; dueDate: string; recurrence: "MONTHLY" | "ONCE" | "TERM"; reference: string | null; category: string }[];
   budgets: { id: string; category: string; periodStart: string; periodEnd: string; limitHomeMinor: number }[];
@@ -219,7 +223,12 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
       verifiedAt: p.verifiedAt ? new Date(p.verifiedAt) : null,
       coolingUntil: p.coolingUntil ? new Date(p.coolingUntil) : null,
       replacesPayeeId: p.replacesPayeeId,
+      detailsEnc: p.details ? encryptDetails(u.id, p.details) : null,
     });
+  }
+  for (const f of data.fundingSources ?? []) {
+    const at = new Date(data.user.createdAt);
+    await tx.insert(fundingSources).values({ ...f, userId: u.id, status: "ACTIVE", simulated: true, linkHash: "seeded", createdAt: at, verifiedAt: at });
   }
   if (data.obligations.length) {
     await tx.insert(obligations).values(

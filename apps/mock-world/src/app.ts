@@ -91,6 +91,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     rates,
     webhooks,
     stepMs: config.bankStepMs,
+    instant: config.bankInstant,
     initialBalances: [
       { profileId: MOCK_BANK_PROFILE_ID, aliases: [IDS.user], balances },
       // Demo personas (seeded by the API with `personas: true`: Li Wei D-CN3, Li Wei in Shanghai, the two pizzerias);

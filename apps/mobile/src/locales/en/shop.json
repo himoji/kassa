@@ -28,7 +28,7 @@
     "hint": "The amount and items come from the shop's till, not from this link. You approve the payment with your passkey on the next screen.",
     "review": "Review and pay",
     "paid": "This bill is already paid.",
-    "notPayee": "{{merchant}} is not one of your payees yet. Add it first, then scan the bill again."
+    "notPayee": "{{merchant}} is not one of your recipients yet. Add it first, then scan the bill again."
   },
   "notifyStatusTitle": "{{merchant}}: {{status}}",
   "notifyEndedBody": "Nothing more is charged. Reason: {{code}}.",

@@ -22,6 +22,7 @@ import {
   devices,
   issuedCards,
   ledgerEntries,
+  fundingSources,
   mandates,
   notifications,
   obligations,
@@ -55,7 +56,7 @@ export const ERASED_MARK = "[erased]";
 export const ERASED = [
   "profile (name, incomes, reserve rules) and AI consent",
   "passkeys (both credential stores), devices and push tokens",
-  "payees (names, encrypted accounts), obligations, budgets, cards and card fee profiles",
+  "payees (names, encrypted accounts), obligations, budgets, cards and card fee profiles, linked accounts",
   "captured transactions and merchant category memory",
   "notifications, agent conversations, placeholder maps, uploaded documents, onboarding drafts",
   "unexecuted proposals",
@@ -150,6 +151,7 @@ export async function exportUserData(userId: string) {
       return { ...p, account };
     }),
     obligations: await db.select().from(obligations).where(own(obligations)),
+    linkedAccounts: (await db.select().from(fundingSources).where(own(fundingSources))).map(({ linkHash: _h, codeHash: _c, ...f }) => f),
     budgets: await db.select().from(budgets).where(own(budgets)),
     cards: cardRows,
     cardFeeProfiles: cardRows.length ? await db.select().from(cardFeeProfiles).where(inArray(cardFeeProfiles.cardId, cardRows.map((c) => c.id))) : [],
@@ -272,6 +274,7 @@ export async function eraseUser(userId: string): Promise<{ erasedAt: Date }> {
     await tx.delete(obligations).where(eq(obligations.userId, userId));
     await tx.delete(cards).where(eq(cards.userId, userId)); // card_fee_profiles cascade
     await tx.delete(payees).where(eq(payees.userId, userId));
+    await tx.delete(fundingSources).where(eq(fundingSources.userId, userId));
 
     // Proposals that never got an approval are drafts, not payment records.
     const approved = tx.select({ id: approvals.proposalId }).from(approvals);

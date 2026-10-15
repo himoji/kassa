@@ -23,6 +23,8 @@ import demoRoutes from "./modules/demo/routes.ts";
 import ledgerRoutes from "./modules/ledger/routes.ts";
 import mandateRoutes from "./modules/mandates/routes.ts";
 import moneyRoutes from "./modules/money/routes.ts";
+import fundingSourceRoutes from "./modules/funding-sources/routes.ts";
+import obligationRoutes from "./modules/obligations/routes.ts";
 import notificationRoutes from "./modules/notifications/routes.ts";
 import orderRoutes from "./modules/orders/routes.ts";
 import { wireExecutor } from "./modules/orders/wiring.ts";
@@ -105,6 +107,8 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
       await api.register(commerceRoutes);
       await api.register(paymentRoutes);
       await api.register(moneyRoutes);
+      await api.register(obligationRoutes);
+      await api.register(fundingSourceRoutes);
       await api.register(notificationRoutes);
       await api.register(ledgerRoutes);
       await api.register(creditRecordRoutes);

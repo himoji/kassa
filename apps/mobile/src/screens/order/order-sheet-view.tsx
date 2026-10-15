@@ -15,6 +15,7 @@ import {
 } from "@kassa/shared";
 import { View } from "react-native";
 
+import { useFundingSources } from "@/api/hooks/funding-sources";
 import { verifyOrderIntegrity } from "@/api/hooks/orders";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
 import { Countdown } from "@/components/kassa/countdown";
@@ -71,6 +72,12 @@ export function OrderSheetView({
     funding = null; // a partial binding never verifies; the integrity check disables Approve
   }
   const converts = funding !== null && funding.currency !== order.currency;
+  // (linked accounts) The signed source id, named from the user's own list (the server's data, not the agent's).
+  const sources = useFundingSources();
+  const sourceLabel = order.fundingSourceId
+    ? (sources.data?.sources.find((s) => s.id === order.fundingSourceId)?.label ??
+      t("wallet:methods.LINKED"))
+    : null;
   const pending = view.status === "PENDING_APPROVAL";
   const canApprove =
     pending && intact && view.webauthnOptions !== null && view.payeeStatus !== "BLOCKED";
@@ -120,10 +127,17 @@ export function OrderSheetView({
           <Box gap={1}>
             <Field
               label={t("order:fundedFrom")}
-              value={t("order:fundedFromValue", {
-                currency: funding.currency,
-                max: f.money(funding.maxAmountMinor, funding.currency),
-              })}
+              value={
+                sourceLabel
+                  ? t("order:fundedFromLinked", {
+                      label: sourceLabel,
+                      max: f.money(funding.maxAmountMinor, funding.currency),
+                    })
+                  : t("order:fundedFromValue", {
+                      currency: funding.currency,
+                      max: f.money(funding.maxAmountMinor, funding.currency),
+                    })
+              }
               testID="order-funding"
             />
             {converts ? (

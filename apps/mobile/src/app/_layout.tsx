@@ -151,6 +151,10 @@ function RootStack() {
         }}
       />
       <Stack.Screen
+        name="linked-accounts"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("wallet:linked.title") }}
+      />
+      <Stack.Screen
         name="send"
         options={{ ...inlineTitleOptions, headerShown: true, title: t("wallet:sendTitle") }}
       />

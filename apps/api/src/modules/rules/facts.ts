@@ -11,24 +11,6 @@ import { isoDate } from "../clock/index.ts";
 import { toHome } from "../money/fx.ts";
 import { normalizeName } from "../screening/normalize.ts";
 
-/** Default budget category by payee kind when neither the caller nor an obligation gives one. */
-export function defaultCategory(kind: PayeeKind): string {
-  switch (kind) {
-    case "LANDLORD":
-      return "rent";
-    case "UNIVERSITY":
-      return "tuition";
-    case "INSURER":
-      return "insurance";
-    case "MERCHANT":
-      return "shopping";
-    case "SUPPLIER":
-      return "supplies";
-    default:
-      return "transfers";
-  }
-}
-
 /** Rail when the proposal does not name one (spec §1 money modes, §11 rails). */
 export function chooseRail(
   requested: Rail | undefined,
