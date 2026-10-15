@@ -144,7 +144,7 @@ export async function exportUserData(userId: string) {
     payees: payeeRows.map(({ accountEnc, ...p }) => {
       let account: string | null = null;
       try {
-        account = accountEnc === null ? null : decryptAccount(userId, accountEnc);
+        account = accountEnc === null ? null : decryptAccount(userId, accountEnc, p.id);
       } catch {
         account = null;
       }

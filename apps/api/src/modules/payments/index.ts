@@ -39,7 +39,7 @@ import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { pullIntoWallet, PullDeclined } from "../funding-sources/pull.ts";
 import { activeFundingSource } from "../funding-sources/store.ts";
-import { decryptAccount } from "../payees/crypto.ts";
+import { accountHash, decryptAccount } from "../payees/crypto.ts";
 import { railFor } from "../rails/index.ts";
 import { rulesPublicKey } from "../rules/publicKey.ts";
 import { screenName } from "../screening/index.ts";
@@ -270,6 +270,15 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     }
     // A payee captured without account details (onboarding) is never payable, whatever the order says.
     if (payee.accountEnc === null || payee.accountHash === null) refuse("REFUSE_UNVERIFIED_PAYEE", "payee has no account details");
+    // A12 (AIXBT-style row writes): the account the rail will pay must decrypt for THIS payee row (v2 AAD binds the
+    // payee id) and hash to the account hash the order signed. A ciphertext copied from another row fails here.
+    let payeeAccount: string;
+    try {
+      payeeAccount = decryptAccount(payee.userId, payee.accountEnc, payee.id);
+    } catch {
+      refuse("REFUSE_UNVERIFIED_PAYEE", "payee account does not belong to this payee row");
+    }
+    if (accountHash(payeeAccount) !== order.payeeAccountHash) refuse("REFUSE_UNVERIFIED_PAYEE", "payee account does not match the signed account hash");
     if (payee.status === "COOLING" && (a.tier === "T1" || !payee.coolingUntil || payee.coolingUntil.getTime() > now.getTime())) {
       refuse("REFUSE_UNVERIFIED_PAYEE", "cooling payee: T2 only, after coolingUntil (I7)");
     }
@@ -387,7 +396,7 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
         paymentId,
         approvalId: a.id,
         now,
-        payee: { id: payee.id, name: payee.name, kind: payee.kind, account: decryptAccount(payee.userId, payee.accountEnc) },
+        payee: { id: payee.id, name: payee.name, kind: payee.kind, account: payeeAccount },
       });
       status = result.status;
       reasonCodes = (result.reasonCodes ?? []) as ReasonCode[];
