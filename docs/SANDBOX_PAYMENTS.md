@@ -84,6 +84,28 @@ Kassa-to-Kassa runs on mock-world only.
 Demo: Add money €50 → Settings shows your Kassa ID → as Dana add Li Wei by `KSA-ZVMS-3NXE` → advance the demo clock
 25 h → Send → approve → advance 2 h → Li Wei's HUF balance is up. Covered by `apps/api/test/demos/wallet-p2p.test.ts`.
 
+## Linked cards and banks (added 2026-10-15)
+
+Settings → Linked accounts (or From → Link a card or bank on Send). Linking takes two steps: `POST /api/funding-sources/card/start` or `/bank/start` makes a PENDING account, then `POST /api/funding-sources/:id/confirm` needs the passkey (a 428 round trip, like payee verification) and, for a bank, the one-tenge code from the bank's note. Only an ACTIVE account can be picked as From; removing one never touches past payments.
+
+When an order is signed with a linked account, the account is part of what the passkey signs. At execution Kassa pulls the signed amount from it into the wallet, then the bank rail pays out as for any wallet send. A declined card pays nothing out.
+
+| Piece | Demo | Production |
+| --- | --- | --- |
+| Link a card | Stripe test card (Visa 4242, Mastercard 4444, or the declined 0341). With `STRIPE_SECRET_KEY=sk_test_…` the card is saved at Stripe through a SetupIntent; without it, simulated | Same, live keys, through a licensed partner |
+| Link a bank (EU or Kaspi / Halyk in KZ) | Mock bank: the last 4 digits and a one-tenge code, simulated | Open banking (EU), the KZ Open API or a bank partnership |
+| Pull from the linked account | Stripe test PaymentIntent (off session) or a simulated card charge; simulated bank debit | Same rails, live |
+| Payout | Mock bank, delivered as soon as it is funded (`MOCK_BANK_INSTANT`, on by default outside tests) | Wise Platform or a licensed payout partner |
+| "Delivered in 1.2 s" | Measured from approval to the mock bank's payout, labelled simulated | Depends on the corridor |
+
+Dana's seed has a linked test Visa and her Kaspi Gold account, already confirmed. Tests: `apps/api/test/core/linked-accounts.test.ts`.
+
+## School portals (added 2026-10-15)
+
+The mock world has four fictitious schools (Budapest, Debrecen, Vienna, Almaty) with a directory, per-student invoices and a portal page at `/mock/schools/:id/portal?studentId=`. Adding a Tuition recipient starts with Find your school: `POST /api/schools/:id/lookup` shows the open invoice, `POST /api/schools/:id/link` adds the school (it still cools for 24 h) and the invoice as a bill. `POST /api/obligations/:id/pay` pays a bill now, once.
+
+When the mock bank pays out to a school's IBAN with the invoice reference, the portal books the payment and sends a signed `school` webhook (`POST /api/webhooks/mock/school`). Kassa only accepts it for a transfer it sent, with the same amount and currency, and then records the receipt and notifies the user. In production this would be a partner such as Flywire or Convera. Tests: `apps/api/test/core/schools.test.ts`, `apps/mock-world/test/schools.test.ts`.
+
 ## Card payments
 
 Card rails (one-time cards, pay in place) use Stripe test mode when `STRIPE_SECRET_KEY` is a `sk_test_` key, and a
