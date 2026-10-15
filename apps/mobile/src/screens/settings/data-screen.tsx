@@ -160,6 +160,11 @@ export function DataScreen() {
       </RowGroup>
 
       {upload.isPending ? <Text variant="caption">{t("settings:data.reading")}</Text> : null}
+      {commit.isPending && result ? (
+        <Text variant="caption">
+          {t("settings:data.importing", { count: result.items.transactions.length })}
+        </Text>
+      ) : null}
       {result ? (
         <ImportPreviewCard
           result={result}

@@ -193,7 +193,7 @@ export async function previewImport(inputs: ImportFileInput[], o: PreviewOptions
   const fileBills = reads.flatMap((r) => r.mapped.bills);
   const fileCards = reads.flatMap((r) => r.mapped.cards);
   const fileBudgets = reads.flatMap((r) => r.mapped.budgets);
-  for (const r of reads) warnings.push(...r.mapped.warnings);
+  for (const r of reads) for (const w of r.mapped.warnings) warnings.push(reads.length > 1 && !w.startsWith(r.file.name) ? `${r.file.name}: ${w}` : w);
   if (rows.length === 0 && fileBills.length === 0 && fileCards.length === 0 && fileBudgets.length === 0) {
     const missed = reads.reduce((n, r) => n + r.missed, 0);
     throw new ImportFormatError(

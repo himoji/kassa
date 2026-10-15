@@ -183,9 +183,9 @@ export function ImportPreviewCard({
             onChange={(v) => setOn({ ...on, [s]: v })}
           />
         ))}
-        {result.items.transactions
-          .slice(-5)
-          .reverse()
+        {[...result.items.transactions]
+          .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+          .slice(0, 5)
           .map((x, i) => (
             <Box key={i} row justify="between" gap={2}>
               <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>

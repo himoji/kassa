@@ -375,6 +375,11 @@ export function OnboardingChatScreen() {
         ))}
         {send.isPending ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
         {upload.isPending ? <Text variant="caption">{t("settings:data.reading")}</Text> : null}
+        {commitImport.isPending && statements ? (
+          <Text variant="caption">
+            {t("settings:data.importing", { count: statements.items.transactions.length })}
+          </Text>
+        ) : null}
         {statements ? (
           <ImportPreviewCard
             result={statements}

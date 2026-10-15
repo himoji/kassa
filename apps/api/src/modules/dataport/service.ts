@@ -114,6 +114,9 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
 
   if (items.bills.length) result.bills = await db.transaction((tx) => addBills(tx, userId, items.bills, "import"));
 
+  // Duplicates are rows that existed before this import (a statement imported twice, or a purchase already captured
+  // from Apple Pay); rows of this import never count as each other's duplicates.
+  const ours = new Set<string>();
   for (const t of items.transactions) {
     const occurredAt = new Date(t.occurredAt);
     const merchantNorm = normalizeMerchant(t.merchant) || "unknown";
@@ -122,8 +125,8 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
       .select({ id: transactions.id })
       .from(transactions)
       .where(and(eq(transactions.userId, userId), inArray(transactions.dedupeKey, keys)))
-      .limit(1);
-    if (dup.length) {
+      .limit(25);
+    if (dup.some((d) => !ours.has(d.id))) {
       result.transactions.duplicates++;
       continue;
     }
@@ -132,12 +135,13 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
         userId,
         { source: "IMPORT", fields: { merchant: t.merchant, amountMinor: t.amountMinor, currency: t.currency, occurredAt: t.occurredAt, cardHint: t.cardLast4 ?? undefined, mcc: t.mcc ?? undefined } },
         db,
-        { notify: false, aiCategory: false },
+        { notify: false, aiCategory: false, dedupe: false },
       );
       if (!r.transactionId) {
         result.transactions.failed++;
         continue;
       }
+      ours.add(r.transactionId);
       // The file's own category wins over the guess (without teaching the merchant memory).
       if (t.category) await db.update(transactions).set({ category: t.category }).where(eq(transactions.id, r.transactionId));
       if (t.settledAmountMinor && t.settledCurrency && t.settledCurrency !== t.currency && r.status === "LOGGED") {
