@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
 import { budgets, cards, obligations, payees, transactions } from "../../src/db/schema.ts";
-import { fieldFor, mapImport, parseAmount, parseDate } from "../../src/modules/dataport/mapper.ts";
+import { fieldFor, parseAmount, parseDate } from "../../src/modules/dataport/mapper.ts";
+import { previewText } from "../../src/modules/dataport/read.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { createUserWithPasskey, offlineEnvironment } from "../helpers/fixtures.ts";
 
 const t = useTestDb();
+const mapImport = (text: string, homeCurrency: string) => previewText(text, { homeCurrency, today: "2026-10-15", aiAllowed: false, ai: "off" });
 const app = useTestApp();
 
 const GERMAN_BANK = {
@@ -55,20 +57,20 @@ describe("import mapping", () => {
     expect(parseDate(1791500000, true)?.getUTCFullYear()).toBe(2026);
   });
 
-  it("maps a German bank statement: spending only, signs, a decimal comma, the document's currency", () => {
-    const p = mapImport(JSON.stringify(GERMAN_BANK), "KZT");
+  it("maps a German bank statement: spending, signs, a decimal comma, the document's currency, income read as income", async () => {
+    const p = await mapImport(JSON.stringify(GERMAN_BANK), "KZT");
     expect(p.source).toBe("mapped");
-    expect(p.mappings[0]).toMatchObject({ path: "$.umsaetze", kind: "transactions", rows: 3, imported: 2 });
+    expect(p.mappings[0]).toMatchObject({ path: "$.umsaetze", kind: "transactions", rows: 3, imported: 3 });
     expect(p.mappings[0]!.fields).toMatchObject({ date: "Buchungsdatum", amount: "Betrag", merchant: "Empfaenger" });
     expect(p.items.transactions).toEqual([
       expect.objectContaining({ merchant: "REWE Markt", amountMinor: 2345, currency: "EUR", category: "groceries", occurredAt: expect.stringMatching(/^2026-10-03/) }),
       expect.objectContaining({ merchant: "Deutsche Bahn", amountMinor: 124990, currency: "EUR" }),
     ]);
-    expect(p.warnings.join(" ")).toMatch(/1 incoming payments/);
+    expect(p.warnings.join(" ")).toMatch(/1 incoming payments were read as income/);
   });
 
-  it("maps a nested app export: per-row currencies, epoch dates, card digits, top-ups left out, cards found", () => {
-    const p = mapImport(JSON.stringify(APP_EXPORT), "EUR");
+  it("maps a nested app export: per-row currencies, epoch dates, card digits, top-ups left out, cards found", async () => {
+    const p = await mapImport(JSON.stringify(APP_EXPORT), "EUR");
     expect(p.items.transactions.map((x) => [x.merchant, x.amountMinor, x.currency, x.cardLast4])).toEqual([
       ["Coffee Shop", 1250, "USD", "4821"],
       ["Lawson", 3200, "JPY", null],
@@ -76,8 +78,8 @@ describe("import mapping", () => {
     expect(p.items.cards).toEqual([{ label: "Travel card", last4: "4821", billingCurrency: "USD", kind: "USD" }]);
   });
 
-  it("finds bills and budgets", () => {
-    const p = mapImport(
+  it("finds bills and budgets", async () => {
+    const p = await mapImport(
       JSON.stringify({
         subscriptions: [{ name: "Dorm rent", price: "120000", currency: "HUF", next_payment: "2026-11-01", frequency: "monthly" }],
         budgets: [{ category: "Eating out", limit: 40000 }],
@@ -88,9 +90,9 @@ describe("import mapping", () => {
     expect(p.items.budgets).toEqual([{ category: "eating_out", limitHomeMinor: 4000000 }]);
   });
 
-  it("says clearly when a file is not usable", () => {
-    expect(() => mapImport("{nope", "EUR")).toThrow(/not valid JSON/);
-    expect(() => mapImport(JSON.stringify({ hello: "world" }), "EUR")).toThrow(/No spending/);
+  it("says clearly when a file is not usable", async () => {
+    await expect(mapImport("{nope", "EUR")).rejects.toThrow(/not valid JSON/);
+    await expect(mapImport(JSON.stringify({ hello: "world" }), "EUR")).rejects.toThrow(/No spending/);
   });
 });
 
@@ -113,9 +115,9 @@ describe("import commit and export", () => {
     };
     const first = await app().inject({ method: "POST", url: "/api/import/commit", headers, payload: { items } });
     expect(first.statusCode).toBe(200);
-    expect(first.json()).toEqual({ transactions: { imported: 2, duplicates: 0, failed: 0 }, bills: { added: 1, skipped: 0 }, cards: { added: 1, skipped: 0 } });
+    expect(first.json()).toEqual({ transactions: { imported: 2, duplicates: 0, failed: 0 }, bills: { added: 1, skipped: 0 }, cards: { added: 1, skipped: 0 }, incomes: { added: 0, skipped: 0 } });
     const again = await app().inject({ method: "POST", url: "/api/import/commit", headers, payload: { items } });
-    expect(again.json()).toEqual({ transactions: { imported: 0, duplicates: 2, failed: 0 }, bills: { added: 0, skipped: 1 }, cards: { added: 0, skipped: 1 } });
+    expect(again.json()).toEqual({ transactions: { imported: 0, duplicates: 2, failed: 0 }, bills: { added: 0, skipped: 1 }, cards: { added: 0, skipped: 1 }, incomes: { added: 0, skipped: 0 } });
 
     const rows = await getDb().select().from(transactions).where(eq(transactions.userId, userId));
     expect(rows.map((r) => r.source)).toEqual(["IMPORT", "IMPORT"]);

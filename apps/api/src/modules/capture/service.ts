@@ -197,7 +197,11 @@ export async function setTransactionCategory(userId: string, transactionId: stri
   return true;
 }
 
-export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean } = {}): Promise<CaptureEventResponse> {
+/**
+ * `notify: false` (data import): no "spent at ..." notification per row. `aiCategory: false`: no Reader call per unknown
+ * merchant (an import names categories in one batch before it commits, dataport/read.ts).
+ */
+export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean; aiCategory?: boolean } = {}): Promise<CaptureEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   const aiAllowed = aiProcessingAllowedFor(u);
@@ -236,7 +240,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   const remembered = await rememberedCategory(db, userId, merchantNorm);
   const cat = first
     ? { category: first.category ?? "other", source: "DICTIONARY" as const, mcc: first.mcc }
-    : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, ...(aiAllowed ? { readerFallback: readerCategory } : {}) });
+    : await categorize({ merchantNorm, merchantRaw, mcc: parsed.mcc, userCategory: remembered, ...(aiAllowed && opts.aiCategory !== false ? { readerFallback: readerCategory } : {}) });
 
   const named = await placeName(userId, merchantNorm, merchantRaw, db);
   const place = placeFrom(hint, ev.location, named);
@@ -321,7 +325,7 @@ export class SettlementError extends Error {
  * statement / demo trigger) fixes the real debit, computes the fee against mid on the purchase date,
  * updates the card's rolling-median markup profile and flags DCC.
  */
-export async function reconcileSettlement(userId: string, ev: SettlementEventRequest, db: DbOrTx = getDb()): Promise<SettlementEventResponse> {
+export async function reconcileSettlement(userId: string, ev: SettlementEventRequest, db: DbOrTx = getDb(), opts: { notify?: boolean } = {}): Promise<SettlementEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   let tx = ev.transactionId
@@ -399,7 +403,8 @@ export async function reconcileSettlement(userId: string, ev: SettlementEventReq
   }
 
   const display = await merchantDisplayName(userId, tx.merchantNorm, tx.merchantRaw, db);
-  if (fee.feeHomeMinor > 0) {
+  // A data import settles history in bulk: the fee is recorded without a notification per row.
+  if (fee.feeHomeMinor > 0 && opts.notify !== false) {
     const msg = { key: "fees.settled" as const, params: { merchant: display, fee: { amountMinor: fee.feeHomeMinor, currency: u.homeCurrency }, markupBps: fee.markupBps } };
     const en = renderEn(msg);
     await notify(userId, { kind: "FEES_SETTLED", title: en.title, body: en.body, data: { key: msg.key, params: msg.params, transactionId: tx.id } }, db);
@@ -410,7 +415,7 @@ export async function reconcileSettlement(userId: string, ev: SettlementEventReq
   if (tx.currency === u.homeCurrency && ev.localAmountMinor && ev.localCurrency && ev.localCurrency !== u.homeCurrency) {
     const midLocal = await svc.getRate(ev.localCurrency, u.homeCurrency, purchaseDate);
     dcc = dccFlag({ chargedHomeMinor: ev.settledAmountMinor, localAmountMinor: ev.localAmountMinor, localCurrency: ev.localCurrency, homeCurrency: u.homeCurrency, midLocalToHome: midLocal.rate });
-    if (dcc) {
+    if (dcc && opts.notify !== false) {
       const msg = { key: "fees.dcc" as const, params: { merchant: display, overMidBps: dcc.overMidBps, charged: { amountMinor: ev.settledAmountMinor, currency: ev.settledCurrency } } };
       const en = renderEn(msg);
       await notify(userId, {

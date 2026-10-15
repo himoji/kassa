@@ -6,7 +6,7 @@ import { budgets, cards, obligations, payees, profiles, transactions, users } fr
 import { HttpProblem } from "../../http/problem.ts";
 import { dedupeCandidates } from "../capture/dedupe.ts";
 import { normalizeMerchant } from "../capture/normalize.ts";
-import { ingestCapture } from "../capture/service.ts";
+import { ingestCapture, reconcileSettlement } from "../capture/service.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { addBills } from "../onboarding/service.ts";
@@ -15,8 +15,10 @@ import { addBills } from "../onboarding/service.ts";
  * Data export / import (GET /export, POST /import/commit; the preview is mapper.ts).
  * Import only ever ADDS records that loosen nothing: spending history goes through capture (I6: capture only logs,
  * with its dedupe, categories and FX), bills through the onboarding path (placeholder payees without an account,
- * never payable until verified; sanctions screening, I9), cards are labels. Budgets are not written here: raising
- * one loosens the rules, so the app applies them with PUT /budgets and the passkey.
+ * never payable until verified; sanctions screening, I9), cards are labels, incomes join the profile (the forecast
+ * reads them; they loosen nothing). A purchase abroad with the amount the account really paid is settled at once, so
+ * the fee x-ray and the card's markup profile learn from the history (no notification per row). Budgets are not
+ * written here: raising one loosens the rules, so the app applies them with PUT /budgets and the passkey.
  */
 
 async function account(userId: string) {
@@ -78,7 +80,7 @@ export async function exportData(userId: string): Promise<KassaExport> {
 export async function commitImport(userId: string, items: ImportItems): Promise<ImportCommitResponse> {
   const db = getDb();
   await account(userId);
-  const result: ImportCommitResponse = { transactions: { imported: 0, duplicates: 0, failed: 0 }, bills: { added: 0, skipped: 0 }, cards: { added: 0, skipped: 0 } };
+  const result: ImportCommitResponse = { transactions: { imported: 0, duplicates: 0, failed: 0 }, bills: { added: 0, skipped: 0 }, cards: { added: 0, skipped: 0 }, incomes: { added: 0, skipped: 0 } };
 
   // Cards first, so imported spending can match them by last 4 digits.
   const existing = await db.select({ label: cards.label, last4: cards.last4 }).from(cards).where(eq(cards.userId, userId));
@@ -91,6 +93,23 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
     await db.insert(cards).values({ userId, ...c });
     existing.push(c);
     result.cards.added++;
+  }
+
+  // Incomes: added to the profile unless one with the same source and currency is there already.
+  if (items.incomes.length) {
+    const profile = (await db.select({ incomes: profiles.incomes }).from(profiles).where(eq(profiles.userId, userId)))[0];
+    if (profile) {
+      const incomes = [...profile.incomes];
+      for (const i of items.incomes) {
+        if (incomes.some((x) => x.source.toLowerCase() === i.source.toLowerCase() && x.currency === i.currency)) {
+          result.incomes.skipped++;
+          continue;
+        }
+        incomes.push({ source: i.source, currency: i.currency, amountMinor: i.amountMinor, cadence: i.cadence, nextDate: i.nextDate ?? clock.now().toISOString().slice(0, 10) });
+        result.incomes.added++;
+      }
+      if (result.incomes.added) await db.update(profiles).set({ incomes }).where(eq(profiles.userId, userId));
+    }
   }
 
   if (items.bills.length) result.bills = await db.transaction((tx) => addBills(tx, userId, items.bills, "import"));
@@ -113,7 +132,7 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
         userId,
         { source: "IMPORT", fields: { merchant: t.merchant, amountMinor: t.amountMinor, currency: t.currency, occurredAt: t.occurredAt, cardHint: t.cardLast4 ?? undefined, mcc: t.mcc ?? undefined } },
         db,
-        { notify: false },
+        { notify: false, aiCategory: false },
       );
       if (!r.transactionId) {
         result.transactions.failed++;
@@ -121,6 +140,9 @@ export async function commitImport(userId: string, items: ImportItems): Promise<
       }
       // The file's own category wins over the guess (without teaching the merchant memory).
       if (t.category) await db.update(transactions).set({ category: t.category }).where(eq(transactions.id, r.transactionId));
+      if (t.settledAmountMinor && t.settledCurrency && t.settledCurrency !== t.currency && r.status === "LOGGED") {
+        await reconcileSettlement(userId, { transactionId: r.transactionId, amountMinor: t.amountMinor, currency: t.currency, settledAmountMinor: t.settledAmountMinor, settledCurrency: t.settledCurrency }, db, { notify: false }).catch(() => null);
+      }
       result.transactions.imported++;
     } catch {
       // e.g. no exchange rate for the currency on that date

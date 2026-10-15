@@ -20,6 +20,9 @@ export const ImportTransaction = z.object({
   category: z.string().max(40).nullable(),
   cardLast4: z.string().regex(/^\d{4}$/).nullable(),
   mcc: z.string().regex(/^\d{4}$/).nullable(),
+  /** What the account was really charged, when the purchase was in another currency (fee x-ray). */
+  settledAmountMinor: PositiveAmountMinor.nullish(),
+  settledCurrency: CurrencyCode.nullish(),
 });
 export type ImportTransaction = z.infer<typeof ImportTransaction>;
 
@@ -32,6 +35,8 @@ export const ImportItems = z.object({
   bills: z.array(OnboardingObligationDraft).max(200),
   cards: z.array(CreateCardRequest).max(50),
   budgets: z.array(ImportBudget).max(20),
+  /** Regular money in found in the history (added to the profile; the forecast reads them). */
+  incomes: z.array(OnboardingIncomeDraft).max(20).default([]),
 });
 export type ImportItems = z.infer<typeof ImportItems>;
 
@@ -48,7 +53,7 @@ export const KassaExport = z.object({
 });
 export type KassaExport = z.infer<typeof KassaExport>;
 
-/** POST /import/preview: the file's text (JSON). */
+/** POST /import/preview: pasted text (JSON, CSV or a statement's text). Files go to POST /import/file (multipart). */
 export const ImportPreviewRequest = z.object({ text: z.string().min(2).max(4_000_000) });
 export type ImportPreviewRequest = z.infer<typeof ImportPreviewRequest>;
 
@@ -63,12 +68,71 @@ export const ImportMapping = z.object({
 });
 export type ImportMapping = z.infer<typeof ImportMapping>;
 
+/** One uploaded file as Kassa read it (shown in the preview, so a wrong reading can be traced). */
+export const ImportFile = z.object({
+  name: z.string().max(200),
+  format: z.enum(["pdf", "xlsx", "csv", "json", "ofx", "text"]),
+  /** How the rows were found: Kassa's own export, records / table columns, statement lines, or the AI reader. */
+  via: z.enum(["kassa", "records", "table", "lines", "ai", "none"]),
+  bank: z.string().max(60).nullable(),
+  accountCurrency: CurrencyCode.nullable(),
+  cardLast4: z.string().regex(/^\d{4}$/).nullable(),
+  rows: z.number().int().nonnegative(),
+  from: IsoDate.nullable(),
+  to: IsoDate.nullable(),
+  /** AI rows dropped because their evidence was not in the statement. */
+  rejected: z.number().int().nonnegative().default(0),
+});
+export type ImportFile = z.infer<typeof ImportFile>;
+
+const Money = z.object({ amountMinor: z.number().int(), currency: CurrencyCode });
+
+/**
+ * What Kassa learned from the history, computed in code from the rows (never by a model). Amounts are in the home
+ * currency unless they carry their own currency. The onboarding model sees only these aggregates.
+ */
+export const ImportHistory = z.object({
+  homeCurrency: CurrencyCode,
+  from: IsoDate.nullable(),
+  to: IsoDate.nullable(),
+  /** Months covered (partial months count by their share of days). */
+  months: z.number().nonnegative(),
+  counts: z.object({
+    rows: z.number().int(),
+    spending: z.number().int(),
+    incoming: z.number().int(),
+    ownTransfers: z.number().int(),
+    refunds: z.number().int(),
+  }),
+  spendingByCategory: z.array(z.object({ category: z.string(), monthlyHomeMinor: z.number().int(), totalHomeMinor: z.number().int(), count: z.number().int() })),
+  monthlySpendingHomeMinor: z.number().int(),
+  monthlyIncomeHomeMinor: z.number().int(),
+  /** Regular money in: who (as printed), how much, how often. */
+  incomes: z.array(z.object({ source: z.string(), amount: Money, cadence: z.enum(["WEEKLY", "MONTHLY", "TERM", "ONCE"]), count: z.number().int(), lastDate: IsoDate })),
+  /** Regular payments that look like bills (similar amount, about monthly). */
+  recurring: z.array(z.object({ name: z.string(), amount: Money, count: z.number().int(), lastDate: IsoDate, nextDate: IsoDate, category: z.string() })),
+  /** Card and conversion costs: fees and FX differences paid, and the markup over the mid rate on foreign purchases. */
+  fees: z.object({
+    totalHomeMinor: z.number().int(),
+    count: z.number().int(),
+    fxMarkupBps: z.number().int().nullable(),
+    fxSamples: z.number().int(),
+    fxCostHomeMinor: z.number().int(),
+  }),
+  topMerchants: z.array(z.object({ name: z.string(), totalHomeMinor: z.number().int(), count: z.number().int() })),
+  /** Currencies seen and money moved in each (spending, in). */
+  currencies: z.array(z.object({ currency: CurrencyCode, outMinor: z.number().int(), inMinor: z.number().int() })),
+});
+export type ImportHistory = z.infer<typeof ImportHistory>;
+
 export const ImportPreviewResponse = z.object({
   source: z.enum(["kassa", "mapped"]),
   items: ImportItems,
   mappings: z.array(ImportMapping),
-  /** Plain-language notes: rows skipped and why, a currency assumed, incoming money left out. */
+  /** Plain-language notes: rows skipped and why, a currency assumed, own transfers left out. */
   warnings: z.array(z.string()),
+  files: z.array(ImportFile).default([]),
+  history: ImportHistory.nullable().default(null),
 });
 export type ImportPreviewResponse = z.infer<typeof ImportPreviewResponse>;
 
@@ -80,5 +144,6 @@ export const ImportCommitResponse = z.object({
   transactions: z.object({ imported: z.number().int(), duplicates: z.number().int(), failed: z.number().int() }),
   bills: z.object({ added: z.number().int(), skipped: z.number().int() }),
   cards: z.object({ added: z.number().int(), skipped: z.number().int() }),
+  incomes: z.object({ added: z.number().int(), skipped: z.number().int() }).default({ added: 0, skipped: 0 }),
 });
 export type ImportCommitResponse = z.infer<typeof ImportCommitResponse>;
