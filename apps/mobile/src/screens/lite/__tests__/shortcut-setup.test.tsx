@@ -28,11 +28,21 @@ jest.mock("@/lite/server-url", () => ({
   shortcutEndpointFor: (s: string) => `${s}/api/capture/shortcut`,
 }));
 
+const mockSync = jest.fn(async () => {});
+jest.mock("@/lite/intent-config", () => ({ syncIntentConfig: () => mockSync() }));
+
 const mockCheck = jest.fn(async (..._: unknown[]) => "ok");
+/** `manual: true`: the Shortcut that posts by itself; false: the "Log Payment in Kassa" action (the default). */
+let mockManual = true;
 jest.mock("@/lite/shortcut-check", () => {
   const actual =
     jest.requireActual<typeof import("@/lite/shortcut-check")>("@/lite/shortcut-check");
-  return { ...actual, checkShortcutConnection: (...a: unknown[]) => mockCheck(...a) };
+  return {
+    ...actual,
+    checkShortcutConnection: (...a: unknown[]) => mockCheck(...a),
+    loadSetupProgress: async () => ({ ...actual.EMPTY_PROGRESS, manual: mockManual }),
+    saveSetupProgress: async () => {},
+  };
 });
 
 async function renderSetup() {
@@ -47,9 +57,37 @@ describe("ShortcutSetup", () => {
   beforeEach(() => {
     mockDevices = { devices: [], lastCaptureAt: null, lastUsedAt: null };
     mockTemplate = "";
+    mockManual = true;
+    mockSync.mockClear();
     mockCheck.mockClear();
     mockPoll.mockClear();
     mockSuccess.mockClear();
+  });
+
+  it("action (default): one automation step, nothing to copy, and a way back to the hand-built Shortcut", async () => {
+    mockManual = false;
+    mockTemplate = "https://www.icloud.com/shortcuts/abc";
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    await renderSetup();
+    await waitFor(() =>
+      expect(screen.getByText("Add the Kassa action to a Wallet automation")).toBeTruthy()
+    );
+    expect(screen.getByText("0 of 2 steps done")).toBeTruthy();
+    expect(screen.queryByText("Copy setup")).toBeNull();
+    expect(screen.queryByText("Get the Shortcut")).toBeNull();
+
+    fireEvent.press(screen.getByText("Check connection"));
+    await waitFor(() =>
+      expect(screen.getByText("Waiting for your first Apple Pay purchase…")).toBeTruthy()
+    );
+    expect(mockSync).toHaveBeenCalled();
+    // The action is checked from the app: Shortcuts is not opened to run a template.
+    expect(open).not.toHaveBeenCalled();
+
+    fireEvent.press(screen.getByText("Set it up by hand instead"));
+    await waitFor(() => expect(screen.getByText("Get the Shortcut")).toBeTruthy());
+    expect(screen.getByText("Use the Kassa action instead")).toBeTruthy();
+    open.mockRestore();
   });
 
   it("not set up: shows progress and the manual build steps with separate URL / key copy", async () => {

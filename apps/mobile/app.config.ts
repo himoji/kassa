@@ -256,6 +256,8 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
     ["expo-local-authentication", { faceIDPermission: "Allow KassaLite to unlock with Face ID." }],
     // iOS 27: adopt the UIScene life cycle (see the plugin header).
     "./plugins/with-scene-lifecycle.js",
+    // Lite: the "Log Payment in Kassa" Shortcuts action (App Intent; see the plugin header).
+    ...(LITE ? ["./plugins/with-log-payment-intent.js"] : []),
   ],
   experiments: {
     // Lite routes live in another directory: do not regenerate .expo/types from them.

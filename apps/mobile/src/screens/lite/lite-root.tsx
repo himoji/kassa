@@ -11,6 +11,7 @@ import { UpdatesBanner } from "@/components/updates-banner";
 import { I18nProvider, useKassaT } from "@/lib/i18n";
 import { QueryProvider } from "@/lib/query";
 import { registerApproveInWebApp } from "@/lite/approve";
+import { syncIntentConfig } from "@/lite/intent-config";
 import { applyServerUrl, loadServerUrl } from "@/lite/server-url";
 import { useNotificationLinks } from "@/lite/notifier";
 import { useAppLock } from "@/lite/use-app-lock";
@@ -51,6 +52,8 @@ function LiteNavigator() {
       // The paired server must be set before the first request leaves the app.
       const server = await loadServerUrl();
       if (server) applyServerUrl(server);
+      // Pairings made before the Log Payment action existed get its Keychain copy here.
+      void syncIntentConfig();
       await Promise.all([bootstrapSession(), hydrateThemeMode()]);
       if (!cancelled) setReady(true);
     })();
