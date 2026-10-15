@@ -74,6 +74,8 @@ const TransferBody = z.object({
   customerTransactionId: z.string().uuid(),
   // ISO 20022 unstructured remittance information is at most 140 characters.
   details: z.object({ reference: z.string().max(140).default("") }).default({ reference: "" }),
+  /** Kassa extension (not Wise's): deliver as soon as funded, when the bank runs instant payouts (MOCK_BANK_INSTANT). */
+  instant: z.boolean().optional(),
 });
 
 const FundBody = z.object({ type: z.literal("BALANCE") });
@@ -137,6 +139,7 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
       quoteUuid: body.quoteUuid,
       customerTransactionId: body.customerTransactionId,
       reference: body.details.reference,
+      instant: body.instant === true,
     });
     return reply.code(200).send(transfer);
   });

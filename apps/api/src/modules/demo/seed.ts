@@ -26,6 +26,7 @@ import {
   merchants,
   obligations,
   payees,
+  fundingSources,
   profiles,
   recipes,
   salesDaily,
@@ -79,6 +80,8 @@ export type SeedData = {
   mockBankProfileId: number;
   /** Extra demo personas (only inserted with `{ personas: true }`). */
   personas?: readonly SeedPersonaData[];
+  /** (added 2026-10-16) Linked cards and bank accounts, inserted ACTIVE (simulated). */
+  fundingSources?: readonly { id: string; kind: "CARD" | "BANK"; provider: "STRIPE" | "MOCK_BANK"; institution: string; last4: string; country: string; currency: string; providerRef: string }[];
   user: { id: string; displayName: string; homeCurrency: string; region: "EU" | "CN"; preset: "ASK_ME" | "SMART" | "AUTOPILOT"; moneyMode: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF"; createdAt: string };
   profile: {
     incomes: { source: string; currency: string; amountMinor: number; cadence: "WEEKLY" | "MONTHLY" | "TERM" | "ONCE"; nextDate: string }[];
@@ -222,6 +225,10 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
       replacesPayeeId: p.replacesPayeeId,
       detailsEnc: p.details ? encryptDetails(u.id, p.details) : null,
     });
+  }
+  for (const f of data.fundingSources ?? []) {
+    const at = new Date(data.user.createdAt);
+    await tx.insert(fundingSources).values({ ...f, userId: u.id, status: "ACTIVE", simulated: true, linkHash: "seeded", createdAt: at, verifiedAt: at });
   }
   if (data.obligations.length) {
     await tx.insert(obligations).values(

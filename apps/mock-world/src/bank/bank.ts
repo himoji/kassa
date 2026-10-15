@@ -112,6 +112,8 @@ export interface Transfer {
   customerTransactionId: string;
   fundedAt: string | null;
   history: { state: TransferState; at: string }[];
+  /** Kassa extension: delivered as soon as funded (instant payout). */
+  instant: boolean;
   simulated: true;
 }
 
@@ -158,10 +160,13 @@ export interface TransferInput {
   quoteUuid: string;
   customerTransactionId: string;
   reference: string;
+  instant?: boolean;
 }
 
 export interface BankOptions {
   clock: Clock;
+  /** Instant payouts: a transfer created with `instant` is sent the moment it is funded. */
+  instant?: boolean;
   rates: RateProvider;
   webhooks: WebhookSink;
   stepMs: number;
@@ -422,6 +427,7 @@ export class MockBank {
       customerTransactionId: input.customerTransactionId,
       fundedAt: null,
       history: [{ state: "incoming_payment_waiting", at: now.toISOString() }],
+      instant: input.instant === true && this.opts.instant === true,
       simulated: true,
     };
     quote.status = "ACCEPTED";
@@ -435,7 +441,7 @@ export class MockBank {
   async fund(
     profile: number,
     transferId: number,
-  ): Promise<{ type: "BALANCE"; status: "COMPLETED"; errorCode: null; balanceTransactionId: number }> {
+  ): Promise<{ type: "BALANCE"; status: "COMPLETED"; errorCode: null; balanceTransactionId: number; transferState: TransferState }> {
     const now = await this.opts.clock.now();
     const t = this.transfers.get(transferId);
     if (!t || t.profile !== profile) throw new BankError(404, "transfer.not_found", `Unknown transfer ${transferId}`);
@@ -454,7 +460,12 @@ export class MockBank {
     wallet.set(t.sourceCurrency, available - t.sourceAmountMinor);
     t.fundedAt = now.toISOString();
     this.transition(t, "processing", now.getTime());
-    return { type: "BALANCE", status: "COMPLETED", errorCode: null, balanceTransactionId: this.nextId++ };
+    if (t.instant) {
+      // Instant payout: converted and sent at once (each state still gets its webhook, in order).
+      this.transition(t, "funds_converted", now.getTime());
+      this.transition(t, "outgoing_payment_sent", now.getTime());
+    }
+    return { type: "BALANCE", status: "COMPLETED", errorCode: null, balanceTransactionId: this.nextId++, transferState: t.status };
   }
 
   async getTransfer(id: number): Promise<Transfer> {

@@ -24,6 +24,11 @@ const Env = z.object({
   STRIPE_API_BASE: z.string().url().default("https://api.stripe.com"),
   /** Demo-clock seconds between mock bank transfer states after funding. */
   MOCK_BANK_STEP_SECONDS: z.coerce.number().int().min(1).max(86_400).default(20),
+  /**
+   * (added 2026-10-16, fast send) A transfer Kassa marks instant is delivered the moment it is funded, the way an instant
+   * corridor with a pre-funded partner pays out (GME, Wise to a card). Default on, except in tests (step-by-step states).
+   */
+  MOCK_BANK_INSTANT: z.enum(["true", "false", "1", "0"]).optional(),
   /** Real-time interval at which the mock bank re-reads the demo clock and advances transfers. */
   MOCK_BANK_TICK_MS: z.coerce.number().int().min(200).max(60_000).default(2000),
   /**
@@ -56,6 +61,7 @@ export interface MockWorldConfig {
   stripeApiBase: string;
   bankStepMs: number;
   bankTickMs: number;
+  bankInstant: boolean;
   shopAutopilot: boolean;
   shopStepMs: number;
   logLevel: string;
@@ -90,6 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): MockWorldConfi
     stripeApiBase: trimSlash(e.STRIPE_API_BASE),
     bankStepMs: e.MOCK_BANK_STEP_SECONDS * 1000,
     bankTickMs: e.MOCK_BANK_TICK_MS,
+    bankInstant: e.MOCK_BANK_INSTANT ? e.MOCK_BANK_INSTANT === "true" || e.MOCK_BANK_INSTANT === "1" : e.NODE_ENV !== "test",
     shopAutopilot: e.SHOP_AUTOPILOT === "true" || e.SHOP_AUTOPILOT === "1",
     shopStepMs: e.SHOP_AUTOPILOT_STEP_SECONDS * 1000,
     logLevel: e.LOG_LEVEL,

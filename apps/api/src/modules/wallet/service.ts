@@ -21,6 +21,8 @@ import { ledgerEntries, profiles, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
+import { chargeSource, PullDeclined } from "../funding-sources/pull.ts";
+import { activeFundingSource } from "../funding-sources/store.ts";
 import { ledger } from "../ledger/index.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
@@ -132,17 +134,30 @@ async function chargeTest(userId: string, req: TopUpRequest): Promise<string> {
   return pi.id;
 }
 
+/** (linked accounts) Add money from a linked card or bank: the same pull a send from it makes. */
+async function chargeLinked(userId: string, req: TopUpRequest): Promise<{ ref: string; simulated: boolean }> {
+  const source = req.fundingSourceId ? await activeFundingSource(userId, req.fundingSourceId) : null;
+  if (!source) throw new HttpProblem(422, "FUNDING_SOURCE_UNAVAILABLE", "Pick a linked card or bank account to add money from", { reasonCodes: ["FUNDING_SOURCE_UNAVAILABLE"] });
+  if (source.currency !== req.currency) throw new HttpProblem(422, "CURRENCY_MISMATCH", `This account pays in ${source.currency}`, { reasonCodes: ["CURRENCY_MISMATCH"] });
+  try {
+    return await chargeSource(source, req.amountMinor, req.currency, `topup-${req.idempotencyKey}`);
+  } catch (err) {
+    if (err instanceof PullDeclined) throw new HttpProblem(402, "TOPUP_DECLINED", err.message, { reasonCodes: ["FUNDING_PULL_DECLINED"] });
+    throw err;
+  }
+}
+
 /** Credits the sandbox bank: the mock bank's top-up, or the Wise sandbox's balance top-up simulation. */
-async function creditWallet(userId: string, req: TopUpRequest, reference: string): Promise<number | null> {
+export async function creditWallet(userId: string, currency: string, amountMinor: number, reference: string): Promise<number | null> {
   const profile = await ensureWalletProfile(userId);
   if (bankMode() === "mock") {
-    const r = await mockWorld<{ balanceAfterMinor: number }>("POST", "/bank/top-ups", { profileId: profile, currency: req.currency, amountMinor: req.amountMinor, reference });
+    const r = await mockWorld<{ balanceAfterMinor: number }>("POST", "/bank/top-ups", { profileId: profile, currency, amountMinor, reference });
     return r.balanceAfterMinor;
   }
   const balances = await bankCall<{ id: number; currency: string }[]>("GET", `/v4/profiles/${profile}/balances?types=STANDARD`);
-  const balance = balances.find((b) => b.currency === req.currency);
-  if (!balance) throw new HttpProblem(422, "TOPUP_NO_BALANCE", `The Wise sandbox profile has no ${req.currency} balance; open one in the sandbox first`);
-  await bankCall("POST", "/v1/simulation/balance/topup", { profileId: profile, balanceId: balance.id, currency: req.currency, amount: Number(fromMinor(req.amountMinor, req.currency)) });
+  const balance = balances.find((b) => b.currency === currency);
+  if (!balance) throw new HttpProblem(422, "TOPUP_NO_BALANCE", `The Wise sandbox profile has no ${currency} balance; open one in the sandbox first`);
+  await bankCall("POST", "/v1/simulation/balance/topup", { profileId: profile, balanceId: balance.id, currency, amount: Number(fromMinor(amountMinor, currency)) });
   return null;
 }
 
@@ -160,14 +175,15 @@ export async function topUp(userId: string, req: TopUpRequest): Promise<TopUpRes
       details: { limitHomeMinor: dailyLimit, todayHomeMinor: today.homeMinor, homeCurrency: user.homeCurrency },
     });
   }
-  const providerRef = await chargeTest(userId, req);
-  const balanceAfterMinor = await creditWallet(userId, req, `topup:${req.idempotencyKey}`);
+  const linked = req.method === "LINKED" ? await chargeLinked(userId, req) : null;
+  const providerRef = linked ? linked.ref : await chargeTest(userId, req);
+  const balanceAfterMinor = await creditWallet(userId, req.currency, req.amountMinor, `topup:${req.idempotencyKey}`);
   const response: TopUpResponse = {
     topUpId: req.idempotencyKey,
     amountMinor: req.amountMinor,
     currency: req.currency,
     method: req.method,
-    provider: PROVIDER(),
+    provider: linked ? (linked.simulated ? "simulated" : "stripe-test") : PROVIDER(),
     providerRef,
     balanceAfterMinor,
     simulated: true,
@@ -187,7 +203,7 @@ export async function topUp(userId: string, req: TopUpRequest): Promise<TopUpRes
   await notify(userId, {
     kind: "WALLET_TOPUP",
     title: "Test money added",
-    body: `Added to your Kassa wallet from a ${req.method === "CARD" ? "test card" : "wallet tap"} (test mode, no real money).`,
+    body: `Added to your Kassa wallet from ${req.method === "LINKED" ? "your linked account" : req.method === "CARD" ? "a test card" : "a wallet tap"} (test mode, no real money).`,
     data: { amountMinor: req.amountMinor, currency: req.currency, method: req.method },
   }).catch(() => undefined);
   return response;

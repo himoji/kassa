@@ -16,6 +16,9 @@ export const keys = {
   mandates: ["mandates"] as const,
   caps: ["caps"] as const,
   wallet: ["wallet"] as const,
+  fundingSources: ["funding-sources"] as const,
+  sendQuote: (payeeId: string, amountMinor: number, sourceId: string | null) =>
+    ["send-quote", payeeId, amountMinor, sourceId] as const,
   recoveryCodes: ["auth", "recovery-codes"] as const,
   shortcutDevices: ["devices", "shortcut"] as const,
   ruleChanges: ["rule-changes", "pending"] as const,
@@ -50,6 +53,7 @@ export const moneyKeys = [
   keys.mandates,
   keys.caps,
   keys.wallet,
+  keys.fundingSources,
   keys.ruleChanges,
   keys.proposalsPending,
   keys.ledger,

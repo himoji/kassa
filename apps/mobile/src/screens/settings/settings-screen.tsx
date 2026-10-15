@@ -201,6 +201,13 @@ function SettingsBody({ me }: { me: MeResponse }) {
           onPress={() => router.push("/bills")}
         />
         <Row
+          leading={<Icon name="creditcard" fallback="credit_card" size={20} color="foreground" />}
+          title={t("wallet:linked.title")}
+          subtitle={t("wallet:linked.rowHint")}
+          onPress={() => router.push("/linked-accounts")}
+          testID="settings-linked-accounts"
+        />
+        <Row
           leading={
             <Icon
               name="arrow.up.arrow.down"

@@ -403,6 +403,8 @@ export const ApproveOrderResponse = z.object({
   paymentId: Uuid.nullable(),
   paymentStatus: PaymentStatus.nullable(),
   reasonCodes: z.array(ReasonCode),
+  /** (added 2026-10-16) Measured time from approval to the bank reporting the money delivered (SENT), when it was. */
+  deliveredInMs: z.number().int().nonnegative().optional(),
 });
 export type ApproveOrderResponse = z.infer<typeof ApproveOrderResponse>;
 
