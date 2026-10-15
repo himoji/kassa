@@ -225,7 +225,8 @@
       "fees": "Fees and conversion costs: {{amount}}",
       "feesFx": "Fees and conversion costs: {{amount}}; your card charged about {{pct}} over the mid rate abroad",
       "own": "{{count}} transfers between your own accounts were left out"
-    }
+    },
+    "importing": "Importing {{count}} transactions. A year of statements takes up to a minute."
   },
   "budgets": {
     "title": "Budgets",

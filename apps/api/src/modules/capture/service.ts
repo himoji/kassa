@@ -199,9 +199,11 @@ export async function setTransactionCategory(userId: string, transactionId: stri
 
 /**
  * `notify: false` (data import): no "spent at ..." notification per row. `aiCategory: false`: no Reader call per unknown
- * merchant (an import names categories in one batch before it commits, dataport/read.ts).
+ * merchant (an import names categories in one batch before it commits, dataport/read.ts). `dedupe: false`: the caller
+ * has already checked for this purchase (a statement's rows are distinct purchases, even two same-price coffees on one
+ * day, so an import compares with what existed before it, not with its own rows).
  */
-export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean; aiCategory?: boolean } = {}): Promise<CaptureEventResponse> {
+export async function ingestCapture(userId: string, input: CaptureInput, db: DbOrTx = getDb(), opts: { notify?: boolean; aiCategory?: boolean; dedupe?: boolean } = {}): Promise<CaptureEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   const aiAllowed = aiProcessingAllowedFor(u);
@@ -227,7 +229,7 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   // Dedupe (spec §13): own bucket + neighbouring bucket; later sources merge into the first.
   const fields = { userId, amountMinor: ev.amountMinor, currency: ev.currency, merchantNorm, occurredAt };
   const candidates = dedupeCandidates(fields);
-  const first = (
+  const first = opts.dedupe === false ? undefined : (
     await db
       .select()
       .from(transactions)

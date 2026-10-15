@@ -333,6 +333,7 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
   const out: MappedRecords = { rows: [], bills: [], cards: [], budgets: [], mappings: [], warnings: [] };
   let assumedCurrency = 0;
   let previousAccount: string | null = null;
+  const totals = { amount: 0, date: 0, other: 0 };
 
   for (const { path, rows, accountCurrency } of arrays) {
     const cols = columns(rows);
@@ -493,11 +494,14 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
     }
 
     out.mappings.push({ path, kind, fields: Object.fromEntries([...cols].map(([f, k]) => [f, k])), rows: rows.length, imported });
-    const where = path === "$" ? "the file" : path;
-    if (skipped.amount) out.warnings.push(`${skipped.amount} rows in ${where} had no readable amount and were skipped.`);
-    if (skipped.date) out.warnings.push(`${skipped.date} rows in ${where} had no readable date and were skipped.`);
-    if (skipped.other) out.warnings.push(`${skipped.other} rows in ${where} were incomplete and were skipped.`);
+    totals.amount += skipped.amount;
+    totals.date += skipped.date;
+    totals.other += skipped.other;
   }
+  // One line per reason for the whole file (a 77-page statement must not give 77 warnings).
+  if (totals.amount) out.warnings.push(`${totals.amount} rows had no readable amount and were skipped.`);
+  if (totals.date) out.warnings.push(`${totals.date} rows had no readable date and were skipped.`);
+  if (totals.other) out.warnings.push(`${totals.other} rows were incomplete and were skipped.`);
 
   if (assumedCurrency) out.warnings.push(`${assumedCurrency} rows had no currency; ${o.homeCurrency} (your home currency) was assumed.`);
   return out;

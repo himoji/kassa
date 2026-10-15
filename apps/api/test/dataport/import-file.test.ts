@@ -70,6 +70,18 @@ describe("statement import over HTTP", () => {
     expect(await getDb().select().from(cards).where(eq(cards.userId, userId))).toHaveLength(1);
   });
 
+  it("two same-price coffees on one day are two purchases; importing the statement again adds nothing", async () => {
+    const { userId } = await createUserWithPasskey();
+    const headers = await bearer(userId);
+    const csv = "Date,Description,Amount,Currency\n03.10.2026,Coffee Corner,-1200.00,HUF\n03.10.2026,Coffee Corner,-1200.00,HUF\n04.10.2026,SPAR,-3500.00,HUF\n";
+    const body = multipart([{ name: "s.csv", data: new TextEncoder().encode(csv) }]);
+    const preview = (await app().inject({ method: "POST", url: "/api/import/file", headers: { ...headers, ...body.headers }, payload: body.payload })).json();
+    const first = await app().inject({ method: "POST", url: "/api/import/commit", headers, payload: { items: preview.items } });
+    expect(first.json().transactions).toEqual({ imported: 3, duplicates: 0, failed: 0 });
+    const again = await app().inject({ method: "POST", url: "/api/import/commit", headers, payload: { items: preview.items } });
+    expect(again.json().transactions).toEqual({ imported: 0, duplicates: 3, failed: 0 });
+  });
+
   it("refuses what it cannot read with a reason, and needs a file", async () => {
     const { userId } = await createUserWithPasskey();
     const headers = await bearer(userId);
