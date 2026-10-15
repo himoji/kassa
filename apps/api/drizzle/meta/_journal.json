@@ -110,8 +110,15 @@
     {
       "idx": 15,
       "version": "7",
-      "when": 1792096683146,
-      "tag": "0015_shortcut_last_used",
+      "when": 1792096228419,
+      "tag": "0015_money_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792098378591,
+      "tag": "0016_shortcut_last_used",
       "breakpoints": true
     }
   ]

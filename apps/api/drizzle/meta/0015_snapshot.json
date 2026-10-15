@@ -1,5 +1,5 @@
 {
-  "id": "20b53363-99af-4a14-9d0e-76db98662862",
+  "id": "d7248136-51d4-4912-a46f-d5726741df35",
   "prevId": "7fb0c0ff-670b-46fa-8367-280ef7c59a63",
   "version": "7",
   "dialect": "postgresql",
@@ -417,12 +417,6 @@
         },
         "revoked_at": {
           "name": "revoked_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_used_at": {
-          "name": "last_used_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -2141,6 +2135,12 @@
         "stripe_cardholder_id": {
           "name": "stripe_cardholder_id",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "money_history": {
+          "name": "money_history",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }
