@@ -71,6 +71,8 @@ const EnvSchema = z.object({
   /** Stable phone host (named tunnel), e.g. kassa.example.com: the server URL KassaLite and the Shortcut use. */
   PHONE_HOST: z.string().optional(),
   MOCK_WORLD_URL: z.string().url().default("http://localhost:4001"),
+  /** Where people open mock-world pages (school portals) from the app: mock-world's MOCK_PUBLIC_URL. */
+  MOCK_PUBLIC_URL: z.string().url().default("http://localhost:4001"),
   /**
    * Wise sandbox (rails/bankApi.ts): with a sandbox API token the bank rail sends real sandbox quotes, recipients and
    * transfers instead of using mock-world. Never a live token: the URL defaults to the sandbox.

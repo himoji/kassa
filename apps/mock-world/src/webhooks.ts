@@ -5,14 +5,14 @@ import { mockWebhookHeaders } from "@kassa/shared";
 import type { Clock, FetchLike } from "./clock.ts";
 
 /*
- * Outgoing webhooks to the API: POST {API_URL}/api/webhooks/mock/{bank|qr|pos|remittance|shop|supplier}.
+ * Outgoing webhooks to the API: POST {API_URL}/api/webhooks/mock/{bank|qr|pos|remittance|shop|supplier|school}.
  * Each attempt is signed afresh (X-Kassa-Timestamp = demo-clock unix seconds,
  * X-Kassa-Signature = hex HMAC-SHA256 over `${ts}.${rawBody}`, RFC 2104) so retries stay inside
  * the API's 5-minute window. Deliveries are serialised in one queue so the API sees state changes
  * in the order they happened. Every attempt is kept in an in-memory outbox (evidence / debugging).
  */
 
-export type WebhookKind = "bank" | "qr" | "pos" | "remittance" | "shop" | "supplier";
+export type WebhookKind = "bank" | "qr" | "pos" | "remittance" | "shop" | "supplier" | "school";
 
 export interface OutboxEntry {
   id: string;

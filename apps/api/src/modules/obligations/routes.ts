@@ -1,9 +1,9 @@
-import { CreateObligationRequest } from "@kassa/shared";
+import { CreateObligationRequest, PayObligationRequest, PayPayeeResponse } from "@kassa/shared";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 
 import { requireUser, userIdOf } from "../auth/session.ts";
-import { createObligation, deleteObligation } from "./service.ts";
+import { createObligation, deleteObligation, payObligation } from "./service.ts";
 
 // GET /obligations (with coverage and mandates) lives in money/routes.ts; these are the user's own writes.
 const routes: FastifyPluginAsyncZod = async (app) => {
@@ -13,6 +13,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     "/obligations",
     { schema: { body: CreateObligationRequest, response: { 201: z.object({ id: z.string().uuid() }) } } },
     async (req, reply) => reply.status(201).send({ id: (await createObligation(userIdOf(req), req.body)).id }),
+  );
+
+  // Pay a bill now: the same rules and passkey as when the scheduler proposes it, and it settles the bill's period.
+  app.post(
+    "/obligations/:id/pay",
+    { schema: { params: z.object({ id: z.string().uuid() }), body: PayObligationRequest, response: { 200: PayPayeeResponse } } },
+    async (req) => payObligation(userIdOf(req), req.params.id, req.body),
   );
 
   app.delete("/obligations/:id", { schema: { params: z.object({ id: z.string().uuid() }) } }, async (req, reply) => {
