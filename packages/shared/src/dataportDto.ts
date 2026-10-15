@@ -147,3 +147,16 @@ export const ImportCommitResponse = z.object({
   incomes: z.object({ added: z.number().int(), skipped: z.number().int() }).default({ added: 0, skipped: 0 }),
 });
 export type ImportCommitResponse = z.infer<typeof ImportCommitResponse>;
+
+/**
+ * POST /onboarding/history: what an import preview learned, handed to the onboarding chat. The server merges the
+ * suggestions into the draft in code (nothing is applied until the passkey-signed confirmation) and the model only ever
+ * sees the aggregates.
+ */
+export const OnboardingHistoryRequest = z.object({
+  conversationId: z.string().uuid(),
+  history: ImportHistory,
+  files: z.array(ImportFile).max(6),
+  items: ImportItems.pick({ incomes: true, bills: true, budgets: true, cards: true }),
+});
+export type OnboardingHistoryRequest = z.infer<typeof OnboardingHistoryRequest>;

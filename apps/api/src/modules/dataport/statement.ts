@@ -57,20 +57,20 @@ export function currencyOfLabel(s: string): string | null {
 
 const ACCOUNT_CURRENCY_LABEL = /(?:валюта\s*сч[её]та|шот\s*валютасы|account\s*currency|currency\s*of\s*(?:the\s*)?account|kontowährung|számla\s*devizaneme)\s*[:-]?\s*([^\n]{1,30})/giu;
 const BANKS: Array<[RegExp, string]> = [
-  [/kaspi/i, "Kaspi"],
-  [/halyk/i, "Halyk"],
+  [/\bkaspi\b/i, "Kaspi"],
+  [/\bhalyk\b/i, "Halyk"],
   [/alatau\s*city|jusan|TSESKZKA/i, "Alatau City Bank"],
   [/forte\s*bank|IRTYKZKA/i, "ForteBank"],
   [/freedom\s*bank|KSNVKZKA/i, "Freedom Bank"],
   [/bereke|BRKEKZKA/i, "Bereke Bank"],
   [/bank\s*of\s*america/i, "Bank of America"],
-  [/chase/i, "Chase"],
+  [/\bchase\b/i, "Chase"],
   [/wells\s*fargo/i, "Wells Fargo"],
-  [/revolut/i, "Revolut"],
-  [/wise\b|transferwise/i, "Wise"],
+  [/\brevolut\b/i, "Revolut"],
+  [/\bwise\b|transferwise/i, "Wise"],
   [/\botp\b/i, "OTP"],
-  [/raiffeisen/i, "Raiffeisen"],
-  [/n26/i, "N26"],
+  [/\braiffeisen\b/i, "Raiffeisen"],
+  [/\bn26\b/i, "N26"],
 ];
 
 /** Statement facts from the text around the rows (see StatementFacts). */

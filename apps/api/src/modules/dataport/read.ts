@@ -88,7 +88,9 @@ function pdfTableArrays(pdf: Awaited<ReturnType<typeof readPdf>>, fallbackCurren
 async function readOne(input: ImportFileInput, index: number, o: PreviewOptions): Promise<FileRead | { own: ImportPreviewResponse }> {
   const sniffed = sniffFormat(input.data);
   if (typeof sniffed !== "string") throw new ImportFormatError(sniffed.unsupported);
-  const format: FileFormat = sniffed;
+  let format: FileFormat = sniffed;
+  // Statement text with commas in it can look delimited; without a header row it is read as statement text.
+  if (format === "csv" && !gridArrays([{ name: input.name, rows: parseCsv(decodeText(input.data)) }]).arrays.length) format = "text";
   const file: ImportFile = { name: input.name.slice(0, 200), format, via: "none", bank: null, accountCurrency: null, cardLast4: null, rows: 0, from: null, to: null, rejected: 0 };
   let mapped = emptyMapped();
   let facts: StatementFacts = { accountCurrency: null, cardLast4: null, holderNames: [], bank: null };

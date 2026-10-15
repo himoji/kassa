@@ -65,6 +65,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     if (!req.isMultipart()) throw new HttpProblem(415, "MULTIPART_REQUIRED", "Upload the statements as multipart/form-data (field 'file', one or more)");
     const files: ImportFileInput[] = [];
     let ai: PreviewOptions["ai"] = "auto";
+    try {
+      await readParts();
+    } catch (e) {
+      if (e instanceof HttpProblem) throw e;
+      throw new HttpProblem(400, "MULTIPART_INVALID", "The upload could not be read; choose the files again");
+    }
+    async function readParts() {
     for await (const part of req.parts()) {
       if (part.type === "field") {
         if (part.fieldname === "ai" && (part.value === "off" || part.value === "always" || part.value === "auto")) ai = part.value;
@@ -78,6 +85,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       }
       if (data.byteLength === 0) continue;
       files.push({ name: part.filename || `file ${files.length + 1}`, data: new Uint8Array(data) });
+    }
     }
     if (files.length === 0) throw new HttpProblem(400, "FILE_REQUIRED", "Choose at least one file");
     return run(async () => previewImport(files, await options(userIdOf(req), ai)));
