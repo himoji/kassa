@@ -9,6 +9,7 @@
  * - Enums come from @kassa/shared so DB, API and app agree.
  */
 import {
+  type ImportHistory,
   AccountType,
   AgentMode,
   CardKind,
@@ -280,6 +281,8 @@ export const profiles = pgTable("profiles", {
   bankProfileId: bigint("bank_profile_id", { mode: "number" }),
   /** (added) Stripe Issuing cardholder (created once per user, spec §11 step 1). */
   stripeCardholderId: text("stripe_cardholder_id"),
+  /** (added 2026-10-15) What the user's imported bank statements showed (dataport/history.ts), for the agent. */
+  moneyHistory: jsonb("money_history").$type<ImportHistory>(),
 });
 
 const credentialColumns = () => ({

@@ -1,12 +1,15 @@
-import { currencyExponent, OnboardingProfileDraft, type OnboardingHistoryRequest, type OnboardingMessageResponse } from "@kassa/shared";
+import { OnboardingProfileDraft, type OnboardingHistoryRequest, type OnboardingMessageResponse } from "@kassa/shared";
 import type { ModelMessage } from "ai";
+import { eq } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
 import { onboardingDrafts } from "../../db/schema.intel.ts";
+import { profiles } from "../../db/schema.ts";
 import { appendHistory, claimConversation, loadPlaceholders, savePlaceholders } from "../agent/history.ts";
 import { Redactor } from "../agent/redact.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
+import { historyLines } from "../dataport/notes.ts";
 import { emptyDraft, getOnboardingDraft, isComplete } from "./service.ts";
 
 /*
@@ -18,11 +21,6 @@ import { emptyDraft, getOnboardingDraft, isComplete } from "./service.ts";
  *  - the conversation keeps a user turn with the aggregates only (redacted: people are person_N), which is all the
  *    model sees on its next turn. No transaction, account number or statement text enters the conversation.
  */
-
-const money = (minor: number, currency: string) =>
-  new Intl.NumberFormat("en", { style: "currency", currency, currencyDisplay: "narrowSymbol", maximumFractionDigits: 0 }).format(minor / 10 ** currencyExponent(currency));
-const month = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00Z`).toLocaleString("en", { month: "short", year: "numeric", timeZone: "UTC" }) : "?");
-const CATEGORY_LABEL = (c: string) => c.replace(/_/g, " ");
 
 /** Merge the history's suggestions into a draft (see the header comment). */
 export function mergeHistory(draft: OnboardingProfileDraft, items: OnboardingHistoryRequest["items"]): OnboardingProfileDraft {
@@ -43,23 +41,13 @@ export function mergeHistory(draft: OnboardingProfileDraft, items: OnboardingHis
 export function historyTexts(req: OnboardingHistoryRequest, redactor: Redactor): { forModel: string; reply: string } {
   const h = req.history;
   const banks = [...new Set(req.files.map((f) => f.bank ?? f.name))].join(", ");
-  const top = h.spendingByCategory.filter((c) => c.category !== "transfers").slice(0, 5);
-  const lines: string[] = [];
-  lines.push(`Period: ${month(h.from)} – ${month(h.to)} (${h.months} months), ${h.counts.rows} transactions from ${req.files.length} statement(s): ${banks}.`);
-  lines.push(`Spending (without transfers to people): about ${money(h.monthlySpendingHomeMinor, h.homeCurrency)} a month. Biggest: ${top.map((c) => `${CATEGORY_LABEL(c.category)} ${money(c.monthlyHomeMinor, h.homeCurrency)}`).join(", ") || "none"}.`);
-  const transfers = h.spendingByCategory.find((c) => c.category === "transfers");
-  if (transfers) lines.push(`Transfers to other people: about ${money(transfers.monthlyHomeMinor, h.homeCurrency)} a month.`);
-  if (h.incomes.length) lines.push(`Money in: ${h.incomes.slice(0, 4).map((i) => `${i.source} about ${money(i.amount.amountMinor, i.amount.currency)} a month`).join("; ")}.`);
-  if (h.recurring.length) lines.push(`Regular payments: ${h.recurring.slice(0, 4).map((r) => `${r.name} ${money(r.amount.amountMinor, r.amount.currency)} (next ${r.nextDate})`).join("; ")}.`);
-  if (h.fees.totalHomeMinor > 0) lines.push(`Bank and conversion fees: ${money(h.fees.totalHomeMinor, h.homeCurrency)} over the period${h.fees.fxMarkupBps !== null ? `; foreign purchases cost about ${(h.fees.fxMarkupBps / 100).toFixed(1)}% over the mid rate` : ""}.`);
-  if (h.counts.ownTransfers) lines.push(`${h.counts.ownTransfers} transfers between your own accounts were left out, so nothing is counted twice.`);
-  const summary = lines.join("\n");
-  const forModel = `Bank history imported (aggregates computed by Kassa from the statements; the draft was prefilled with these suggestions):\n${redactor.redactText(summary)}`;
+  const lines = historyLines(h);
+  const forModel = `Bank history imported (computed by Kassa from the statements, not by a model; the draft was prefilled: money in at the planned amounts, budgets from everyday spending). Where money in is irregular, say so and plan with the average, not the best month:\n${redactor.redactText(lines.join("\n"))}`;
   const reply = [
-    `I read **${h.counts.rows} transactions** from ${banks} (${month(h.from)} – ${month(h.to)}). Here is what I learned:`,
-    ...lines.slice(1).map((l) => `- ${l}`),
+    `I read **${h.counts.rows} transactions** from ${banks}. Here is what they show:`,
+    ...lines.map((l) => `- ${l}`),
     "",
-    "I put the regular money in, the bills and a budget per category into your draft. Nothing is set until you review it and sign with your passkey. **Does this look right?** Tell me what to change.",
+    "I put the money in at the planned amounts, the bills and a budget per category into your draft. Nothing is set until you review it and sign with your passkey. **Does this look right?** Tell me what to change.",
   ].join("\n");
   return { forModel, reply };
 }
@@ -84,6 +72,8 @@ export async function onboardingHistoryTurn(userId: string, req: OnboardingHisto
     { role: "assistant", content: redactor.redactText(JSON.stringify({ reply, draft, complete, ask: null })) },
   ];
   await appendHistory(req.conversationId, userId, "onboarding", messages);
+  // The agent reads the same analysis later (get_money_history).
+  await getDb().update(profiles).set({ moneyHistory: req.history }).where(eq(profiles.userId, userId));
   await savePlaceholders(req.conversationId, userId, redactor.drainNew());
   await ledger.append("ONBOARDING_HISTORY_MERGED", {
     userId,

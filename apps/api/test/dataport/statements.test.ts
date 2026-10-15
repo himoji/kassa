@@ -6,7 +6,8 @@ import { aiStatementRows, verifyRow } from "../../src/modules/dataport/ai.ts";
 import { classifyRows } from "../../src/modules/dataport/classify.ts";
 import { decodeText, detectDelimiter, parseCsv, readOfx, readPdf, readXlsx, sniffFormat } from "../../src/modules/dataport/files.ts";
 import { gridRecords, joinContinuation, type GridRecords } from "../../src/modules/dataport/grid.ts";
-import { buildHistory, niceLimit } from "../../src/modules/dataport/history.ts";
+import { buildHistory, monthWeights, niceLimit, personKey } from "../../src/modules/dataport/history.ts";
+import { historyLines } from "../../src/modules/dataport/notes.ts";
 import { lineRows } from "../../src/modules/dataport/lines.ts";
 import { fieldFor, mapRecordArrays, parseDate } from "../../src/modules/dataport/mapper.ts";
 import { previewImport } from "../../src/modules/dataport/read.ts";
@@ -258,6 +259,70 @@ describe("history", () => {
     expect(suggestions.incomes[0]).toMatchObject({ source: "Нұрлан С.", cadence: "MONTHLY", nextDate: "2026-11-02" });
     expect(suggestions.budgets.map((b) => b.category)).toEqual(["rent", "groceries"]);
     expect(niceLimit(8351200)).toBe(8500000);
+  });
+});
+
+describe("what the history really shows", () => {
+  const mk = (day: string, amount: number, description: string, kind: StatementRow["kind"], extra: Partial<StatementRow> = {}): StatementRow => ({
+    occurredAt: `${day}T12:00:00.000Z`,
+    description,
+    operation: null,
+    amountMinor: amount,
+    currency: "KZT",
+    settled: null,
+    category: null,
+    cardLast4: null,
+    mcc: null,
+    via: "lines",
+    file: 0,
+    kind,
+    ...extra,
+  });
+  const toHome = async (amountMinor: number, currency: string) => ({ amountMinor: currency === "USD" ? amountMinor * 500 : currency === "HUF" ? Math.round(amountMinor * 1.4) : amountMinor, exact: true });
+  const year = { file: 0, name: "kaspi.pdf", bank: "Kaspi", from: "2025-11-01", to: "2026-10-31" };
+  const months = Array.from({ length: 12 }, (_, i) => `${i < 2 ? 2025 : 2026}-${String(((i + 10) % 12) + 1).padStart(2, "0")}`);
+  const everyday = months.flatMap((m, i) => [mk(`${m}-05`, -8000000, "SPAR", "PURCHASE", i >= 9 ? { currency: "HUF", amountMinor: -5714286 } : {}), mk(`${m}-20`, -2000000, "Coffee Corner", "PURCHASE")]);
+
+  it("counts partial months by their days: a 4-week statement is about 1 month, not a year", () => {
+    const w = monthWeights("2026-04-14", "2026-05-11");
+    expect([...w.keys()]).toEqual(["2026-04", "2026-05"]);
+    expect([...w.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(0.93, 1);
+  });
+
+  it("money from home that comes in some months is planned at its average, a one-off for a payment is kept out, a stopped one is not planned", async () => {
+    const dad = ["2025-11-10", "2026-01-12", "2026-04-08", "2026-07-09", "2026-09-10"].map((d) => mk(d, 20000000, "Нұрлан С.", "INCOME"));
+    const deposit = [mk("2026-08-13", 100000000, "Нұрлан С.", "INCOME"), mk("2026-08-14", -97000000, "DORM DEPOSIT", "PURCHASE")];
+    const aunt = ["2025-11-02", "2025-12-02", "2026-01-02", "2026-02-02", "2026-03-02"].map((d) => mk(d, 5000000, "Гүлнар А.", "INCOME"));
+    const { history, suggestions } = await buildHistory([...everyday, ...dad, ...deposit, ...aunt], { homeCurrency: "KZT", today: "2026-10-31", toHome, categoryOf: (r) => (r.description === "SPAR" ? "groceries" : "eating_out"), statements: [year] });
+    const nurlan = history.incomes.find((i) => i.source === "Нұрлан С.")!;
+    expect(nurlan).toMatchObject({ regularity: "irregular", monthsReceived: 5, monthsCovered: 12, largest: { date: "2026-08-13", amountMinor: 100000000, paidFor: "DORM DEPOSIT" } });
+    // 5 × ₸200,000 over 12 months = ₸83,333 → planned at ₸83,000, not at ₸200,000 (its usual month).
+    expect(nurlan.amount.amountMinor).toBe(8300000);
+    const aigul = history.incomes.find((i) => i.source === "Гүлнар А.")!;
+    expect(aigul).toMatchObject({ stopped: true, trend: "down" });
+    expect(suggestions.incomes.map((i) => [i.source, i.amountMinor])).toEqual([["Нұрлан С.", 8300000]]);
+    expect(history.oneOffs.map((o) => o.name)).toEqual(["DORM DEPOSIT"]);
+    // Budgets come from everyday spending: the deposit does not raise the groceries or "other" budget.
+    expect(suggestions.budgets).toEqual([{ category: "groceries", limitHomeMinor: 8000000 }, { category: "eating_out", limitHomeMinor: 2000000 }]);
+    const lines = historyLines(history).join("\n");
+    expect(lines).toMatch(/Нұрлан С\.: money came in 5 of 12 months.*plan with the average, ₸83,000 a month; ₸1,000,000 on Aug 13 paid for DORM DEPOSIT, kept out of the plan/);
+    expect(lines).toMatch(/Гүлнар А\.: came in 5 of 12 months .* but nothing since Mar 2, 2026, so not planned/);
+  });
+
+  it("sees a move abroad, the same person across banks and scripts, and a short statement's period", async () => {
+    expect(personKey("Zelle payment from NURLAN SEITKALI Conf# x1")).toBe(personKey("Нұрлан С."));
+    expect(personKey("CINEMA CITY BUDAPEST")).toBe(personKey("CINEMA CITY BUDAPEST"));
+    const us = { file: 1, name: "us.pdf", bank: "Bank of America", from: "2026-04-14", to: "2026-05-11" };
+    const rows = [...everyday, mk("2026-04-20", 100000, "Zelle payment from NURLAN SEITKALI", "INCOME", { file: 1, currency: "USD" }), mk("2026-02-10", 20000000, "Нұрлан С.", "INCOME"), mk("2026-03-10", 20000000, "Нұрлан С.", "INCOME")];
+    const { history } = await buildHistory(rows, { homeCurrency: "KZT", today: "2026-10-31", toHome, categoryOf: () => "groceries", statements: [year, us] });
+    expect(history.incomes).toHaveLength(1);
+    expect(history.incomes[0]).toMatchObject({ source: "Нұрлан С.", monthsReceived: 3, amount: { currency: "KZT" } });
+    expect(history.currencyShift).toEqual({ from: "KZT", to: "HUF", since: "2026-08" });
+    expect(history.statements.map((st) => [st.bank, st.months])).toEqual([
+      ["Kaspi", 12],
+      ["Bank of America", 0.9],
+    ]);
+    expect(historyLines(history)[0]).toMatch(/Bank of America Apr 14, 2026 – May 11, 2026 \(about 1 month, so its numbers cover only that time\)/);
   });
 });
 
