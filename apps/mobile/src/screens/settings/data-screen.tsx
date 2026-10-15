@@ -37,6 +37,7 @@ export function DataScreen() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<ImportPreviewResponse | null>(null);
   const [on, setOn] = useState<SectionSwitches>(ALL_ON);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [done, setDone] = useState<{ res: ImportCommitResponse; budgets: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +78,10 @@ export function DataScreen() {
     setError(null);
     const selected = selectedItems(result, on);
     try {
-      const res = await commit.mutateAsync({ ...selected, budgets: [] });
+      const res = await commit.mutateAsync({
+        items: { ...selected, budgets: [] },
+        onProgress: (d, n) => setProgress({ done: d, total: n }),
+      });
       let budgets = 0;
       if (selected.budgets.length > 0) {
         try {
@@ -162,7 +166,10 @@ export function DataScreen() {
       {upload.isPending ? <Text variant="caption">{t("settings:data.reading")}</Text> : null}
       {commit.isPending && result ? (
         <Text variant="caption">
-          {t("settings:data.importing", { count: result.items.transactions.length })}
+          {t("settings:data.importing", {
+            done: progress?.done ?? 0,
+            count: progress?.total ?? result.items.transactions.length,
+          })}
         </Text>
       ) : null}
       {result ? (

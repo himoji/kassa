@@ -95,7 +95,8 @@ export async function buildHistory(rows: StatementRow[], o: { homeCurrency: stri
   const spendingHome = await Promise.all(spending.map(homeOf));
   for (const [i, r] of spending.entries()) {
     const h = spendingHome[i]!;
-    spendTotal += h;
+    // Monthly spending is what the user spent on things; transfers to people are reported on their own.
+    if (r.kind !== "TRANSFER_OUT") spendTotal += h;
     const cat = kindCategory(r.kind) ?? o.categoryOf(r);
     const c = byCategory.get(cat) ?? { total: 0, count: 0 };
     byCategory.set(cat, { total: c.total + h, count: c.count + 1 });

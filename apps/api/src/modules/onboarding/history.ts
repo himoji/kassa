@@ -46,13 +46,13 @@ export function historyTexts(req: OnboardingHistoryRequest, redactor: Redactor):
   const top = h.spendingByCategory.filter((c) => c.category !== "transfers").slice(0, 5);
   const lines: string[] = [];
   lines.push(`Period: ${month(h.from)} – ${month(h.to)} (${h.months} months), ${h.counts.rows} transactions from ${req.files.length} statement(s): ${banks}.`);
-  lines.push(`Spending: about ${money(h.monthlySpendingHomeMinor, h.homeCurrency)} a month. Biggest: ${top.map((c) => `${CATEGORY_LABEL(c.category)} ${money(c.monthlyHomeMinor, h.homeCurrency)}`).join(", ") || "none"}.`);
+  lines.push(`Spending (without transfers to people): about ${money(h.monthlySpendingHomeMinor, h.homeCurrency)} a month. Biggest: ${top.map((c) => `${CATEGORY_LABEL(c.category)} ${money(c.monthlyHomeMinor, h.homeCurrency)}`).join(", ") || "none"}.`);
   const transfers = h.spendingByCategory.find((c) => c.category === "transfers");
   if (transfers) lines.push(`Transfers to other people: about ${money(transfers.monthlyHomeMinor, h.homeCurrency)} a month.`);
   if (h.incomes.length) lines.push(`Money in: ${h.incomes.slice(0, 4).map((i) => `${i.source} about ${money(i.amount.amountMinor, i.amount.currency)} a month`).join("; ")}.`);
   if (h.recurring.length) lines.push(`Regular payments: ${h.recurring.slice(0, 4).map((r) => `${r.name} ${money(r.amount.amountMinor, r.amount.currency)} (next ${r.nextDate})`).join("; ")}.`);
   if (h.fees.totalHomeMinor > 0) lines.push(`Bank and conversion fees: ${money(h.fees.totalHomeMinor, h.homeCurrency)} over the period${h.fees.fxMarkupBps !== null ? `; foreign purchases cost about ${(h.fees.fxMarkupBps / 100).toFixed(1)}% over the mid rate` : ""}.`);
-  if (h.counts.ownTransfers) lines.push(`${h.counts.ownTransfers} transfers between the user's own accounts were left out.`);
+  if (h.counts.ownTransfers) lines.push(`${h.counts.ownTransfers} transfers between your own accounts were left out, so nothing is counted twice.`);
   const summary = lines.join("\n");
   const forModel = `Bank history imported (aggregates computed by Kassa from the statements; the draft was prefilled with these suggestions):\n${redactor.redactText(summary)}`;
   const reply = [

@@ -316,6 +316,35 @@ export async function ingestCapture(userId: string, input: CaptureInput, db: DbO
   };
 }
 
+/** Recompute a card's rolling-median markup for one currency pair from its settled samples (fee x-ray, spec §12). */
+export async function refreshCardProfile(db: DbOrTx, cardId: string, fromCurrency: string, toCurrency: string): Promise<NonNullable<SettlementEventResponse["cardProfile"]>> {
+  const samples = await db
+    .select({ fee: transactions.feeHomeMinor, home: transactions.homeAmountMinor })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.cardId, cardId),
+        eq(transactions.currency, fromCurrency),
+        eq(transactions.settledCurrency, toCurrency),
+        isNotNull(transactions.feeHomeMinor),
+        isNull(transactions.mergedIntoId),
+      ),
+    )
+    .orderBy(asc(transactions.occurredAt));
+  const bps = samples
+    .filter((s) => s.fee !== null && s.home !== null && s.home > 0)
+    .map((s) => Number((BigInt(s.fee!) * 10000n) / BigInt(s.home!)));
+  const median = rollingMedianBps(bps);
+  await db
+    .insert(cardFeeProfiles)
+    .values({ cardId, fromCurrency, toCurrency, medianMarkupBps: median, fixedFeeMinor: 0, samples: bps.length })
+    .onConflictDoUpdate({
+      target: [cardFeeProfiles.cardId, cardFeeProfiles.fromCurrency, cardFeeProfiles.toCurrency],
+      set: { medianMarkupBps: median, samples: bps.length },
+    });
+  return { cardId, fromCurrency, toCurrency, medianMarkupBps: median, samples: bps.length };
+}
+
 export class SettlementError extends Error {
   constructor(readonly code: "SETTLEMENT_NO_MATCH" | "SETTLEMENT_ALREADY_SETTLED", message: string) {
     super(message);
@@ -327,7 +356,7 @@ export class SettlementError extends Error {
  * statement / demo trigger) fixes the real debit, computes the fee against mid on the purchase date,
  * updates the card's rolling-median markup profile and flags DCC.
  */
-export async function reconcileSettlement(userId: string, ev: SettlementEventRequest, db: DbOrTx = getDb(), opts: { notify?: boolean } = {}): Promise<SettlementEventResponse> {
+export async function reconcileSettlement(userId: string, ev: SettlementEventRequest, db: DbOrTx = getDb(), opts: { notify?: boolean; profile?: boolean } = {}): Promise<SettlementEventResponse> {
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   let tx = ev.transactionId
@@ -374,35 +403,9 @@ export async function reconcileSettlement(userId: string, ev: SettlementEventReq
     .set({ settledAmountMinor: ev.settledAmountMinor, settledCurrency: ev.settledCurrency, feeHomeMinor: fee.feeHomeMinor, status: "SETTLED" })
     .where(eq(transactions.id, tx.id));
 
-  // Rolling median markup for (card, from → to) over the card's settled samples.
+  // Rolling median markup for (card, from → to) over the card's settled samples (an import refreshes it once at the end).
   let cardProfile: SettlementEventResponse["cardProfile"] = null;
-  if (tx.cardId && tx.currency !== ev.settledCurrency) {
-    const samples = await db
-      .select({ fee: transactions.feeHomeMinor, home: transactions.homeAmountMinor })
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.cardId, tx.cardId),
-          eq(transactions.currency, tx.currency),
-          eq(transactions.settledCurrency, ev.settledCurrency),
-          isNotNull(transactions.feeHomeMinor),
-          isNull(transactions.mergedIntoId),
-        ),
-      )
-      .orderBy(asc(transactions.occurredAt));
-    const bps = samples
-      .filter((s) => s.fee !== null && s.home !== null && s.home > 0)
-      .map((s) => Number((BigInt(s.fee!) * 10000n) / BigInt(s.home!)));
-    const median = rollingMedianBps(bps);
-    await db
-      .insert(cardFeeProfiles)
-      .values({ cardId: tx.cardId, fromCurrency: tx.currency, toCurrency: ev.settledCurrency, medianMarkupBps: median, fixedFeeMinor: 0, samples: bps.length })
-      .onConflictDoUpdate({
-        target: [cardFeeProfiles.cardId, cardFeeProfiles.fromCurrency, cardFeeProfiles.toCurrency],
-        set: { medianMarkupBps: median, samples: bps.length },
-      });
-    cardProfile = { cardId: tx.cardId, fromCurrency: tx.currency, toCurrency: ev.settledCurrency, medianMarkupBps: median, samples: bps.length };
-  }
+  if (tx.cardId && tx.currency !== ev.settledCurrency && opts.profile !== false) cardProfile = await refreshCardProfile(db, tx.cardId, tx.currency, ev.settledCurrency);
 
   const display = await merchantDisplayName(userId, tx.merchantNorm, tx.merchantRaw, db);
   // A data import settles history in bulk: the fee is recorded without a notification per row.

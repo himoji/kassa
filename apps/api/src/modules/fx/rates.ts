@@ -23,6 +23,10 @@ import { convertMinor, div, parseDecimal, rat, toDecimalString, type Rational } 
  * Cached per (source, date). Rates are exact decimal strings → BigInt rationals; never floats.
  */
 
+/** Per-request timeout for rate sources, and how long a failed source is skipped before it is tried again. */
+const FETCH_TIMEOUT_MS = 5_000;
+const SOURCE_RETRY_MS = 120_000;
+
 export type RateSource = "ECB_FRANKFURTER" | "NBK" | "FALLBACK_ER_API" | "STATIC_EXAMPLE";
 
 export interface RateQuote {
@@ -63,14 +67,15 @@ export interface RatesOptions {
 
 export class RatesService {
   private readonly cache = new Map<string, Promise<DayTable | null>>();
-  private readonly fetchFn: typeof fetch;
+  private readonly fetchFn: (input: string, init?: RequestInit) => Promise<Response>;
   private readonly offline: boolean;
   private readonly frankfurterBase: string;
   private readonly nbkBase: string;
   private readonly fallbackBase: string;
 
   constructor(opts: RatesOptions = {}) {
-    this.fetchFn = opts.fetch ?? fetch;
+    // A rate source that does not answer must not stall a payment or an import: 5 s per request.
+    this.fetchFn = opts.fetch ?? ((input: string, init?: RequestInit) => fetch(input, { ...init, signal: init?.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS) }));
     this.offline = opts.offline ?? false;
     this.frankfurterBase = opts.frankfurterBase ?? "https://api.frankfurter.dev/v1";
     this.nbkBase = opts.nbkBase ?? "https://nationalbank.kz/rss/get_rates.cfm";
@@ -107,11 +112,18 @@ export class RatesService {
     return { amountMinor: convertMinor(amountMinor, from, to, q.rate), quote: q };
   }
 
+  /** Sources that just failed (unreachable, timed out): skipped until this time, so a bulk import does not wait on each row. */
+  private readonly downUntil = new Map<RateSource, number>();
+
   private dayTable(source: RateSource, date: string): Promise<DayTable | null> {
     const key = `${source}|${source === "FALLBACK_ER_API" ? "latest" : date}`;
     let p = this.cache.get(key);
     if (!p) {
-      p = this.load(source, date).catch(() => null);
+      if ((this.downUntil.get(source) ?? 0) > Date.now()) return Promise.resolve(null);
+      p = this.load(source, date).catch(() => {
+        this.downUntil.set(source, Date.now() + SOURCE_RETRY_MS);
+        return null;
+      });
       this.cache.set(key, p);
       // Do not cache failures for the whole day: allow a retry on the next call.
       void p.then((t) => {

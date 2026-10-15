@@ -519,10 +519,13 @@ export function cleanDescription(s: string): string {
   return (
     s
       .replace(/(?:Код\s*авторизации|Авторизация\s*коды|Референс|Reference|Auth(?:ori[sz]ation)?\s*code|Conf(?:irmation)?\s*#?|Ref(?:erence)?\s*#|Trace\s*#)\s*[:#]?\s*[\w-]+/giu, " ")
+      // Id labels whose number was cut ("БИН , внешний"), and Kazakh payment purpose codes ("КНП=119").
+      .replace(/(?<![\p{L}])(?:БИН|ИИН|ЖСН|BIN|IIN|КНП\s*=\s*\d+)(?![\p{L}])\s*[;:]?\s*(?:\d{12})?\s*[,;]?\s*(?:внешний|external)?/giu, " ")
       // Account numbers never ride along in a merchant name (IBAN shape, ISO 13616).
       .replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, "[account]")
       .replace(/\b\d{12,}\b/g, " ")
       .replace(/\s+/g, " ")
+      .replace(/[\s,;]+$/, "")
       .trim()
       .slice(0, 140) || "Unknown merchant"
   );
