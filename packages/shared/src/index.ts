@@ -27,5 +27,8 @@ export * from "./commerceDto.ts";
 // data import / export
 export * from "./dataportDto.ts";
 export * from "./payeeAccount.ts";
+export * from "./recipient.ts";
+// linked cards and bank accounts
+export * from "./fundingSource.ts";
 // spending insights and purchase detail
 export * from "./insightsDto.ts";

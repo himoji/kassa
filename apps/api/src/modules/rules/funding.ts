@@ -49,10 +49,15 @@ export async function chooseFunding(a: {
   currency: string;
   now: Date;
   dueDate?: string | undefined;
+  /**
+   * (added 2026-10-16) Paid from a linked card or bank in this currency: only routes funded in it, and its balance is
+   * whatever the route needs (the pull leg brings exactly the signed maximum into the wallet first).
+   */
+  linkedCurrency?: string | undefined;
 }): Promise<FundingChoice> {
   const today = isoDate(a.now);
-  const rails = bankRails();
-  const balances = await walletBalances(a.userId);
+  const rails = a.linkedCurrency ? bankRails().filter((r) => !r.fundingCurrencies || r.fundingCurrencies.includes(a.linkedCurrency!)) : bankRails();
+  const balances = a.linkedCurrency ? [{ currency: a.linkedCurrency, amountMinor: Number.MAX_SAFE_INTEGER }] : await walletBalances(a.userId);
 
   if (!balances) {
     // Unknown balances: bind the same-currency route (no conversion, so the debit is exact).
@@ -78,7 +83,7 @@ export async function chooseFunding(a: {
   if (!best) return { status: "NONE" };
 
   const converts = best.fundingCurrency !== a.currency || best.feeCurrency !== best.fundingCurrency;
-  const balance = balances.find((b) => b.currency === best.fundingCurrency)?.amountMinor ?? null;
+  const balance = a.linkedCurrency ? null : (balances.find((b) => b.currency === best.fundingCurrency)?.amountMinor ?? null);
   return {
     status: "OK",
     funding: {

@@ -732,7 +732,7 @@ export type PlanAdviceResponse = z.infer<typeof PlanAdviceResponse>;
 // ---------- Wallet: test top-ups and Kassa-to-Kassa ----------
 
 /** How a test top-up is "paid": a wallet tap (simulated sheet in the app) or a test card. */
-export const TopUpMethod = z.enum(["APPLE_PAY", "GOOGLE_PAY", "SAMSUNG_PAY", "CARD"]);
+export const TopUpMethod = z.enum(["APPLE_PAY", "GOOGLE_PAY", "SAMSUNG_PAY", "CARD", "LINKED"]);
 export type TopUpMethod = z.infer<typeof TopUpMethod>;
 
 /** GET /wallet: the user's Kassa ID (what another user types to pay them) and how top-ups run here. */
@@ -756,6 +756,8 @@ export const TopUpRequest = z.object({
   amountMinor: PositiveAmountMinor,
   currency: CurrencyCode,
   method: TopUpMethod,
+  /** (added 2026-10-16) method LINKED: the linked card or bank account to pull from (in `currency`). */
+  fundingSourceId: Uuid.optional(),
   /** One top-up per key (a double tap or a retry after a timeout adds the money once). */
   idempotencyKey: z.string().uuid(),
 });
@@ -781,6 +783,8 @@ export const PayPayeeRequest = z.object({
   amountMinor: PositiveAmountMinor,
   currency: CurrencyCode,
   purpose: z.string().trim().min(1).max(140),
+  /** (added 2026-10-16) pay from this linked card or bank instead of the wallet; signed into the order. */
+  fundingSourceId: Uuid.optional(),
 });
 export type PayPayeeRequest = z.infer<typeof PayPayeeRequest>;
 export const PayPayeeResponse = z.object({
@@ -788,5 +792,8 @@ export const PayPayeeResponse = z.object({
   decision: z.string(),
   reasonCodes: z.array(z.string()),
   summary: z.string(),
+  /** (added 2026-10-16) an AUTO send (mandate or small-auto) ran right away: its payment status and delivery time. */
+  paymentStatus: z.string().nullable().optional(),
+  deliveredInMs: z.number().int().nonnegative().optional(),
 });
 export type PayPayeeResponse = z.infer<typeof PayPayeeResponse>;

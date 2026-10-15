@@ -42,6 +42,10 @@ export const CanonicalOrder = z.object({
   //   PO signature, payee = PO supplier and amount ≤ PO total.
   itemsHash: z.string().min(1).max(64).optional(),
   purchaseOrderId: z.string().uuid().optional(),
+  // (added 2026-10-16, linked accounts) The linked card or bank this order is paid from. Payments pulls the signed
+  // fundingAmountMinor (in fundingCurrency, the source's currency) from it into the wallet, then pays out. Only with
+  // the funding binding; optional, so orders without it keep their JCS bytes and hash.
+  fundingSourceId: z.string().uuid().optional(),
 });
 export type CanonicalOrder = z.infer<typeof CanonicalOrder>;
 
@@ -54,6 +58,9 @@ export function orderHash(order: CanonicalOrder): string {
   const parsed = CanonicalOrder.parse(order);
   orderFunding(parsed); // all-or-none funding fields: a partial binding is never hashed (or signed)
   orderObligation(parsed); // all-or-none obligation link (X1)
+  if (parsed.fundingSourceId !== undefined && parsed.fundingCurrency === undefined) {
+    throw new RangeError("canonical order: fundingSourceId needs the funding binding");
+  }
   return jcsHash(parsed);
 }
 

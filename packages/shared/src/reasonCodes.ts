@@ -69,6 +69,10 @@ export const ReasonCode = z.enum([
   "RAIL_ERROR",
   // (added 2026-10-11, B2) the bank quote's source amount exceeds the signed fundingAmountMinor: nothing sent
   "FUNDING_ABOVE_SIGNED_MAX",
+  // (added 2026-10-16, linked accounts) the signed linked card or bank is gone or removed: nothing pulled or sent
+  "FUNDING_SOURCE_UNAVAILABLE",
+  // the linked card or bank declined the pull: nothing sent
+  "FUNDING_PULL_DECLINED",
   // (added 2026-10-14, Business M0) supplier purchase orders and their invoices (three-way match, M5)
   // the invoice total is above the passkey-signed purchase order total: refused
   "INVOICE_ABOVE_PO",

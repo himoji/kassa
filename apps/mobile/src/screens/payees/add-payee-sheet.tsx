@@ -1,13 +1,18 @@
-import { maskPayeeAccount, PayeeKind, type PayoutScheme } from "@kassa/shared";
+import {
+  kindForCategory,
+  maskPayeeAccount,
+  type PayoutScheme,
+  type RecipientCategory,
+} from "@kassa/shared";
 import { useMemo, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { KassaApiError } from "@/api/errors";
 import { useCreatePayee } from "@/api/hooks/payees";
 import { errorText } from "@/components/kassa/error-text";
 import { SettingPicker } from "@/components/kassa/native-controls";
 import { Segmented } from "@/components/kassa/segmented";
-import { Box, Button, Card, Input, Sheet, Text, toast } from "@/components/ui";
+import { Box, Button, Card, Icon, Input, Sheet, Text, toast } from "@/components/ui";
 import { countryOptions } from "@/lib/countries";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
@@ -20,6 +25,15 @@ import {
   usualCurrency,
   type PayeeFormFields,
 } from "@/lib/payee-form";
+
+import {
+  CATEGORY_ICON,
+  CategoryTiles,
+  EMPTY_DETAILS,
+  formToDetails,
+  RecipientDetailsFields,
+  type DetailsForm,
+} from "./recipient-fields";
 
 type FieldKey =
   "iban" | "alipayId" | "cardNumber" | "routingNumber" | "accountNumber" | "kassaId" | "value";
@@ -36,16 +50,30 @@ const PROBLEM_FIELD: Record<string, FieldKey> = {
 };
 
 /**
- * Add a payee the way their country pays (spec §16): name, country and currency first, then only the fields that
- * scheme needs (SEPA: IBAN; China: Alipay ID or UnionPay card; US: routing + account number). Each field is checked
- * here as on the server (shared/payeeAccount.ts), so a typo is caught before the 24-hour cooling period starts.
+ * Add a recipient in two steps. First "What are you paying?" (people, tuition, rent, bills, shops), then that
+ * category's own details (a student ID and the school's portal, a customer number, a relationship) and the account
+ * the way their country pays (spec §16): SEPA IBAN; China Alipay ID or UnionPay card; US routing + account number.
+ * Each field is checked here as on the server (shared/payeeAccount.ts, shared/recipient.ts), so a typo is caught
+ * before the 24-hour cooling period starts.
  */
-export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function AddPayeeSheet({
+  visible,
+  onClose: close,
+  initialCategory = null,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  /** Skip the category step (opened from a category tab). */
+  initialCategory?: RecipientCategory | null;
+}) {
   const t = useKassaT();
   const f = useFormat();
   const create = useCreatePayee();
+  // undefined = not picked in this sheet yet: start from the tab it was opened from.
+  const [picked, setCategory] = useState<RecipientCategory | null | undefined>(undefined);
+  const category = picked === undefined ? initialCategory : picked;
+  const [details, setDetails] = useState<DetailsForm>(EMPTY_DETAILS);
   const [name, setName] = useState("");
-  const [kind, setKind] = useState<PayeeKind>("PERSON");
   const [country, setCountry] = useState("HU");
   const [currency, setCurrency] = useState("HUF");
   const [fields, setFields] = useState<PayeeFormFields>(EMPTY_PAYEE_FIELDS);
@@ -63,6 +91,10 @@ export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose:
   const form = { ...fields, scheme };
   const check = checkPayeeForm(form, currency);
   const nameMissing = !name.trim();
+  const detailsCheck = category ? formToDetails(category, details) : null;
+  const kind = category
+    ? kindForCategory(category, detailsCheck?.ok ? detailsCheck.details : null)
+    : "PERSON";
 
   const set = (patch: Partial<PayeeFormFields>) => {
     setServerError(null);
@@ -78,8 +110,23 @@ export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose:
       ? t("payees:add.errors.SCHEME_CURRENCY_MISMATCH")
       : undefined;
 
+  const detailError = (key: keyof DetailsForm): string | undefined => {
+    if (serverError?.field === "details")
+      return key === "studentId" || key === "customerNumber" ? serverError.text : undefined;
+    if (!showErrors || !detailsCheck || detailsCheck.ok || detailsCheck.field !== key)
+      return undefined;
+    return t(`payees:add.errors.${detailsCheck.code}`);
+  };
+
+  const onClose = () => {
+    reset();
+    close();
+  };
+
   const reset = () => {
     setName("");
+    setDetails(EMPTY_DETAILS);
+    setCategory(undefined);
     setFields(EMPTY_PAYEE_FIELDS);
     setShowErrors(false);
     setServerError(null);
@@ -88,7 +135,7 @@ export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose:
   const submit = async () => {
     setShowErrors(true);
     setServerError(null);
-    if (nameMissing || !check.ok) {
+    if (nameMissing || !check.ok || !detailsCheck?.ok) {
       haptics.error();
       return;
     }
@@ -99,10 +146,10 @@ export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose:
         account: check.account,
         country,
         currency,
+        details: detailsCheck.details,
       });
       haptics.success();
       toast.show({ title: t("payees:add.created"), description: t("payees:add.coolingNote") });
-      reset();
       onClose();
     } catch (err) {
       haptics.error();
@@ -122,164 +169,200 @@ export function AddPayeeSheet({ visible, onClose }: { visible: boolean; onClose:
 
   return (
     <Sheet visible={visible} onClose={onClose} detents={["full"]}>
-      <Box p={5} gap={4}>
-        <Box gap={1}>
-          <Text variant="heading">{t("payees:add.title")}</Text>
-          <Text variant="caption">{t("payees:add.coolingNote")}</Text>
+      {category === null ? (
+        <Box p={5} gap={4}>
+          <Box gap={1}>
+            <Text variant="heading">{t("payees:add.pickCategory")}</Text>
+            <Text variant="caption">{t("payees:add.coolingNote")}</Text>
+          </Box>
+          <CategoryTiles onPick={setCategory} />
+          <Button variant="ghost" onPress={onClose}>
+            {t("common:cancel")}
+          </Button>
         </Box>
+      ) : (
+        <Box p={5} gap={4}>
+          <Box gap={1}>
+            <Text variant="heading">{t("payees:add.title")}</Text>
+            <Text variant="caption">{t("payees:add.coolingNote")}</Text>
+          </Box>
 
-        <Input
-          label={t("payees:add.name")}
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-          error={showErrors && nameMissing ? t("payees:add.errors.NAME_MISSING") : undefined}
-        />
+          <Pressable
+            onPress={() => setCategory(null)}
+            accessibilityRole="button"
+            accessibilityLabel={`${t("payees:add.kind")}: ${t(`payees:category.${category}`)}. ${t("payees:add.changeCategory")}`}
+            style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 }}
+            testID="recipient-category-current"
+          >
+            <Icon
+              name={CATEGORY_ICON[category].sf}
+              fallback={CATEGORY_ICON[category].md}
+              size={22}
+              color="brandAccent"
+            />
+            <Text weight="semibold" style={{ flex: 1 }}>
+              {t(`payees:category.${category}`)}
+            </Text>
+            <Text color="brandAccent">{t("payees:add.changeCategory")}</Text>
+          </Pressable>
 
-        <View style={{ marginHorizontal: -16 }}>
-          <SettingPicker
-            label={t("payees:add.kind")}
-            value={kind}
-            options={PayeeKind.options.map((k) => ({ value: k, label: t(`payees:kind.${k}`) }))}
-            onChange={setKind}
+          <Input
+            label={t(`payees:add.nameFor.${category}`)}
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+            error={showErrors && nameMissing ? t("payees:add.errors.NAME_MISSING") : undefined}
           />
-          <SettingPicker
-            label={t("payees:add.country")}
-            value={country}
-            options={countries}
-            onChange={(c) => {
-              setCountry(c);
-              const usual = usualCurrency(c);
-              if (usual) setCurrency(usual);
+
+          <RecipientDetailsFields
+            category={category}
+            form={details}
+            onChange={(patch) => {
+              setServerError(null);
+              setDetails((prev) => ({ ...prev, ...patch }));
             }}
-            testID="payee-country"
+            errorFor={detailError}
           />
-          <SettingPicker
-            label={t("payees:add.currency")}
-            value={currency}
-            options={currencies}
-            onChange={setCurrency}
-            testID="payee-currency"
-          />
-        </View>
-        {currencyError ? <Text color="destructive">{currencyError}</Text> : null}
 
-        <Box gap={2}>
-          <Text variant="label">{t("payees:add.how")}</Text>
-          {schemes.length > 1 ? (
-            <Segmented
-              value={scheme}
-              onChange={(s) => set({ scheme: s })}
-              options={schemes.map((s) => ({ value: s, label: schemeLabel(s) }))}
+          <View style={{ marginHorizontal: -16 }}>
+            <SettingPicker
+              label={t("payees:add.country")}
+              value={country}
+              options={countries}
+              onChange={(c) => {
+                setCountry(c);
+                const usual = usualCurrency(c);
+                if (usual) setCurrency(usual);
+              }}
+              testID="payee-country"
+            />
+            <SettingPicker
+              label={t("payees:add.currency")}
+              value={currency}
+              options={currencies}
+              onChange={setCurrency}
+              testID="payee-currency"
+            />
+          </View>
+          {currencyError ? <Text color="destructive">{currencyError}</Text> : null}
+
+          <Box gap={2}>
+            <Text variant="label">{t("payees:add.how")}</Text>
+            {schemes.length > 1 ? (
+              <Segmented
+                value={scheme}
+                onChange={(s) => set({ scheme: s })}
+                options={schemes.map((s) => ({ value: s, label: schemeLabel(s) }))}
+              />
+            ) : null}
+            <Text variant="caption">{t(`payees:scheme.${scheme}.hint`)}</Text>
+          </Box>
+
+          {scheme === "IBAN" ? (
+            <Input
+              label={t("payees:add.iban")}
+              value={fields.iban}
+              onChangeText={(v) => set({ iban: v })}
+              autoCapitalize="characters"
+              placeholder="DE89 3704 0044 0532 0130 00"
+              error={fieldError("iban")}
             />
           ) : null}
-          <Text variant="caption">{t(`payees:scheme.${scheme}.hint`)}</Text>
+          {scheme === "CN_ALIPAY" ? (
+            <Input
+              label={t("payees:add.alipayId")}
+              value={fields.alipayId}
+              onChangeText={(v) => set({ alipayId: v })}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              placeholder="name@example.cn · 138 0013 8000"
+              error={fieldError("alipayId")}
+            />
+          ) : null}
+          {scheme === "CN_UNIONPAY" ? (
+            <Input
+              label={t("payees:add.cardNumber")}
+              value={fields.cardNumber}
+              onChangeText={(v) => set({ cardNumber: v })}
+              keyboardType="number-pad"
+              placeholder="6200 0000 0000 0005"
+              error={fieldError("cardNumber")}
+            />
+          ) : null}
+          {scheme === "US_ACH" ? (
+            <>
+              <Input
+                label={t("payees:add.routingNumber")}
+                value={fields.routingNumber}
+                onChangeText={(v) => set({ routingNumber: v })}
+                keyboardType="number-pad"
+                placeholder="021000021"
+                error={fieldError("routingNumber")}
+              />
+              <Input
+                label={t("payees:add.accountNumber")}
+                value={fields.accountNumber}
+                onChangeText={(v) => set({ accountNumber: v })}
+                keyboardType="number-pad"
+                error={fieldError("accountNumber")}
+              />
+              <Segmented
+                value={fields.accountType}
+                onChange={(v) => set({ accountType: v })}
+                options={[
+                  { value: "CHECKING", label: t("payees:add.checking") },
+                  { value: "SAVINGS", label: t("payees:add.savings") },
+                ]}
+              />
+            </>
+          ) : null}
+          {scheme === "KASSA_USER" ? (
+            <Input
+              label={t("payees:add.kassaId")}
+              value={fields.kassaId}
+              onChangeText={(v) => set({ kassaId: v })}
+              autoCapitalize="characters"
+              placeholder="KSA-7QMX-2HVA"
+              error={fieldError("kassaId")}
+            />
+          ) : null}
+          {scheme === "OTHER" ? (
+            <Input
+              label={t("payees:add.other")}
+              value={fields.other}
+              onChangeText={(v) => set({ other: v })}
+              error={fieldError("value")}
+            />
+          ) : null}
+
+          {check.ok && !nameMissing ? (
+            <Card>
+              <Box gap={1}>
+                <Text variant="caption">{t("payees:add.preview")}</Text>
+                <Text weight="semibold">{name.trim()}</Text>
+                <Text variant="caption">
+                  {t("payees:meta", {
+                    kind: t(`payees:category.${category}`),
+                    account: maskPayeeAccount(check.account),
+                    country,
+                    currency,
+                  })}
+                </Text>
+              </Box>
+            </Card>
+          ) : null}
+
+          {serverError && !(serverError.field && serverError.field in PROBLEM_FIELD) ? (
+            <Text color="destructive">{serverError.text}</Text>
+          ) : null}
+          <Button size="lg" onPress={() => void submit()} loading={create.isPending}>
+            {t("payees:add.submit")}
+          </Button>
+          <Button variant="ghost" onPress={onClose}>
+            {t("common:cancel")}
+          </Button>
         </Box>
-
-        {scheme === "IBAN" ? (
-          <Input
-            label={t("payees:add.iban")}
-            value={fields.iban}
-            onChangeText={(v) => set({ iban: v })}
-            autoCapitalize="characters"
-            placeholder="DE89 3704 0044 0532 0130 00"
-            error={fieldError("iban")}
-          />
-        ) : null}
-        {scheme === "CN_ALIPAY" ? (
-          <Input
-            label={t("payees:add.alipayId")}
-            value={fields.alipayId}
-            onChangeText={(v) => set({ alipayId: v })}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="name@example.cn · 138 0013 8000"
-            error={fieldError("alipayId")}
-          />
-        ) : null}
-        {scheme === "CN_UNIONPAY" ? (
-          <Input
-            label={t("payees:add.cardNumber")}
-            value={fields.cardNumber}
-            onChangeText={(v) => set({ cardNumber: v })}
-            keyboardType="number-pad"
-            placeholder="6200 0000 0000 0005"
-            error={fieldError("cardNumber")}
-          />
-        ) : null}
-        {scheme === "US_ACH" ? (
-          <>
-            <Input
-              label={t("payees:add.routingNumber")}
-              value={fields.routingNumber}
-              onChangeText={(v) => set({ routingNumber: v })}
-              keyboardType="number-pad"
-              placeholder="021000021"
-              error={fieldError("routingNumber")}
-            />
-            <Input
-              label={t("payees:add.accountNumber")}
-              value={fields.accountNumber}
-              onChangeText={(v) => set({ accountNumber: v })}
-              keyboardType="number-pad"
-              error={fieldError("accountNumber")}
-            />
-            <Segmented
-              value={fields.accountType}
-              onChange={(v) => set({ accountType: v })}
-              options={[
-                { value: "CHECKING", label: t("payees:add.checking") },
-                { value: "SAVINGS", label: t("payees:add.savings") },
-              ]}
-            />
-          </>
-        ) : null}
-        {scheme === "KASSA_USER" ? (
-          <Input
-            label={t("payees:add.kassaId")}
-            value={fields.kassaId}
-            onChangeText={(v) => set({ kassaId: v })}
-            autoCapitalize="characters"
-            placeholder="KSA-7QMX-2HVA"
-            error={fieldError("kassaId")}
-          />
-        ) : null}
-        {scheme === "OTHER" ? (
-          <Input
-            label={t("payees:add.other")}
-            value={fields.other}
-            onChangeText={(v) => set({ other: v })}
-            error={fieldError("value")}
-          />
-        ) : null}
-
-        {check.ok && !nameMissing ? (
-          <Card>
-            <Box gap={1}>
-              <Text variant="caption">{t("payees:add.preview")}</Text>
-              <Text weight="semibold">{name.trim()}</Text>
-              <Text variant="caption">
-                {t("payees:meta", {
-                  kind: t(`payees:kind.${kind}`),
-                  account: maskPayeeAccount(check.account),
-                  country,
-                  currency,
-                })}
-              </Text>
-            </Box>
-          </Card>
-        ) : null}
-
-        {serverError && !(serverError.field && serverError.field in PROBLEM_FIELD) ? (
-          <Text color="destructive">{serverError.text}</Text>
-        ) : null}
-        <Button size="lg" onPress={() => void submit()} loading={create.isPending}>
-          {t("payees:add.submit")}
-        </Button>
-        <Button variant="ghost" onPress={onClose}>
-          {t("common:cancel")}
-        </Button>
-      </Box>
+      )}
     </Sheet>
   );
 }

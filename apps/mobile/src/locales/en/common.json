@@ -19,7 +19,9 @@
     "sport": "Sport",
     "beauty": "Beauty",
     "gifts": "Gifts",
-    "pets": "Pets"
+    "pets": "Pets",
+    "wages": "Wages",
+    "transfers": "Transfers"
   },
   "close": "Close",
   "countdown": {

@@ -351,6 +351,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
         return {
           payeeRef,
           kind: p.kind,
+          category: p.category ?? null,
           status: p.status,
           verifiedSince: p.verifiedAt,
           coolingUntil: p.coolingUntil,
@@ -468,7 +469,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
     }),
 
     propose_order: tool({
-      description: "Propose a payment. The rules engine decides AUTO / ASK / HANDOFF / REFUSE; you never pay. payeeRef must be a payee placeholder.",
+      description: "Propose a payment. The recipient's own reference (a student ID for tuition, a customer number for a bill) is added to the purpose by the server. The rules engine decides AUTO / ASK / HANDOFF / REFUSE; you never pay. payeeRef must be a payee placeholder.",
       inputSchema: ProposeOrderInput,
       execute: safe(async (input) => {
         const e = redactor.resolve(input.payeeRef);
@@ -507,7 +508,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
           payeeId,
           amountMinor: input.amountMinor,
           currency: input.currency,
-          purpose: forUser(input.purpose),
+          purpose: withReference(forUser(input.purpose), payee?.suggestedReference),
           ...(input.rail ? { rail: input.rail } : {}),
           ...(shop
             ? { items: shop.fulfillment.items.map((i) => ({ sku: i.sku, name: i.name ?? i.sku, quantity: i.qty, unitPriceMinor: i.unitPriceMinor })), fulfillment: shop.fulfillment }
@@ -765,4 +766,13 @@ export function readerChecksFor(
   }
   if (used.length === 0) return null;
   return { checks: { amount, account, nonCriticalUnverified: nonCritical }, docIds: used.sort() };
+}
+
+/**
+ * The purpose with the recipient's own reference (student ID, customer number, rent contract) appended when the
+ * planner left it out: the school or biller matches the payment by it, and the model never sees it (it is PII).
+ */
+export function withReference(purpose: string, reference: string | undefined): string {
+  if (!reference || purpose.toLowerCase().includes(reference.toLowerCase())) return purpose;
+  return `${purpose} · ${reference}`.slice(0, 140);
 }
