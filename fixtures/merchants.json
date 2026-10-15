@@ -98,7 +98,22 @@
       "noodle",
       "sushi",
       "snack",
-      "takeaway"
+      "takeaway",
+      "foodora",
+      "wolt",
+      "glovo",
+      "pizzeria",
+      "burgers",
+      "kfc",
+      "mcdonalds",
+      "mcdonald",
+      "starbucks",
+      "costa",
+      "bistro",
+      "subway",
+      "dominos",
+      "chipotle",
+      "bakery"
     ],
     "groceries": [
       "groceries",
@@ -109,7 +124,29 @@
       "bread",
       "milk",
       "fruit",
-      "vegetables"
+      "vegetables",
+      "spar",
+      "lidl",
+      "aldi",
+      "tesco",
+      "penny",
+      "auchan",
+      "magnum",
+      "kifli",
+      "coop",
+      "carrefour",
+      "interspar",
+      "billa",
+      "rewe",
+      "edeka",
+      "walmart",
+      "costco",
+      "safeway",
+      "gs25",
+      "cu",
+      "emart",
+      "7eleven",
+      "seven"
     ],
     "transport": [
       "metro",
@@ -122,7 +159,21 @@
       "ticket",
       "bike",
       "fuel",
-      "petrol"
+      "petrol",
+      "bolt",
+      "uber",
+      "lrt",
+      "bkk",
+      "mav",
+      "flixbus",
+      "flix",
+      "korail",
+      "wizz",
+      "ryanair",
+      "airbaltic",
+      "lyft",
+      "amtrak",
+      "greyhound"
     ],
     "books": [
       "book",
@@ -136,7 +187,13 @@
       "medicine",
       "doctor",
       "dentist",
-      "clinic"
+      "clinic",
+      "patika",
+      "apteka",
+      "gyogyszertar",
+      "pharma",
+      "cvs",
+      "walgreens"
     ],
     "entertainment": [
       "cinema",
@@ -146,12 +203,26 @@
       "theatre",
       "museum",
       "game",
-      "games"
+      "games",
+      "corvinmozi",
+      "netflix",
+      "spotify",
+      "steam",
+      "youtube",
+      "playstation"
     ],
     "phone": [
       "phone",
       "mobile",
-      "topup"
+      "topup",
+      "beeline",
+      "kcell",
+      "tele2",
+      "yettel",
+      "vodafone",
+      "telekom",
+      "altel",
+      "activ"
     ],
     "utilities": [
       "electricity",
@@ -162,7 +233,30 @@
     "shopping": [
       "clothes",
       "shoes",
-      "shopping"
+      "shopping",
+      "jysk",
+      "ikea",
+      "zara",
+      "decathlon",
+      "primark",
+      "pepco",
+      "rossmann",
+      "dm",
+      "muller",
+      "amazon",
+      "aliexpress",
+      "temu",
+      "shein",
+      "uniqlo",
+      "tedi",
+      "action"
+    ],
+    "tuition": [
+      "university",
+      "univ",
+      "egyetem",
+      "college",
+      "tuition"
     ]
   },
   "merchants": [
