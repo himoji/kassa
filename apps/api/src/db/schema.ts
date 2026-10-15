@@ -791,6 +791,8 @@ export const devices = pgTable("devices", {
   platform: text("platform"),
   createdAt: tstz("created_at").notNull().defaultNow(),
   revokedAt: tstz("revoked_at"),
+  /** (added) IOS_SHORTCUT: last time the token reached POST /capture/shortcut (a purchase or a test run). */
+  lastUsedAt: tstz("last_used_at"),
 });
 
 /** Singleton row (id = 1). */

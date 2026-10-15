@@ -10,7 +10,7 @@ import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { captureNudge } from "./nudge.ts";
-import { whereLabel, type PlaceJson } from "./place.ts";
+import { PlaceHint, whereLabel, type PlaceJson } from "./place.ts";
 import { ForwardedNotification, ShortcutPayload } from "./parsers/index.ts";
 import { ingestCapture, placeName, reconcileSettlement, SettlementError } from "./service.ts";
 
@@ -22,18 +22,34 @@ import { ingestCapture, placeName, reconcileSettlement, SettlementError } from "
  */
 
 /** I13: `Authorization: Bearer <device token>`; devices.tokenHash = base64url(sha256(token)). */
-async function shortcutDeviceUser(req: FastifyRequest): Promise<string> {
+async function shortcutDevice(req: FastifyRequest): Promise<{ userId: string; deviceId: string }> {
   const auth = req.headers.authorization;
   const token = auth?.startsWith("Bearer ") ? auth.slice(7).trim() : "";
   if (!token) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
   const rows = await getDb()
-    .select({ userId: devices.userId })
+    .select({ userId: devices.userId, deviceId: devices.id })
     .from(devices)
     .where(and(eq(devices.tokenHash, sha256Base64url(token)), eq(devices.kind, "IOS_SHORTCUT"), isNull(devices.revokedAt)));
   const row = rows[0];
   if (!row) throw new HttpProblem(401, "DEVICE_TOKEN_INVALID", "Unknown or revoked device token");
-  return row.userId;
+  return row;
 }
+
+/**
+ * A test run: the Shortcut started by hand or from KassaLite's "Test" button has no Transaction input, so iOS sends
+ * the fields empty (`{merchant: "", amount: ""}`); the device's `lastUsedAt` moves, which is what KassaLite waits
+ * for. `{test: true}` is KassaLite checking the server and token itself: same reply, `lastUsedAt` stays. Nothing is
+ * logged either way.
+ */
+const ShortcutTest = PlaceHint.extend({
+  test: z.literal(true).optional(),
+  merchant: z.literal("").optional(),
+  amount: z.literal("").optional(),
+  card: z.string().max(200).optional(),
+});
+const ShortcutTestResponse = z.object({ status: z.literal("TEST"), nudge: z.string(), nudgeTitle: z.string(), nudgeBody: z.string() });
+const TEST_TITLE = "Kassa is connected";
+const TEST_BODY = "This Shortcut reaches your Kassa server. Your Apple Pay purchases will be logged.";
 
 /** The Shortcut shows `nudge` (or `nudgeTitle` + `nudgeBody`) as its notification (docs/SHORTCUT_SETUP.md); the rest is the usual capture result. */
 const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string(), nudgeTitle: z.string(), nudgeBody: z.string() });
@@ -46,7 +62,7 @@ function recentPlace(p: PlaceJson): { name?: string; kind?: string; where?: stri
 }
 
 /** Device-token owner per request (set in onRequest, read by the handler). */
-const shortcutUsers = new WeakMap<FastifyRequest, string>();
+const shortcutUsers = new WeakMap<FastifyRequest, { userId: string; deviceId: string }>();
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.post(
@@ -54,17 +70,29 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     {
       // Authenticate before the body is parsed or validated (no schema hints to unauthenticated callers).
       onRequest: async (req) => {
-        shortcutUsers.set(req, await shortcutDeviceUser(req));
+        shortcutUsers.set(req, await shortcutDevice(req));
       },
       // The iOS Transaction fields, or a forwarded notification / SMS text (Android wallets, bank SMS for online
-      // and in-app Apple Pay): `text` marks the second shape.
-      schema: { body: z.union([ForwardedNotification, ShortcutPayload]), response: { 200: ShortcutCaptureResponse } },
+      // and in-app Apple Pay): `text` marks the second shape. A body with neither is a test run (ShortcutTest).
+      schema: {
+        body: z.union([ForwardedNotification, ShortcutPayload, ShortcutTest]),
+        response: { 200: z.union([ShortcutCaptureResponse, ShortcutTestResponse]) },
+      },
     },
     async (req) => {
-      const userId = shortcutUsers.get(req);
-      if (!userId) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
+      const device = shortcutUsers.get(req);
+      if (!device) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
+      const { userId, deviceId } = device;
       const body = req.body;
-      const result = await ingestCapture(userId, "text" in body ? { source: "SHORTCUT", forwarded: body } : { source: "SHORTCUT", shortcut: body });
+      // `{test: true}` is KassaLite's own connection check, not the Shortcut: it does not count as used.
+      if (!("test" in body && body.test)) await getDb().update(devices).set({ lastUsedAt: clock.now() }).where(eq(devices.id, deviceId));
+      if (!("text" in body) && (body.amount === undefined || body.amount === "")) {
+        return { status: "TEST" as const, nudge: `${TEST_TITLE}\n${TEST_BODY}`, nudgeTitle: TEST_TITLE, nudgeBody: TEST_BODY };
+      }
+      const result = await ingestCapture(
+        userId,
+        "text" in body ? { source: "SHORTCUT", forwarded: body } : { source: "SHORTCUT", shortcut: body as ShortcutPayload },
+      );
       const n = await captureNudge(userId, result);
       return { ...result, nudge: n.nudge, nudgeTitle: n.title, nudgeBody: n.body };
     },

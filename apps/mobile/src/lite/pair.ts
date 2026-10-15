@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { apiBaseUrl } from "@/api/config";
 import { startSession } from "@/api/session";
 
+import { syncIntentConfig } from "./intent-config";
 import { applyServerUrl, loadServerUrl, normalizeServerUrl, saveServerUrl } from "./server-url";
 import { saveDisplayName } from "./profile";
 import { saveShortcutToken } from "./shortcut-token";
@@ -77,6 +78,7 @@ export async function completePairing(input: {
     const stored = normalizeServerUrl(result.serverUrl) ?? server;
     await saveServerUrl(stored);
     applyServerUrl(stored);
+    await syncIntentConfig();
     await saveDisplayName(result.user.displayName);
     await startSession(result);
     return result;

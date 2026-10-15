@@ -161,6 +161,15 @@ The app shows the localised version of the same message in Activity.
 | `MERGED` | A duplicate of a spend already logged |
 | `IGNORED_INCOMING` | A refund |
 | `UNPARSED` | Kassa could not read the payment |
+| `TEST` | A test run: nothing logged (see below) |
+
+### Test run
+
+A body without an amount (the Shortcut run by hand, so iOS sends `merchant` and `amount` empty) or `{"test": true}`
+is a test. Nothing is logged; the reply is `status: "TEST"` with the notification “Kassa is connected”. The empty-field
+form also records the device as used (`lastUsedAt` in GET `/api/devices`), which KassaLite's setup check waits for;
+`{"test": true}` is KassaLite checking the server and key itself and does not. A merchant with an empty amount is
+still a 400: the amount is not wired.
 
 ### Errors
 

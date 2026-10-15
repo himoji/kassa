@@ -13,21 +13,30 @@ import { keys } from "../keys";
 
 export const ShortcutDevicesResponse = z.object({
   devices: z.array(
-    z.object({ id: z.string(), kind: z.literal("IOS_SHORTCUT"), createdAt: z.string() })
+    z.object({
+      id: z.string(),
+      kind: z.literal("IOS_SHORTCUT"),
+      createdAt: z.string(),
+      lastUsedAt: z.string().nullable().optional(),
+    })
   ),
   lastCaptureAt: z.string().nullable(),
+  /** The newest time a Shortcut reached Kassa (a purchase or a test run); absent on older servers. */
+  lastUsedAt: z.string().nullable().optional(),
 });
 export type ShortcutDevices = z.infer<typeof ShortcutDevicesResponse>;
 
 export const ShortcutTokenResponse = z.object({ deviceId: z.string(), token: z.string() });
 export type ShortcutToken = z.infer<typeof ShortcutTokenResponse>;
 
-export function useShortcutDevices() {
+/** `pollMs`: refetch while the app is in the foreground (KassaLite waits for its Shortcut to report in). */
+export function useShortcutDevices(pollMs?: number | false) {
   const authed = useSessionStore((s) => s.status) === "authenticated";
   return useQuery({
     queryKey: keys.shortcutDevices,
     queryFn: ({ signal }) => api.request("/devices", { schema: ShortcutDevicesResponse, signal }),
     enabled: authed,
+    refetchInterval: pollMs ?? false,
   });
 }
 
