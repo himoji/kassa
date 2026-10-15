@@ -3,8 +3,8 @@ import { Redactor, type KnownName } from "../agent/redact.ts";
 /*
  * Statement text before any model sees it (IMPORT_PLAN safety rule 2). The agent's redactor handles IBANs (ISO 13616),
  * card numbers (Luhn), e-mail, E.164 phones and known names (the holder, the profile name). Statements carry more:
- *  - masked cards (441328******3273) → "•••• 3273" (the last 4 digits identify the card, never the account),
- *  - account numbers printed in groups (2260 0812 3336) and any run of 8+ digits: national ids (KZ IIN/BIN are 12),
+ *  - masked cards (400000******7710) → "•••• 7710" (the last 4 digits identify the card, never the account),
+ *  - account numbers printed in groups (4417 2290 1186) and any run of 8+ digits: national ids (KZ IIN/BIN are 12),
  *    bank-internal account numbers, references → "[number]",
  *  - authorisation and confirmation codes → "[code]",
  *  - postal address lines (a US state + ZIP, a street line) → "[address]".
@@ -19,12 +19,12 @@ const US_ADDRESS = /^.*\b[A-Z]{2}\s+\d{5}(?:-\d{4})?\b.*$/gm;
 const STREET = /^\s*\d+[A-Z]?\s+[\p{L}\d .'-]{2,40}\b(?:ST|STREET|AVE|AVENUE|RD|ROAD|BLVD|LANE|LN|DR|DRIVE|WAY|PL|COURT|CT|NW|NE|SW|SE)\b.*$/gimu;
 const LOCAL_ADDRESS = /^.*(?:\bул\.|\bулица\b|көшесі|\bпр\.|проспект|даңғылы|мкр\.?|шағын аудан|\bд\.\s*\d|\bкв\.\s*\d|\bпәтер\b).*$/gimu;
 
-/** Feminine and case endings a family name takes in Russian and Kazakh ("Байжигитов" → "Байжигитова", "BAIZHIGITOVA"). */
+/** Feminine and case endings a family name takes in Russian and Kazakh ("Сейткалиев" → "Сейткалиева", "SEITKALIEVA"). */
 const NAME_ENDINGS = ["a", "а", "у", "ой", "ым", "ых", "ым", "е"];
 
 /**
  * The holder's names as redactor entries: the whole name, each name token of 3+ letters, and each family-name token
- * with its feminine and case endings, so a relative's "LYAZAT BAIZHIGITOVA" does not reveal the holder's surname.
+ * with its feminine and case endings, so a relative's "AIGUL SEITKALIEVA" does not reveal the holder's surname.
  */
 export function holderNames(names: string[]): KnownName[] {
   const full = [...new Set(names.map((n) => n.trim()).filter((n) => n.length >= 3))];

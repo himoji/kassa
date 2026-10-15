@@ -85,7 +85,7 @@ export function statementFacts(text: string): StatementFacts {
   const [topSymbol, topVotes] = [...symbolVotes].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
   const accountCurrency = labelled[0] ?? (caption && isKnownCurrency(caption) ? caption : null) ?? (topVotes >= 3 ? topSymbol : null);
 
-  // Masked card numbers: 441328******3273, **** 4821, *8421, "ending in 1234". The last 4 digits only.
+  // Masked card numbers: 400000******7710, **** 4821, *4821, "ending in 1234". The last 4 digits only.
   const masked =
     /\b\d{4,6}[*xX•]{4,}(\d{4})\b/.exec(head)?.[1] ??
     /(?:карт[аы]|карточки|card|карта\s*нөмірі)[^\n\d*]{0,30}[*xX•]{1,}\s?(\d{4})\b/iu.exec(head)?.[1] ??
@@ -94,7 +94,7 @@ export function statementFacts(text: string): StatementFacts {
 
   const holderNames = new Set<string>();
   for (const m of head.matchAll(/(?:ФИО|Ф\.И\.О\.|Аты-жөні|Клиент|Name|Customer|Account\s*holder)\s*:\s*([^\n:]{3,60})/giu)) holderNames.add(m[1]!.trim());
-  // "Байжигитов Мадияр Қайратұлы, ЖСН 0709…" / "Ivanov Ivan, ИИН …": the name before a national id label.
+  // "Сейтқали Дана Нұрланқызы, ЖСН 9901…" / "Ivanov Ivan, ИИН …": the name before a national id label.
   for (const m of head.matchAll(/([\p{Lu}][\p{L}'-]+(?:\s+[\p{Lu}][\p{L}'-]+){1,2}),?\s+(?:ЖСН|ИИН|IIN|ИНН)(?![\p{L}])/gu)) holderNames.add(m[1]!.trim());
   // US layout: "NAME SURNAME | Account # 1234 ..." on every page.
   for (const m of head.matchAll(/^\s*([A-Z][A-Z'-]+(?:\s+[A-Z][A-Z'-]+){1,3})\s*[|!]\s*Account\s*(?:#|number)/gmu)) holderNames.add(m[1]!.trim());
@@ -103,13 +103,13 @@ export function statementFacts(text: string): StatementFacts {
   return { accountCurrency, cardLast4: masked, holderNames: [...holderNames].filter((n) => n.split(/\s+/).length >= 2 || n.length >= 4), bank };
 }
 
-/** Lower-case Latin letters of a name token ("Қайратұлы" → "qairatuly"), for matching across scripts. */
+/** Lower-case Latin letters of a name token ("Нұрланқызы" → "nurlanqyzy"), for matching across scripts. */
 export function latinToken(s: string): string {
   return transliterate(s.normalize("NFKC")).toLowerCase().replace(/[^a-z]/g, "");
 }
 
 /**
- * Does a counterparty text name the holder? "МАДИЯР Б., Alatau City Bank" matches "Madiyar Baizhigitov": the first name
+ * Does a counterparty text name the holder? "ДАНА С., Alatau City Bank" matches "Dana Seitkali": the first name
  * in full plus the surname's initial (Kaspi's own-account style), or two full name tokens. Matching is in Latin letters,
  * so Cyrillic and Latin spellings meet (transliteration varies: "y"/"i", "zh"/"j").
  */
@@ -122,7 +122,7 @@ export function namesHolder(text: string, holders: string[]): boolean {
     const full = tokens.filter((tok) => words.includes(tok));
     if (full.length >= 2) return true;
     if (full.length === 1) {
-      // First name in full plus another name's initial right after it ("МАДИЯР Б.").
+      // First name in full plus another name's initial right after it ("ДАНА С.").
       const i = words.indexOf(full[0]!);
       const next = words[i + 1];
       if (next && next.length <= 2 && tokens.some((tok) => tok !== full[0] && tok.startsWith(next))) return true;

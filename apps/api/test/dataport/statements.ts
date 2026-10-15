@@ -70,7 +70,7 @@ export const ALATAU_TEXT = `АО "Alatau City Bank"
 БИК: TSESKZKA
 ФИО: ${HOLDER_KK.toUpperCase()}
 ИИН: ${IIN}
-Номер карточки: 441328******7710
+Номер карточки: 400000******7710
 Валюта счета:KZT
 Номер счета:${IBAN_KZ}
 Транзакции по счету: ${IBAN_KZ} KZT`;
