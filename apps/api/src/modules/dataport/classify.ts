@@ -5,7 +5,7 @@ import { namesHolder, type RowKind, type StatementRow } from "./statement.ts";
  * What each statement row is, decided in code (never by a model): spending (a purchase, a fee, an FX difference, cash,
  * a transfer to someone), money in (income, a refund) or a transfer between the user's own accounts, which is neither
  * and must not be counted twice when two banks' statements are imported together. Own transfers are found three ways:
- * the bank says so ("Өз шотыңызға", "between your accounts"), the counterparty is the holder ("МАДИЯР Б., Alatau City
+ * the bank says so ("Өз шотыңызға", "between your accounts"), the counterparty is the holder ("ДАНА С., Alatau City
  * Bank"), or the same amount leaves one uploaded account and arrives in another within 3 days.
  */
 
