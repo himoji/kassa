@@ -24,5 +24,6 @@
   "rejectedToast": "Order rejected. Nothing was sent.",
   "signedOrderId": "Order ID",
   "title": "Paying",
-  "withinMandate": "Within your signed mandate"
+  "withinMandate": "Within your signed mandate",
+  "fundedFromLinked": "{{label}}, at most {{max}}"
 }

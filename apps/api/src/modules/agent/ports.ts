@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
-import type { BudgetDto, BudgetImpact, CaptureEventResponse, ForecastResponse, ProposalSummary, RouteDto } from "@kassa/shared";
+import { categoryOfKind, suggestedReference, type BudgetDto, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
@@ -14,7 +14,7 @@ import { ingestCapture, type CaptureInput } from "../capture/index.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { addDays } from "../fx/dates.ts";
 import { forecastCoverage, getBalances, getRoutes, toHome } from "../fx/index.ts";
-import { accountHash } from "../payees/crypto.ts";
+import { accountHash, readDetails } from "../payees/crypto.ts";
 import { readDocument, type ReaderResult } from "../reader/index.ts";
 import { payeeHistory } from "../rules/facts.ts";
 import { proposeOrder, type ProposeOrderInput, type ProposeOrderResult } from "../rules/index.ts";
@@ -35,6 +35,9 @@ export interface PayeeRow {
   /** null = no account details yet (payee captured in onboarding; never payable). */
   accountHash: string | null;
   replacesPayeeId: string | null;
+  /** (added 2026-10-15) Recipient category (shared/recipient.ts) and the payment reference its details suggest. */
+  category?: string;
+  suggestedReference?: string;
 }
 
 export interface ObligationRow {
@@ -166,6 +169,9 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         coolingUntil: iso(r.coolingUntil),
         accountHash: r.accountHash,
         replacesPayeeId: r.replacesPayeeId,
+        category: categoryOfKind(r.kind),
+        // Only references a school, landlord or biller matches payments by; a note to a person is the planner's call.
+        suggestedReference: categoryOfKind(r.kind) === "PEOPLE" || categoryOfKind(r.kind) === "SHOPS" ? "" : suggestedReference(readDetails(r)),
       }));
     },
     balances: () => getBalances(userId),

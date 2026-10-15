@@ -327,9 +327,49 @@ export const payees = pgTable(
     verifiedAt: tstz("verified_at"),
     coolingUntil: tstz("cooling_until"),
     replacesPayeeId: uuid("replaces_payee_id"),
+    /**
+     * (0013) Recipient details (student ID, customer number, relationship…; shared/recipient.ts), AES-256-GCM like
+     * the account but under its own AAD (payees/crypto.ts). NULL = none given. Never where money goes.
+     */
+    detailsEnc: text("details_enc"),
+    /** (0013) Removed by the user: hidden from lists and never payable again. Kept for the ledger and old orders. */
+    archivedAt: tstz("archived_at"),
     createdAt: tstz("created_at").notNull().defaultNow(),
   },
   (t) => [index("payees_user_idx").on(t.userId)],
+);
+
+/**
+ * (0014) Linked cards and bank accounts the user sends from (shared/fundingSource.ts). `providerRef` is the Stripe
+ * PaymentMethod id (pm_…) or the mock bank's account reference; `providerCustomer` the Stripe customer (cus_…).
+ * Only the last 4 characters of a card or account number are stored. A bank link waits (PENDING) for the passkey
+ * and the one-tenge code (`codeHash`, sha256, at most 5 tries); REMOVED rows stay for the ledger and old orders.
+ */
+export const fundingSources = pgTable(
+  "funding_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<"CARD" | "BANK">().notNull(),
+    provider: text("provider").$type<"STRIPE" | "MOCK_BANK">().notNull(),
+    institution: text("institution").notNull(),
+    last4: text("last4").notNull(),
+    country: text("country").notNull(),
+    currency: text("currency").notNull(),
+    status: text("status").$type<"PENDING" | "ACTIVE" | "REMOVED">().notNull().default("PENDING"),
+    simulated: boolean("simulated").notNull().default(true),
+    providerRef: text("provider_ref"),
+    providerCustomer: text("provider_customer"),
+    linkHash: text("link_hash").notNull(),
+    codeHash: text("code_hash"),
+    codeAttempts: integer("code_attempts").notNull().default(0),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    verifiedAt: tstz("verified_at"),
+    removedAt: tstz("removed_at"),
+  },
+  (t) => [index("funding_sources_user_idx").on(t.userId)],
 );
 
 export const obligations = pgTable(
@@ -522,6 +562,8 @@ export type ProposalDraftJson = {
     qrCurrency: string;
     checkedAt: string;
   };
+  /** (linked accounts) the linked card or bank the user chose to pay from. */
+  fundingSourceId?: string;
 };
 
 export const proposals = pgTable(

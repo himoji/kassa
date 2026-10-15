@@ -46,10 +46,10 @@
     "hash": "Fingerprint {{hash}}",
     "invalidAmount": "Enter amounts above zero. Per payment cannot be more than per period.",
     "new": "New mandate",
-    "newBody": "Pick a verified payee and set limits. Creating a mandate needs your passkey and takes effect after 24 hours.",
+    "newBody": "Pick a verified recipient and set limits. Creating a mandate needs your passkey and takes effect after 24 hours.",
     "newTitle": "New mandate",
-    "noVerifiedPayees": "Add and verify a payee first.",
-    "payee": "Payee",
+    "noVerifiedPayees": "Add and verify a recipient first.",
+    "payee": "Recipient",
     "perPayment": "Max per payment ({{currency}})",
     "perPeriod": "Max per period ({{currency}})",
     "period": {
@@ -69,7 +69,7 @@
       "REVOKED": "Revoked"
     },
     "title": "Mandates",
-    "unknownPayee": "Unknown payee",
+    "unknownPayee": "Unknown recipient",
     "used": "Used this period: {{amount}}"
   },
   "moneyMode": {
@@ -104,7 +104,7 @@
     },
     "SMART": {
       "title": "Smart",
-      "body": "Small safe payments to verified payees run automatically. Risky ones ask."
+      "body": "Small safe payments to verified recipients run automatically. Risky ones ask."
     },
     "AUTOPILOT": {
       "title": "Autopilot",
@@ -133,7 +133,7 @@
     "RESERVE": "Protected reserve",
     "OVERRIDES": "Overrides",
     "MANDATE": "Mandate",
-    "PAYEE": "Payee",
+    "PAYEE": "Recipient",
     "OTHER": "Other change"
   },
   "saveCaps": "Save limits",
@@ -193,7 +193,7 @@
     "budgetsNote": "Raising a budget needs your passkey.",
     "import": "Import",
     "doneTitle": "Imported",
-    "done": "Spending: {{imported}} added, {{duplicates}} already there, {{failed}} not readable. Bills: {{bills}}. Cards: {{cards}}. Budgets: {{budgets}}. New bills' payees need account details before Kassa can pay them."
+    "done": "Spending: {{imported}} added, {{duplicates}} already there, {{failed}} not readable. Bills: {{bills}}. Cards: {{cards}}. Budgets: {{budgets}}. New bills' recipients need account details before Kassa can pay them."
   },
   "budgets": {
     "title": "Budgets",

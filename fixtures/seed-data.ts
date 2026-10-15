@@ -30,6 +30,7 @@ import type {
   PayeeKind,
   PayeeStatus,
   Preset,
+  RecipientDetails,
   Recurrence,
   Region,
   TransactionSource,
@@ -114,6 +115,8 @@ export interface SeedPayee {
   verifiedAt: string | null;
   coolingUntil: string | null;
   replacesPayeeId: string | null;
+  /** (added 2026-10-15) Recipient details (shared/recipient.ts); the API encrypts them into detailsEnc. */
+  details?: RecipientDetails;
 }
 
 export interface SeedObligation {
@@ -301,6 +304,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-02T10:00:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "RENT", reference: "HF-APT4B-RENT", dueDay: 1 },
   },
   {
     id: IDS.payees.university,
@@ -316,6 +320,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-05T09:30:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "TUITION", studentId: "KZ26-0417", term: "Fall 2026" },
   },
   {
     id: IDS.payees.insurer,
@@ -331,6 +336,7 @@ export const payees: SeedPayee[] = [
     verifiedAt: "2026-09-05T09:45:00.000Z",
     coolingUntil: null,
     replacesPayeeId: null,
+    details: { category: "BILLS", billType: "INSURANCE", customerNumber: "POL-778201" },
   },
   {
     id: IDS.payees.pizzaShop,
@@ -1273,6 +1279,25 @@ export const liWeiCn = {
   transactions: [] as SeedTransaction[],
 } as const;
 
+/**
+ * (added 2026-10-16) Dana's linked accounts, already confirmed: a Stripe test Visa and her Kaspi account in Kazakhstan
+ * (mock bank). Simulated: no Stripe PaymentMethod is saved by the seed, so charges run in the simulator.
+ */
+export type SeedFundingSource = {
+  id: string;
+  kind: "CARD" | "BANK";
+  provider: "STRIPE" | "MOCK_BANK";
+  institution: string;
+  last4: string;
+  country: string;
+  currency: string;
+  providerRef: string;
+};
+export const fundingSources: SeedFundingSource[] = [
+  { id: seedId("funding/dana-visa"), kind: "CARD", provider: "STRIPE", institution: "Visa", last4: "4242", country: "KZ", currency: "KZT", providerRef: "pm_card_visa" },
+  { id: seedId("funding/dana-kaspi"), kind: "BANK", provider: "MOCK_BANK", institution: "Kaspi Gold", last4: "4417", country: "KZ", currency: "KZT", providerRef: "mockbank:dana-kaspi" },
+];
+
 export const seed = {
   seedNow: SEED_NOW,
   homeCurrency: HOME_CURRENCY,
@@ -1288,6 +1313,7 @@ export const seed = {
   mandates,
   budgets,
   transactions,
+  fundingSources,
   /** Extra demo personas, inserted only with `seedDatabase(..., { personas: true })`. */
   personas: [liWei, liWeiCn, pizzeriaBud, pizzeriaSha],
 } as const;

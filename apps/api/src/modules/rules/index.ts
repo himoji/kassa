@@ -15,8 +15,9 @@ import {
   type PaymentStatus,
   type Rail,
   type ReasonCode,
+  budgetCategoryFor,
 } from "@kassa/shared";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
@@ -31,6 +32,7 @@ import { findMatchingMandate, type LinkedObligation } from "../mandates/scope.ts
 import { claimSettlement, markSettlementPaid, releaseSettlement, settlementFor } from "../obligations/settlements.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
+import { readDetails } from "../payees/crypto.ts";
 import { screenName } from "../screening/index.ts";
 import { effectiveOf, loadUser } from "../users/service.ts";
 import { decide, type DecideResult } from "./decide.ts";
@@ -38,7 +40,6 @@ import {
   categoryRemaining,
   chooseRail,
   dayStartUtc,
-  defaultCategory,
   itemsOf,
   localHour,
   monthStartUtc,
@@ -48,6 +49,7 @@ import {
   smallAutoUsedSince,
   zoneFor,
 } from "./facts.ts";
+import { activeFundingSource } from "../funding-sources/store.ts";
 import { chooseFunding, type FundingChoice } from "./funding.ts";
 import { riskFeatures, riskScore } from "./risk.ts";
 import { APPROVAL_TTL_MS, signApproval } from "./signing.ts";
@@ -81,6 +83,11 @@ export type ProposeOrderInput = {
    * match, business/invoices.ts). Signed into the CanonicalOrder; payments re-verifies the PO signature. Never AUTO.
    */
   purchaseOrderId?: string;
+  /**
+   * (added 2026-10-16, linked accounts) Pay from this ACTIVE linked card or bank instead of the wallet: bank rail only,
+   * funded in the source's currency, and signed into the CanonicalOrder (fundingSourceId) with the funding binding.
+   */
+  fundingSourceId?: string;
 };
 
 export type ProposeOrderResult = {
@@ -89,13 +96,16 @@ export type ProposeOrderResult = {
   reasonCodes: ReasonCode[];
   riskScore: number;
   summary: string;
+  /** (added 2026-10-16) AUTO orders executed right away: the payment's status and, once SENT, how long it took. */
+  paymentStatus?: PaymentStatus | null;
+  deliveredInMs?: number;
 };
 
 export const ORDER_TTL_MS = 10 * MINUTE_MS;
 
 // ---------- executor (dependency injection; see orders/wiring.ts) ----------
 
-export type ExecutionResult = { paymentId: string | null; status: PaymentStatus | null; reasonCodes: ReasonCode[] };
+export type ExecutionResult = { paymentId: string | null; status: PaymentStatus | null; reasonCodes: ReasonCode[]; deliveredInMs?: number };
 type Executor = (approvalId: string) => Promise<ExecutionResult>;
 let executor: Executor | null = null;
 
@@ -283,7 +293,8 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const now = clock.now();
   const { user, profile, caps } = await loadUser(db, input.userId);
   const effective = effectiveOf(user);
-  const payee = (await db.select().from(payees).where(and(eq(payees.id, input.payeeId), eq(payees.userId, input.userId))))[0] ?? null;
+  // A removed recipient (archivedAt) is no payee at all: refused like an unknown one.
+  const payee = (await db.select().from(payees).where(and(eq(payees.id, input.payeeId), eq(payees.userId, input.userId), isNull(payees.archivedAt))))[0] ?? null;
   const rail = chooseRail(input.rail, effective.moneyMode, user.region, payee?.kind ?? "PERSON");
   const home = await toHome(input.amountMinor, input.currency, user.homeCurrency, now);
 
@@ -313,13 +324,22 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     poNotDelivered = !row.po.timeline.some((t) => t.status === "DELIVERED");
   }
   // X1: a linked bill's category comes from the obligation (server side), never from the caller's input.
-  const category = linked?.category ?? input.category ?? (payee ? defaultCategory(payee.kind) : "other");
+  const category = linked?.category ?? input.category ?? (payee ? budgetCategoryFor(payee.kind, readDetails(payee)) : "other");
   const duplicateObligation = internal.duplicateObligation === true || (period !== null && (await settlementFor(db, input.obligationId!, period)) !== null);
+
+  // (linked accounts) The source the user chose to pay from: their own, active, and only for a bank transfer.
+  const source = input.fundingSourceId ? await activeFundingSource(user.id, input.fundingSourceId) : null;
+  if (input.fundingSourceId && !source) {
+    throw new HttpProblem(422, "FUNDING_SOURCE_UNAVAILABLE", "That card or bank account is not linked (any more)", { reasonCodes: ["FUNDING_SOURCE_UNAVAILABLE"] });
+  }
+  if (source && rail !== "BANK_TRANSFER") {
+    throw new HttpProblem(422, "FUNDING_SOURCE_NOT_FOR_RAIL", "A linked account pays bank transfers; this payment goes another way", { reasonCodes: ["FUNDING_SOURCE_UNAVAILABLE"] });
+  }
 
   // B2: funding route for bank transfers (spec §12), bound into the signed order below.
   let funding: FundingChoice | null = null;
   if (rail === "BANK_TRANSFER" && payee && !duplicateObligation) {
-    funding = await chooseFunding({ userId: user.id, homeCurrency: user.homeCurrency, amountMinor: input.amountMinor, currency: input.currency, now, dueDate: period ?? input.dueDate });
+    funding = await chooseFunding({ userId: user.id, homeCurrency: user.homeCurrency, amountMinor: input.amountMinor, currency: input.currency, now, dueDate: period ?? input.dueDate, linkedCurrency: source?.currency });
   }
   const signedFunding = funding && funding.status !== "NONE" ? funding.funding : null;
 
@@ -328,7 +348,8 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const [usedToday, usedMonth, reserve, mandate, history, remaining, smallAutoToday] = await Promise.all([
     paidHomeSince(db, user.id, dayStartUtc(now)),
     paidHomeSince(db, user.id, monthStartUtc(now)),
-    reserveBreached(user.id, user.homeCurrency, caps.reserveMinor, home.amountMinor, now),
+    // Paid from a linked account, the wallet's reserve is not touched.
+    source ? Promise.resolve(false) : reserveBreached(user.id, user.homeCurrency, caps.reserveMinor, home.amountMinor, now),
     payee
       ? findMatchingMandate(db, { userId: user.id, payeeId: payee.id, currency: input.currency, amountMinor: input.amountMinor, now, obligation: linked })
       : Promise.resolve({ match: null, outOfScope: false, scopeMismatch: false }),
@@ -416,6 +437,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     ...(input.obligationId && period ? { dueDate: period } : {}),
     ...(fulfillment ? { fulfillment } : {}),
     ...(input.purchaseOrderId ? { purchaseOrderId: input.purchaseOrderId } : {}),
+    ...(source ? { fundingSourceId: source.id } : {}),
   };
   let order: CanonicalOrder | null = null;
   let hash: string | null = null;
@@ -443,6 +465,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
             fundingAmountMinor: signedFunding.maxAmountMinor,
             fundingRouteId: signedFunding.routeId,
             fundingMarkupBps: signedFunding.markupBps,
+            ...(source ? { fundingSourceId: source.id } : {}),
           }
         : {}),
       // X1: the bill this order pays is signed with it (payments re-checks it for mandate payments).
@@ -490,7 +513,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
           rail,
           fx: { rate: home.rate, rateDate: home.rateDate, source: home.source },
           funding: order?.fundingCurrency
-            ? { currency: order.fundingCurrency, maxAmountMinor: order.fundingAmountMinor, routeId: order.fundingRouteId, markupBps: order.fundingMarkupBps, estimatedAmountMinor: signedFunding?.estimatedAmountMinor, balancesKnown: funding?.status === "OK" }
+            ? { currency: order.fundingCurrency, maxAmountMinor: order.fundingAmountMinor, routeId: order.fundingRouteId, markupBps: order.fundingMarkupBps, estimatedAmountMinor: signedFunding?.estimatedAmountMinor, balancesKnown: funding?.status === "OK", fundingSourceId: order.fundingSourceId }
             : undefined,
           obligation: period ? { obligationId: input.obligationId, period } : undefined,
           screening: screening.hit ? { hit: true, entryId: screening.entryId, score: screening.score } : undefined,
@@ -524,8 +547,10 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
 
   let reasonCodes = result.reasonCodes;
   const decision = result.decision;
+  let executed: ExecutionResult | null = null;
   if (approvalId) {
     const exec = await runExecutor(proposalId, user.id, approvalId);
+    executed = exec;
     if (exec.status === "FAILED" || exec.status === "CANCELED") {
       reasonCodes = [...reasonCodes, ...exec.reasonCodes];
     }
@@ -534,7 +559,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     await notify(user.id, {
       kind: "ORDER_REFUSED",
       title: "Payment refused",
-      body: summarize(decision, reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown payee" }),
+      body: summarize(decision, reasonCodes, { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown recipient" }),
       data: { proposalId, reasonCodes },
     });
   }
@@ -546,9 +571,10 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     summary: summarize(
       decision,
       reasonCodes,
-      { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown payee", fundingCurrency: order?.fundingCurrency, fundingAmountMinor: order?.fundingAmountMinor },
+      { amountMinor: input.amountMinor, currency: input.currency, payeeName: payee?.name ?? "unknown recipient", fundingCurrency: order?.fundingCurrency, fundingAmountMinor: order?.fundingAmountMinor },
       { amountMinor: home.amountMinor, currency: user.homeCurrency },
     ),
+    ...(executed ? { paymentStatus: executed.status, ...(executed.deliveredInMs !== undefined ? { deliveredInMs: executed.deliveredInMs } : {}) } : {}),
   };
 }
 
@@ -649,6 +675,7 @@ export type ApproveResult = {
   paymentId: string | null;
   paymentStatus: PaymentStatus | null;
   reasonCodes: ReasonCode[];
+  deliveredInMs?: number;
 };
 
 /** POST /orders/:id/approve — rules verification (spec §7) then signed approval → executor. */
@@ -678,8 +705,8 @@ export async function approveOrder(userId: string, proposalId: string, assertion
   }
   // Payee state may have changed since the draft (blocked, or replaced): re-check.
   const payee = (await db.select().from(payees).where(eq(payees.id, p.canonicalOrder.payeeId)))[0];
-  if (!payee || payee.status === "BLOCKED" || payee.accountHash !== p.canonicalOrder.payeeAccountHash) {
-    throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Payee changed or blocked", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
+  if (!payee || payee.status === "BLOCKED" || payee.archivedAt !== null || payee.accountHash !== p.canonicalOrder.payeeAccountHash) {
+    throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Recipient changed, blocked or removed", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
   }
   if (payee.status === "COOLING" && (!payee.coolingUntil || payee.coolingUntil.getTime() > clock.nowMs())) {
     throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Payee is still cooling", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING"] });
@@ -711,7 +738,7 @@ export async function approveOrder(userId: string, proposalId: string, assertion
   });
 
   const exec = await runExecutor(proposalId, userId, approvalId);
-  return { approvalId, tier: "T2", paymentId: exec.paymentId, paymentStatus: exec.status, reasonCodes: exec.reasonCodes };
+  return { approvalId, tier: "T2", paymentId: exec.paymentId, paymentStatus: exec.status, reasonCodes: exec.reasonCodes, ...(exec.deliveredInMs !== undefined ? { deliveredInMs: exec.deliveredInMs } : {}) };
 }
 
 export async function rejectOrder(userId: string, proposalId: string, reason?: string): Promise<void> {

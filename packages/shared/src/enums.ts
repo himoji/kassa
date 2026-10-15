@@ -31,6 +31,8 @@ export const PayeeKind = z.enum([
   "SUPPLIER",
   "PERSON",
   "OWN_ACCOUNT",
+  // (added, migration 0013) utilities, phone, internet: the Bills recipient category (shared/recipient.ts)
+  "BILLER",
 ]);
 export type PayeeKind = z.infer<typeof PayeeKind>;
 
