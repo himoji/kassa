@@ -47,7 +47,7 @@ beforeAll(async () => {
   displayName = (await getDb().select().from(users).where(eq(users.id, userId)))[0]!.displayName;
   const rows = await getDb().select().from(payees).where(eq(payees.userId, userId));
   names = rows.map((p) => p.name);
-  ibans = rows.map((p) => decryptAccount(userId, p.accountEnc!)).filter((a) => /^[A-Z]{2}\d{2}/.test(a));
+  ibans = rows.map((p) => decryptAccount(userId, p.accountEnc!, p.id)).filter((a) => /^[A-Z]{2}\d{2}/.test(a));
   expect(names.length).toBeGreaterThan(1);
   expect(ibans.length).toBeGreaterThan(0);
 });
