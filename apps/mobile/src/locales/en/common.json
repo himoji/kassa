@@ -21,7 +21,11 @@
     "gifts": "Gifts",
     "pets": "Pets",
     "wages": "Wages",
-    "transfers": "Transfers"
+    "transfers": "Transfers",
+    "fees": "Fees",
+    "cash": "Cash",
+    "entertainment": "Entertainment",
+    "books": "Books"
   },
   "close": "Close",
   "countdown": {

@@ -1,45 +1,43 @@
-import type { ImportCommitResponse, ImportItems, ImportPreviewResponse } from "@kassa/shared";
+import type { ImportCommitResponse, ImportPreviewResponse } from "@kassa/shared";
 import { useState } from "react";
-import { Platform, TextInput } from "react-native";
+import { TextInput } from "react-native";
 
 import {
-  pickJsonFileOnWeb,
+  canPickFiles,
+  pickImportFiles,
   useExportData,
   useImportCommit,
+  useImportFiles,
   useImportPreview,
 } from "@/api/hooks/dataport";
 import { useSetBudgets } from "@/api/hooks/money";
 import { RowGroup } from "@/components/row-group";
 import { errorText } from "@/components/kassa/error-text";
-import { SettingSwitch } from "@/components/kassa/native-controls";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Box, Button, Card, Text, useTheme } from "@/components/ui";
 import { readClipboard } from "@/lib/clipboard";
-import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 
-type Section = keyof ImportItems;
-const SECTIONS: Section[] = ["transactions", "bills", "cards", "budgets"];
+import { ALL_ON, ImportPreviewCard, selectedItems, type SectionSwitches } from "./import-preview";
 
-/** Import & export (Settings): Kassa's JSON export, and a previewed import of Kassa's or any other app's JSON. */
+/**
+ * Import & export (Settings, in the app and in KassaLite): Kassa's JSON export, and a previewed import of bank
+ * statements (PDF, CSV, Excel, OFX; several at once) or any app's JSON. Nothing is written before the user imports.
+ */
 export function DataScreen() {
   const t = useKassaT();
-  const f = useFormat();
   const { colors } = useTheme();
   const exportData = useExportData();
   const preview = useImportPreview();
+  const upload = useImportFiles();
   const commit = useImportCommit();
   const setBudgets = useSetBudgets();
   const [text, setText] = useState("");
   const [result, setResult] = useState<ImportPreviewResponse | null>(null);
-  const [on, setOn] = useState<Record<Section, boolean>>({
-    transactions: true,
-    bills: true,
-    cards: true,
-    budgets: true,
-  });
+  const [on, setOn] = useState<SectionSwitches>(ALL_ON);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [done, setDone] = useState<{ res: ImportCommitResponse; budgets: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,21 +54,38 @@ export function DataScreen() {
     }
   };
 
+  const chooseFiles = async () => {
+    setError(null);
+    setDone(null);
+    if (!canPickFiles()) {
+      setError(t("settings:data.chooseFileUnavailable"));
+      return;
+    }
+    const files = await pickImportFiles();
+    if (!files) return;
+    setResult(null);
+    try {
+      setResult(await upload.mutateAsync({ files }));
+      setOn(ALL_ON);
+    } catch (err) {
+      haptics.error();
+      setError(errorText(t, err));
+    }
+  };
+
   const doImport = async () => {
     if (!result) return;
     setError(null);
-    const items: ImportItems = {
-      transactions: on.transactions ? result.items.transactions : [],
-      bills: on.bills ? result.items.bills : [],
-      cards: on.cards ? result.items.cards : [],
-      budgets: [],
-    };
+    const selected = selectedItems(result, on);
     try {
-      const res = await commit.mutateAsync(items);
+      const res = await commit.mutateAsync({
+        items: { ...selected, budgets: [] },
+        onProgress: (d, n) => setProgress({ done: d, total: n }),
+      });
       let budgets = 0;
-      if (on.budgets && result.items.budgets.length > 0) {
+      if (selected.budgets.length > 0) {
         try {
-          budgets = (await setBudgets.mutateAsync(result.items.budgets)).applied.length;
+          budgets = (await setBudgets.mutateAsync(selected.budgets)).applied.length;
         } catch (err) {
           if (!(err instanceof PasskeyCancelledError)) setError(errorText(t, err));
         }
@@ -104,20 +119,9 @@ export function DataScreen() {
       <RowGroup title={t("settings:data.importTitle")} footer={t("settings:data.importFooter")}>
         <Box p={4} gap={3}>
           <Box row gap={2} style={{ flexWrap: "wrap" }}>
-            {Platform.OS === "web" ? (
-              <Button
-                variant="outline"
-                onPress={() =>
-                  void pickJsonFileOnWeb().then((json) => {
-                    if (json === null) return;
-                    setText(json);
-                    void run(json);
-                  })
-                }
-              >
-                {t("settings:data.chooseFile")}
-              </Button>
-            ) : null}
+            <Button loading={upload.isPending} onPress={() => void chooseFiles()}>
+              {t("settings:data.chooseFile")}
+            </Button>
             <Button
               variant="outline"
               onPress={() =>
@@ -159,61 +163,24 @@ export function DataScreen() {
         </Box>
       </RowGroup>
 
+      {upload.isPending ? <Text variant="caption">{t("settings:data.reading")}</Text> : null}
+      {commit.isPending && result ? (
+        <Text variant="caption">
+          {t("settings:data.importing", {
+            done: progress?.done ?? 0,
+            count: progress?.total ?? result.items.transactions.length,
+          })}
+        </Text>
+      ) : null}
       {result ? (
-        <Card>
-          <Box gap={3}>
-            <Text weight="semibold">
-              {result.source === "kassa"
-                ? t("settings:data.fromKassa")
-                : t("settings:data.fromOther")}
-            </Text>
-            {result.mappings.map((m) => (
-              <Text key={`${m.path}-${m.kind}`} variant="caption">
-                {t("settings:data.mapping", {
-                  path: m.path,
-                  kind: t(`settings:data.kind.${m.kind}`),
-                  imported: m.imported,
-                  rows: m.rows,
-                  fields: Object.entries(m.fields)
-                    .map(([to, from]) => `${from} → ${to}`)
-                    .join(", "),
-                })}
-              </Text>
-            ))}
-            {SECTIONS.filter((s) => result.items[s].length > 0).map((s) => (
-              <SettingSwitch
-                key={s}
-                label={t(`settings:data.section.${s}`, { count: result.items[s].length })}
-                description={s === "budgets" ? t("settings:data.budgetsNote") : undefined}
-                value={on[s]}
-                onChange={(v) => setOn((o) => ({ ...o, [s]: v }))}
-              />
-            ))}
-            {result.items.transactions.slice(0, 5).map((x, i) => (
-              <Box key={i} row justify="between" gap={2}>
-                <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
-                  {f.date(x.occurredAt.slice(0, 10), "medium")} · {x.merchant}
-                </Text>
-                <Text variant="caption" style={{ fontVariant: ["tabular-nums"] }}>
-                  {f.money(x.amountMinor, x.currency)}
-                </Text>
-              </Box>
-            ))}
-            {result.warnings.map((w) => (
-              <Text key={w} variant="caption" color="mutedForeground">
-                {w}
-              </Text>
-            ))}
-            <Button
-              size="lg"
-              loading={commit.isPending || setBudgets.isPending}
-              disabled={!SECTIONS.some((s) => on[s] && result.items[s].length > 0)}
-              onPress={() => void doImport()}
-            >
-              {t("settings:data.import")}
-            </Button>
-          </Box>
-        </Card>
+        <ImportPreviewCard
+          result={result}
+          on={on}
+          setOn={setOn}
+          onImport={() => void doImport()}
+          busy={commit.isPending || setBudgets.isPending}
+          importLabel={t("settings:data.import")}
+        />
       ) : null}
 
       {done ? (
@@ -227,6 +194,7 @@ export function DataScreen() {
                 failed: done.res.transactions.failed,
                 bills: done.res.bills.added,
                 cards: done.res.cards.added,
+                incomes: done.res.incomes.added,
                 budgets: done.budgets,
               })}
             </Text>

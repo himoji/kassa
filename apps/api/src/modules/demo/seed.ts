@@ -215,7 +215,7 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
       userId: u.id,
       name: p.name,
       kind: p.kind,
-      accountEnc: encryptAccount(u.id, normalizeAccount(p.account)),
+      accountEnc: encryptAccount(u.id, normalizeAccount(p.account), p.id),
       accountHash: accountHash(p.account),
       country: p.country,
       currency: p.currency,

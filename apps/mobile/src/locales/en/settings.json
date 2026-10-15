@@ -165,15 +165,15 @@
   },
   "data": {
     "title": "Import & export",
-    "rowHint": "Your data as JSON, or bring it from another app",
+    "rowHint": "Bank statements (PDF, CSV, Excel), your data as JSON",
     "exportTitle": "Export",
     "exportFooter": "Your cards, budgets, bills, incomes and spending as a JSON file you can keep or import again.",
     "export": "Export as JSON",
     "importTitle": "Import",
-    "importFooter": "A Kassa export, or JSON from your bank or another money app. Kassa finds the records and matches their fields (any language), then shows you what it will add before anything changes.",
-    "chooseFile": "Choose a .json file",
+    "importFooter": "Bank statements as PDF, CSV or Excel (several banks at once), or JSON from Kassa or another money app. Account and card numbers are never kept, and Kassa shows you what it will add before anything changes.",
+    "chooseFile": "Choose statements",
     "paste": "Paste from clipboard",
-    "placeholder": "…or paste the JSON here",
+    "placeholder": "…or paste JSON or CSV here",
     "check": "Check the file",
     "fromKassa": "A Kassa export: everything is read exactly.",
     "fromOther": "Here is what Kassa understood:",
@@ -186,14 +186,47 @@
     },
     "section": {
       "transactions": "Spending ({{count}})",
-      "bills": "Bills ({{count}})",
+      "transfers": "Transfers to people ({{count}})",
+      "bills": "Regular payments as bills ({{count}})",
       "cards": "Cards ({{count}})",
-      "budgets": "Budgets ({{count}})"
+      "budgets": "Budgets from your spending ({{count}})",
+      "incomes": "Money in, monthly ({{count}})"
     },
     "budgetsNote": "Raising a budget needs your passkey.",
     "import": "Import",
     "doneTitle": "Imported",
-    "done": "Spending: {{imported}} added, {{duplicates}} already there, {{failed}} not readable. Bills: {{bills}}. Cards: {{cards}}. Budgets: {{budgets}}. New bills' recipients need account details before Kassa can pay them."
+    "done": "Spending: {{imported}} added, {{duplicates}} already there, {{failed}} not readable. Bills: {{bills}}. Cards: {{cards}}. Money in: {{incomes}}. Budgets: {{budgets}}. New bills' recipients need account details before Kassa can pay them.",
+    "chooseFileUnavailable": "This version of the app cannot open files yet. Update it, or import from the web app.",
+    "reading": "Reading your statements…",
+    "file": "{{name}}: {{bank}}, {{rows}} rows ({{via}})",
+    "format": {
+      "pdf": "PDF",
+      "xlsx": "Excel",
+      "csv": "CSV",
+      "json": "JSON",
+      "ofx": "OFX",
+      "text": "text"
+    },
+    "via": {
+      "kassa": "Kassa export",
+      "records": "columns matched",
+      "table": "statement table",
+      "lines": "statement lines",
+      "ai": "read with AI, every row checked against the statement",
+      "none": "not read"
+    },
+    "billsNote": "Recipients added from a statement have no account yet: Kassa cannot pay them until you add details.",
+    "learned": {
+      "title": "What Kassa learned",
+      "period": "{{rows}} transactions, {{from}} – {{to}}",
+      "spending": "You spend about {{amount}} a month. Biggest: {{top}}.",
+      "income": "Money in from {{source}}: about {{amount}} a month",
+      "recurring": "Regular: {{name}}, {{amount}} (next {{next}})",
+      "fees": "Fees and conversion costs: {{amount}}",
+      "feesFx": "Fees and conversion costs: {{amount}}; your card charged about {{pct}} over the mid rate abroad",
+      "own": "{{count}} transfers between your own accounts were left out"
+    },
+    "importing": "Importing your history: {{done}} of {{count}} transactions…"
   },
   "budgets": {
     "title": "Budgets",
