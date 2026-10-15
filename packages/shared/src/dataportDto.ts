@@ -107,8 +107,31 @@ export const ImportHistory = z.object({
   spendingByCategory: z.array(z.object({ category: z.string(), monthlyHomeMinor: z.number().int(), totalHomeMinor: z.number().int(), count: z.number().int() })),
   monthlySpendingHomeMinor: z.number().int(),
   monthlyIncomeHomeMinor: z.number().int(),
-  /** Regular money in: who (as printed), how much, how often. */
-  incomes: z.array(z.object({ source: z.string(), amount: Money, cadence: z.enum(["WEEKLY", "MONTHLY", "TERM", "ONCE"]), count: z.number().int(), lastDate: IsoDate })),
+  /**
+   * Money in per source (as printed). `amount` is what the draft plans with: the median month for a regular source, the
+   * average over all covered months (months without money count as zero) for an irregular one. The rest says how far
+   * that number can be trusted: in how many of the covered months money came, the smallest and largest month, whether
+   * recent months are lower or higher, whether it seems to have stopped, and one large transfer kept out of the average.
+   */
+  incomes: z.array(
+    z.object({
+      source: z.string(),
+      amount: Money,
+      cadence: z.enum(["WEEKLY", "MONTHLY", "TERM", "ONCE"]),
+      count: z.number().int(),
+      lastDate: IsoDate,
+      regularity: z.enum(["regular", "irregular", "occasional", "one_off"]).default("regular"),
+      monthsReceived: z.number().int().default(0),
+      monthsCovered: z.number().int().default(0),
+      minMonthlyMinor: z.number().int().default(0),
+      maxMonthlyMinor: z.number().int().default(0),
+      medianMonthlyMinor: z.number().int().default(0),
+      trend: z.enum(["up", "down", "flat"]).nullable().default(null),
+      stopped: z.boolean().default(false),
+      /** One large transfer kept out of the plan, and the payment it was sent for when one followed within 3 days. */
+      largest: z.object({ date: IsoDate, amountMinor: z.number().int(), paidFor: z.string().nullable().default(null) }).nullable().default(null),
+    }),
+  ),
   /** Regular payments that look like bills (similar amount, about monthly). */
   recurring: z.array(z.object({ name: z.string(), amount: Money, count: z.number().int(), lastDate: IsoDate, nextDate: IsoDate, category: z.string() })),
   /** Card and conversion costs: fees and FX differences paid, and the markup over the mid rate on foreign purchases. */
@@ -120,6 +143,27 @@ export const ImportHistory = z.object({
     fxCostHomeMinor: z.number().int(),
   }),
   topMerchants: z.array(z.object({ name: z.string(), totalHomeMinor: z.number().int(), count: z.number().int() })),
+  /** Each statement's own period (its header's, else its first and last row) and how many months it covers. */
+  statements: z.array(z.object({ name: z.string(), bank: z.string().nullable(), from: IsoDate, to: IsoDate, months: z.number() })).default([]),
+  /** Month by month (home currency): spending without transfers, transfers to people, money in, and how many statements cover it. */
+  monthly: z
+    .array(z.object({ month: z.string().regex(/^\d{4}-\d{2}$/), spendingHomeMinor: z.number().int(), transfersHomeMinor: z.number().int(), incomeHomeMinor: z.number().int(), statements: z.number().int() }))
+    .default([]),
+  /** Spending in the last 3 covered months against the months before (null with under 6 months). */
+  spendingTrend: z.object({ recentMonthlyHomeMinor: z.number().int(), earlierMonthlyHomeMinor: z.number().int() }).nullable().default(null),
+  /** The month with the most spending and the category that made it so. */
+  peakMonth: z
+    .object({ month: z.string(), spendingHomeMinor: z.number().int(), category: z.string(), categoryHomeMinor: z.number().int(), oneOff: z.string().nullable().default(null) })
+    .nullable()
+    .default(null),
+  /** Single payments far above the usual (tuition, a flight, a deposit): not part of a monthly budget. */
+  oneOffs: z.array(z.object({ date: IsoDate, name: z.string(), homeMinor: z.number().int(), amount: Money })).default([]),
+  /** When most spending moved to another currency (moving abroad), from the month it became the main one. */
+  currencyShift: z.object({ from: z.string(), to: z.string(), since: z.string() }).nullable().default(null),
+  /** Covered months where spending and transfers out were more than the money in. */
+  monthsOverspent: z.number().int().default(0),
+  /** The history in plain lines, written by code from the numbers above (the preview's "What Kassa learned"). */
+  notes: z.array(z.string().max(600)).max(30).default([]),
   /** Currencies seen and money moved in each (spending, in). */
   currencies: z.array(z.object({ currency: CurrencyCode, outMinor: z.number().int(), inMinor: z.number().int() })),
 });
@@ -136,8 +180,11 @@ export const ImportPreviewResponse = z.object({
 });
 export type ImportPreviewResponse = z.infer<typeof ImportPreviewResponse>;
 
-/** POST /import/commit: the (possibly trimmed) preview items. Budgets are ignored here (see ImportItems). */
-export const ImportCommitRequest = z.object({ items: ImportItems });
+/**
+ * POST /import/commit: the (possibly trimmed) preview items. Budgets are ignored here (see ImportItems). `history` (the
+ * preview's) is kept with the profile so the agent can read what the statements showed (get_money_history).
+ */
+export const ImportCommitRequest = z.object({ items: ImportItems, history: ImportHistory.nullish() });
 export type ImportCommitRequest = z.infer<typeof ImportCommitRequest>;
 
 export const ImportCommitResponse = z.object({

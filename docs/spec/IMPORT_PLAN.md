@@ -127,14 +127,50 @@ about 3 s; "Use this history" imports 1,130 spending rows in chunks of 100 with 
 the code-written summary (money from home per parent, spending per category, fees, own transfers left out) and a
 prefilled draft, in about 10 s.
 
+## S14: what the history really shows (2026-10-15, after review of the real run)
+
+Feedback: the first version averaged everything over the whole period and planned money from home at its usual
+month. The statements themselves prove more. Now, in code (`dataport/history.ts`, `dataport/notes.ts`):
+
+| Pattern | How | Example on the real statements |
+|---|---|---|
+| Each statement's period | Read from the header ("За период", "бастап … дейінгі", "for April 14, 2026 to May 11, 2026"), else first/last row; partial months weighted by days | Kaspi and Alatau 12 months; the US bank about 1 month, "so its numbers cover only that time" |
+| How regular money in is | Per person, over the months their statements cover: months received, range, regular / irregular / occasional / one-off; plan = usual month if regular, else the average with empty months counted as zero | Father: 5 of 12 months, planned at the average ₸250,000, not his usual month |
+| Money sent for one payment | A transfer ≥ 1.5× the usual month followed within 3 days by a one-off payment of about its size is earmarked and kept out of income | ₸1,000,000 on 13 Jul paid for SIMPLEP*frame |
+| Stopped / trend | Nothing for 60+ days before the statement's end; last 3 months vs before | A stipend with nothing since Feb: not planned |
+| Same person across banks and scripts | First name in Latin letters + initial ("KAIRAT …" = "Кайрат Б.") | Zelle dollars and Kaspi tenge from the same parent counted together |
+| One-off payments | ≥ 25 % of a typical month and ≥ 8× the median purchase; kept out of budgets | Tuition, a hotel, a deposit |
+| Spending trend, peak month, move abroad | Months covered by the usual number of statements; main purchase currency per month | Spending ₸349k/month in the last 3 months vs ₸165k before; mostly HUF since Sep 2026 |
+| Months overspent | Spending + transfers > money in, per covered month | 7 of 12 |
+
+The same lines are the preview's "What Kassa learned", the onboarding reply, and (redacted) the onboarding model's view.
+They are also stored with the profile (`profiles.money_history`, migration 0015, erased with the account) and the agent
+reads them with the read-only tool `get_money_history`; the planner prompt says to plan with planned amounts, never the
+best month. People who send money are known names to the agent's redactor (person_N).
+
+Tests: `test/dataport/statements.test.ts` ("what the history really shows", 3), `test/intel/agent-loop.test.ts`
+("get_money_history", redaction of the senders).
+
 ## Handoff (what is left)
 
-- Categories without a model key: about 45 % of merchants are "other". With a key, one batched Reader call names them.
-  More dictionary keywords (Kazakh and Hungarian chains) would help the offline case.
-- FX markup on history needs live rates; the build container cannot reach the rate sources. Check the "your card
-  charged about X % over the mid rate" line on a machine with network access.
-- The onboarding REPLAY recording does not include the "Upload statements" question; the paperclip works in REPLAY.
-- `MOBILE BANK` style incomes (transfers whose sender the bank does not name) cannot be told from own transfers unless
-  both statements are uploaded; the user can switch them off in the preview or the draft.
-- A real KassaLite build needs `bun run lite:ios` again for the file picker (new native module); an older build gets a
-  message instead of the picker.
+Status: everything above is merged into PR zhkiarsa/kassa#24 (branch `claude/sharp-edison-okqgbx`). All checks pass:
+api 954, mobile 562, mock-world 343, shared 53; typecheck and lint.
+
+Open, in priority order:
+
+1. **Live check with a model key.** Set `ANTHROPIC_API_KEY`, import the three statements, then ask the agent "Will I
+   have enough in December?" and confirm it calls `get_money_history` and plans with the averages. Categories: with a
+   key, the batched Reader call should shrink "other" (about 45 % without a key).
+2. **FX markup on history** needs live rates (the build container cannot reach them). On a machine with network, check
+   the "foreign purchases cost about X % over the mid rate" line.
+3. **KassaLite rebuild** (`bun run lite:ios`) for the native file picker; older builds show a message instead.
+4. **Onboarding REPLAY recording** does not contain the "Upload statements" question (the paperclip works in REPLAY).
+   Re-record `fixtures/agent-recordings/onboarding.json` with a key (`RECORD=1`).
+5. **Unnamed senders** ("MOBILE BANK") cannot be told from own transfers unless the sending bank's statement is also
+   uploaded; the user can switch them off in the preview or the draft.
+6. Ideas not built: seasonality (tuition months each year), the forecast using the monthly series instead of flat
+   incomes, a "history" card on the Home screen, and dictionary keywords for more Kazakh and Hungarian chains.
+
+Files to start from: `apps/api/src/modules/dataport/` (read.ts is the pipeline, history.ts the analysis, notes.ts
+the wording), `apps/api/src/modules/onboarding/history.ts`, `apps/api/src/modules/agent/tools.ts`
+(`get_money_history`), `apps/mobile/src/screens/settings/import-preview.tsx`.
