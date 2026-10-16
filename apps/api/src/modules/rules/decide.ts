@@ -13,6 +13,7 @@
  *  5 caps / protected reserve → REFUSE_CAP under every preset (no "within 2×" ask since 2026-10-14); (X2) the payments module's
  *    own daily cap on today's home-currency usage → REFUSE_CAP + PAYMENTS_DAILY_CAP (hard, payments would refuse)
  *  6 region CN or money mode HANDOFF → HANDOFF
+ *  6b (added 2026-10-16) above the KYC threshold without a VERIFIED identity check → KYC_REQUIRED (every preset)
  *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1); the draft must be linked server-side to a bill in
  *    the mandate's scope (X1, mandates/scope.ts)
  *  8 ASK_ME always asks; AUTOPILOT without mandate asks; SMART asks at risk ≥ 0.5 → ASK (T2);
@@ -75,6 +76,11 @@ export type DecideFacts = {
   duplicateObligation?: boolean;
   /** (added, B2) bank transfers: false = no funding currency × rail covers the order incl. fees by the due date. */
   fundingAvailable?: boolean | null;
+  /**
+   * (added 2026-10-16, KYC) The order is above the KYC threshold (home currency) and the user's latest identity check
+   * is not VERIFIED. Undefined = not checked.
+   */
+  kycRequired?: boolean;
 };
 
 export type DecideResult = {
@@ -143,6 +149,11 @@ export function decide(f: DecideFacts): DecideResult {
   if (f.effective.moneyMode === "HANDOFF") {
     return withFlags({ decision: "HANDOFF", reasonCodes: ["HANDOFF_MODE"], tier: "T2", mandateId: null }, f);
   }
+
+  // 6b (KYC) Kassa moves the money from here on: above the threshold it needs a VERIFIED identity check, under every
+  // preset and tier (a mandate or the small-auto limit cannot skip it). Handoff is paid in the user's own wallet,
+  // which runs its own real-name check, so it is not gated here.
+  if (f.kycRequired) return f.triggerOrigin ? refuse("KYC_REQUIRED", "TRIGGER_ORIGIN") : refuse("KYC_REQUIRED");
 
   const alwaysAsk = f.preset === "ASK_ME" || f.effective.paymentPolicy === "ALWAYS_ASK";
 

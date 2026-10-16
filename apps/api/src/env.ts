@@ -63,6 +63,11 @@ const EnvSchema = z.object({
   // day, and at most MULTIPLE × the signed small-auto limit in total. Beyond it: ASK SMALL_AUTO_BUDGET_EXHAUSTED.
   SMALL_AUTO_DAILY_MAX_COUNT: z.coerce.number().int().min(0).default(3),
   SMALL_AUTO_DAILY_AMOUNT_MULTIPLE: z.coerce.number().int().min(0).default(3),
+  // (added 2026-10-16, KYC) A payment above this amount, or a day's top-ups above it, needs a VERIFIED identity check
+  // (KYC_REQUIRED). Defined in KYC_THRESHOLD_CURRENCY (default EUR 1,000.00) and converted to each user's home
+  // currency, rounded down; unconvertible means 0 (every payment needs it, fail closed). See docs/DECISIONS.md.
+  KYC_THRESHOLD_MINOR: z.coerce.number().int().min(0).default(100_000),
+  KYC_THRESHOLD_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("EUR"),
   DEMO_ENABLED: bool,
   DEMO_ADMIN_TOKEN: z.string().optional(),
   /**
