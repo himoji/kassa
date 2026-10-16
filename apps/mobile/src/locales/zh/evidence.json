@@ -1,0 +1,19 @@
+{
+  "title": "攻击证据",
+  "intro": "十六种让 AI 助手被骗转钱的知名手法（Freysa、Grok 与 Bankrbot、AIXBT、ElizaOS 记忆、1 美元雪佛兰 Tahoe、推送支付诈骗等），分别在 Kassa 和一个没有防护、直接执行同样意图的朴素助手上重现。",
+  "ofTotal": "{{total}} 次中付款 {{paid}} 次",
+  "guarded": "启用 Kassa 的规则、付款校验和通行密钥",
+  "naive": "同一个助手，没有这些防护",
+  "paid": "已付款",
+  "blocked": "已拦截",
+  "naiveLine": "朴素助手：{{detail}}",
+  "how": "由自动化测试套件（bun run evidence:attacks）在真实的 Kassa 模块和模拟支付通道上生成；规划器和文档读取器是脚本化的，所以每次运行结果相同。来源：docs/evidence/attacks.json。",
+  "back": "返回",
+  "open": "查看攻击证据",
+  "settingsHint": "重现 16 种助手攻击：Kassa 付款 0 次",
+  "codes": {
+    "UNKNOWN_PAYEE_REF": "收款人不在你的名册中",
+    "UNKNOWN_ITEM": "菜单上没有该商品",
+    "ITEMS_TOTAL_MISMATCH": "商品金额与总额不符"
+  }
+}
