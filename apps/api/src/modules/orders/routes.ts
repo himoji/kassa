@@ -1,8 +1,11 @@
 /*
  * Orders (spec §7 T2 flow, §8): GET /orders/:id → {canonicalOrder, orderHash, webauthnOptions(challenge =
- * orderHash), …}; approve with the passkey assertion; reject. Plus GET /proposals for pending sign-offs.
+ * orderHash), …}; approve with the passkey assertion; reject. Plus GET /proposals for pending sign-offs, and
+ * GET /agent/activity: what the agent and the scheduler proposed lately and what became of it (the Home card).
  */
 import {
+  AgentActivityResponse,
+  type AgentOutcome,
   ApproveOrderRequest,
   ApproveOrderResponse,
   OrderView,
@@ -10,16 +13,26 @@ import {
   ProposalStatus,
   RejectOrderRequest,
 } from "@kassa/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { proposals, users } from "../../db/schema.ts";
+import { payees, proposals, users } from "../../db/schema.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
+import { clock, DAY_MS } from "../clock/index.ts";
 import { approveOrder, getOrderView, rejectOrder } from "../rules/index.ts";
 
 const Params = z.object({ proposalId: z.string().uuid() });
+
+/** What became of a proposal, in the user's terms (AgentActivityResponse). */
+export function agentOutcome(p: { decision: string; status: string }): AgentOutcome {
+  if (p.status === "EXECUTED" || p.status === "APPROVED") return p.decision === "AUTO" ? "PAID_AUTO" : "PAID_APPROVED";
+  if (p.status === "PENDING_APPROVAL") return "WAITING";
+  if (p.status === "REFUSED") return "HELD";
+  if (p.status === "REJECTED") return "DECLINED";
+  return "OTHER";
+}
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
@@ -38,6 +51,42 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     await rejectOrder(userIdOf(req), req.params.proposalId, req.body?.reason);
     return reply.status(204).send();
   });
+
+  app.get(
+    "/agent/activity",
+    { schema: { querystring: z.object({ days: z.coerce.number().int().min(1).max(31).default(7) }), response: { 200: AgentActivityResponse } } },
+    async (req) => {
+      const userId = userIdOf(req);
+      const since = new Date(clock.nowMs() - req.query.days * DAY_MS);
+      const rows = await getDb()
+        .select()
+        .from(proposals)
+        .where(and(eq(proposals.userId, userId), inArray(proposals.createdBy, ["AGENT", "SCHEDULER"]), gte(proposals.createdAt, since)))
+        .orderBy(desc(proposals.createdAt))
+        .limit(100);
+      // A refused proposal has no canonical order: its payee's name comes from the payee register.
+      const ids = [...new Set(rows.filter((p) => !p.canonicalOrder?.payeeName).map((p) => p.draft.payeeId).filter((id) => /^[0-9a-f-]{36}$/i.test(id ?? "")))];
+      const names = new Map(
+        ids.length ? (await getDb().select({ id: payees.id, name: payees.name }).from(payees).where(and(eq(payees.userId, userId), inArray(payees.id, ids)))).map((r) => [r.id, r.name]) : [],
+      );
+      const counts: Record<AgentOutcome, number> = { PAID_AUTO: 0, PAID_APPROVED: 0, WAITING: 0, HELD: 0, DECLINED: 0, OTHER: 0 };
+      const items = rows.map((p) => {
+        const outcome = agentOutcome(p);
+        counts[outcome]++;
+        return {
+          proposalId: p.id,
+          createdBy: p.createdBy as "AGENT" | "SCHEDULER",
+          outcome,
+          payeeName: p.canonicalOrder?.payeeName || names.get(p.draft.payeeId) || "",
+          amountMinor: p.draft.amountMinor,
+          currency: p.draft.currency,
+          reasonCodes: p.reasonCodes,
+          createdAt: p.createdAt.toISOString(),
+        };
+      });
+      return { since: since.toISOString(), counts, items };
+    },
+  );
 
   app.get(
     "/proposals",

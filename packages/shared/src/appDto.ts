@@ -262,6 +262,32 @@ export type ProposalsResponse = z.infer<typeof ProposalsResponse>;
 
 export const ProposalStatusFilter = ProposalStatus;
 
+/**
+ * GET /agent/activity: what the agent and the scheduler proposed in the last days and what became of each, for the
+ * Home card. Outcome: PAID_AUTO = paid inside a signed mandate or small-auto limit; PAID_APPROVED = paid after the
+ * user's passkey; WAITING = waiting for the passkey; HELD = refused by the rules (reasonCodes say why); DECLINED = the
+ * user said no; OTHER = expired, failed or handed off.
+ */
+export const AgentOutcome = z.enum(["PAID_AUTO", "PAID_APPROVED", "WAITING", "HELD", "DECLINED", "OTHER"]);
+export type AgentOutcome = z.infer<typeof AgentOutcome>;
+export const AgentActivityResponse = z.object({
+  since: IsoDateTime,
+  counts: z.record(AgentOutcome, z.number().int().nonnegative()),
+  items: z.array(
+    z.object({
+      proposalId: z.string().uuid(),
+      createdBy: z.enum(["AGENT", "SCHEDULER"]),
+      outcome: AgentOutcome,
+      payeeName: z.string(),
+      amountMinor: z.number().int(),
+      currency: CurrencyCode,
+      reasonCodes: z.array(ReasonCode),
+      createdAt: IsoDateTime,
+    }),
+  ),
+});
+export type AgentActivityResponse = z.infer<typeof AgentActivityResponse>;
+
 // ---------- Onboarding (spec §8 onboarding) ----------
 
 export const OnboardingIncomeDraft = z.object({
