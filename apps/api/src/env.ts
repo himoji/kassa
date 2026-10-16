@@ -35,8 +35,10 @@ const EnvSchema = z.object({
   LEDGER_CHECKPOINT_KEY: z.string().optional(),
   LEDGER_CHECKPOINT_PUBLIC_KEY: z.string().optional(),
   ACCOUNT_ENC_KEY: z.string().optional(),
-  /** KEK for per-user data keys (GDPR Art. 17 crypto-shredding). Rotating it needs a re-wrap of user_keys. */
+  /** KEK for per-user data keys (GDPR Art. 17 crypto-shredding). Rotating it: scripts/rotate-kek.ts. */
   USER_KEK: z.string().optional(),
+  /** During a KEK rotation only: the previous KEK, used to unwrap (never to wrap) until scripts/rotate-kek.ts ran. */
+  USER_KEK_PREVIOUS: z.string().optional(),
   MOCK_HMAC_SECRET: z.string().optional(),
   AGENT_MODE: z.enum(["LIVE", "REPLAY"]).default("LIVE"),
   /** OpenRouter key for `openrouter:<model>` (ai/registry.ts). */
