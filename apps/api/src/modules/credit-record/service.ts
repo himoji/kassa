@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
 import { ledgerEntries, payments, profiles, proposals, users } from "../../db/schema.ts";
+import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { env } from "../../env.ts";
 import { HttpProblem, notFound } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
@@ -47,7 +48,7 @@ export async function exportCreditRecord(userId: string, req: { from: string; to
   const db = getDb();
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw notFound("user");
-  const p = (await db.select().from(profiles).where(eq(profiles.userId, userId)))[0];
+  const p = (await db.select(PROFILE_CORE).from(profiles).where(eq(profiles.userId, userId)))[0];
   const start = new Date(`${req.from}T00:00:00.000Z`);
   const end = new Date(`${req.to}T23:59:59.999Z`);
   const bills = await db

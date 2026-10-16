@@ -4,6 +4,7 @@ import type { ForecastResponse } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, profiles, transactions, users } from "../../db/schema.ts";
+import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { clock } from "../clock/index.ts";
 import { walletBalances } from "../rules/facts.ts";
 import { addDays, isoDate } from "./dates.ts";
@@ -79,7 +80,7 @@ export async function forecastCoverage(userId: string): Promise<ForecastResponse
   const today = isoDate(now);
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
-  const p = (await db.select().from(profiles).where(eq(profiles.userId, userId)))[0];
+  const p = (await db.select(PROFILE_CORE).from(profiles).where(eq(profiles.userId, userId)))[0];
   const obs = await db.select().from(obligations).where(and(eq(obligations.userId, userId), gte(obligations.dueDate, addDays(today, -31))));
   const since = new Date(now.getTime() - 31 * 86_400_000);
   const txs = await db

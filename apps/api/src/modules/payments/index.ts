@@ -34,6 +34,7 @@ import { verify } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
 import { approvals, mandates, merchants, payees, payments, profiles, proposals, purchaseOrders, usedNonces, users } from "../../db/schema.ts";
+import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { env } from "../../env.ts";
 import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
@@ -133,7 +134,7 @@ function utcDayStart(d: Date): Date {
 type SmallAutoLimit = { limitMinor: number; currency: string; orderMinor: number };
 
 async function verifyBaseRules(db: DbOrTx, order: CanonicalOrder, now: Date): Promise<SmallAutoLimit> {
-  const p = (await db.select().from(profiles).where(eq(profiles.userId, order.userId)))[0];
+  const p = (await db.select(PROFILE_CORE).from(profiles).where(eq(profiles.userId, order.userId)))[0];
   if (!p?.baseRules || !p.baseRulesHash || !p.baseRulesAssertion) refuse("NO_APPROVAL", "no signed base rules for T1 without mandate");
   if (jcsHash(p.baseRules) !== p.baseRulesHash) refuse("BAD_SIGNATURE", "stored base rules do not match their hash");
   const check = await verifyPaymentsAssertion(db, {
