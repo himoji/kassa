@@ -251,6 +251,14 @@ function SettingsBody({ me }: { me: MeResponse }) {
           title={t("credit:title")}
           onPress={() => router.push("/credit-record")}
         />
+        <Row
+          leading={
+            <Icon name="checkmark.shield" fallback="verified_user" size={20} color="foreground" />
+          }
+          title={t("evidence:title")}
+          subtitle={t("evidence:settingsHint")}
+          onPress={() => router.push("/evidence")}
+        />
         {env.DEMO_ADMIN_TOKEN || __DEV__ ? (
           <Row
             leading={<Icon name="wand.and.stars" fallback="science" size={20} color="foreground" />}
