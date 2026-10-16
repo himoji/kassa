@@ -143,6 +143,34 @@ export function isComplete(d: OnboardingProfileDraft): boolean {
   return !!(d.homeCurrency && d.region && d.preset && d.notificationMode && d.incomes.length > 0 && d.budgets.length > 0);
 }
 
+/**
+ * Replay mode (no model key): the recorded turn's draft is merged onto the user's own, so money in, bills and budgets
+ * read from their statements are kept. Money in from the statements wins (a recorded income would count the same money
+ * twice); bills and cards are joined (by payee name, by last 4); a budget the recording states wins for its category,
+ * as a stated budget does over one from history; fields the user's draft lacks come from the recording.
+ */
+export function mergeReplayDraft(current: OnboardingProfileDraft, recorded: OnboardingProfileDraft): OnboardingProfileDraft {
+  const pick = <K extends keyof OnboardingProfileDraft>(k: K) => current[k] ?? recorded[k];
+  const obligations = [...current.obligations];
+  for (const o of recorded.obligations) if (!obligations.some((x) => x.payeeName.toLowerCase() === o.payeeName.toLowerCase())) obligations.push(o);
+  const budgets = [...recorded.budgets];
+  for (const b of current.budgets) if (!budgets.some((x) => x.category === b.category)) budgets.push(b);
+  const cards = [...current.cards];
+  for (const c of recorded.cards) if (!cards.some((x) => x.last4 === c.last4)) cards.push(c);
+  return OnboardingProfileDraft.parse({
+    displayName: pick("displayName"),
+    homeCurrency: pick("homeCurrency"),
+    region: pick("region"),
+    preset: pick("preset"),
+    moneyMode: pick("moneyMode"),
+    notificationMode: pick("notificationMode"),
+    incomes: current.incomes.length > 0 ? current.incomes : recorded.incomes,
+    obligations,
+    budgets,
+    cards,
+  });
+}
+
 /** Restore names hidden by redaction inside the draft (strings only). */
 function restore<T>(value: T, entries: PlaceholderEntry[]): T {
   const byP = new Map(entries.filter((e) => e.kind === "PERSON").map((e) => [e.placeholder, e.realRef]));
@@ -236,7 +264,9 @@ export async function onboardingTurn(o: {
   // orphan tool call in the next turn's prompt). This is also the recording format replay serves.
   const newId = () => `ob_${randomUUID().slice(0, 8)}`;
   const entries = [...redactor.entries()];
-  const draft = OnboardingProfileDraft.parse(restore(out.draft, entries));
+  const restored = OnboardingProfileDraft.parse(restore(out.draft, entries));
+  // A recorded turn does not know what this user's statements already put in the draft: merge instead of replacing.
+  const draft = recordedWith === "replay" ? mergeReplayDraft(current, restored) : restored;
   let complete = out.complete && isComplete(draft);
   let reply = out.reply;
   let parts: DataChoices[];
