@@ -72,6 +72,9 @@ self.addEventListener("fetch", (event) => {
   // API traffic is never cached: let the browser handle it (no respondWith).
   if (url.pathname === "/api" || url.pathname.startsWith("/api/")) return;
 
+  // Standalone static pages (the evidence room) are not the app shell: never cache them as "/".
+  if (url.pathname === "/showcase" || url.pathname.startsWith("/showcase/")) return;
+
   if (request.mode === "navigate") {
     event.respondWith(networkFirstNavigation(request));
     return;

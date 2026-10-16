@@ -12,7 +12,7 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 
 > **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos. The statement importer reads real banks' file formats (for example Kaspi) and names them so the user knows which file is which; Kassa is not affiliated with any of them.
 
-**Live demo:** https://kassa-sand.vercel.app/ (web app; approvals use a passkey on your device).
+**Live demo:** https://kassa-sand.vercel.app/ (web app; approvals use a passkey on your device). **Evidence room:** https://kassa-sand.vercel.app/showcase replays the 16 attacks against the guarded and the naive agent, walks a request through rules and passkey, and lets you tamper with a ledger entry (static page, `apps/mobile/public/showcase/`).
 
 ## Quickstart
 
