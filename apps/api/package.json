@@ -13,7 +13,8 @@
     "db:migrate": "bun scripts/migrate.ts",
     "db:generate": "drizzle-kit generate",
     "seed": "bun scripts/seed.ts",
-    "ledger:verify": "bun scripts/ledger-verify.ts"
+    "ledger:verify": "bun scripts/ledger-verify.ts",
+    "kek:rotate": "bun scripts/rotate-kek.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.78",
