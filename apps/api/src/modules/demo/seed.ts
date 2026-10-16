@@ -23,6 +23,7 @@ import {
   cards,
   demoState,
   inventoryItems,
+  kycChecks,
   merchants,
   obligations,
   payees,
@@ -171,6 +172,9 @@ export async function truncateAll(db: Db): Promise<void> {
   await db.execute(sql.raw(`TRUNCATE ${rows.map((r) => `"${r.tablename.replace(/"/g, '""')}"`).join(", ")} RESTART IDENTITY CASCADE`));
 }
 
+/** Issuing country of a seeded persona's (document-less) identity check, by home currency. */
+const SEED_KYC_COUNTRY: Readonly<Record<string, string>> = { KZT: "KZ", CNY: "CN", HUF: "HU", EUR: "HU" };
+
 /** Insert one user and everything they own (inside the seed transaction). */
 type SeedTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
@@ -226,6 +230,21 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
       detailsEnc: p.details ? encryptDetails(u.id, p.details) : null,
     });
   }
+  // (KYC, 2026-10-16) Seeded demo accounts start identity-verified, as an account opened at the licensed partner
+  // would be; no document data is stored for them (provider "seed"). Accounts created in the app start unchecked.
+  await tx.insert(kycChecks).values({
+    userId: u.id,
+    outcome: "VERIFIED",
+    reasonCodes: [],
+    documentType: "PASSPORT",
+    documentCountry: SEED_KYC_COUNTRY[u.homeCurrency] ?? "KZ",
+    pii: null,
+    provider: "seed",
+    providerRef: "seeded",
+    simulated: true,
+    createdAt: new Date(u.createdAt),
+    checkedAt: new Date(u.createdAt),
+  });
   for (const f of data.fundingSources ?? []) {
     const at = new Date(data.user.createdAt);
     await tx.insert(fundingSources).values({ ...f, userId: u.id, status: "ACTIVE", simulated: true, linkHash: "seeded", createdAt: at, verifiedAt: at });
