@@ -24,6 +24,7 @@ import business from "./business.json";
 import lite from "./lite.json";
 import wallet from "./wallet.json";
 import insights from "./insights.json";
+import evidence from "./evidence.json";
 
 export const kk = {
   translation,
@@ -49,4 +50,5 @@ export const kk = {
   lite,
   wallet,
   insights,
+  evidence,
 };
