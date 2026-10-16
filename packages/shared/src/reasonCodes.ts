@@ -16,6 +16,8 @@ export const ReasonCode = z.enum([
   "INSUFFICIENT_FUNDS",
   // (added 2026-10-11, B4) the obligation period already has a pending or paid proposal
   "DUPLICATE_OBLIGATION_PAYMENT",
+  // (added 2026-10-16) above the KYC threshold (one payment, or a day's top-ups) without a VERIFIED identity check
+  "KYC_REQUIRED",
   // Rules: handoff
   "HANDOFF_REGION",
   "HANDOFF_MODE",
@@ -111,4 +113,5 @@ export const HARD_REFUSE_CODES = [
   "REFUSE_CAP",
   "INSUFFICIENT_FUNDS",
   "DUPLICATE_OBLIGATION_PAYMENT",
+  "KYC_REQUIRED",
 ] as const satisfies readonly ReasonCode[];
