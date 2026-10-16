@@ -804,3 +804,16 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   apply at the next scheduler tick. Outside demo mode a stored row is ignored. The app shows a red banner on every screen
   while off (`MeResponse.demo.coolingOff`), and the switch sits on the Stage screen (Settings → Demo). The attack suite
   keeps the waits on, and no agent tool reaches the switch. Known risk: SECURITY.md R36.
+
+## 2026-10-16 — Revocations and rate limits in Postgres; logout revokes the cookie; a KEK rotation script
+
+- **R13, shared stores.** The refresh-token spent list (a `Set` in `auth/session.ts`) and the `@fastify/rate-limit`
+  counters lived in process memory, so a restart or a second instance accepted a spent refresh token again and reset
+  every limit. Both are tables now (migration 0018), following the challenge stores of migration 0012:
+  `revoked_tokens` (jti, kind, the token's `exp`; spending is one `INSERT ... ON CONFLICT DO NOTHING RETURNING`, so of
+  two concurrent uses one wins) and `rate_limit_counters` (one row per bucket key, one atomic upsert per request). The
+  scheduler purges rows whose token or window has expired, on wall time. Logout now records a refresh token only when
+  it verifies (before, any decodable jti was added). Deviation from a window aligned to the clock: a window starts at a
+  key's first hit, as in the plugin's in-memory store, so limits behave exactly as before and a burst cannot get twice
+  the budget across a boundary. If the database call fails, that hit is counted in memory (per instance, the old
+  behaviour) rather than refused or let through. Cost: one write per request.
