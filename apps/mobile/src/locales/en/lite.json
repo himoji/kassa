@@ -109,5 +109,9 @@
     "expiresIn": "Expires in {{time}}",
     "expired": "This code expired.",
     "countdown": "{{minutes}}:{{seconds}}"
+  },
+  "returnBar": {
+    "text": "Opened from KassaLite. Finish the step with your passkey, then go back.",
+    "back": "Back to KassaLite"
   }
 }
