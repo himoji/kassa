@@ -23,6 +23,8 @@ import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { chargeSource, PullDeclined } from "../funding-sources/pull.ts";
 import { activeFundingSource } from "../funding-sources/store.ts";
+import { kycStatusOf } from "../kyc/status.ts";
+import { kycThresholdInHome } from "../kyc/threshold.ts";
 import { ledger } from "../ledger/index.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
@@ -173,6 +175,15 @@ export async function topUp(userId: string, req: TopUpRequest): Promise<TopUpRes
   if (today.homeMinor + home.amountMinor > dailyLimit) {
     throw new HttpProblem(422, "TOPUP_DAILY_LIMIT", "That would go over today's top-up limit (your signed per-day cap)", {
       details: { limitHomeMinor: dailyLimit, todayHomeMinor: today.homeMinor, homeCurrency: user.homeCurrency },
+    });
+  }
+  // (KYC) a day's top-ups above the KYC threshold need a VERIFIED identity check.
+  const kycThreshold = await kycThresholdInHome(user.homeCurrency, clock.now());
+  if (today.homeMinor + home.amountMinor > kycThreshold && (await kycStatusOf(getDb(), userId)) !== "VERIFIED") {
+    await ledger.append("WALLET_TOPUP_REFUSED", { userId, idempotencyKey: req.idempotencyKey, amountMinor: req.amountMinor, currency: req.currency, homeAmountMinor: home.amountMinor, reasonCodes: ["KYC_REQUIRED"] });
+    throw new HttpProblem(422, "KYC_REQUIRED", "Adding this much needs a verified identity first; complete the identity check in Settings", {
+      reasonCodes: ["KYC_REQUIRED"],
+      details: { thresholdHomeMinor: kycThreshold, todayHomeMinor: today.homeMinor, homeCurrency: user.homeCurrency },
     });
   }
   const linked = req.method === "LINKED" ? await chargeLinked(userId, req) : null;

@@ -20,6 +20,7 @@ import commerceRoutes from "./modules/commerce/routes.ts";
 import businessRoutes from "./modules/business/routes.ts";
 import creditRecordRoutes from "./modules/credit-record/routes.ts";
 import dataportRoutes from "./modules/dataport/routes.ts";
+import kycRoutes from "./modules/kyc/routes.ts";
 import demoCoolingRoutes from "./modules/demo/cooling-routes.ts";
 import demoRoutes from "./modules/demo/routes.ts";
 import ledgerRoutes from "./modules/ledger/routes.ts";
@@ -121,6 +122,7 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
       await api.register(privacyRoutes);
       await api.register(businessRoutes);
       await api.register(dataportRoutes);
+      await api.register(kycRoutes);
       // Demo routes exist only when DEMO_ENABLED (they also re-check at request time).
       if (e.DEMO_ENABLED) {
         await api.register(demoRoutes);

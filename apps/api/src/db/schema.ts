@@ -407,6 +407,34 @@ export const fundingSources = pgTable(
   (t) => [index("funding_sources_user_idx").on(t.userId)],
 );
 
+/**
+ * (added 2026-10-16) Identity checks (KYC), simulated (modules/kyc). Only the outcome, the checker's reason codes, the
+ * document type and country and the timestamps are stored in the clear; the last 4 characters of the document number
+ * are sealed with the user's data key (`pii`, privacy/keys.ts). Never the full number, the name, the date of birth or
+ * an image. Kept after erasure (AMLD record keeping) with `pii` unreadable.
+ */
+export const kycChecks = pgTable(
+  "kyc_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    outcome: text("outcome").$type<"VERIFIED" | "REVIEW" | "REJECTED">().notNull(),
+    reasonCodes: jsonb("reason_codes").$type<string[]>().notNull().default([]),
+    documentType: text("document_type").$type<"PASSPORT" | "ID_CARD" | "DRIVING_LICENCE" | "RESIDENCE_PERMIT">().notNull(),
+    documentCountry: text("document_country").notNull(),
+    /** Sealed { documentLast4 } (AES-256-GCM under the user's data key). */
+    pii: text("pii"),
+    provider: text("provider").notNull(),
+    providerRef: text("provider_ref").notNull(),
+    simulated: boolean("simulated").notNull().default(true),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    checkedAt: tstz("checked_at").notNull(),
+  },
+  (t) => [index("kyc_checks_user_idx").on(t.userId, t.createdAt)],
+);
+
 export const obligations = pgTable(
   "obligations",
   {

@@ -1,0 +1,73 @@
+{
+  "title": "身份验证",
+  "rowHint": "较大金额的付款需要",
+  "intro": "超过 {{amount}} 的付款，以及一天内充值超过 {{amount}}，都需要已验证的身份。这是沙盒检查：请使用虚构的证件，切勿使用真实证件。",
+  "status": {
+    "label": "您的状态",
+    "NONE": "尚未验证",
+    "VERIFIED": "已验证",
+    "REVIEW": "审核中",
+    "REJECTED": "未通过验证"
+  },
+  "statusText": {
+    "NONE": "完成下方的验证后即可进行较大金额的付款。",
+    "VERIFIED": "您可以进行超过限额的付款。",
+    "REVIEW": "持牌合作方会有专人查看此次验证。沙盒中无人审核，请使用一致的信息重新验证。",
+    "REJECTED": "验证未通过。请查看原因后重试。"
+  },
+  "latest": "最近一次验证",
+  "checkedAt": "验证时间",
+  "documentSummary": "{{type}}，{{country}}，号码尾号 {{last4}}",
+  "documentSummaryNoNumber": "{{type}}，{{country}}",
+  "documentTitle": "证件",
+  "documentFooter": "请输入虚构的证件。姓名必须与您 Kassa 账户上的姓名一致。",
+  "fields": {
+    "type": "证件类型",
+    "number": "证件号码",
+    "numberPlaceholder": "例如 TX1234567",
+    "country": "签发国家",
+    "countryPlaceholder": "两个字母，例如 KZ",
+    "fullName": "证件上的全名",
+    "dateOfBirth": "出生日期",
+    "expiresOn": "有效期至",
+    "datePlaceholder": "YYYY-MM-DD"
+  },
+  "docType": {
+    "PASSPORT": "护照",
+    "ID_CARD": "身份证",
+    "DRIVING_LICENCE": "驾照",
+    "RESIDENCE_PERMIT": "居留证"
+  },
+  "sample": "填入示例证件",
+  "livenessTitle": "活体检测",
+  "livenessFooter": "真实的检测会拍摄您的面部。这里由您选择模拟步骤的结果。",
+  "liveness": {
+    "PASS": "通过",
+    "FAIL": "失败",
+    "INCONCLUSIVE": "不确定"
+  },
+  "simulateLiveness": "模拟活体检测",
+  "livenessDone": "活体检测已完成：{{result}}（模拟）",
+  "livenessNeeded": "请先完成活体检测步骤。",
+  "submit": "验证我的身份",
+  "invalid": "请检查各项：号码为 6 到 20 位字母或数字，国家为两个字母，日期格式为 YYYY-MM-DD。",
+  "result": {
+    "VERIFIED": "身份已验证",
+    "REVIEW": "已提交审核",
+    "REJECTED": "身份未通过验证"
+  },
+  "reason": {
+    "LIVENESS_FAILED": "活体检测未通过。",
+    "LIVENESS_INCONCLUSIVE": "活体检测结果不确定。",
+    "DOCUMENT_NUMBER_INVALID": "证件号码无效。",
+    "DOCUMENT_EXPIRED": "证件已过期。",
+    "DATE_OF_BIRTH_INVALID": "出生日期无效。",
+    "UNDER_18": "您必须年满 18 岁。",
+    "NAME_MISMATCH": "姓名与您账户上的姓名不一致。",
+    "NAME_PARTIAL_MATCH": "姓名与您账户上的姓名仅部分一致。",
+    "MANUAL_REVIEW": "此证件需要人工审核。"
+  },
+  "privacy": "Kassa 只保留验证结果、证件类型和国家，以及号码的后 4 位。绝不保存完整号码、您的出生日期或照片。",
+  "partner": "在正式环境中，此验证由持牌合作方执行。",
+  "openFromReason": "验证我的身份"
+}

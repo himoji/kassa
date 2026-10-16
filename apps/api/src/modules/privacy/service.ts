@@ -23,6 +23,7 @@ import {
   issuedCards,
   ledgerEntries,
   fundingSources,
+  kycChecks,
   mandates,
   notifications,
   obligations,
@@ -44,6 +45,7 @@ import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { addMs, clock, DAY_MS, HOUR_MS } from "../clock/index.ts";
+import { toKycDto } from "../kyc/status.ts";
 import { ledger } from "../ledger/index.ts";
 import { decryptAccount } from "../payees/crypto.ts";
 import { cancelPendingUnfreezes } from "../users/unfreeze.ts";
@@ -70,6 +72,10 @@ export const RETAINED = [
   {
     category: "signed mandates and rule changes (no names), revoked",
     basis: "GDPR Art. 17(3)(e): evidence that each automatic payment was authorised",
+  },
+  {
+    category: "identity check outcomes: outcome, reason codes, document type and country, dates (the sealed last 4 characters become unreadable)",
+    basis: "GDPR Art. 17(3)(b): customer due diligence records (AMLD Art. 40, 5 years)",
   },
   {
     category: "ledger entries (hash chain) with personal fields as unreadable ciphertext",
@@ -152,6 +158,7 @@ export async function exportUserData(userId: string) {
     }),
     obligations: await db.select().from(obligations).where(own(obligations)),
     linkedAccounts: (await db.select().from(fundingSources).where(own(fundingSources))).map(({ linkHash: _h, codeHash: _c, ...f }) => f),
+    identityChecks: await Promise.all((await db.select().from(kycChecks).where(own(kycChecks))).map((r) => toKycDto(r))),
     budgets: await db.select().from(budgets).where(own(budgets)),
     cards: cardRows,
     cardFeeProfiles: cardRows.length ? await db.select().from(cardFeeProfiles).where(inArray(cardFeeProfiles.cardId, cardRows.map((c) => c.id))) : [],

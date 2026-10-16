@@ -1,0 +1,73 @@
+{
+  "title": "Identity check",
+  "rowHint": "Needed for larger payments",
+  "intro": "Payments above {{amount}}, and adding more than {{amount}} in a day, need a verified identity. This is a sandbox check: use a made-up document, never a real one.",
+  "status": {
+    "label": "Your status",
+    "NONE": "Not checked yet",
+    "VERIFIED": "Verified",
+    "REVIEW": "Under review",
+    "REJECTED": "Not verified"
+  },
+  "statusText": {
+    "NONE": "Run the check below to make larger payments.",
+    "VERIFIED": "You can make payments above the limit.",
+    "REVIEW": "A person at the licensed partner would look at this check. In the sandbox nobody does, so run the check again with matching details.",
+    "REJECTED": "The check did not pass. See the reasons and try again."
+  },
+  "latest": "Last check",
+  "checkedAt": "Checked",
+  "documentSummary": "{{type}}, {{country}}, number ending {{last4}}",
+  "documentSummaryNoNumber": "{{type}}, {{country}}",
+  "documentTitle": "Document",
+  "documentFooter": "Enter a made-up document. The name must match the name on your Kassa account.",
+  "fields": {
+    "type": "Document type",
+    "number": "Document number",
+    "numberPlaceholder": "e.g. TX1234567",
+    "country": "Issuing country",
+    "countryPlaceholder": "Two letters, e.g. KZ",
+    "fullName": "Full name on the document",
+    "dateOfBirth": "Date of birth",
+    "expiresOn": "Valid until",
+    "datePlaceholder": "YYYY-MM-DD"
+  },
+  "docType": {
+    "PASSPORT": "Passport",
+    "ID_CARD": "ID card",
+    "DRIVING_LICENCE": "Licence",
+    "RESIDENCE_PERMIT": "Residence"
+  },
+  "sample": "Fill with a sample document",
+  "livenessTitle": "Liveness",
+  "livenessFooter": "A real check films your face. Here you choose what the simulated step reports.",
+  "liveness": {
+    "PASS": "Pass",
+    "FAIL": "Fail",
+    "INCONCLUSIVE": "Unclear"
+  },
+  "simulateLiveness": "Simulate liveness",
+  "livenessDone": "Liveness step done: {{result}} (simulated)",
+  "livenessNeeded": "Run the liveness step first.",
+  "submit": "Check my identity",
+  "invalid": "Check the fields: a number of 6 to 20 letters or digits, a two-letter country and dates as YYYY-MM-DD.",
+  "result": {
+    "VERIFIED": "Identity verified",
+    "REVIEW": "Sent for review",
+    "REJECTED": "Identity not verified"
+  },
+  "reason": {
+    "LIVENESS_FAILED": "The liveness step failed.",
+    "LIVENESS_INCONCLUSIVE": "The liveness step was unclear.",
+    "DOCUMENT_NUMBER_INVALID": "The document number is not valid.",
+    "DOCUMENT_EXPIRED": "The document has expired.",
+    "DATE_OF_BIRTH_INVALID": "The date of birth is not valid.",
+    "UNDER_18": "You must be 18 or older.",
+    "NAME_MISMATCH": "The name does not match the name on your account.",
+    "NAME_PARTIAL_MATCH": "The name only partly matches the name on your account.",
+    "MANUAL_REVIEW": "This document needs a manual review."
+  },
+  "privacy": "Kassa keeps only the outcome, the document type and country, and the last 4 characters of the number. Never the full number, your date of birth or a photo.",
+  "partner": "In production a licensed partner runs this check.",
+  "openFromReason": "Check my identity"
+}
