@@ -1,0 +1,22 @@
+{
+  "autopay": "自动付款",
+  "bestRoute": "最佳路线：从{{from}}通过 {{rail}}，约 {{cost}}",
+  "coverage": {
+    "COVERED": "资金充足",
+    "SHORTFALL": "资金不足"
+  },
+  "covered45": "未来 45 天资金充足",
+  "dueOn": "{{date}} 到期 · {{category}}",
+  "empty": "暂无账单。",
+  "forecastFooter": "基于您的收入和账单，情况变化可能影响预测。",
+  "forecastTitle": "45 天预测",
+  "needsPayeeDetails": "添加收款人信息",
+  "needsPayeeDetailsBody": "在您添加 {{payee}} 的账户信息之前，Kassa 无法支付此账单。",
+  "shortfall": "{{date}} 资金不足 {{amount}}",
+  "suggestion": "请在 {{date}} 前从{{from}}转 {{amount}} 到{{to}}，以支付此账单",
+  "title": "账单",
+  "upcomingTitle": "即将到期",
+  "shortfallBody": "目前没有任何一个余额足以支付。请在首页添加 {{currency}}，或等待家里汇款。",
+  "burnHistory": "按每天约 {{amount}} 的支出计算，数据来自您的银行记录（最近 30 天的数据不足）。",
+  "burnRecent": "按每天约 {{amount}} 的支出计算，数据来自最近 30 天。"
+}
