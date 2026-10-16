@@ -10,6 +10,7 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyPluginAsy
 import { hasZodFastifySchemaValidationErrors, serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { schemaStatus } from "./db/client.ts";
 
 import { env } from "./env.ts";
 import { HttpProblem, problemBody } from "./http/problem.ts";
@@ -98,7 +99,8 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
 
   await app.register(
     async (api) => {
-      api.get("/health", async () => ({ ok: true, service: "api" }));
+      // `schema` says whether every migration has run (a deploy that skipped db:migrate shows "behind").
+      api.get("/health", async () => ({ ok: true, service: "api", schema: await schemaStatus() }));
       await api.register(authRoutes);
       await api.register(userRoutes);
       await api.register(payeeRoutes);

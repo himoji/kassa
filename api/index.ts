@@ -76,6 +76,12 @@ async function start(): Promise<Instance> {
   const mock = await buildMockWorld({ config: mockConfig });
   await mock.app.listen({ host: "127.0.0.1", port: MOCK_PORT });
 
+  // Pending migrations run at cold start (one instance at a time, db/client.ts): a preview build that skipped
+  // db:migrate must not serve 500s from columns its database lacks. MIGRATE_ON_START=false opts out.
+  if (process.env.MIGRATE_ON_START !== "false") {
+    const { migrateDatabaseUrl } = await import("../apps/api/src/db/client.ts");
+    await migrateDatabaseUrl().catch((err: unknown) => console.error("migrate on start failed", err));
+  }
   if (e.DEMO_ENABLED) await seedIfEmpty();
   const api = await buildServer();
   await clock.load().catch((err: unknown) => api.log.warn({ err }, "demo_state not readable yet (run bun run db:migrate)"));
