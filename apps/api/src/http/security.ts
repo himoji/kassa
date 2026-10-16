@@ -11,8 +11,8 @@
  * - Security headers (ASVS V14.4): @fastify/helmet with an API CSP (`default-src 'none'`), no framing.
  * - CORS (ASVS V14.5.3): only the configured origins (PUBLIC_ORIGIN + EXTRA_ORIGINS), credentials allowed;
  *   requests without an Origin (native app, webhooks, curl) are not CORS requests and are unaffected.
- * Honest limit: rate-limit counters are in memory (per API instance; the challenge stores and pairing codes are in
- * Postgres, auth/challenges.ts).
+ * Rate-limit counters are in Postgres (http/rate-limit-store.ts, R13), shared by every API instance, with an in-memory
+ * fallback when the database call fails.
  */
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -22,6 +22,7 @@ import type { FastifyInstance, RouteOptions } from "fastify";
 import { env } from "../env.ts";
 import { requireUser } from "../modules/auth/session.ts";
 import { HttpProblem } from "./problem.ts";
+import { PgRateLimitStore } from "./rate-limit-store.ts";
 
 /** "METHOD /api/path" → why the route may skip the session check (and what authenticates it instead). */
 export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
@@ -176,6 +177,7 @@ export async function registerSecurity(app: FastifyInstance): Promise<void> {
     global: true,
     max: e.RATE_LIMIT_GLOBAL_PER_MIN,
     timeWindow: 60_000,
+    store: PgRateLimitStore,
     errorResponseBuilder: (_req, ctx) =>
       new HttpProblem(429, "RATE_LIMITED", `Too many requests; retry in ${ctx.after}`, { reasonCodes: ["RATE_LIMITED"] }),
   });

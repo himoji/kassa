@@ -247,6 +247,38 @@ export const pairCodes = pgTable(
 );
 
 /**
+ * (added, R13) Session JWTs that may no longer be used, by jti: spent (rotated) refresh tokens and logged-out ones.
+ * In Postgres so a restart or another API instance still refuses them. Kept until the token's own `exp` (wall time,
+ * clock.realNowMs), then purged by the scheduler; after that the JWT check refuses the token by itself.
+ */
+export const revokedTokens = pgTable(
+  "revoked_tokens",
+  {
+    jti: text("jti").primaryKey(),
+    /** The token's `typ`: "refresh" | "session". */
+    kind: text("kind").notNull(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("revoked_tokens_expires_idx").on(t.expiresAt)],
+);
+
+/**
+ * (added, R13) Rate-limit counters (http/rate-limit-store.ts), shared by every API instance. One row per bucket key
+ * (route bucket + client IP) holding its current window: the window starts at the first hit, as in the in-memory store
+ * of @fastify/rate-limit. Expired rows are purged by the scheduler.
+ */
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    key: text("key").primaryKey(),
+    hits: integer("hits").notNull(),
+    windowStart: tstz("window_start").notNull(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("rate_limit_counters_expires_idx").on(t.expiresAt)],
+);
+
+/**
  * (added, Phase 2) Per-user data encryption key (DEK) for personal fields in append-only stores (ledger
  * payload `pii`). The DEK is wrapped (AES-256-GCM, NIST SP 800-38D) with USER_KEK; erasure (GDPR Art. 17)
  * nulls `wrappedDek` — crypto-shredding — and the row stays as a tombstone so a new key is never minted.

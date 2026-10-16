@@ -10,6 +10,8 @@
  *  - signed unfreezes reaching effectiveAt → lift the freeze (I8);
  *  - retention purge (GDPR Art. 5(1)(e), RETENTION_DAYS_*), at most hourly on the clock;
  *  - webhook seen-signature purge (I13 replay store): entries whose timestamp is outside the window.
+ *  - revoked-token purge (R13): spent or logged-out session JWTs past their own expiry (wall time);
+ *  - rate-limit counter purge (R13): counters whose window has ended.
  *  - business.forecastTick (Business M4): stock short by the end of tomorrow → DRAFT purchase order + owner
  *    notification, once per (merchant, SKU, day); drafts only, never signs or pays (I6).
  * Each job is isolated: one failing job never stops the others.
@@ -18,8 +20,10 @@ import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payments, proposals, users } from "../../db/schema.ts";
+import { purgeRateLimitCounters } from "../../http/rate-limit-store.ts";
 import { addMs, clock, DAY_MS, isoDate } from "../clock/index.ts";
 import { forecastTick } from "../business/scheduler.ts";
+import { purgeRevokedTokens } from "../auth/revocation.ts";
 import { ledger } from "../ledger/index.ts";
 import { activateDueMandates } from "../mandates/service.ts";
 import { settlementFor } from "../obligations/settlements.ts";
@@ -127,6 +131,8 @@ const JOBS: [string, () => Promise<unknown>][] = [
   ["digest", sendDigests],
   ["retention", purgeIfDue],
   ["webhookReplayPurge", () => purgeSeenWebhookSignatures()],
+  ["revokedTokenPurge", () => purgeRevokedTokens()],
+  ["rateLimitPurge", () => purgeRateLimitCounters()],
   ["business.forecastTick", () => forecastTick()],
 ];
 

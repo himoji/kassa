@@ -2,13 +2,13 @@
  * Sessions (spec §8): web = httpOnly cookie; native = bearer JWT (15 min) + refresh token.
  * JWTs per RFC 7519, HS256 with SESSION_SECRET (RFC 7518 §3.2). iat/exp come from wall time (clock.realNowMs, never the demo clock) and are
  * verified against it too: moving or switching the demo clock neither signs people out nor revives expired tokens.
- * Refresh tokens rotate on every use (RFC 9700 §4.14.2); a reused refresh token is rejected.
- * Honest limit: the rotation/revocation list is in memory (single process).
+ * Refresh tokens rotate on every use (RFC 9700 §4.14.2); a reused refresh token is rejected. The spent list is in
+ * Postgres (auth/revocation.ts, R13), so it survives a restart and is shared by every API instance.
  */
 import type {} from "@fastify/cookie"; // augments FastifyRequest.cookies / reply.setCookie
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { eq } from "drizzle-orm";
-import { decodeJwt, jwtVerify, SignJWT } from "jose";
+import { jwtVerify, SignJWT } from "jose";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
@@ -16,6 +16,7 @@ import { profiles, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
+import { spendJti } from "./revocation.ts";
 
 export const SESSION_COOKIE = "kassa_session";
 export const ACCESS_TTL_S = 15 * 60;
@@ -44,9 +45,6 @@ function claimsOf(payload: Record<string, unknown>): SessionClaims {
   return { ...(payload.dev === true ? { dev: true as const } : {}), ...(payload.scope === "lite" ? { scope: "lite" as const } : {}) };
 }
 
-/** jti of refresh tokens already used or logged out. */
-const spentRefresh = new Set<string>();
-
 function secret(): Uint8Array {
   return new TextEncoder().encode(env().SESSION_SECRET);
 }
@@ -65,7 +63,7 @@ async function mint(userId: string, typ: Typ, ttlS: number, claims: SessionClaim
   return { token, exp };
 }
 
-async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: string | undefined; iat: number; claims: SessionClaims } | null> {
+async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: string | undefined; iat: number; exp: number; claims: SessionClaims } | null> {
   try {
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
@@ -73,7 +71,7 @@ async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: stri
       currentDate: new Date(clock.realNowMs()),
     });
     if (payload.typ !== typ || typeof payload.sub !== "string") return null;
-    return { sub: payload.sub, jti: payload.jti, iat: payload.iat ?? 0, claims: claimsOf(payload) };
+    return { sub: payload.sub, jti: payload.jti, iat: payload.iat ?? 0, exp: payload.exp ?? 0, claims: claimsOf(payload) };
   } catch {
     return null;
   }
@@ -121,12 +119,11 @@ export async function sessionBody(userId: string, tokens: SessionTokens | null) 
  * Rotate: the presented refresh token is spent; a second use is rejected.
  * (X5, p3 B2) Refresh applies the same account checks as login: the user must exist and not be erased. Erasure
  * (GDPR Art. 17) therefore revokes every outstanding refresh token of the user at once, durably (users.erased_at,
- * not the in-memory spent list), and no new access token is ever minted for an erased account.
+ * not the spent list), and no new access token is ever minted for an erased account.
  */
 export async function refreshSession(refreshToken: string): Promise<SessionTokens | null> {
   const v = await verify(refreshToken, "refresh");
-  if (!v || !v.jti || spentRefresh.has(v.jti)) return null;
-  spentRefresh.add(v.jti);
+  if (!v || !v.jti || !(await spendJti(v.jti, "refresh", v.exp))) return null;
   const u = (await getDb().select({ erasedAt: users.erasedAt, sessionsRevokedAt: users.sessionsRevokedAt }).from(users).where(eq(users.id, v.sub)))[0];
   if (!u || revoked(v.iat, u.sessionsRevokedAt)) return null;
   if (u.erasedAt) throw new HttpProblem(401, "ACCOUNT_ERASED", "This account was erased", { reasonCodes: ["ACCOUNT_ERASED"] });
@@ -134,14 +131,11 @@ export async function refreshSession(refreshToken: string): Promise<SessionToken
   return nativeTokens(v.sub, v.claims);
 }
 
-export function revokeRefresh(refreshToken: string | undefined): void {
+/** Logout of a native client. Only a token that verifies is recorded (a forged or expired one is refused anyway). */
+export async function revokeRefresh(refreshToken: string | undefined): Promise<void> {
   if (!refreshToken) return;
-  try {
-    const jti = decodeJwt(refreshToken).jti;
-    if (jti) spentRefresh.add(jti);
-  } catch {
-    // malformed: nothing to revoke
-  }
+  const v = await verify(refreshToken, "refresh");
+  if (v?.jti) await spendJti(v.jti, "refresh", v.exp);
 }
 
 export function endSession(reply: FastifyReply): void {
