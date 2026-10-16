@@ -12,10 +12,10 @@ Workspace totals from the run of 2026-10-15, after the real-world incident attac
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 131 | 1,012 (+1 opt-in live smoke test, skipped) | all pass |
-| apps/mock-world | 10 | 343 | all pass |
+| apps/api | 132 | 1,026 (+1 opt-in live smoke test, skipped) | all pass |
+| apps/mock-world | 11 | 361 | all pass |
 | packages/shared | 7 | 53 | all pass |
-| apps/mobile (jest) | 77 | 859 | all pass |
+| apps/mobile (jest) | 78 | 875 | all pass |
 
 Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 of 16 paid** (`docs/evidence/attacks.json`: A1 to A8 and the real-world incidents A10 to A17, 2026-10-15). A9 is refused by its own test; it is not in the naive baseline.
 
