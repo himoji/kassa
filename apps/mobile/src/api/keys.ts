@@ -25,6 +25,7 @@ export const keys = {
   shortcutDevices: ["devices", "shortcut"] as const,
   ruleChanges: ["rule-changes", "pending"] as const,
   proposalsPending: ["proposals", "pending"] as const,
+  agentActivity: ["proposals", "agent-activity"] as const,
   order: (proposalId: string) => ["orders", proposalId] as const,
   // (added 2026-10-14, Business M2/M3) shop orders and till bills
   shopOrders: ["shop-orders"] as const,
@@ -59,6 +60,7 @@ export const moneyKeys = [
   keys.fundingSources,
   keys.ruleChanges,
   keys.proposalsPending,
+  keys.agentActivity,
   keys.ledger,
   keys.notifications,
   keys.shopOrders,
