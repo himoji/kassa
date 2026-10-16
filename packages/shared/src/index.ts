@@ -34,3 +34,5 @@ export * from "./fundingSource.ts";
 export * from "./insightsDto.ts";
 // school payment portals (Find your school)
 export * from "./school.ts";
+// identity check (KYC), sandbox
+export * from "./kyc.ts";

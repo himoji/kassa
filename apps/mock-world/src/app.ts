@@ -9,12 +9,14 @@ import { DemoClock } from "./clock.ts";
 import type { MockWorldConfig } from "./config.ts";
 import { HttpError } from "./errors.ts";
 import { esc, page } from "./html.ts";
+import { KycDesk } from "./kyc/kyc.ts";
 import { renderInvoice } from "./pdf/invoice.ts";
 import { renderPriceList } from "./pdf/priceList.ts";
 import { QrWallet } from "./qr/qr.ts";
 import { bankRoutes } from "./routes/bank.ts";
 import { type DocumentCache, documentRoutes } from "./routes/documents.ts";
 import { eventRoutes } from "./routes/events.ts";
+import { kycRoutes } from "./routes/kyc.ts";
 import { qrRoutes } from "./routes/qr.ts";
 import { ChargeLog, shopRoutes } from "./routes/shop.ts";
 import { shopOrderRoutes } from "./routes/shopOrders.ts";
@@ -57,6 +59,8 @@ export interface MockWorld {
   suppliers: SupplierBook;
   /** School payment portals: tuition invoices, paid from the mock bank's payouts. */
   schools: SchoolBook;
+  /** (added 2026-10-16) Identity checks (KYC), simulated: outcomes only. */
+  kyc: KycDesk;
   webhooks: WebhookSink & { outbox?: OutboxEntry[] };
   clock: Clock;
 }
@@ -113,6 +117,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
   const shop = new ShopOrderBook({ issuer, clock, log: charges, webhooks, qr, kassaAppUrl: config.kassaAppUrl, stepMs: config.shopStepMs, autopilot: config.shopAutopilot });
   const suppliers = new SupplierBook({ clock, webhooks, publicUrl: config.publicUrl });
   const schools = new SchoolBook({ clock, webhooks });
+  const kyc = new KycDesk({ clock });
   bank.onPayout((t, account) => schools.onPayout(t, account));
   const docs = await renderDocuments();
 
@@ -159,6 +164,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
         shop.reset();
         suppliers.reset();
         schools.reset();
+        kyc.reset();
         return { ok: true, simulated: true };
       });
 
@@ -212,6 +218,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
       documentRoutes(r, { docs, publicUrl: config.publicUrl });
       qrRoutes(r, qr);
       schoolRoutes(r, { book: schools });
+      kycRoutes(r, { desk: kyc });
       // (M5) own context: its raw-body JSON parser (HMAC check of Kassa's signed POs) stays local.
       await r.register(async (s) => supplierPortalRoutes(s, { config, book: suppliers, clock }));
       eventRoutes(r, { clock, webhooks, bank, defaultProfileId: MOCK_BANK_PROFILE_ID });
@@ -236,6 +243,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
             shop.reset();
             suppliers.reset();
             schools.reset();
+            kyc.reset();
           },
           syncClock: () => {
             if (clock instanceof DemoClock) clock.invalidate();
@@ -255,5 +263,5 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     app.addHook("onClose", async () => clearInterval(timer));
   }
 
-  return { app, bank, qr, shop, suppliers, schools, webhooks, clock };
+  return { app, bank, qr, shop, suppliers, schools, kyc, webhooks, clock };
 }
