@@ -1,0 +1,254 @@
+{
+  "REFUSE_FROZEN": {
+    "label": "付款已冻结",
+    "text": "付款已冻结，因此这笔付款被拒绝。解冻需要您的通行密钥，并需等待 24 小时。"
+  },
+  "REFUSE_UNVERIFIED_PAYEE": {
+    "label": "收款人未验证",
+    "text": "收款人尚未验证，因此 Kassa 无法向其付款。请先验证收款人。"
+  },
+  "REFUSE_SOURCE_MISMATCH": {
+    "label": "来源不符",
+    "text": "这些信息的来源与付款不符，因此已被拒绝。请向收款人核实这项请求。"
+  },
+  "REFUSE_SANCTIONS": {
+    "label": "未通过制裁筛查",
+    "text": "这笔付款未通过制裁筛查，已被阻止，无法通过 Kassa 支付。"
+  },
+  "REFUSE_CAP": {
+    "label": "超出您的限额",
+    "text": "这笔付款超出了您的某项限额，因此已被拒绝。请降低金额，或用通行密钥提高限额。"
+  },
+  "HANDOFF_REGION": {
+    "label": "请您自行付款",
+    "text": "由于您所在的地区，Kassa 无法发出这笔付款。请使用转交页面自行付款。"
+  },
+  "HANDOFF_MODE": {
+    "label": "请您自行付款",
+    "text": "您的资金模式设置为转交，因此需要您在转交页面自行支付这笔款项。"
+  },
+  "MANDATE_MATCH": {
+    "label": "在授权范围内",
+    "text": "此账单与您签署的授权相符，因此可以在其限额内自动付款。"
+  },
+  "MANDATE_OUT_OF_SCOPE": {
+    "label": "超出您的授权",
+    "text": "这笔付款超出了您授权的限额，因此需要您的通行密钥。"
+  },
+  "SMALL_AUTO": {
+    "label": "金额较小，可自动付款",
+    "text": "这是向已验证收款人的付款，且低于您的自动付款限额，因此 Kassa 无需询问即可支付。"
+  },
+  "RISK_HIGH": {
+    "label": "需要仔细核对",
+    "text": "规则发现这笔付款有异常之处，因此请您批准。"
+  },
+  "AGENT_REQUESTED_CONFIRM": {
+    "label": "Kassa 请求批准",
+    "text": "Kassa 在继续之前请求您的批准，因此在您签署之前不会付款。"
+  },
+  "PRESET_ASK_ME": {
+    "label": "您的预设要求先询问",
+    "text": "您选择了“询问我”，因此每笔付款都需要您的通行密钥。"
+  },
+  "CAP_WITHIN_2X_ASK": {
+    "label": "接近您的限额",
+    "text": "这笔付款接近您的限额，因此规则请您确认。"
+  },
+  "PAYEE_COOLING": {
+    "label": "收款人处于冷静期",
+    "text": "此收款人是新的或已更改，因此需要 24 小时冷静期才能付款。"
+  },
+  "PAYEE_ACCOUNT_MISSING": {
+    "label": "需要收款人信息",
+    "text": "Kassa 还没有此收款人的账户信息，因此无法付款。请先添加收款人信息。"
+  },
+  "TRIGGER_ORIGIN": {
+    "label": "由消息发起",
+    "text": "这笔付款来自一条消息或通知，因此需要您的批准才能继续。"
+  },
+  "TRIGGER_NEEDS_MANDATE": {
+    "label": "需要您的批准",
+    "text": "这笔付款是自动发起的（并非由您发起），因此只有在您签署的授权范围内才会自行付款。"
+  },
+  "AUTO_NOT_ELIGIBLE": {
+    "label": "不符合自动付款条件",
+    "text": "自动付款需要智能模式、已验证的收款人、有上限的钱包和已签署的基本规则，目前缺少其中一项。"
+  },
+  "ABOVE_SMALL_AUTO_LIMIT": {
+    "label": "超出自动付款限额",
+    "text": "金额超出了您的自动付款限额，因此需要您的通行密钥。"
+  },
+  "READER_SOURCE_MISMATCH": {
+    "label": "文件来源不符",
+    "text": "该文件并非来自其所称的发件人，因此 Kassa 不会使用其中的信息。"
+  },
+  "READER_FIELD_UNVERIFIED": {
+    "label": "信息无法核验",
+    "text": "此文件中有一项信息无法核验，请在付款前进行核对。"
+  },
+  "APPROVAL_EXPIRED": {
+    "label": "批准已过期",
+    "text": "您的批准在使用前已过期，因此未付款。请查看付款指令并重新批准。"
+  },
+  "ORDER_EXPIRED": {
+    "label": "付款指令已过期",
+    "text": "此付款指令已失效，因此未付款。请让 Kassa 重新准备一份。"
+  },
+  "BAD_SIGNATURE": {
+    "label": "签名未通过验证",
+    "text": "通行密钥签名无法验证，因此未付款。请重新批准。"
+  },
+  "ORDER_HASH_MISMATCH": {
+    "label": "付款指令在签署后被更改",
+    "text": "此付款指令与您签署的不一致，因此未付款。请重新查看。"
+  },
+  "ASSERTION_INVALID": {
+    "label": "通行密钥验证失败",
+    "text": "您的通行密钥响应未被接受，因此未付款。请重试。"
+  },
+  "USER_NOT_VERIFIED": {
+    "label": "通行密钥未验证",
+    "text": "此操作未通过您的通行密钥验证，因此未付款。"
+  },
+  "COUNTER_REGRESSION": {
+    "label": "通行密钥响应已过时",
+    "text": "此通行密钥响应比上一次的更旧，为安全起见已被拒绝。请重试。"
+  },
+  "NO_APPROVAL": {
+    "label": "未找到批准",
+    "text": "Kassa 未找到您对这笔付款的批准，因此未付款。"
+  },
+  "NONCE_USED": {
+    "label": "批准已被使用",
+    "text": "此批准已被使用，不能再次使用。没有重复付款。"
+  },
+  "MANDATE_INACTIVE": {
+    "label": "授权未生效",
+    "text": "此账单的授权尚未生效或已被撤销，因此无法自动付款。"
+  },
+  "PAYMENTS_DAILY_CAP": {
+    "label": "已达每日限额",
+    "text": "您已达到每日付款限额，因此这笔付款要等到明天，或等到您提高限额。"
+  },
+  "QR_PAYEE_MISMATCH": {
+    "label": "二维码姓名不符",
+    "text": "二维码中的姓名与已验证的收款人不一致，因此 Kassa 不允许您付款。"
+  },
+  "CARD_ALREADY_USED": {
+    "label": "卡已使用",
+    "text": "此一次性卡已被使用，无法再次扣款。"
+  },
+  "CARD_EXPIRED": {
+    "label": "卡已过期",
+    "text": "这笔付款所用的卡已过期，因此未扣款。请让 Kassa 重试。"
+  },
+  "MERCHANT_MISMATCH": {
+    "label": "商家不符",
+    "text": "商家与您批准的付款不符，因此未扣款。"
+  },
+  "AMOUNT_OVER_LIMIT": {
+    "label": "金额超出卡限额",
+    "text": "金额超出了此卡允许的范围，因此未扣款。"
+  },
+  "CURRENCY_MISMATCH": {
+    "label": "货币不符",
+    "text": "货币与您批准的付款不符，因此未扣款。"
+  },
+  "RAIL_ERROR": {
+    "label": "支付服务商出现问题",
+    "text": "支付服务商出错或无法连接，因此未确认任何操作。请稍后重试。"
+  },
+  "LOOSEN_PENDING": {
+    "label": "更改等待延迟期结束",
+    "text": "一项放宽规则的更改仍在等待 24 小时延迟期结束。"
+  },
+  "PASSKEY_REQUIRED": {
+    "label": "需要通行密钥",
+    "text": "此更改需要您的通行密钥才能进行。"
+  },
+  "WEBHOOK_SIGNATURE_INVALID": {
+    "label": "更新不可信",
+    "text": "一条付款更新未通过签名检查，因此 Kassa 已忽略。"
+  },
+  "WEBHOOK_REPLAY_WINDOW": {
+    "label": "已忽略过期更新",
+    "text": "一条付款更新到达太晚，无法信任，因此 Kassa 已忽略。"
+  },
+  "WEBHOOK_REPLAYED": {
+    "label": "已忽略重复更新",
+    "text": "一条付款更新被发送了两次，因此 Kassa 忽略了副本。"
+  },
+  "USER_REJECTED": {
+    "label": "您已拒绝",
+    "text": "您拒绝了此付款指令，因此未发出任何款项。"
+  },
+  "AI_CONSENT_REQUIRED": {
+    "label": "需要同意 AI 处理",
+    "text": "Kassa 的助手是 AI。与它聊天前，请在“设置”>“隐私”中同意 AI 处理。"
+  },
+  "PROCESSING_RESTRICTED": {
+    "label": "处理受限",
+    "text": "您限制了对您数据的处理，因此 Kassa 会保留数据但不使用。用通行密钥解冻即可解除限制。"
+  },
+  "ACCOUNT_ERASED": {
+    "label": "账户已删除",
+    "text": "此账户已应您的要求删除，其个人数据已无法读取。"
+  },
+  "UNFREEZE_PENDING": {
+    "label": "解冻待生效",
+    "text": "解冻属于放宽，因此在您用通行密钥确认 24 小时后生效。"
+  },
+  "RATE_LIMITED": {
+    "label": "尝试次数过多",
+    "text": "短时间内请求过多。请等待一分钟后重试。"
+  },
+  "INSUFFICIENT_FUNDS": {
+    "label": "资金不足",
+    "text": "您的所有余额都无法按时支付这笔付款及其手续费，因此未发出任何款项。请先充值或换汇，然后重试。"
+  },
+  "DUPLICATE_OBLIGATION_PAYMENT": {
+    "label": "已在支付中",
+    "text": "本期的此账单已支付或正在等待您的批准，因此第二笔付款被拒绝。"
+  },
+  "FUNDING_SOURCE_UNAVAILABLE": {
+    "label": "账户已不再关联",
+    "text": "您选择用于付款的银行卡或银行账户已不再关联，因此未发出任何款项。"
+  },
+  "FUNDING_PULL_DECLINED": {
+    "label": "已被拒绝",
+    "text": "您关联的银行卡或银行拒绝了这笔付款，因此未发出任何款项。请尝试其他账户或您的 Kassa 钱包。"
+  },
+  "FUNDING_ABOVE_SIGNED_MAX": {
+    "label": "价格已变化",
+    "text": "银行要求的金额超过了您签署的最高金额，因此未发出任何款项。请查看新金额并重新签署。"
+  },
+  "MANDATE_SCOPE_MISMATCH": {
+    "label": "不在您的自动付款范围内",
+    "text": "此收款人在您的某项自动付款授权中，但这笔付款不是您签署授权时对应的账单（或金额不同），因此需要您的通行密钥。"
+  },
+  "SMALL_AUTO_BUDGET_EXHAUSTED": {
+    "label": "今日自动付款额度已用完",
+    "text": "Kassa 今天已自行支付了允许的最多小额款项，因此这笔付款需要您的通行密钥。"
+  },
+  "PIPL_CONSENT_REQUIRED": {
+    "label": "需要跨境处理同意",
+    "text": "您所在的地区为 CN，而 Kassa 的 AI 在中国大陆境外运行。根据《个人信息保护法》（PIPL），此操作需要您单独同意：使用助手前，请在“设置”>“隐私”>“跨境 AI 处理”中给予同意。"
+  },
+  "INVOICE_ABOVE_PO": {
+    "label": "发票金额高于订单",
+    "text": "供应商的发票金额高于您签署的采购订单，因此已被拒绝。请向供应商索取更正后的发票。"
+  },
+  "INVOICE_ACCOUNT_MISMATCH": {
+    "label": "发票账户已更改",
+    "text": "发票要求付款到一个并非该供应商已验证账户的账户，因此已被拒绝。付款前请先打电话向供应商核实。"
+  },
+  "PO_NOT_DELIVERED": {
+    "label": "尚未送达",
+    "text": "此采购订单尚未送达，因此其发票还不能支付。"
+  },
+  "PO_ABOVE_FORECAST": {
+    "label": "高于预测",
+    "text": "此采购订单远大于您的库存预测，因此需要您的通行密钥。"
+  }
+}

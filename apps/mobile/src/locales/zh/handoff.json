@@ -1,0 +1,13 @@
+{
+  "match": "一致",
+  "mismatch": "不一致",
+  "mismatchBody": "二维码中的姓名与已验证的收款人不一致，因此 Kassa 不允许您向其付款。请不要用其他应用扫描它。",
+  "mismatchTitle": "请勿支付此二维码",
+  "nameCheck": "姓名核对",
+  "openWallet": "打开钱包",
+  "qrA11y": "{{name}} 的二维码",
+  "qrPayee": "二维码中的姓名",
+  "scanHint": "用您的银行或钱包应用扫描此码，向已验证的收款人付款。",
+  "title": "自行付款",
+  "verifiedPayee": "已验证的收款人"
+}

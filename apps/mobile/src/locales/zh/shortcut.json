@@ -1,0 +1,66 @@
+{
+  "title": "付款触碰 → Kassa",
+  "settingsHint": "记录 Apple Pay、Google Pay、Samsung Pay、支付宝和微信支付",
+  "intro": "您的手机会把每笔付款发送给 Kassa。Kassa 记录这笔支出，并回复一行信息（剩余预算、手续费或 DCC 提醒），由手机以通知形式显示。",
+  "limits": "店内触碰付款：需要 iOS 17 或更高版本，并在 Apple 钱包中添加银行卡。金额可能是预授权，稍后才结算。它只记录支出：从不批准或阻止付款。离线时的触碰付款不会补发。",
+  "endpointTitle": "接口地址",
+  "endpointFooter": "将其粘贴为“获取 URL 内容”的 URL。",
+  "endpointUnknown": "设置 EXPO_PUBLIC_API_URL 以显示完整地址；路径为您 Kassa 服务器上的 /api/capture/shortcut。",
+  "copyEndpoint": "复制 URL",
+  "tokenTitle": "设备令牌",
+  "tokenFooter": "每台 iPhone 一个令牌。持有令牌的人只能向您的记录中添加支出，不能做其他事。如果令牌泄露，请在下方撤销。",
+  "createToken": "创建令牌",
+  "tokenOnce": "请立即复制：Kassa 只显示一次此令牌。",
+  "copyToken": "复制令牌",
+  "copyHeader": "复制“Bearer …”请求头的值",
+  "done": "我已复制",
+  "copied": "已复制",
+  "stepsTitle": "在 iPhone 上设置",
+  "steps": {
+    "1": "在上方创建令牌并复制请求头的值。",
+    "2": "打开“快捷指令”→“自动化”→“+”→“交易”。选择您的钱包卡片，选择“立即运行”，然后点“下一步”→“新建空白自动化”。",
+    "3": "添加“获取 URL 内容”。URL：上方的接口地址。方法：POST。头部：Authorization = Bearer <token>。请求体：JSON，其中 merchant = 快捷指令输入 › 商家，amount = 快捷指令输入 › 金额，card = 快捷指令输入 › 卡片或票证。",
+    "4": "添加“获取词典值”：获取“URL 的内容”中键 nudge 的值。",
+    "5": "添加“显示通知”，内容为该词典值。",
+    "6": "使用 Apple Pay 付款。片刻后会出现一条 Kassa 信息，这笔支出也会出现在“动态”中。"
+  },
+  "step": "{{n}}. {{text}}",
+  "devicesTitle": "已连接的快捷指令",
+  "devicesEmpty": "尚未连接快捷指令。",
+  "deviceCreated": "创建于 {{date}}",
+  "lastCapture": "最近一次收到触碰付款：{{time}}。",
+  "noCapture": "尚未收到触碰付款。",
+  "revoke": "撤销",
+  "revokeTitle": "撤销此快捷指令令牌？",
+  "revokeBody": "快捷指令会立即停止记录触碰付款。如需重新连接，请创建新令牌。",
+  "revoked": "令牌已撤销",
+  "phone": {
+    "iphone": "iPhone",
+    "android": "Android"
+  },
+  "online": {
+    "title": "网上和应用内的 Apple Pay",
+    "why": "Apple 的“交易”触发器只在支付终端触碰付款时运行。Safari 或应用内的 Apple Pay 不会触发它，因此 Kassa 改为读取银行为每笔银行卡付款发送的短信。中国银行短信（尾号…消费…元）同样适用。",
+    "footer": "只会发送您选择的信息。Kassa 会忽略无法识别为付款的短信。",
+    "steps": {
+      "1": "打开“快捷指令”→“自动化”→“+”→“信息”。“信息包含”：填写银行每条付款短信中都有的一个词，或选择您的银行作为“发件人”。选择“立即运行”。",
+      "2": "添加“获取 URL 内容”，URL、方法和 Authorization 头与上文相同。请求体：JSON，其中 text = 快捷指令输入 › 内容，app = 快捷指令输入 › 发件人。",
+      "3": "与上文一样，添加用于 nudge 的“获取词典值”，然后添加“显示通知”。",
+      "4": "使用 Apple Pay 在网上付款。银行短信到达后，这笔支出会出现在“动态”中。"
+    }
+  },
+  "android": {
+    "title": "在 Android 上设置",
+    "limits": "适用于 Google 钱包、Samsung Wallet、支付宝、微信支付和您的银行应用：任何在付款时显示通知的应用，无论是店内、网上还是应用内。它只记录支出：从不批准或阻止付款。",
+    "footer": "Android 允许自动化应用读取通知；iOS 不允许，所以 iPhone 改用快捷指令。",
+    "copyBody": "复制 JSON 请求体",
+    "steps": {
+      "1": "在上方创建令牌并复制请求头的值。",
+      "2": "安装 MacroDroid 或 Tasker 等自动化应用。新建宏 → 触发器“收到通知”→ 选择 Google 钱包、Samsung Wallet、支付宝、微信和您的银行应用。",
+      "3": "当 Android 询问时，允许该应用访问通知。",
+      "4": "操作“HTTP 请求”：POST 到上方的接口地址，请求头 Authorization = Bearer <token>，内容类型 application/json，请求体如下。",
+      "5": "可选：保存响应，并将其中的 nudge 字段显示为通知。",
+      "6": "用手机付款。片刻后，这笔支出会出现在“动态”中。"
+    }
+  }
+}

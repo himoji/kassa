@@ -1,0 +1,90 @@
+{
+  "cheapest": "最便宜",
+  "consent": {
+    "aiTitle": "同意 AI 处理",
+    "aiBody": "Kassa 的助手是 AI。它看到的聊天内容中，姓名和账号都已替换为占位符，而且它只能起草付款。",
+    "piplTitle": "跨境 AI 处理（PIPL）",
+    "piplBody": "您所在的地区为 CN，而 Kassa 的 AI 在中国大陆境外运行。根据《个人信息保护法》（PIPL，第 38–39 条），此次跨境传输需要您单独同意。您可以随时撤回同意。",
+    "agree": "我同意",
+    "failed": "Kassa 无法保存您的同意，请重试。"
+  },
+  "emptyBody": "可以让我发起付款、检查预算或记一笔账。Kassa 起草，您用通行密钥批准。",
+  "emptyBodyLite": "可以问钱花在哪里、本周还剩多少，或记录一笔现金消费。付款请在网页版中批准。",
+  "emptyTitle": "您需要支付或规划什么？",
+  "error": "Kassa 暂时无法回复。",
+  "inputA11y": "消息",
+  "newConversation": "新对话",
+  "placeholder": "问问 Kassa",
+  "preparing": {
+    "budgetImpact": "正在准备预算检查…",
+    "proposal": "正在准备付款建议…",
+    "routes": "正在准备付款路线…",
+    "choices": "正在准备选项…"
+  },
+  "replay": "回放",
+  "reviewAndSign": "查看并签署",
+  "routeCost": "费用 {{cost}}（加价 {{markup}}），{{arrival}} 到账",
+  "routeLabel": "从{{from}}通过 {{rail}} 付款",
+  "routeSavings": "比最差路线节省 {{amount}}",
+  "routesTitle": "{{amount}} 的付款路线",
+  "send": "发送",
+  "stop": "停止",
+  "suggest": {
+    "week": "我这周花了多少？",
+    "where": "这个月我的钱花在哪里了？",
+    "tuition": "支付我的学费",
+    "budget": "这周我在餐饮上还能花多少？",
+    "log": "记一笔咖啡，1,200 HUF"
+  },
+  "tab": "聊天",
+  "thinking": "Kassa 正在思考",
+  "title": "聊天",
+  "working": "正在处理",
+  "choice": {
+    "allowOther": "或在下方输入您自己的回答。",
+    "other": "其他…",
+    "otherPlaceholder": "输入您的回答",
+    "searchCurrency": "搜索任意货币（代码、名称或国家）",
+    "confirm": "确认",
+    "answered": "已回答：{{label}}",
+    "amountA11y": "金额",
+    "dayMinus": "-1 天",
+    "dayPlus": "+1 天",
+    "weekMinus": "-7 天",
+    "weekPlus": "+7 天",
+    "total": "每月合计",
+    "confirmAll": "确定设置"
+  },
+  "loadingHistory": "正在加载您的对话",
+  "budgets": {
+    "applied": "预算已更新",
+    "failed": "预算未更新"
+  },
+  "history": {
+    "title": "聊天记录",
+    "open": "全部聊天",
+    "untitled": "未命名聊天",
+    "messages_other": "{{count}} 条消息",
+    "current": "当前打开",
+    "search": "搜索聊天",
+    "noMatch": "没有与“{{query}}”匹配的聊天",
+    "emptyTitle": "暂无聊天",
+    "emptyBody": "可以向 Kassa 询问账单、预算或某笔消费。所有聊天都保存在这里。",
+    "bucket": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "week": "过去 7 天",
+      "month": "过去 30 天",
+      "older": "更早"
+    },
+    "rename": "重命名",
+    "renameLabel": "聊天名称",
+    "renameA11y": "重命名 {{title}}",
+    "delete": "删除",
+    "deleteA11y": "删除 {{title}}",
+    "actions": "{{title}} 的更多操作",
+    "deleteTitle": "删除此聊天？",
+    "deleteBody": "“{{title}}”及其全部内容将从 Kassa 中删除。由它产生的付款会保留各自的记录。",
+    "deleted": "聊天已删除"
+  }
+}
