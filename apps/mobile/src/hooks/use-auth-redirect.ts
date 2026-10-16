@@ -16,7 +16,7 @@ import { bootstrapSession } from "@/api/session";
 import { clearReturnPathIfAt, peekReturnPath, rememberReturnPath } from "@/lib/return-path";
 import { useSessionStore } from "@/stores/session";
 
-const PUBLIC_ROOTS = new Set(["(auth)", "verify"]);
+const PUBLIC_ROOTS = new Set(["(auth)", "verify", "evidence"]);
 const PERSONAL_TABS = new Set(["home", "activity", "cards"]);
 const BUSINESS_TABS = new Set(["today", "stock", "orders"]);
 
