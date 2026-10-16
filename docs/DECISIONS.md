@@ -817,3 +817,8 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   key's first hit, as in the plugin's in-memory store, so limits behave exactly as before and a burst cannot get twice
   the budget across a boundary. If the database call fails, that hit is counted in memory (per instance, the old
   behaviour) rather than refused or let through. Cost: one write per request.
+- **R14, logout revokes the cookie.** `POST /auth/logout` used to clear the web cookie only, so a copy of it stayed
+  valid for its 7 days. Logout now records the cookie's jti in `revoked_tokens` (kind `session`, kept until the
+  cookie's `exp`, wall time), and the session check (`authenticateSession`, used by `requireUser` and `authenticate`)
+  refuses a revoked or jti-less cookie. Cost: one indexed read per cookie-authenticated request. Native access tokens
+  (15 minutes) are still not revoked on logout; their refresh token is.

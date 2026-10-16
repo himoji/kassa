@@ -34,7 +34,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/auth/recovery/options": "lost passkey: a single-use backup code (auth/recovery.ts) instead of a session",
   "POST /api/auth/recovery/verify": "lost passkey: new-passkey registration bound to the backup code's single-use challenge",
   "POST /api/auth/refresh": "authenticated by the rotating refresh token in the body (RFC 9700)",
-  "POST /api/auth/logout": "only clears the cookie / revokes the presented refresh token",
+  "POST /api/auth/logout": "only revokes the presented session cookie / refresh token (if it verifies) and clears the cookie",
   "GET /api/auth/demo": "whether the welcome screen offers the demo account / dev sign-in (flags only, no personal data)",
   "POST /api/auth/dev/login": "dev sign-in: not registered in production; DEMO_ENABLED + DEV_LOGIN + a localhost / tunnel RP_ID (auth/dev.ts)",
   "POST /api/auth/pair/complete": "single-use 8-character pairing code, 2-minute TTL, created behind a passkey assertion (auth/pair.ts)",
