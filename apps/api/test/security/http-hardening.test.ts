@@ -6,6 +6,8 @@
 import type { FastifyInstance } from "fastify";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { getDb } from "../../src/db/client.ts";
+import { rateLimitCounters } from "../../src/db/schema.ts";
 import { resetEnvCache, setEnvForTests, env } from "../../src/env.ts";
 import { PUBLIC_ROUTES, registeredRoutes } from "../../src/http/security.ts";
 import { mintAccessTokenForTests, mintSessionCookieForTests, SESSION_COOKIE } from "../../src/modules/auth/session.ts";
@@ -211,6 +213,8 @@ describe("rate limits", () => {
   let app: FastifyInstance;
   beforeAll(async () => {
     setEnvForTests({ RATE_LIMIT_AUTH_PER_MIN: "3", RATE_LIMIT_SENSITIVE_PER_MIN: "2", RATE_LIMIT_GLOBAL_PER_MIN: "50" });
+    // Counters are in Postgres and shared by every server on the database (R13): start from none.
+    await getDb().delete(rateLimitCounters);
     app = await buildServer({ logger: false });
     await app.ready();
   });

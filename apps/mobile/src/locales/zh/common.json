@@ -1,0 +1,83 @@
+{
+  "approxHome": "约 {{amount}}",
+  "cancel": "取消",
+  "category": {
+    "groceries": "日用杂货",
+    "eating_out": "外出就餐",
+    "transport": "交通",
+    "rent": "房租",
+    "tuition": "学费",
+    "insurance": "保险",
+    "utilities": "水电煤",
+    "shopping": "购物",
+    "health": "健康",
+    "other": "其他",
+    "fun": "娱乐休闲",
+    "subscriptions": "订阅",
+    "travel": "旅行",
+    "phone": "话费",
+    "sport": "运动",
+    "beauty": "美容",
+    "gifts": "礼物",
+    "pets": "宠物",
+    "wages": "工资",
+    "transfers": "转账",
+    "fees": "手续费",
+    "cash": "现金",
+    "entertainment": "文娱",
+    "books": "图书"
+  },
+  "close": "关闭",
+  "countdown": {
+    "due": "现已到期",
+    "dh": "{{days}} 天 {{hours}} 小时",
+    "hm": "{{hours}} 小时 {{minutes}} 分钟",
+    "m": "{{minutes}} 分钟"
+  },
+  "decision": {
+    "AUTO": "已自动批准",
+    "ASK": "需要您的通行密钥",
+    "HANDOFF": "请您自行付款",
+    "REFUSE": "已拒绝"
+  },
+  "devPasskey": "开发",
+  "devPasskeyLabel": "跳过通行密钥（开发版本）：改由服务器的开发密钥签署",
+  "errors": {
+    "conflict": "您查看期间内容已发生变化。请刷新后重试。",
+    "contract": "Kassa 收到了意外的响应。请更新应用后重试。",
+    "loadTitle": "无法加载",
+    "network": "无网络连接。请检查网络后重试。",
+    "notFound": "此内容已不存在。",
+    "passkeyBiometrics": "通行密钥需要本设备已设置面容 ID 或触控 ID。请在“设置”中开启后重试。",
+    "passkeyCancelled": "通行密钥批准已取消，未签署任何内容。",
+    "passkeyDomain": "通行密钥需要应用的域名。请使用网页演示版，或使用为 API 域名配置了关联域的开发版本。",
+    "passkeyUnsupported": "此设备无法使用通行密钥批准。",
+    "request": "请求未成功，请重试。",
+    "server": "Kassa 遇到问题，请稍后重试。",
+    "serverOutdated": "您的 Kassa 服务器版本比此应用旧，尚不支持此功能。请重新部署服务器，然后下拉刷新。",
+    "signedOut": "您的会话已结束，请重新登录。",
+    "unknown": "出了点问题，请重试。"
+  },
+  "proposalStatus": {
+    "PENDING_APPROVAL": "等待您的通行密钥",
+    "APPROVED": "已批准",
+    "REJECTED": "已拒绝",
+    "REFUSED": "被规则拒绝",
+    "HANDOFF": "请您自行付款",
+    "EXECUTED": "已付款",
+    "EXPIRED": "已过期",
+    "FAILED": "失败"
+  },
+  "rail": {
+    "CARD_ISSUING": "一次性卡",
+    "BANK_TRANSFER": "银行转账",
+    "HANDOFF": "转交（您自行付款）",
+    "PAY_IN_PLACE": "现场付款"
+  },
+  "retry": "重试",
+  "simulated": "模拟",
+  "choose": "选择",
+  "search": "搜索",
+  "searchIn": "搜索{{label}}",
+  "noMatches": "没有匹配项。"
+}

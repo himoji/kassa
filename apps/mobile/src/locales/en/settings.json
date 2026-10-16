@@ -147,6 +147,8 @@
     "dark": "Dark"
   },
   "themeLabel": "Theme",
+  "languageLabel": "Language",
+  "languageSystem": "Device language",
   "title": "Settings",
   "backupCodes": {
     "title": "Backup codes",

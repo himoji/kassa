@@ -1,0 +1,239 @@
+{
+  "advancedFooter": "覆盖设置会替换预设中的对应设置。放宽任何一项都需要您的通行密钥，并在 24 小时后生效。",
+  "advancedTitle": "高级",
+  "agentAutonomy": {
+    "ON_REQUEST": "仅在我要求时",
+    "PLAN_AHEAD": "提前规划",
+    "PLAN_AND_ACT": "规划并执行"
+  },
+  "agentAutonomyLabel": "助手自主程度",
+  "appearanceTitle": "外观",
+  "appliedToast": "设置已应用",
+  "caps": {
+    "perPaymentMinor": "每笔付款",
+    "perDayMinor": "每天",
+    "perMonthMinor": "每月",
+    "smallAutoMinor": "自动付款限额",
+    "reserveMinor": "保留储备金"
+  },
+  "capsFooter": "降低限额会立即生效。提高限额需要您的通行密钥，之后也会立即生效。",
+  "capsTitle": "限额",
+  "currencyOption": "{{code}} · {{name}}",
+  "customise": "自定义",
+  "customiseHint": "单独覆盖各项设置，而不是跟随预设。",
+  "derivedChange": "{{setting}}：{{from}} → {{to}}",
+  "derivedSetting": {
+    "agentAutonomy": "助手",
+    "paymentPolicy": "付款",
+    "moneyMode": "资金模式"
+  },
+  "derivedToast": "此预设还更改了：{{changes}}。",
+  "direction": {
+    "LOOSEN": "放宽",
+    "TIGHTEN": "收紧"
+  },
+  "editCaps": "编辑限额",
+  "effectiveAt": "{{time}} 生效",
+  "effectiveIn": "{{remaining}} 后生效",
+  "effectiveNow": "当前：{{agent}}，{{payments}}，{{mode}}",
+  "followPreset": "跟随预设（{{value}}）",
+  "homeCurrencyLabel": "本国货币",
+  "mandates": {
+    "category": "类别",
+    "created": "授权已创建",
+    "empty": "暂无授权。",
+    "footer": "授权让限额内的账单自动付款。",
+    "hash": "指纹 {{hash}}",
+    "invalidAmount": "请输入大于零的金额。每笔付款金额不能超过每周期金额。",
+    "new": "新建授权",
+    "newBody": "选择一位已验证的收款人并设置限额。创建授权需要您的通行密钥，并在 24 小时后生效。",
+    "newTitle": "新建授权",
+    "noVerifiedPayees": "请先添加并验证收款人。",
+    "payee": "收款人",
+    "perPayment": "每笔最多（{{currency}}）",
+    "perPeriod": "每周期最多（{{currency}}）",
+    "period": {
+      "WEEK": "周",
+      "MONTH": "月"
+    },
+    "periodLabel": "周期",
+    "revoke": "撤销",
+    "revokeBody": "撤销后，此授权下的自动付款会立即停止。",
+    "revokeTitle": "撤销授权？",
+    "revoked": "授权已撤销",
+    "scope": "{{categories}}：每笔最多 {{perPayment}}，每{{period}}最多 {{perPeriod}}",
+    "signCreate": "用通行密钥签署",
+    "status": {
+      "ACTIVE": "生效中",
+      "PENDING_EFFECTIVE": "待生效",
+      "REVOKED": "已撤销"
+    },
+    "title": "授权",
+    "unknownPayee": "未知收款人",
+    "used": "本周期已用：{{amount}}"
+  },
+  "moneyMode": {
+    "PAY_IN_PLACE": "现场付款",
+    "CAPPED_WALLET": "有上限的钱包",
+    "HANDOFF": "转交（您自行付款）"
+  },
+  "moneyModeLabel": "资金模式",
+  "moreTitle": "更多",
+  "notificationMode": {
+    "EACH": "每笔付款",
+    "THRESHOLDS": "超过阈值时",
+    "DIGEST": "每日摘要"
+  },
+  "notificationModeLabel": "通知",
+  "paymentPolicy": {
+    "ALWAYS_ASK": "始终询问",
+    "RISK_BASED": "有风险时询问",
+    "NEVER_ASK": "限额内从不询问"
+  },
+  "paymentPolicyLabel": "付款批准",
+  "paymentsFooter": "资金模式和付款批准决定付款的方式。",
+  "paymentsTitle": "付款",
+  "pendingFooter": "正在等待 24 小时延迟期结束的更改。",
+  "pendingTitle": "待生效的更改",
+  "pendingToastBody": "此更改会放宽规则，将在 24 小时后生效。",
+  "pendingToastTitle": "已申请更改",
+  "preset": {
+    "ASK_ME": {
+      "title": "询问我",
+      "body": "每笔付款都需要您的通行密钥。"
+    },
+    "SMART": {
+      "title": "智能",
+      "body": "向已验证收款人的小额安全付款自动进行，有风险的付款会询问您。"
+    },
+    "AUTOPILOT": {
+      "title": "自动驾驶",
+      "body": "您签署的授权范围内的账单会自动付款。"
+    }
+  },
+  "presetAlsoChanges": "选择此项还会更改：{{changes}}。",
+  "presetDefaults": "助手：{{agent}}。付款：{{payments}}。资金：{{mode}}。",
+  "presetTitle": "预设",
+  "region": {
+    "EU": "欧洲",
+    "CN": "中国（仅限转交）"
+  },
+  "regionLabel": "地区",
+  "ruleKind": {
+    "PRESET": "预设",
+    "MONEY_MODE": "资金模式",
+    "REGION": "地区",
+    "HOME_CURRENCY": "本国货币",
+    "NOTIFICATION_MODE": "通知",
+    "CAPS": "限额",
+    "CAP_PER_PAYMENT": "单笔限额",
+    "CAP_PER_DAY": "每日限额",
+    "CAP_PER_MONTH": "每月限额",
+    "SMALL_AUTO": "自动付款限额",
+    "RESERVE": "保留储备金",
+    "OVERRIDES": "覆盖设置",
+    "MANDATE": "授权",
+    "PAYEE": "收款人",
+    "OTHER": "其他更改"
+  },
+  "saveCaps": "保存限额",
+  "selected": "已选择",
+  "signOut": "退出登录",
+  "signOutTitle": "退出 Kassa？",
+  "tab": "设置",
+  "theme": {
+    "system": "跟随系统",
+    "light": "浅色",
+    "dark": "深色"
+  },
+  "themeLabel": "主题",
+  "languageLabel": "语言",
+  "languageSystem": "设备语言",
+  "title": "设置",
+  "backupCodes": {
+    "title": "备用代码",
+    "footer": "如果您丢失了所有存有通行密钥的设备，可以用备用代码设置新的通行密钥。每个代码只能使用一次。请妥善保存，例如存放在密码管理器中或写在纸上。",
+    "status": "剩余 {{remaining}} 个，共 {{total}} 个",
+    "none": "暂无备用代码",
+    "create": "创建备用代码",
+    "regenerate": "创建新代码（旧代码将失效）",
+    "shownOnce": "请立即保存。这些代码不会再次显示。",
+    "copyAll": "复制所有代码",
+    "copied": "备用代码已复制",
+    "done": "我已保存",
+    "savedConfirm": "我已将这些代码保存在安全的地方",
+    "requiredTitle": "保存您的备用代码",
+    "requiredBody": "必须设置备用代码。如果您丢失了存有通行密钥的设备，代码是重新进入账户的唯一方式。请立即创建并妥善保管。"
+  },
+  "data": {
+    "title": "导入和导出",
+    "rowHint": "银行对账单（PDF、CSV、Excel），以及 JSON 格式的数据",
+    "exportTitle": "导出",
+    "exportFooter": "将您的银行卡、预算、账单、收入和支出导出为 JSON 文件，可以保存或再次导入。",
+    "export": "导出为 JSON",
+    "importTitle": "导入",
+    "importFooter": "PDF、CSV 或 Excel 格式的银行对账单（可同时导入多家银行），或来自 Kassa 或其他理财应用的 JSON。账号和卡号从不保存，Kassa 会在任何更改之前向您展示将要添加的内容。",
+    "chooseFile": "选择对账单",
+    "paste": "从剪贴板粘贴",
+    "placeholder": "…或在此粘贴 JSON 或 CSV",
+    "check": "检查文件",
+    "fromKassa": "这是 Kassa 导出文件：所有内容都会被准确读取。",
+    "fromOther": "Kassa 理解的内容如下：",
+    "mapping": "{{path}}：{{kind}}，{{rows}} 行中导入 {{imported}} 行（{{fields}}）",
+    "kind": {
+      "transactions": "支出",
+      "bills": "账单",
+      "cards": "银行卡",
+      "budgets": "预算"
+    },
+    "section": {
+      "transactions": "支出（{{count}}）",
+      "transfers": "给个人的转账（{{count}}）",
+      "bills": "作为账单的定期付款（{{count}}）",
+      "cards": "银行卡（{{count}}）",
+      "budgets": "根据支出生成的预算（{{count}}）",
+      "incomes": "每月收入（{{count}}）"
+    },
+    "budgetsNote": "提高预算需要您的通行密钥。",
+    "import": "导入",
+    "doneTitle": "已导入",
+    "done": "支出：新增 {{imported}} 笔，已存在 {{duplicates}} 笔，无法读取 {{failed}} 笔。账单：{{bills}}。银行卡：{{cards}}。收入：{{incomes}}。预算：{{budgets}}。新账单的收款人需要添加账户信息后，Kassa 才能付款。",
+    "chooseFileUnavailable": "此版本的应用还无法打开文件。请更新应用，或从网页版导入。",
+    "reading": "正在读取您的对账单…",
+    "file": "{{name}}：{{bank}}，{{rows}} 行（{{via}}）",
+    "format": {
+      "pdf": "PDF",
+      "xlsx": "Excel",
+      "csv": "CSV",
+      "json": "JSON",
+      "ofx": "OFX",
+      "text": "文本"
+    },
+    "via": {
+      "kassa": "Kassa 导出文件",
+      "records": "列已匹配",
+      "table": "对账单表格",
+      "lines": "对账单行",
+      "ai": "由 AI 读取，每一行都已与对账单核对",
+      "none": "未读取"
+    },
+    "billsNote": "从对账单添加的收款人还没有账户信息：在您添加信息之前，Kassa 无法向其付款。",
+    "learned": {
+      "title": "Kassa 了解到的情况",
+      "period": "{{rows}} 笔交易，{{from}} – {{to}}",
+      "spending": "您每月大约支出 {{amount}}。最多的是：{{top}}。",
+      "income": "来自{{source}}的收入：每月约 {{amount}}",
+      "recurring": "定期：{{name}}，{{amount}}（下次 {{next}}）",
+      "fees": "手续费和货币转换费用：{{amount}}",
+      "feesFx": "手续费和货币转换费用：{{amount}}；您的卡在境外的收费比中间价高约 {{pct}}",
+      "own": "已排除 {{count}} 笔您本人账户之间的转账"
+    },
+    "importing": "正在导入您的记录：{{count}} 笔交易中已完成 {{done}} 笔…"
+  },
+  "budgets": {
+    "title": "预算",
+    "footer": "本月每个类别的限额。降低限额或添加预算会立即生效；提高限额需要您的通行密钥。",
+    "save": "保存预算",
+    "edit": "更改限额"
+  }
+}

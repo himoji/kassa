@@ -1,0 +1,89 @@
+{
+  "title": "洞察",
+  "tab": "洞察",
+  "month": {
+    "spentLabel": "{{month}}支出",
+    "purchases_other": "{{count}} 笔消费",
+    "daysLeft_other": "还剩 {{count}} 天",
+    "vsLastMonthMore": "比上月同期多 {{amount}}",
+    "vsLastMonthLess": "比上月同期少 {{amount}}",
+    "vsLastMonthSame": "与上月同期大致相同",
+    "projected": "按近期速度，到 {{date}} 约为 {{amount}}",
+    "perDay": "每天 {{amount}}",
+    "usual": "通常一个月：{{amount}}",
+    "incomeUsed": "目前已用月收入的 {{pct}}%",
+    "open": "查看洞察",
+    "a11y": "本月 {{count}} 笔消费，共花费 {{amount}}"
+  },
+  "daily": {
+    "title": "每日支出",
+    "caption": "点按某一天查看当天的支出。",
+    "selected": "{{date}}：{{amount}}",
+    "peak": "支出最多的一天：{{date}}，{{amount}}",
+    "a11y": "{{date}}，{{amount}}"
+  },
+  "categories": {
+    "title": "钱花在哪里",
+    "other": "其他所有",
+    "share": "{{pct}}%",
+    "usual": "通常 {{amount}}",
+    "noBudget": "无预算",
+    "left": "剩余 {{amount}}，共 {{limit}}",
+    "over": "超出 {{limit}} 达 {{amount}}",
+    "outsideBudgets": "本月预算外支出：{{amount}}",
+    "a11y": "{{category}}：{{amount}}，占本月的 {{pct}}%"
+  },
+  "merchants": {
+    "title": "您花钱最多的地方",
+    "row_other": "{{count}} 次"
+  },
+  "highlights": {
+    "title": "值得了解",
+    "overBudget": "{{category}}已超出预算 {{amount}}。",
+    "fastBudget": "{{category}}花得比月份进度快：还剩 {{amount}}，要用 {{days}} 天。",
+    "aboveUsual": "{{category}}已比通常一个月多出 {{amount}}。",
+    "bigShare": "{{category}}占您本月全部支出的 {{pct}}%。",
+    "quietMonth": "您本月的支出比平时少，很好。",
+    "projectedOverIncome": "按此速度，本月支出将超过您的收入。"
+  },
+  "empty": {
+    "title": "本月尚无支出",
+    "body": "使用 Apple Pay 付款或在聊天中记一笔消费，本月数据就会显示在这里。"
+  },
+  "detail": {
+    "title": "消费",
+    "when": "时间",
+    "where": "地点",
+    "kind": "场所",
+    "card": "银行卡",
+    "cardValue": "{{label}} ·· {{last4}}",
+    "via": "付款方式",
+    "source": "记录来源",
+    "status": "状态",
+    "home": "折合 {{currency}}",
+    "rate": "{{date}} 汇率 {{rate}}",
+    "fee": "隐藏的银行卡手续费",
+    "statementName": "对账单名称",
+    "category": "类别",
+    "changeCategory": "更改类别",
+    "categoryChanged": "类别已更改。Kassa 会为{{merchant}}记住这个类别。",
+    "uncategorised": "无类别",
+    "monthTitle": "本月{{category}}",
+    "monthSpent_other": "{{count}} 笔消费，共 {{amount}}",
+    "monthShare": "占您本月全部支出的 {{pct}}%",
+    "monthUsual": "通常一个月：{{amount}}",
+    "budgetLeft": "剩余 {{amount}}，共 {{limit}} · 还有 {{days}} 天",
+    "budgetOver": "超出 {{limit}} 预算 {{amount}}",
+    "noBudget": "此类别没有预算。",
+    "historyTitle": "在{{merchant}}",
+    "historyVisits_other": "在此消费 {{count}} 次，共 {{total}}",
+    "historyAverage": "通常每次 {{amount}}",
+    "historySince": "自 {{date}} 起",
+    "earlier": "之前的消费",
+    "openMap": "在地图中打开",
+    "copyId": "复制参考号",
+    "copied": "参考号已复制",
+    "share": "分享",
+    "shareText": "{{merchant}}：{{date}} {{amount}}"
+  }
+}

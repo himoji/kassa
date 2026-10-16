@@ -26,6 +26,16 @@ Optional if time allows: a real Apple Pay tap logged through KassaLite ([KASSALI
 
 If Dana's onboarding was already done on this database, press "Reset demo" first. To show the mandate without onboarding, sign it from the landlord's payee screen.
 
+## Recording the video automatically
+
+`DEMO_ADMIN_TOKEN=… bun run demo:video -- --app <web app URL> --api <API URL>/api` records the five beats as one take
+(`scripts/demo-video/record.ts`): it resets the demo, uploads two fictitious statements (`scripts/demo-video/statements.ts`),
+talks to the onboarding agent, signs the rules, the rent mandate and the backup codes with real passkeys (Chromium's
+virtual authenticator), jumps to rent day, and shows the attack evidence page and the credit record, with captions on
+screen. Output: `kassa-demo.mp4` (with ffmpeg on PATH), `kassa-demo.webm` and `chapters.txt` (timestamps per beat).
+Record with a model key so beat 1 is the live agent: without one the chat answers from the recorded replay, which does
+not know the uploaded statements yet. Add the voiceover over the captions afterwards.
+
 ## Setup (before the pitch)
 
 1. Stack running with `DEMO_ENABLED=true` on both services, and the same `DEMO_ADMIN_TOKEN` and `MOCK_HMAC_SECRET` (`bun run env:setup`).

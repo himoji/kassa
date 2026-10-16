@@ -72,7 +72,7 @@
     "categoryChanged": "Category changed. Kassa will remember it for {{merchant}}.",
     "uncategorised": "No category",
     "monthTitle": "{{category}} this month",
-    "monthSpent": "{{amount}} in {{count}} purchases",
+    "monthSpent_other": "{{amount}} in {{count}} purchases",
     "monthSpent_one": "{{amount}} in {{count}} purchase",
     "monthShare": "{{pct}}% of all your spending this month",
     "monthUsual": "A usual month: {{amount}}",
