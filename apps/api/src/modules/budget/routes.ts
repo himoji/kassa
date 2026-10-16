@@ -25,7 +25,7 @@ import { listBudgets } from "./service.ts";
 import { setBudgets } from "./set.ts";
 
 /**
- * B-owned money endpoints (PHASE1_COORDINATION): GET /budgets, PUT /budgets (set.ts), POST /plan/advice (plan.ts), GET /forecast, GET /cards/fees,
+ * Money endpoints: GET /budgets, PUT /budgets (set.ts), POST /plan/advice (plan.ts), GET /forecast, GET /cards/fees,
  * and the read-only views in insights.ts: GET /insights/spending, GET /transactions/:id.
  */
 const routes: FastifyPluginAsyncZod = async (app) => {

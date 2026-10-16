@@ -10,8 +10,7 @@ import type { Clock, FetchLike } from "../clock.ts";
  *   card, amount, currency, merchant_data[...], per docs.stripe.com/api/issuing/authorizations/
  *   test_mode_create). Stripe then calls the API's issuing_authorization.request webhook, which
  *   approves or declines; the response's `approved` carries that decision.
- * - fake: POST {API_URL}/api/rails/fake-issuing/authorize, HMAC-signed like the mock webhooks
- *   (contract in PHASE1_COORDINATION.md "Contract changes"). Same decision logic, local cards.
+ * - fake: POST {API_URL}/api/rails/fake-issuing/authorize, HMAC-signed like the mock webhooks Same decision logic, local cards.
  * Both fail closed: if the issuer cannot be reached, the charge is declined.
  */
 

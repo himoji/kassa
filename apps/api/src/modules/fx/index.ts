@@ -14,7 +14,7 @@ import { rates } from "./rates.ts";
 import { directRoute, getRoutes as rankRoutes, type RankedRoute } from "./routes.ts";
 
 /*
- * Public fx API (PHASE1_COORDINATION "B exports from src/modules/fx/index.ts").
+ * Public fx API.
  */
 
 export { RatesService, rates, setRatesService, type RateQuote, type RateSource } from "./rates.ts";

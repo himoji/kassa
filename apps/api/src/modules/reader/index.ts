@@ -11,7 +11,7 @@ import { readUntrusted as readCore, type ReadOptions } from "./reader.ts";
 import type { ReaderResult } from "./schemas.ts";
 
 /*
- * Reader public API (PHASE1_COORDINATION): readDocument(docId), readUntrusted(kind, source).
+ * Reader public API: readDocument(docId), readUntrusted(kind, source).
  * The Reader is the only path for untrusted text (I10). LIVE/REPLAY/RECORD follow the agent mode.
  */
 
