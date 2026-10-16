@@ -18,7 +18,7 @@ const short = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleString("en",
 export function incomeLine(i: ImportHistory["incomes"][number]): string {
   const m = (x: number) => money(x, i.amount.currency);
   const parts: string[] = [];
-  if (i.regularity === "regular") parts.push(`${i.source}: about ${m(i.amount.amountMinor)} every month (${i.monthsReceived} of ${i.monthsCovered} months)`);
+  if (i.regularity === "regular") parts.push(`${i.source}: about ${m(i.amount.amountMinor)} a month (came in ${i.monthsReceived} of ${i.monthsCovered} months)`);
   else if (i.regularity === "irregular" && i.stopped)
     parts.push(`${i.source}: came in ${i.monthsReceived} of ${i.monthsCovered} months (${m(i.minMonthlyMinor)}–${m(i.maxMonthlyMinor)}) but nothing since ${day(i.lastDate)}, so not planned`);
   else if (i.regularity === "irregular")
@@ -47,7 +47,7 @@ export function historyLines(h: ImportHistory): string[] {
   const oneOffTotal = h.oneOffs.reduce((a, o) => a + o.homeMinor, 0);
   const everyday = Math.max(0, Math.round(h.monthlySpendingHomeMinor - oneOffTotal / Math.max(h.months, 1)));
   const top = h.spendingByCategory.filter((c) => !["transfers", "other"].includes(c.category) && c.monthlyHomeMinor > 0).sort((a, b) => b.monthlyHomeMinor - a.monthlyHomeMinor).slice(0, 4);
-  lines.push(`Everyday spending: about ${home(everyday)} a month without transfers and one-off payments. Biggest: ${top.map((c) => `${CATEGORY_LABEL(c.category)} ${home(c.monthlyHomeMinor)}`).join(", ") || "none"}.`);
+  lines.push(`Spending: about ${home(everyday)} a month with bills, without transfers and one-off payments. Biggest: ${top.map((c) => `${CATEGORY_LABEL(c.category)} ${home(c.monthlyHomeMinor)}`).join(", ") || "none"}.`);
   const t = h.spendingTrend;
   if (t && t.earlierMonthlyHomeMinor > 0 && Math.abs(t.recentMonthlyHomeMinor - t.earlierMonthlyHomeMinor) > t.earlierMonthlyHomeMinor * 0.2)
     lines.push(`${t.recentMonthlyHomeMinor > t.earlierMonthlyHomeMinor ? "Spending has risen" : "Spending has fallen"}: ${home(t.recentMonthlyHomeMinor)} a month in the last 3 months, ${home(t.earlierMonthlyHomeMinor)} before.`);

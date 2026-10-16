@@ -178,9 +178,16 @@ export async function buildHistory(
   const everydayTotal = spending.filter((r) => r.kind !== "TRANSFER_OUT").reduce((a, r) => a + spendingHome.get(r)!, 0);
   const typicalMonth = perMonth(everydayTotal);
   const medianPurchase = median(purchases.map((r) => spendingHome.get(r)!));
+  // A payment to the same party in 3+ different months (rent, a subscription) is regular, never a one-off.
+  const partyMonths = new Map<string, Set<string>>();
+  for (const r of spending) {
+    const k = partyKey(r.description);
+    partyMonths.set(k, (partyMonths.get(k) ?? new Set()).add(r.occurredAt.slice(0, 7)));
+  }
+  const repeats = (r: StatementRow) => (partyMonths.get(partyKey(r.description))?.size ?? 0) >= 3;
   const oneOffRows = new Set(
     purchases
-      .filter((r) => spendingHome.get(r)! >= Math.max(typicalMonth * 0.25, medianPurchase * 8))
+      .filter((r) => !repeats(r) && spendingHome.get(r)! >= Math.max(typicalMonth * 0.25, medianPurchase * 8))
       .sort((a, b) => spendingHome.get(b)! - spendingHome.get(a)!)
       .slice(0, 8),
   );
