@@ -781,7 +781,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - **Problem:** spec §15 puts the whole app on the demo clock (real now + `demo_state.clockOffsetMs`), and the seed sets
   it to story time (2026-10-27). A deployment that loads the demo data showed that date to everyone, and a reviewer
   using the app normally saw due dates and cooling periods 11 days off.
-- **Choice:** `demo_state.clock_mode` (migration 0016): `REAL` (the default) is the system clock, `DEMO` adds the stored
+- **Choice:** `demo_state.clock_mode` (migration 0018): `REAL` (the default) is the system clock, `DEMO` adds the stored
   offset. The offset is kept while `REAL`, so switching back resumes the story time. Deployments seed with `REAL`
   (`api/index.ts`); `bun run seed`, the tests and the Stage reset keep the mode the script needs (`DEMO` for the seed
   and tests, the current one for a reset). The Stage screen (Settings → Demo) has a **Demo time** switch
@@ -798,7 +798,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - **Problem:** I7 (a new recipient cools 24 h) and the 24 h loosening delay (settings, mandates, unfreeze) make a live
   demo wait a day or depend on the Stage clock. Reviewers asked for a way to turn the waits off.
 - **Choice:** `POST /demo/cooling` (registered only with `DEMO_ENABLED`), per user, stored in `demo_cooling_off`
-  (migration 0017; a row = off). Off needs the user's passkey (428 round trip) and is logged as `DEMO_COOLING_OFF`; on
+  (migration 0019; a row = off). Off needs the user's passkey (428 round trip) and is logged as `DEMO_COOLING_OFF`; on
   needs nothing (it tightens) and is logged as `DEMO_COOLING_ON`. Default on. With it off, the waits are 0 for that user:
   a new recipient still starts COOLING (T2 only, never autopilot) but can be verified and paid at once, and loosenings
   apply at the next scheduler tick. Outside demo mode a stored row is ignored. The app shows a red banner on every screen
@@ -828,7 +828,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 
 - **R13, shared stores.** The refresh-token spent list (a `Set` in `auth/session.ts`) and the `@fastify/rate-limit`
   counters lived in process memory, so a restart or a second instance accepted a spent refresh token again and reset
-  every limit. Both are tables now (migration 0018), following the challenge stores of migration 0012:
+  every limit. Both are tables now (migration 0020), following the challenge stores of migration 0012:
   `revoked_tokens` (jti, kind, the token's `exp`; spending is one `INSERT ... ON CONFLICT DO NOTHING RETURNING`, so of
   two concurrent uses one wins) and `rate_limit_counters` (one row per bucket key, one atomic upsert per request). The
   scheduler purges rows whose token or window has expired, on wall time. Logout now records a refresh token only when
@@ -857,7 +857,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   and nothing in the code knew whether a user had been identified, so any amount under the caps could be paid.
 - **Choice.** A deterministic identity checker in mock-world (`/mock/kyc/checks`: fictitious document + simulated
   liveness → VERIFIED / REVIEW / REJECTED with reason codes, no network) and an API module `kyc` (`POST /kyc/start`,
-  `GET /kyc`, migration 0019). The latest check decides the standing. Stored: outcome, reason codes, document type
+  `GET /kyc`, migration 0021). The latest check decides the standing. Stored: outcome, reason codes, document type
   and country, timestamps, and the last 4 characters of the number sealed with the user's data key; never the full
   number, the name, the date of birth or an image. Each outcome is a ledger entry (`KYC_VERIFIED`, `KYC_REVIEW`,
   `KYC_REJECTED`).

@@ -52,22 +52,73 @@
     "unknownUser": "осы iPhone",
     "shortcutTitle": "Apple Pay үшін Shortcut",
     "shortcutIntro": "iOS Shortcut әр Apple Pay сатып алуын Kassa серверіңізге жібереді. Содан кейін KassaLite оны осында көрсетеді.",
-    "installShortcut": "Shortcut орнату",
-    "installShortcutFooter": "Мекенжай мен токеніңізді көшіріп, Shortcut-ты ашады. iCloud Shortcuts параметр қабылдай алмайды: Shortcut сұраған жерге оларды қойыңыз.",
-    "copyFooter": "Мекенжай мен токеніңізді көшіреді. Оларды баптау қадамдарында сипатталғандай Shortcut-қа қойыңыз.",
-    "copiedToast": "Мекенжай мен токен көшірілді",
-    "copyAgain": "Мекенжай мен токенді қайта көшіру",
-    "noShortcutToken": "Shortcut токені сақталмаған. Осы iPhone-ды қайта байланыстырыңыз.",
-    "stepsTitle": "Shortcut-ты қалай баптау керек",
-    "step": "{{n}}. {{text}}",
-    "steps": {
-      "1": "«Shortcut орнату» түймесін түртіңіз. Мекенжай URL (бірінші жол) мен Authorization мәні (екінші жол, «Bearer …») алмасу буферіне көшіріледі.",
-      "2": "Shortcuts → Automation → + → Transaction ашыңыз. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
-      "3": "«Get Contents of URL» қосыңыз. URL: бірінші көшірілген жол (/api/capture/shortcut деп аяқталады). Method: POST. Headers: Authorization = екінші көшірілген жол.",
-      "4": "Request Body: JSON, мұнда merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass. Қосымша: алдымен «Get Current Location» қосып, одан көше, қала және елді жіберіңіз, сонда хабарландыру қай жерде төлегеніңізді көрсетеді.",
-      "5": "«Get Dictionary Value» (кілт nudge) және сол мәнмен «Show Notification» қосыңыз.",
-      "6": "Apple Pay арқылы төлеңіз. Сатып алу бірнеше секундта «Әрекеттер» бөлімінде шығады."
+    "setup": {
+      "start": {
+        "title": "Әр Apple Pay сатып алуын жазу",
+        "body": "Shortcuts қолданбасындағы бір автоматтандыру әр сатып алуды Kassa-ға жібереді. Бір рет, шамамен бір минут алады.",
+        "button": "Apple Pay жазуын баптау"
+      },
+      "copiedLink": "Сілтеме көшірілді: оны Shortcuts-қа қойыңыз",
+      "waiting": {
+        "title": "Алғашқы Apple Pay төлеміңізді күтудеміз",
+        "body": "Shortcuts-та автоматтандыруды аяқтап, Apple Pay арқылы бір рет төлеңіз (бір кофе жеткілікті). Содан кейін бұл карточка бәрі дұрыс келгенін тексереді.",
+        "testOnly": "Байланыс жұмыс істейді. Енді автоматтандыруды тексеру үшін Apple Pay арқылы бір рет төлеңіз."
+      },
+      "openShortcuts": "Shortcuts ашу",
+      "copyLinkOpen": "Сілтемені көшіріп, Shortcuts ашу",
+      "copyAi": "Қадамдарды AI үшін көшіру",
+      "copiedAi": "Қадамдар көшірілді: оларды ChatGPT, Claude немесе басқа көмекшіге қойыңыз",
+      "aiHint": "Қиындық туды ма? Қадамдарды AI көмекшісі үшін көшіріңіз, ол әр түртуді түсіндіріп береді. Кілт алмасу буферіңізден шықпайды.",
+      "showSteps": "Қадамдарды көрсету",
+      "hideSteps": "Қадамдарды жасыру",
+      "step": "{{n}}. {{text}}",
+      "stepsAction": {
+        "1": "Shortcuts → Automation → + → Transaction. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
+        "2": "«Log Payment in Kassa» қосыңыз. Merchant, Amount және Card өрістерін Shortcut Input › Merchant, › Amount және › Card or Pass етіп қойыңыз. Done түртіңіз.",
+        "3": "Apple Pay арқылы бір рет төлеңіз. Бұл карточка әр өрісті тексереді."
+      },
+      "stepsManual": {
+        "1": "Shortcuts → Automation → + → Transaction. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
+        "2": "«Get Contents of URL» қосып, көшірілген сілтемені оның URL-і ретінде қойыңыз. › түртіңіз: Method POST, Request Body JSON.",
+        "3": "Үш Text өрісін қосыңыз: merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass.",
+        "4": "«Get Dictionary Value» (кілт nudge) және сол мәнмен «Show Notification» қосыңыз. Done түртіңіз.",
+        "5": "Apple Pay арқылы бір рет төлеңіз. Бұл карточка әр өрісті тексереді."
+      },
+      "report": {
+        "ok": "Бәрі жұмыс істейді",
+        "okBody": "Apple Pay төлемдеріңіз Kassa-ға барлық өрістерімен жетеді. Соңғысы {{time}}.",
+        "fix_one": "Kassa төлеміңізді алды: {{count}} нәрсені түзету керек",
+        "fix_other": "Kassa төлеміңізді алды: {{count}} нәрсені түзету керек",
+        "fixBody": "Оны автоматтандыруда түзетіп, тағы бір рет төлеңіз: бұл карточка қайта тексереді.",
+        "legacy": "Apple Pay төлемдері Kassa-ға жетеді. Соңғысы {{time}}."
+      },
+      "lines": {
+        "reached": "Төлем Kassa-ға жетті {{time}}",
+        "merchantOk": "Сатушы: {{name}}",
+        "merchantOkPlain": "Сатушы алынды",
+        "merchantFix": "Сатушы бос болды: Merchant өрісін Shortcut Input › Merchant етіп қойыңыз.",
+        "amountOk": "Сома: {{amount}}",
+        "amountOkPlain": "Сома алынды",
+        "amountMissing": "Сома бос болды: Amount өрісін Shortcut Input › Amount етіп қойыңыз.",
+        "amountUnparsed": "Kassa соманы оқи алмады. Ол KZT, HUF, EUR, USD және CNY оқиды: Amount өрісі Shortcut Input › Amount екенін тексеріңіз.",
+        "cardOk": "Карта алынды",
+        "cardTip": "Карта жоқ (міндетті емес): Kassa картаның комиссиясын білуі үшін Card өрісін Shortcut Input › Card or Pass етіп қойыңыз.",
+        "placeOk": "Орын алынды",
+        "placeTip": "Орын жоқ (міндетті емес): қай жерде төлегеніңізді көру үшін Get Current Location қосыңыз.",
+        "loggedOk": "«Әрекеттер» бөліміне жазылды",
+        "loggedMerged": "Бұрын жазылған: ертерек төлемнің көшірмесі",
+        "loggedRefund": "Қайтарым ретінде белгіленді",
+        "loggedFix": "Жазылмады: жоғарыдағы жолдарды түзетіңіз."
+      },
+      "fixButton": "Shortcuts-та түзету",
+      "noToken": "Осы iPhone-да Shortcut кілті жоқ. Шығып, қайта байланыстырыңыз.",
+      "revoked": "Сервер осы iPhone кілтін қабылдамады: ол кері қайтарылған немесе басқа серверге тиесілі. Шығып, қайта байланыстырыңыз.",
+      "unreachable": "Осы iPhone {{host}} мекенжайына қосыла алмайды. Сервер (және оның туннелі) іске қосулы әрі мекенжай дұрыс екенін тексеріңіз.",
+      "failed": "Сервер жауап берді, бірақ Kassa ретінде емес. Сервер мекенжайын тексеріңіз.",
+      "success": "Жұмыс істейді! Apple Pay сатып алуларыңыз енді «Әрекеттер» бөлімінде шығады.",
+      "needsFix": "Kassa төлеміңізді алды, бірақ бірдеңені түзету керек. Баптауларды қараңыз."
     },
+    "noShortcutToken": "Shortcut токені сақталмаған. Осы iPhone-ды қайта байланыстырыңыз.",
     "serverTitle": "Сервер",
     "serverLabel": "Сервер URL",
     "serverFooter": "Тұрақты https мекенжайы болуы керек, мысалы, атаулы туннеліңіз. Оны өзгерту қайта байланыстырмайды: сервер басқа болса, шығып, қайта байланыстырыңыз.",

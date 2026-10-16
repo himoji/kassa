@@ -851,7 +851,24 @@ export const devices = pgTable("devices", {
   platform: text("platform"),
   createdAt: tstz("created_at").notNull().defaultNow(),
   revokedAt: tstz("revoked_at"),
+  /** (added) IOS_SHORTCUT: last time the token reached POST /capture/shortcut (a purchase or a test run). */
+  lastUsedAt: tstz("last_used_at"),
+  /** (added) IOS_SHORTCUT: what the last request carried and what came of it (KassaLite's tap check). */
+  lastCheck: jsonb("last_check").$type<ShortcutCheckJson>(),
 });
+
+/**
+ * Field presence and outcome of a device's last /capture/shortcut request: no merchant text, amount or card value
+ * is kept here (the transaction has them). `via`: the "Log Payment in Kassa" action or a hand-built Shortcut.
+ */
+export type ShortcutCheckJson = {
+  at: string;
+  kind: "TEST" | "PAYMENT" | "FORWARDED" | "INCOMPLETE";
+  via: "action" | "shortcut";
+  fields: { merchant: boolean; amount: boolean; card: boolean; place: boolean };
+  status: "LOGGED" | "MERGED" | "IGNORED_INCOMING" | "UNPARSED" | null;
+  transactionId: string | null;
+};
 
 /** Singleton row (id = 1). */
 export const demoState = pgTable("demo_state", {

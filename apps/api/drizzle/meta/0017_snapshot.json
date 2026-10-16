@@ -1,6 +1,6 @@
 {
-  "id": "12e16bc2-f71f-4c95-b9c7-d1514e7ae1ad",
-  "prevId": "86c43235-07ef-49d5-a39f-8c40a1fa23e4",
+  "id": "1d56090a-4032-45eb-9312-821c0e4e3077",
+  "prevId": "341aa714-15f6-406a-b851-c5f397e39579",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -312,51 +312,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.demo_cooling_off": {
-      "name": "demo_cooling_off",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "credential_id": {
-          "name": "credential_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "off_at": {
-          "name": "off_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "demo_cooling_off_user_id_users_id_fk": {
-          "name": "demo_cooling_off_user_id_users_id_fk",
-          "tableFrom": "demo_cooling_off",
-          "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.demo_state": {
       "name": "demo_state",
       "schema": "",
@@ -374,13 +329,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "clock_mode": {
-          "name": "clock_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'REAL'"
         },
         "agent_mode": {
           "name": "agent_mode",
@@ -470,6 +418,18 @@
         "revoked_at": {
           "name": "revoked_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_check": {
+          "name": "last_check",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }

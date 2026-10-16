@@ -111,8 +111,21 @@ async function suggestRentMandate(userId: string): Promise<{ suggestedMandate: M
 }
 
 const ShortcutDevicesResponse = z.object({
-  devices: z.array(z.object({ id: z.string().uuid(), kind: z.literal("IOS_SHORTCUT"), createdAt: z.string() })),
+  devices: z.array(z.object({ id: z.string().uuid(), kind: z.literal("IOS_SHORTCUT"), createdAt: z.string(), lastUsedAt: z.string().nullable() })),
   lastCaptureAt: z.string().nullable(),
+  /** Newest `lastUsedAt` of the listed devices: a Shortcut reached Kassa (a purchase or a test run). */
+  lastUsedAt: z.string().nullable(),
+  /** That device's last request: which fields arrived and what came of it (KassaLite's tap check). */
+  lastCheck: z
+    .object({
+      at: z.string(),
+      kind: z.enum(["TEST", "PAYMENT", "FORWARDED", "INCOMPLETE"]),
+      via: z.enum(["action", "shortcut"]),
+      fields: z.object({ merchant: z.boolean(), amount: z.boolean(), card: z.boolean(), place: z.boolean() }),
+      status: z.enum(["LOGGED", "MERGED", "IGNORED_INCOMING", "UNPARSED"]).nullable(),
+      transactionId: z.string().nullable(),
+    })
+    .nullable(),
 });
 
 /**
@@ -276,15 +289,15 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   );
 
   /*
-   * Shortcut devices (Settings → "Apple Pay → Kassa"). The devices table has no per-device name or last-use
-   * column, so the list carries the newest Shortcut capture of the user instead (`lastCaptureAt`): enough to
-   * see that the automation reaches Kassa. Revoked tokens are not listed.
+   * Shortcut devices (Settings → "Apple Pay → Kassa"). Each carries `lastUsedAt` (the token reached
+   * /capture/shortcut: a purchase or a test run); the list also carries the newest Shortcut capture of the user
+   * (`lastCaptureAt`). KassaLite's setup check waits for `lastUsedAt` to move. Revoked tokens are not listed.
    */
   app.get("/devices", { schema: { response: { 200: ShortcutDevicesResponse } } }, async (req) => {
     const userId = userIdOf(req);
     const db = getDb();
     const rows = await db
-      .select({ id: devices.id, createdAt: devices.createdAt })
+      .select({ id: devices.id, createdAt: devices.createdAt, lastUsedAt: devices.lastUsedAt, lastCheck: devices.lastCheck })
       .from(devices)
       .where(and(eq(devices.userId, userId), eq(devices.kind, "IOS_SHORTCUT"), isNull(devices.revokedAt)))
       .orderBy(desc(devices.createdAt));
@@ -294,9 +307,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .from(transactions)
         .where(and(eq(transactions.userId, userId), eq(transactions.source, "SHORTCUT")))
     )[0]?.at;
+    const newest = rows.reduce<(typeof rows)[number] | null>((m, r) => (r.lastUsedAt && (!m?.lastUsedAt || r.lastUsedAt > m.lastUsedAt) ? r : m), null);
+    const used = newest?.lastUsedAt ?? null;
     return {
-      devices: rows.map((r) => ({ id: r.id, kind: "IOS_SHORTCUT" as const, createdAt: r.createdAt.toISOString() })),
+      devices: rows.map((r) => ({ id: r.id, kind: "IOS_SHORTCUT" as const, createdAt: r.createdAt.toISOString(), lastUsedAt: r.lastUsedAt?.toISOString() ?? null })),
       lastCaptureAt: last ? new Date(last).toISOString() : null,
+      lastUsedAt: used?.toISOString() ?? null,
+      lastCheck: newest?.lastCheck ?? null,
     };
   });
 
