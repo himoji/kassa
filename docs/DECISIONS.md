@@ -822,3 +822,12 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   cookie's `exp`, wall time), and the session check (`authenticateSession`, used by `requireUser` and `authenticate`)
   refuses a revoked or jti-less cookie. Cost: one indexed read per cookie-authenticated request. Native access tokens
   (15 minutes) are still not revoked on logout; their refresh token is.
+- **R15, KEK behind a provider, with a rotation script.** Per-user data keys are wrapped through a small `KeyProvider`
+  interface (`privacy/keys.ts`): `kekId()`, async `wrap` and `unwrap`. The env provider is the previous behaviour
+  (`USER_KEK`, local AES-256-GCM, AAD bound to the user). `scripts/rotate-kek.ts` (`bun run kek:rotate [--dry-run]`)
+  re-wraps every `user_keys` row from `USER_KEK_PREVIOUS` to `USER_KEK` in one transaction under an exclusive table
+  lock, checking each new wrap before writing it, and prints only counts and KEK ids. `USER_KEK_PREVIOUS` is a new,
+  optional variable the env provider uses to unwrap (never wrap) while a rotation is under way, so the API can switch
+  KEKs without downtime. No cloud KMS SDK was added: SECURITY.md §5.5 describes how a KMS provider plugs in. Not
+  done: rotation of the other keys; the PAN reference key is still derived from `USER_KEK` (a rotation changes card
+  placeholders' digests, nothing stored is lost).
