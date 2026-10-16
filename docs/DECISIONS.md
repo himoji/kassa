@@ -851,3 +851,38 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   KEKs without downtime. No cloud KMS SDK was added: SECURITY.md §5.5 describes how a KMS provider plugs in. Not
   done: rotation of the other keys; the PAN reference key is still derived from `USER_KEK` (a rotation changes card
   placeholders' digests, nothing stored is lost).
+
+## 2026-10-16 — A simulated identity check (KYC) gates payments and top-ups above EUR 1,000
+
+- **Problem.** Licensing and KYC were "on paper only": COMPLIANCE.md listed customer due diligence as out of scope
+  and nothing in the code knew whether a user had been identified, so any amount under the caps could be paid.
+- **Choice.** A deterministic identity checker in mock-world (`/mock/kyc/checks`: fictitious document + simulated
+  liveness → VERIFIED / REVIEW / REJECTED with reason codes, no network) and an API module `kyc` (`POST /kyc/start`,
+  `GET /kyc`, migration 0019). The latest check decides the standing. Stored: outcome, reason codes, document type
+  and country, timestamps, and the last 4 characters of the number sealed with the user's data key; never the full
+  number, the name, the date of birth or an image. Each outcome is a ledger entry (`KYC_VERIFIED`, `KYC_REVIEW`,
+  `KYC_REJECTED`).
+- **Threshold: EUR 1,000.00 per payment, and per day for top-ups** (`KYC_THRESHOLD_MINOR` = 100000 in
+  `KYC_THRESHOLD_CURRENCY` = EUR, converted to each home currency and rounded down, like the payments daily cap;
+  unconvertible means 0, fail closed). EUR 1,000 is the amount at which EU AML rules already require due diligence
+  for an occasional transfer of funds (AMLD Art. 11(b)(ii)) and full payer data (TFR); it lets small everyday
+  payments (pizza, rent shares, most bills) work before the check and puts the hero's tuition (about EUR 2,400)
+  behind it. It is a sandbox gate, not a CDD policy: a licensed partner identifies every customer at onboarding.
+- **Enforcement.** Rules: new decide step 6b, `KYC_REQUIRED` (a hard refusal, added to `HARD_REFUSE_CODES`) after
+  the existing refusals (their codes are unchanged) and before mandates and small-auto, so no tier skips it. Payments:
+  its own re-check before the nonce (step 8a, own conversion, own read of `kyc_checks`), so a check that fails after
+  signing still stops the payout. Wallet top-ups: a day's total above the threshold is refused (422, ledgered
+  `WALLET_TOPUP_REFUSED`). Handoff (region CN or money mode HANDOFF) is not gated: Kassa moves no money there and the
+  user's own wallet runs real-name verification.
+- **No passkey to start a check.** It adds information and loosens no signed rule; above the threshold each payment
+  still needs the passkey (or a signed mandate) and stays under the passkey-signed caps. `POST /kyc/start` is in the
+  sensitive rate-limit bucket.
+- **Seeded demo personas and test fixtures start VERIFIED** with a document-less check (`provider` `seed` or
+  `fixture`), as an account opened at the licensed partner would be, so the scripted demo and the existing tests
+  (attack suite unchanged) behave as before. `createUserWithPasskey({ kyc: "NONE" })` gives an unchecked user;
+  accounts created in the app start unchecked and see `KYC_REQUIRED` with a link to the Identity check screen.
+- **Erasure** keeps the check rows (AMLD Art. 40 record keeping, listed in `RETAINED`); the last 4 characters become
+  unreadable with the shredded key. The DSAR export lists the checks.
+- **Not done / honest limits:** no document authenticity, issuer data, real liveness, PEP screening or ongoing due
+  diligence; REVIEW is never resolved (SECURITY.md R37). Jurisdiction mapping: COMPLIANCE.md §12. The Kazakh,
+  Russian and Chinese strings of the new screen need a native read like the rest of the app.
