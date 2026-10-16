@@ -1,4 +1,5 @@
 import {
+  AgentActivityResponse,
   BalancesResponse,
   BudgetsResponse,
   BudgetsSetResponse,
@@ -104,6 +105,16 @@ export function usePendingProposals() {
     queryKey: keys.proposalsPending,
     queryFn: ({ signal }) =>
       api.request("/proposals?status=PENDING_APPROVAL", { schema: ProposalsResponse, signal }),
+    enabled: useAuthed(),
+  });
+}
+
+/** GET /agent/activity: what the agent and the scheduler proposed this week and what became of it (Home). */
+export function useAgentActivity() {
+  return useQuery({
+    queryKey: keys.agentActivity,
+    queryFn: ({ signal }) =>
+      api.request("/agent/activity", { schema: AgentActivityResponse, signal }),
     enabled: useAuthed(),
   });
 }
