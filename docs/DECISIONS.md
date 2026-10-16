@@ -21,6 +21,7 @@ Deviations from `docs/spec/TECH_SPEC.md` (spec §0: date, problem, choice). Newe
   demo locales were removed). Every user-facing string goes through `t()`, including server reason-code
   labels, which the app maps client-side from `ReasonCode` values in `@kassa/shared` (the server sends
   codes, never prose).
+- **Superseded** on 2026-10-16 by "App in English, Simplified Chinese, Russian and Kazakh" (end of this file).
 
 ## 2026-10-10 — Provider-agnostic LLM via the Vercel AI SDK
 
@@ -804,3 +805,22 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   apply at the next scheduler tick. Outside demo mode a stored row is ignored. The app shows a red banner on every screen
   while off (`MeResponse.demo.coolingOff`), and the switch sits on the Stage screen (Settings → Demo). The attack suite
   keeps the waits on, and no agent tool reaches the switch. Known risk: SECURITY.md R36.
+
+## 2026-10-16 — App in English, Simplified Chinese, Russian and Kazakh (replaces "i18n via i18next, English only")
+
+- **Problem:** the app shipped English only (2026-10-10). Reviewers include a Shenzhen jury, and the users the app is
+  for (students from Kazakhstan abroad) read Russian or Kazakh more easily than English.
+- **Choice:** `zh` (Simplified Chinese), `ru` and `kk` (Kazakh, Cyrillic) next to `en`, one folder per language in
+  `apps/mobile/src/locales/`, same 23 namespaces and keys. Plurals use i18next's suffixes per `Intl.PluralRules`:
+  `zh` has only `_other`, `ru` `_one/_few/_many/_other`, `kk` `_one/_other`. The language comes from the device (or
+  browser) preference list, the first supported one wins, English otherwise; every Chinese tag gets the Simplified
+  strings. Settings → Appearance has a **Language** picker (Device language, then each language by its native name),
+  stored like before under `readynative:language` through the storage adapter; "Device language" removes the key.
+  Web renders English first (the static HTML is English) and switches after hydration. Product names (Kassa,
+  KassaLite), currency codes, reason-code identifiers and JSON field names stay as they are. Server-sent prose (notes
+  the API writes) stays English; `apps/api` is unchanged.
+- **Tests:** `apps/mobile/src/locales/__tests__/locales.test.ts` checks each locale has exactly the English keys, the
+  plural forms its language needs, the same `{{placeholders}}` per key and the product names;
+  `src/lib/__tests__/i18n.test.tsx` covers device-language fallback, plurals and the "Device language" choice.
+- **Review needed:** the Kazakh text has not been read by a native speaker and needs that review before release
+  (iOS Shortcuts steps keep the English action names in Kazakh). Russian and Chinese should get a native read too.
