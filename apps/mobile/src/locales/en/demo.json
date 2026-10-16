@@ -1,7 +1,9 @@
 {
   "agentTitle": "Agent",
-  "clockFooter": "Moves the demo clock forward. Countdowns and cooling periods follow it.",
+  "clockFooter": "Real time is the default. Demo time runs the story clock, and the buttons move it forward (from real time, they start the demo clock at today). Countdowns, cooling periods and due dates follow the clock in use.",
   "clockTitle": "Demo clock",
+  "demoTime": "Demo time",
+  "demoTimeHint": "Off: the app uses today's real date and time. On: it uses the demo clock.",
   "disabled": "Clock unavailable",
   "done": "Demo step done",
   "intro": "Simulated data only. Use these tools to walk through the app quickly.",
@@ -9,7 +11,8 @@
   "notifLabel": "Notification text",
   "notifSent": "Notification sent",
   "notifTitle": "Notification simulator",
-  "now": "Now: {{time}}",
+  "nowDemo": "Demo time: {{time}}",
+  "nowReal": "Real time: {{time}}",
   "plus1d": "+1 day",
   "plus1h": "+1 hour",
   "plus3d": "+3 days",
@@ -43,6 +46,8 @@
   },
   "scenariosTitle": "Scenarios",
   "sendNotif": "Send notification",
+  "settingsDemoTime": "Demo time {{time}} · simulated data, clock and agent controls",
   "settingsHint": "Simulated data, clock and agent controls",
+  "settingsRealTime": "Real time · simulated data, clock and agent controls",
   "title": "Demo"
 }

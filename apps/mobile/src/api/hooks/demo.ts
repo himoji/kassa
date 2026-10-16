@@ -6,6 +6,7 @@ import {
   DEMO_TOKEN_HEADER,
   DemoStateResponse,
   type AgentMode,
+  type ClockMode,
   type DemoScenario,
 } from "@kassa/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,6 +23,7 @@ function demoHeaders(): Record<string, string> {
 export type DemoAction =
   | { kind: "advance"; hours: number }
   | { kind: "agent-mode"; mode: AgentMode }
+  | { kind: "clock-mode"; mode: ClockMode }
   | { kind: "reset" }
   | { kind: "trigger"; scenario: DemoScenario };
 
@@ -36,6 +38,12 @@ function send(action: DemoAction) {
       });
     case "agent-mode":
       return api.request("/demo/agent-mode", {
+        json: { mode: action.mode },
+        headers,
+        schema: DemoStateResponse,
+      });
+    case "clock-mode":
+      return api.request("/demo/clock/mode", {
         json: { mode: action.mode },
         headers,
         schema: DemoStateResponse,
@@ -55,6 +63,10 @@ export function useDemoAction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: send,
-    onSettled: () => Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey }))),
+    // The clock moves every countdown and due date: refresh everything, not only the money screens.
+    onSettled: (_data, _err, action) =>
+      action.kind === "advance" || action.kind === "clock-mode" || action.kind === "reset"
+        ? qc.invalidateQueries()
+        : Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
 }

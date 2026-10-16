@@ -153,7 +153,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const db = getDb();
     const { user, profile } = await loadUser(db, userId);
     const e = env();
-    const ds = e.DEMO_ENABLED ? (await db.select().from(demoState).where(eq(demoState.id, 1)))[0] : undefined;
+    const ds = e.DEMO_ENABLED ? (await db.select({ agentMode: demoState.agentMode }).from(demoState).where(eq(demoState.id, 1)))[0] : undefined;
     const effective = effectiveOf(user);
     return {
       id: user.id,
@@ -167,7 +167,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       settings: settingsOf(user, profile.notificationMode),
       effective,
       demo: e.DEMO_ENABLED
-        ? { agentMode: ds?.agentMode ?? e.AGENT_MODE, clockOffsetMs: clock.offsetMs(), now: clock.now().toISOString() }
+        ? { agentMode: ds?.agentMode ?? e.AGENT_MODE, clockOffsetMs: clock.offsetMs(), clockMode: clock.mode(), now: clock.now().toISOString() }
         : null,
       onboarded: profile.baseRulesSignedAt !== null,
       aiNotice: aiNotice(user.region),

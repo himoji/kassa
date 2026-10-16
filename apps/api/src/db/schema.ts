@@ -797,6 +797,8 @@ export const devices = pgTable("devices", {
 export const demoState = pgTable("demo_state", {
   id: integer("id").primaryKey().default(1),
   clockOffsetMs: bigint("clock_offset_ms", { mode: "number" }).notNull().default(0),
+  /** (added 2026-10-16) REAL = the system clock; DEMO = system clock + clockOffsetMs (the offset is kept either way). */
+  clockMode: text("clock_mode", { enum: ["REAL", "DEMO"] }).notNull().default("REAL"),
   agentMode: agentModeEnum("agent_mode").notNull().default("LIVE"),
   seededAt: tstz("seeded_at"),
   /** (added) seeded hero user a reviewer can claim with their first passkey. */

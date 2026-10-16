@@ -1,0 +1,1 @@
+ALTER TABLE "demo_state" ADD COLUMN "clock_mode" text DEFAULT 'REAL' NOT NULL;

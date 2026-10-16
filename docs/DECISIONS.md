@@ -775,3 +775,20 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   before the insert). `v1` stays readable for existing rows and for callers that do not pass a payee id. Payments
   decrypts for the payee row and requires `accountHash(account) = order.payeeAccountHash`, else
   `REFUSE_UNVERIFIED_PAYEE`. Residual: v1 rows are not bound (SECURITY.md R30).
+
+## 2026-10-16 — Real time by default, demo time as a switch; sessions on wall time
+
+- **Problem:** spec §15 puts the whole app on the demo clock (real now + `demo_state.clockOffsetMs`), and the seed sets
+  it to story time (2026-10-27). A deployment that loads the demo data showed that date to everyone, and a reviewer
+  using the app normally saw due dates and cooling periods 11 days off.
+- **Choice:** `demo_state.clock_mode` (migration 0016): `REAL` (the default) is the system clock, `DEMO` adds the stored
+  offset. The offset is kept while `REAL`, so switching back resumes the story time. Deployments seed with `REAL`
+  (`api/index.ts`); `bun run seed`, the tests and the Stage reset keep the mode the script needs (`DEMO` for the seed
+  and tests, the current one for a reset). The Stage screen (Settings → Demo) has a **Demo time** switch
+  (`POST /demo/clock/mode`, demo admin token, ledger `DEMO_CLOCK_MODE`); the +1 h / +1 day / +3 days buttons still move
+  the demo clock, and pressed in real time they start it at real now. Everything that read the clock (scheduler,
+  cooling periods, due dates, expiries, the mock world through `GET /demo/clock`) follows the clock in use with no
+  change of its own.
+- **Exception:** session and refresh token lifetimes (`iat`/`exp`, and the "signed out before" mark of a backup-code
+  recovery) use wall time (`clock.realNowMs()`), so moving or switching the demo clock neither signs people out (an
+  11-day jump used to end the 7-day web session) nor keeps an expired token alive when the clock goes back.

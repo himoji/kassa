@@ -1,7 +1,7 @@
 /*
  * Sessions (spec §8): web = httpOnly cookie; native = bearer JWT (15 min) + refresh token.
- * JWTs per RFC 7519, HS256 with SESSION_SECRET (RFC 7518 §3.2). iat/exp come from the Clock and are
- * verified against the Clock, so advancing the demo clock behaves like real time passing.
+ * JWTs per RFC 7519, HS256 with SESSION_SECRET (RFC 7518 §3.2). iat/exp come from wall time (clock.realNowMs, never the demo clock) and are
+ * verified against it too: moving or switching the demo clock neither signs people out nor revives expired tokens.
  * Refresh tokens rotate on every use (RFC 9700 §4.14.2); a reused refresh token is rejected.
  * Honest limit: the rotation/revocation list is in memory (single process).
  */
@@ -52,7 +52,7 @@ function secret(): Uint8Array {
 }
 
 async function mint(userId: string, typ: Typ, ttlS: number, claims: SessionClaims = {}): Promise<{ token: string; exp: number }> {
-  const nowS = Math.floor(clock.nowMs() / 1000);
+  const nowS = Math.floor(clock.realNowMs() / 1000);
   const exp = nowS + ttlS;
   const token = await new SignJWT({ typ, ...claims })
     .setProtectedHeader({ alg: "HS256" })
@@ -70,7 +70,7 @@ async function verify(token: string, typ: Typ): Promise<{ sub: string; jti: stri
     const { payload } = await jwtVerify(token, secret(), {
       issuer: ISSUER,
       algorithms: ["HS256"],
-      currentDate: clock.now(),
+      currentDate: new Date(clock.realNowMs()),
     });
     if (payload.typ !== typ || typeof payload.sub !== "string") return null;
     return { sub: payload.sub, jti: payload.jti, iat: payload.iat ?? 0, claims: claimsOf(payload) };

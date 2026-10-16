@@ -107,6 +107,7 @@ describe("webhook replay inside the 5-minute window (I13, R5)", () => {
     expect(await purgeSeenWebhookSignatures()).toBe(0); // still inside the window: kept
 
     await clock.setOffset(11 * 60_000); // persisted: the scheduler tick reloads the demo clock
+    await clock.setMode("DEMO");
     const late = await postSignedWebhook(app(), "pos", { b: 1 }, ts);
     expect(late.statusCode).toBe(401);
     expect(late.json().code).toBe("WEBHOOK_REPLAY_WINDOW");

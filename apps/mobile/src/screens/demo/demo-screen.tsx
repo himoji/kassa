@@ -69,8 +69,19 @@ export function DemoScreen() {
 
       <RowGroup title={t("demo:clockTitle")} footer={t("demo:clockFooter")}>
         <Box p={4} gap={3}>
+          <SettingSwitch
+            label={t("demo:demoTime")}
+            description={t("demo:demoTimeHint")}
+            value={demo?.clockMode === "DEMO"}
+            disabled={!demo}
+            onChange={(on) => void run({ kind: "clock-mode", mode: on ? "DEMO" : "REAL" })}
+          />
           <Text selectable style={{ fontVariant: ["tabular-nums"] }}>
-            {demo ? t("demo:now", { time: f.dateTime(demo.now) }) : t("demo:disabled")}
+            {demo
+              ? t(demo.clockMode === "DEMO" ? "demo:nowDemo" : "demo:nowReal", {
+                  time: f.dateTime(demo.now),
+                })
+              : t("demo:disabled")}
           </Text>
           <Box row gap={2}>
             <Button

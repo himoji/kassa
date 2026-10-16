@@ -255,7 +255,13 @@ function SettingsBody({ me }: { me: MeResponse }) {
           <Row
             leading={<Icon name="wand.and.stars" fallback="science" size={20} color="foreground" />}
             title={t("demo:title")}
-            subtitle={t("demo:settingsHint")}
+            subtitle={
+              me.demo
+                ? me.demo.clockMode === "DEMO"
+                  ? t("demo:settingsDemoTime", { time: f.dateTime(me.demo.now) })
+                  : t("demo:settingsRealTime")
+                : t("demo:settingsHint")
+            }
             onPress={() => router.push("/demo")}
           />
         ) : null}
