@@ -824,3 +824,30 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   `src/lib/__tests__/i18n.test.tsx` covers device-language fallback, plurals and the "Device language" choice.
 - **Review needed:** the Kazakh text has not been read by a native speaker and needs that review before release
   (iOS Shortcuts steps keep the English action names in Kazakh). Russian and Chinese should get a native read too.
+
+## 2026-10-16 — Revocations and rate limits in Postgres; logout revokes the cookie; a KEK rotation script
+
+- **R13, shared stores.** The refresh-token spent list (a `Set` in `auth/session.ts`) and the `@fastify/rate-limit`
+  counters lived in process memory, so a restart or a second instance accepted a spent refresh token again and reset
+  every limit. Both are tables now (migration 0018), following the challenge stores of migration 0012:
+  `revoked_tokens` (jti, kind, the token's `exp`; spending is one `INSERT ... ON CONFLICT DO NOTHING RETURNING`, so of
+  two concurrent uses one wins) and `rate_limit_counters` (one row per bucket key, one atomic upsert per request). The
+  scheduler purges rows whose token or window has expired, on wall time. Logout now records a refresh token only when
+  it verifies (before, any decodable jti was added). Deviation from a window aligned to the clock: a window starts at a
+  key's first hit, as in the plugin's in-memory store, so limits behave exactly as before and a burst cannot get twice
+  the budget across a boundary. If the database call fails, that hit is counted in memory (per instance, the old
+  behaviour) rather than refused or let through. Cost: one write per request.
+- **R14, logout revokes the cookie.** `POST /auth/logout` used to clear the web cookie only, so a copy of it stayed
+  valid for its 7 days. Logout now records the cookie's jti in `revoked_tokens` (kind `session`, kept until the
+  cookie's `exp`, wall time), and the session check (`authenticateSession`, used by `requireUser` and `authenticate`)
+  refuses a revoked or jti-less cookie. Cost: one indexed read per cookie-authenticated request. Native access tokens
+  (15 minutes) are still not revoked on logout; their refresh token is.
+- **R15, KEK behind a provider, with a rotation script.** Per-user data keys are wrapped through a small `KeyProvider`
+  interface (`privacy/keys.ts`): `kekId()`, async `wrap` and `unwrap`. The env provider is the previous behaviour
+  (`USER_KEK`, local AES-256-GCM, AAD bound to the user). `scripts/rotate-kek.ts` (`bun run kek:rotate [--dry-run]`)
+  re-wraps every `user_keys` row from `USER_KEK_PREVIOUS` to `USER_KEK` in one transaction under an exclusive table
+  lock, checking each new wrap before writing it, and prints only counts and KEK ids. `USER_KEK_PREVIOUS` is a new,
+  optional variable the env provider uses to unwrap (never wrap) while a rotation is under way, so the API can switch
+  KEKs without downtime. No cloud KMS SDK was added: SECURITY.md §5.5 describes how a KMS provider plugs in. Not
+  done: rotation of the other keys; the PAN reference key is still derived from `USER_KEK` (a rotation changes card
+  placeholders' digests, nothing stored is lost).
