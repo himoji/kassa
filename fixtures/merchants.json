@@ -113,7 +113,28 @@
       "subway",
       "dominos",
       "chipotle",
-      "bakery"
+      "bakery",
+      "restaurants",
+      "dodo",
+      "drinkit",
+      "coffeeboom",
+      "pub",
+      "bar",
+      "кафе",
+      "ресторан",
+      "кофейня",
+      "столовая",
+      "бар",
+      "асхана",
+      "étterem",
+      "etterem",
+      "kávézó",
+      "kavezo",
+      "büfé",
+      "bufe",
+      "cukrászda",
+      "cukraszda",
+      "eda"
     ],
     "groceries": [
       "groceries",
@@ -146,7 +167,26 @@
       "cu",
       "emart",
       "7eleven",
-      "seven"
+      "seven",
+      "small",
+      "galmart",
+      "anvar",
+      "arbuz",
+      "ramstore",
+      "toimart",
+      "lavka",
+      "grocer",
+      "mart",
+      "супермаркет",
+      "продукты",
+      "азық",
+      "diszkont",
+      "élelmiszer",
+      "elelmiszer",
+      "cba",
+      "prima",
+      "pékség",
+      "pekseg"
     ],
     "transport": [
       "metro",
@@ -173,14 +213,35 @@
       "airbaltic",
       "lyft",
       "amtrak",
-      "greyhound"
+      "greyhound",
+      "avtobys",
+      "onay",
+      "yandex",
+      "indrive",
+      "indriver",
+      "budapestgo",
+      "bkv",
+      "volán",
+      "volan",
+      "mol",
+      "omv",
+      "shell",
+      "такси",
+      "автобус",
+      "билет",
+      "parkolás",
+      "parkolas"
     ],
     "books": [
       "book",
       "books",
       "textbook",
       "textbooks",
-      "stationery"
+      "stationery",
+      "meloman",
+      "marwin",
+      "libri",
+      "alexandra"
     ],
     "health": [
       "pharmacy",
@@ -193,7 +254,14 @@
       "gyogyszertar",
       "pharma",
       "cvs",
-      "walgreens"
+      "walgreens",
+      "pharm",
+      "europharma",
+      "sadyhan",
+      "benu",
+      "gyógyszertár",
+      "аптека",
+      "дәріхана"
     ],
     "entertainment": [
       "cinema",
@@ -209,7 +277,11 @@
       "spotify",
       "steam",
       "youtube",
-      "playstation"
+      "playstation",
+      "kino",
+      "kinopark",
+      "chaplin",
+      "mozi"
     ],
     "phone": [
       "phone",
@@ -222,13 +294,21 @@
       "vodafone",
       "telekom",
       "altel",
-      "activ"
+      "activ",
+      "digi"
     ],
     "utilities": [
       "electricity",
       "water",
       "internet",
-      "heating"
+      "heating",
+      "alseco",
+      "алсеко",
+      "mvm",
+      "dijnet",
+      "díjnet",
+      "főgáz",
+      "fogaz"
     ],
     "shopping": [
       "clothes",
@@ -249,14 +329,25 @@
       "shein",
       "uniqlo",
       "tedi",
-      "action"
+      "action",
+      "magazin",
+      "sulpak",
+      "technodom",
+      "mechta",
+      "wildberries",
+      "ozon",
+      "lamoda",
+      "emag",
+      "alza",
+      "mediamarkt"
     ],
     "tuition": [
       "university",
       "univ",
       "egyetem",
       "college",
-      "tuition"
+      "tuition",
+      "collegeboard"
     ]
   },
   "merchants": [
