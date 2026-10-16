@@ -1,6 +1,7 @@
 /** TanStack Query keys, one place so mutations invalidate exactly what they change. */
 export const keys = {
   me: ["me"] as const,
+  moneyHistory: ["history"] as const,
   demoAvailability: ["auth", "demo"] as const,
   balances: ["balances"] as const,
   budgets: ["budgets"] as const,
@@ -43,6 +44,7 @@ export const keys = {
 /** Everything that depends on money state: refreshed after approvals, freezes and demo actions. */
 export const moneyKeys = [
   keys.me,
+  keys.moneyHistory,
   keys.balances,
   keys.budgets,
   keys.obligations,

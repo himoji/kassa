@@ -8,12 +8,16 @@ import { rates, type RatesService } from "./rates.ts";
 /*
  * Coverage forecast (spec §12):
  *   B_k(t) = B_k(0) + incomes_k(≤t) − obligations_k(≤t) − burn_k·t,   t = 0..45 days
- *   burn_k = median daily spend in k over the last 30 days (days without spend count as 0)
+ *   burn_k = median daily spend in k over the last 30 days (days without spend count as 0); when those 30 days have
+ *            fewer than MIN_RECENT_SPEND_DAYS days with spending (a new user, or statements that end earlier), the
+ *            imported history's median month / 30 instead (historyBurn), so a thin month does not read as no spending
  *   shortfall = first day B_k < reserve_k; suggest a conversion of (reserve_k − B_k) on that day from the surplus
  *   currency via the route optimizer (sized to the first shortfall, not the horizon's worst deficit).
  */
 
 export const HORIZON_DAYS = 45;
+/** Below this many days with spending in the last 30, the recent burn is too thin to trust (see the header). */
+export const MIN_RECENT_SPEND_DAYS = 10;
 
 export type Cadence = "WEEKLY" | "MONTHLY" | "TERM" | "ONCE";
 
@@ -33,6 +37,8 @@ export interface ForecastInput {
   obligations: Flow[];
   /** Individual spends (positive minor units) with ISO date; only the last 30 days are used. */
   spends: Array<{ currency: string; amountMinor: number; date: string }>;
+  /** Daily spend per currency from the imported bank history (median month / 30), used when recent data is thin. */
+  historyBurn?: Record<string, number>;
   /** Protected reserve per currency (minor units); default 0. */
   reserves?: Record<string, number>;
   horizonDays?: number;
@@ -74,13 +80,25 @@ export function medianInt(values: number[]): number {
 }
 
 export function burnRate(spends: ForecastInput["spends"], currency: string, today: string): number {
+  return recentDaily(spends, currency, today).burn;
+}
+
+function recentDaily(spends: ForecastInput["spends"], currency: string, today: string): { burn: number; spendDays: number } {
   const daily = new Array<number>(30).fill(0);
   for (const s of spends) {
     if (s.currency !== currency) continue;
     const ago = daysBetween(s.date, today);
     if (ago >= 1 && ago <= 30) daily[ago - 1]! += s.amountMinor;
   }
-  return medianInt(daily);
+  return { burn: medianInt(daily), spendDays: daily.filter((v) => v > 0).length };
+}
+
+/** The burn the projection uses for `currency` and where it came from (see the header). */
+export function chooseBurn(input: Pick<ForecastInput, "spends" | "today" | "historyBurn">, currency: string): { dailyMinor: number; from: "recent" | "history" } {
+  const recent = recentDaily(input.spends, currency, input.today);
+  const history = input.historyBurn?.[currency];
+  if (history !== undefined && history > 0 && recent.spendDays < MIN_RECENT_SPEND_DAYS) return { dailyMinor: history, from: "history" };
+  return { dailyMinor: recent.burn, from: "recent" };
 }
 
 export interface CurrencyProjection {
@@ -88,6 +106,7 @@ export interface CurrencyProjection {
   reserveMinor: number;
   points: Array<{ date: string; balanceMinor: number }>;
   shortfall: { date: string; amountMinor: number } | null;
+  burn: { dailyMinor: number; from: "recent" | "history" };
   /** reserve − min balance over the horizon, when positive (the amount needed to stay above reserve). */
   maxDeficitMinor: number;
   minSurplusMinor: number;
@@ -107,7 +126,8 @@ export function projectBalances(input: ForecastInput): CurrencyProjection[] {
     const bump = (d: string, v: number) => deltas.set(d, (deltas.get(d) ?? 0) + v);
     for (const f of input.incomes) if (f.currency === k) for (const d of occurrences(f, input.today, end)) bump(d, f.amountMinor);
     for (const f of input.obligations) if (f.currency === k) for (const d of occurrences(f, input.today, end)) bump(d, -f.amountMinor);
-    const burn = burnRate(input.spends, k, input.today);
+    const chosen = chooseBurn(input, k);
+    const burn = chosen.dailyMinor;
     const reserve = input.reserves?.[k] ?? 0;
     let flows = input.balances.find((b) => b.currency === k)?.amountMinor ?? 0;
     const points: CurrencyProjection["points"] = [];
@@ -126,6 +146,7 @@ export function projectBalances(input: ForecastInput): CurrencyProjection[] {
       reserveMinor: reserve,
       points,
       shortfall,
+      burn: chosen,
       maxDeficitMinor: Math.max(0, reserve - minBalance),
       minSurplusMinor: minBalance - reserve,
     });
@@ -182,7 +203,7 @@ export async function computeForecast(input: ForecastInput, svc: RatesService = 
   return {
     horizonDays: input.horizonDays ?? HORIZON_DAYS,
     asOf: input.today,
-    currencies: proj.map((p) => ({ currency: p.currency, reserveMinor: p.reserveMinor, points: p.points, shortfall: p.shortfall })),
+    currencies: proj.map((p) => ({ currency: p.currency, reserveMinor: p.reserveMinor, points: p.points, shortfall: p.shortfall, burn: p.burn })),
     suggestions,
   };
 }

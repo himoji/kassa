@@ -2,6 +2,7 @@ import { router, Stack } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
+import { useMoneyHistory } from "@/api/hooks/dataport";
 import { useSpendingInsights } from "@/api/hooks/insights";
 import { useMe } from "@/api/hooks/me";
 import {
@@ -36,6 +37,66 @@ function MonthSpend() {
   const insights = useSpendingInsights();
   return insights.data ? <MonthSummaryCard data={insights.data} onPress={openInsights} /> : null;
 }
+/** History lines shown before "Show all". */
+const HISTORY_COLLAPSED = 3;
+
+/**
+ * What the imported bank statements show (GET /history; the lines are written by the server from the numbers), or an
+ * invitation to import them. Hidden while loading or on error: the rest of Home carries the page.
+ */
+function HistoryCard() {
+  const t = useKassaT();
+  const f = useFormat();
+  const history = useMoneyHistory();
+  const [all, setAll] = useState(false);
+  if (!history.data) return null;
+  const h = history.data.history;
+  if (!h)
+    return (
+      <Card>
+        <Box gap={3}>
+          <Text weight="semibold">{t("home:history.emptyTitle")}</Text>
+          <Text variant="caption">{t("home:history.emptyBody")}</Text>
+          <Button variant="outline" onPress={() => router.push("/data")}>
+            {t("home:history.import")}
+          </Button>
+        </Box>
+      </Card>
+    );
+  const shown = all ? h.notes : h.notes.slice(0, HISTORY_COLLAPSED);
+  return (
+    <Card>
+      <Box gap={2}>
+        <Text weight="semibold">{t("home:history.title")}</Text>
+        {h.from && h.to ? (
+          <Text variant="caption" color="mutedForeground">
+            {t("home:history.period", {
+              from: f.date(h.from, "medium"),
+              to: f.date(h.to, "medium"),
+              rows: h.counts.rows,
+            })}
+          </Text>
+        ) : null}
+        {shown.map((n) => (
+          <Text key={n} variant="caption">
+            • {n}
+          </Text>
+        ))}
+        <Box row gap={2}>
+          {h.notes.length > HISTORY_COLLAPSED ? (
+            <Button size="sm" variant="ghost" onPress={() => setAll((v) => !v)}>
+              {all ? t("home:history.less") : t("home:history.all", { count: h.notes.length })}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onPress={() => router.push("/data")}>
+            {t("home:history.update")}
+          </Button>
+        </Box>
+      </Box>
+    </Card>
+  );
+}
+
 /** Budgets listed before "Show all" (the ones that need attention come first). */
 const BUDGETS_COLLAPSED = 4;
 
@@ -258,6 +319,8 @@ export function HomeScreen() {
         ) : null}
 
         <MonthSpend />
+
+        <HistoryCard />
 
         <Box gap={3}>
           <Box row justify="between" align="center">

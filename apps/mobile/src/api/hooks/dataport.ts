@@ -6,12 +6,13 @@ import {
   ImportCommitResponse,
   ImportPreviewResponse,
   KassaExport,
+  MoneyHistoryResponse,
   OnboardingMessageResponse,
   type ImportHistory,
   type ImportItems,
   type OnboardingHistoryRequest,
 } from "@kassa/shared";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 
@@ -208,6 +209,7 @@ export function useImportFiles() {
 
 /** POST /onboarding/history: hand what the statements taught Kassa to the onboarding draft. */
 export function useOnboardingHistory() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (req: OnboardingHistoryRequest) =>
       api.request("/onboarding/history", {
@@ -215,6 +217,7 @@ export function useOnboardingHistory() {
         json: req,
         schema: OnboardingMessageResponse,
       }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.moneyHistory }),
   });
 }
 
@@ -231,5 +234,13 @@ export function pickJsonFileOnWeb(): Promise<string | null> {
       void file.text().then(resolve, () => resolve(null));
     };
     input.click();
+  });
+}
+
+/** GET /history: the last imported bank history (the Home card), null before any import. */
+export function useMoneyHistory() {
+  return useQuery({
+    queryKey: keys.moneyHistory,
+    queryFn: ({ signal }) => api.request("/history", { schema: MoneyHistoryResponse, signal }),
   });
 }

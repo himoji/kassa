@@ -1,6 +1,6 @@
 import { and, eq, gte, isNull, lte, ne } from "drizzle-orm";
 
-import type { ForecastResponse } from "@kassa/shared";
+import type { ForecastResponse, ImportHistory } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, profiles, transactions, users } from "../../db/schema.ts";
@@ -8,7 +8,7 @@ import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { clock } from "../clock/index.ts";
 import { walletBalances } from "../rules/facts.ts";
 import { addDays, isoDate } from "./dates.ts";
-import { computeForecast, type Flow } from "./forecast.ts";
+import { computeForecast, medianInt, type Flow } from "./forecast.ts";
 import { convertMinor } from "./rational.ts";
 import { rates } from "./rates.ts";
 import { directRoute, getRoutes as rankRoutes, type RankedRoute } from "./routes.ts";
@@ -73,6 +73,16 @@ export async function getRoutes(a: GetRoutesArgs): Promise<{ homeCurrency: strin
   return { homeCurrency: u.homeCurrency, routes };
 }
 
+/**
+ * Daily spending from the imported history: the median covered month (spending + transfers to people, home currency)
+ * / 30. The median keeps a tuition month or a flight out of everyday spending. Null without at least 2 covered months.
+ */
+export function historyDailyBurn(history: ImportHistory | null): number | null {
+  const months = (history?.monthly ?? []).filter((m) => m.statements > 0).map((m) => m.spendingHomeMinor + m.transfersHomeMinor);
+  if (months.length < 2) return null;
+  return Math.round(medianInt(months) / 30);
+}
+
 /** Coverage forecast (spec §12) for a user, days 0..45 from Clock today. */
 export async function forecastCoverage(userId: string): Promise<ForecastResponse> {
   const db = getDb();
@@ -98,7 +108,11 @@ export async function forecastCoverage(userId: string): Promise<ForecastResponse
   }));
   const reserves: Record<string, number> = {};
   for (const r of p?.reserveRules.reserves ?? []) reserves[r.currency] = r.minMinor;
+  // The imported history (read on its own: a database one migration behind must not fail the forecast).
+  const history = (await db.select({ h: profiles.moneyHistory }).from(profiles).where(eq(profiles.userId, userId)).catch(() => []))[0]?.h ?? null;
+  const historyDaily = historyDailyBurn(history);
   return computeForecast({
+    historyBurn: historyDaily && history ? { [history.homeCurrency]: historyDaily } : undefined,
     today,
     homeCurrency: u.homeCurrency,
     balances: await getBalances(userId),
