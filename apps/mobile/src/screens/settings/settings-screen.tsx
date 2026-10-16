@@ -228,6 +228,15 @@ function SettingsBody({ me }: { me: MeResponse }) {
         />
         <Row
           leading={
+            <Icon name="person.text.rectangle" fallback="badge" size={20} color="foreground" />
+          }
+          title={t("kyc:title")}
+          subtitle={t("kyc:rowHint")}
+          onPress={() => router.push("/identity-check")}
+          testID="settings-identity-check"
+        />
+        <Row
+          leading={
             <Icon
               name="arrow.up.arrow.down"
               fallback="import_export"
