@@ -9,15 +9,15 @@
  * Everything takes `Db` (the common PgDatabase surface of both drivers), so modules never care which
  * driver is underneath. Use `getDb()` at call time (not at import time) so tests can `setDb()` first.
  */
-import type { ExtractTablesWithRelations } from "drizzle-orm";
+import { sql, type ExtractTablesWithRelations } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT, PgTransaction } from "drizzle-orm/pg-core";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import { migrate as migratePostgres } from "drizzle-orm/postgres-js/migrator";
-import { mkdirSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { mkdirSync, readFileSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 
@@ -116,11 +116,42 @@ export async function migrateDatabaseUrl(url: string | undefined = process.env.D
   }
   const client = postgres(target.url, { max: 1 });
   try {
-    await migratePostgres(drizzlePostgres(client), { migrationsFolder: MIGRATIONS_DIR });
+    // Serverless cold starts can migrate at the same moment: one at a time (a session-level advisory lock).
+    await client`select pg_advisory_lock(${MIGRATION_LOCK})`;
+    try {
+      await migratePostgres(drizzlePostgres(client), { migrationsFolder: MIGRATIONS_DIR });
+    } finally {
+      await client`select pg_advisory_unlock(${MIGRATION_LOCK})`;
+    }
   } finally {
     await client.end({ timeout: 5 });
   }
   return "postgres";
+}
+
+/** Advisory lock key for migrations ("kassa" in ASCII, as a bigint). */
+const MIGRATION_LOCK = 0x6b61737361;
+
+/** Migrations in the repository (drizzle's journal). */
+export function expectedMigrations(): number {
+  const journal = JSON.parse(readFileSync(join(MIGRATIONS_DIR, "meta", "_journal.json"), "utf8")) as { entries: unknown[] };
+  return journal.entries.length;
+}
+
+/**
+ * Whether the database has every migration this code expects (GET /api/health): "behind" means a deploy skipped
+ * `db:migrate`, and endpoints that read the newest columns will fail until it runs.
+ */
+export async function schemaStatus(): Promise<{ status: "current" | "behind" | "unknown"; applied: number | null; expected: number }> {
+  const expected = expectedMigrations();
+  try {
+    const r = await getDb().execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
+    const rows = (Array.isArray(r) ? r : (r as { rows: unknown[] }).rows) as { n: number }[];
+    const applied = Number(rows[0]?.n ?? 0);
+    return { status: applied >= expected ? "current" : "behind", applied, expected };
+  } catch {
+    return { status: "unknown", applied: null, expected };
+  }
 }
 
 export { schema };

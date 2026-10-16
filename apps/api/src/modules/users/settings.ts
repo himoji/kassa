@@ -28,6 +28,7 @@ import { auditAssertionFailure } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
+import { waitMs } from "../demo/cooling.ts";
 import { ledger } from "../ledger/index.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { notify } from "../notifications/service.ts";
@@ -163,6 +164,7 @@ export async function patchSettings(
     throw new HttpProblem(422, "INVALID_SETTINGS", "Invalid combination of settings", { details: (err as { issues?: unknown }).issues ?? String(err) });
   }
 
+  const loosenDelayMs = await waitMs(userId, LOOSEN_DELAY_MS);
   let ruleChange: { id: string; effectiveAt: Date } | null = null;
   let assertion: unknown = null;
   let changeHash = "";
@@ -234,7 +236,7 @@ export async function patchSettings(
         await ledger.append("RULES_LOOSENED", { userId, ruleChangeId: row[0]!.id, changeHash, after: capsNow }, tx);
       }
       if (!isEmpty(later)) {
-        const effectiveAt = addMs(now, LOOSEN_DELAY_MS);
+        const effectiveAt = addMs(now, loosenDelayMs);
         const row = await tx
           .insert(ruleChanges)
           .values({

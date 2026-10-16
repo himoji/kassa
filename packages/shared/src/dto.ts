@@ -57,7 +57,16 @@ export const MeResponse = z.object({
   frozenAt: IsoDateTime.nullable(),
   settings: UserSettings,
   effective: EffectiveSettings,
-  demo: z.object({ agentMode: AgentMode, clockOffsetMs: z.number().int(), now: IsoDateTime }).nullable(),
+  demo: z
+    .object({
+      agentMode: AgentMode,
+      clockOffsetMs: z.number().int(),
+      clockMode: z.enum(["REAL", "DEMO"]),
+      now: IsoDateTime,
+      /** This user turned the 24 h waits off (POST /demo/cooling): the app shows a banner while true. */
+      coolingOff: z.boolean(),
+    })
+    .nullable(),
   /** False until POST /onboarding/confirm succeeded (added by Track C; optional = treated as true). */
   onboarded: z.boolean().optional(),
   /** (added Phase 2) EU AI Act Art. 50 / GDPR Art. 13 notice about the AI and its provider. */
@@ -177,6 +186,11 @@ export const ForecastResponse = z.object({
       reserveMinor: AmountMinor,
       points: z.array(z.object({ date: IsoDate, balanceMinor: AmountMinor })),
       shortfall: z.object({ date: IsoDate, amountMinor: AmountMinor }).nullable(),
+      /**
+       * The daily spending the projection subtracts, and where it comes from: the last 30 days, or the imported bank
+       * history (the median month) when the last 30 days have too few spending days to say.
+       */
+      burn: z.object({ dailyMinor: AmountMinor, from: z.enum(["recent", "history"]) }).optional(),
     }),
   ),
   suggestions: z.array(

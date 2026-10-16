@@ -146,6 +146,18 @@ describe("KassaLite pairing", () => {
       const id = randomUUID();
       const approve = await app().inject({ method: "POST", url: `/api/orders/${id}/approve`, headers: h, payload: {} });
       expect(approve.json().details.approveInWebApp).toMatch(new RegExp(`/order/${id}\\?from=lite$`));
+      // Every other passkey step opens its own page, not the start page (2026-10-16: "linking opens a blank page").
+      const pages: [string, string, string][] = [
+        ["POST", `/api/funding-sources/${randomUUID()}/confirm`, "/linked-accounts"],
+        ["PATCH", "/api/settings", "/settings"],
+        ["PUT", "/api/budgets", "/settings"],
+        ["POST", "/api/privacy/erase", "/data"],
+        ["POST", "/api/devices/shortcut", "/shortcut"],
+      ];
+      for (const [method, url, page] of pages) {
+        const res = await app().inject({ method: method as "POST", url, headers: h, payload: {} });
+        expect(new URL(res.json().details.approveInWebApp as string).pathname, url).toBe(page);
+      }
     }
   });
 });

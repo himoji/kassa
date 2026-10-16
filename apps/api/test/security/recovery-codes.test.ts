@@ -66,7 +66,8 @@ describe("backup codes", () => {
     const { userId, auth } = await createUserWithPasskey({ counter: 1 });
     const codes = await mintCodes(userId, auth);
     const oldHeaders = await bearer(userId);
-    await clock.advanceHours(0.001);
+    // Sessions follow wall time (not the demo clock): step it past the old token's second.
+    clock.freezeForTests(new Date(clock.realNowMs() + 2_000));
 
     const fresh = new SoftAuthenticator();
     // Typed by hand: lower case, spaces, an O for a 0 still works.
@@ -95,6 +96,7 @@ describe("backup codes", () => {
     const o = (await app().inject({ method: "POST", url: "/api/auth/login/options" })).json() as { challengeId: string; options: { challenge: string } };
     const login = await app().inject({ method: "POST", url: "/api/auth/login/verify", payload: { challengeId: o.challengeId, response: auth.assert(o.options.challenge), client: "native" } });
     expect(login.statusCode).toBe(401);
+    clock.freezeForTests(null);
   });
 
   it("unknown codes are refused", async () => {

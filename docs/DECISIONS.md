@@ -775,3 +775,32 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   before the insert). `v1` stays readable for existing rows and for callers that do not pass a payee id. Payments
   decrypts for the payee row and requires `accountHash(account) = order.payeeAccountHash`, else
   `REFUSE_UNVERIFIED_PAYEE`. Residual: v1 rows are not bound (SECURITY.md R30).
+
+## 2026-10-16 — Real time by default, demo time as a switch; sessions on wall time
+
+- **Problem:** spec §15 puts the whole app on the demo clock (real now + `demo_state.clockOffsetMs`), and the seed sets
+  it to story time (2026-10-27). A deployment that loads the demo data showed that date to everyone, and a reviewer
+  using the app normally saw due dates and cooling periods 11 days off.
+- **Choice:** `demo_state.clock_mode` (migration 0016): `REAL` (the default) is the system clock, `DEMO` adds the stored
+  offset. The offset is kept while `REAL`, so switching back resumes the story time. Deployments seed with `REAL`
+  (`api/index.ts`); `bun run seed`, the tests and the Stage reset keep the mode the script needs (`DEMO` for the seed
+  and tests, the current one for a reset). The Stage screen (Settings → Demo) has a **Demo time** switch
+  (`POST /demo/clock/mode`, demo admin token, ledger `DEMO_CLOCK_MODE`); the +1 h / +1 day / +3 days buttons still move
+  the demo clock, and pressed in real time they start it at real now. Everything that read the clock (scheduler,
+  cooling periods, due dates, expiries, the mock world through `GET /demo/clock`) follows the clock in use with no
+  change of its own.
+- **Exception:** session and refresh token lifetimes (`iat`/`exp`, and the "signed out before" mark of a backup-code
+  recovery) use wall time (`clock.realNowMs()`), so moving or switching the demo clock neither signs people out (an
+  11-day jump used to end the 7-day web session) nor keeps an expired token alive when the clock goes back.
+
+## 2026-10-16 — A demo switch for the 24 h waits
+
+- **Problem:** I7 (a new recipient cools 24 h) and the 24 h loosening delay (settings, mandates, unfreeze) make a live
+  demo wait a day or depend on the Stage clock. Reviewers asked for a way to turn the waits off.
+- **Choice:** `POST /demo/cooling` (registered only with `DEMO_ENABLED`), per user, stored in `demo_cooling_off`
+  (migration 0017; a row = off). Off needs the user's passkey (428 round trip) and is logged as `DEMO_COOLING_OFF`; on
+  needs nothing (it tightens) and is logged as `DEMO_COOLING_ON`. Default on. With it off, the waits are 0 for that user:
+  a new recipient still starts COOLING (T2 only, never autopilot) but can be verified and paid at once, and loosenings
+  apply at the next scheduler tick. Outside demo mode a stored row is ignored. The app shows a red banner on every screen
+  while off (`MeResponse.demo.coolingOff`), and the switch sits on the Stage screen (Settings → Demo). The attack suite
+  keeps the waits on, and no agent tool reaches the switch. Known risk: SECURITY.md R36.

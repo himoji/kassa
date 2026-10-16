@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { useMe } from "@/api/hooks/me";
 import { useCaptureEvent } from "@/api/hooks/activity";
-import { useDemoAction, type DemoAction } from "@/api/hooks/demo";
+import { useDemoAction, useDemoCooling, type DemoAction } from "@/api/hooks/demo";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { errorText } from "@/components/kassa/error-text";
 import { SettingSwitch } from "@/components/kassa/native-controls";
@@ -14,6 +14,7 @@ import { confirm } from "@/lib/confirm";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
+import { PasskeyCancelledError } from "@/lib/passkey-errors";
 
 import { NOTIFICATION_SAMPLES } from "./notification-samples";
 
@@ -24,6 +25,7 @@ export function DemoScreen() {
   const me = useMe();
   const demoAction = useDemoAction();
   const captureEvent = useCaptureEvent();
+  const cooling = useDemoCooling();
   const [notifText, setNotifText] = useState("");
 
   const demo = me.data?.demo ?? null;
@@ -34,6 +36,18 @@ export function DemoScreen() {
       haptics.success();
       toast.show({ title: t("demo:done"), kind: "success" });
     } catch (err) {
+      haptics.error();
+      toast.show({ title: errorText(t, err), kind: "error" });
+    }
+  };
+
+  const setCooling = async (on: boolean) => {
+    try {
+      await cooling.mutateAsync(on);
+      haptics.success();
+      toast.show({ title: t(on ? "demo:coolingOnDone" : "demo:coolingOffDone"), kind: "success" });
+    } catch (err) {
+      if (err instanceof PasskeyCancelledError) return;
       haptics.error();
       toast.show({ title: errorText(t, err), kind: "error" });
     }
@@ -69,8 +83,19 @@ export function DemoScreen() {
 
       <RowGroup title={t("demo:clockTitle")} footer={t("demo:clockFooter")}>
         <Box p={4} gap={3}>
+          <SettingSwitch
+            label={t("demo:demoTime")}
+            description={t("demo:demoTimeHint")}
+            value={demo?.clockMode === "DEMO"}
+            disabled={!demo}
+            onChange={(on) => void run({ kind: "clock-mode", mode: on ? "DEMO" : "REAL" })}
+          />
           <Text selectable style={{ fontVariant: ["tabular-nums"] }}>
-            {demo ? t("demo:now", { time: f.dateTime(demo.now) }) : t("demo:disabled")}
+            {demo
+              ? t(demo.clockMode === "DEMO" ? "demo:nowDemo" : "demo:nowReal", {
+                  time: f.dateTime(demo.now),
+                })
+              : t("demo:disabled")}
           </Text>
           <Box row gap={2}>
             <Button
@@ -110,6 +135,16 @@ export function DemoScreen() {
             onPress={() => void run({ kind: "trigger", scenario: s })}
           />
         ))}
+      </RowGroup>
+
+      <RowGroup title={t("demo:coolingTitle")} footer={t("demo:coolingFooter")}>
+        <SettingSwitch
+          label={t("demo:cooling")}
+          description={t("demo:coolingHint")}
+          value={!demo?.coolingOff}
+          disabled={!demo || cooling.isPending}
+          onChange={(on) => void setCooling(on)}
+        />
       </RowGroup>
 
       <RowGroup title={t("demo:agentTitle")}>

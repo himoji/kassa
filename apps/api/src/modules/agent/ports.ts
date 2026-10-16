@@ -4,6 +4,7 @@ import { categoryOfKind, suggestedReference, type BudgetDto, type ImportHistory,
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
+import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { agentDocuments } from "../../db/schema.intel.ts";
 import { budgetImpact, listBudgets, spendContext, type SpendContext } from "../budget/index.ts";
 import { draftPurchaseOrder, type DraftLineInput, type DraftResult } from "../business/drafts.ts";
@@ -148,7 +149,14 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     async profile() {
       const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
       if (!u) throw new Error("user not found");
-      const p = (await db.select().from(profiles).where(eq(profiles.userId, userId)))[0];
+      const p = (await db.select(PROFILE_CORE).from(profiles).where(eq(profiles.userId, userId)))[0];
+      // The imported history is optional: a database without its column (not migrated yet) answers without it.
+      const moneyHistory = await db
+        .select({ h: profiles.moneyHistory })
+        .from(profiles)
+        .where(eq(profiles.userId, userId))
+        .then((r) => r[0]?.h ?? null)
+        .catch(() => null);
       return {
         displayName: u.displayName,
         homeCurrency: u.homeCurrency,
@@ -157,7 +165,7 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         moneyMode: u.moneyMode,
         notificationMode: p?.notificationMode ?? "EACH",
         incomes: p?.incomes ?? [],
-        moneyHistory: p?.moneyHistory ?? null,
+        moneyHistory,
         accountType: u.accountType,
       };
     },

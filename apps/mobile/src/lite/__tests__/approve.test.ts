@@ -1,9 +1,24 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
 import { KassaApiError } from "@/api/errors";
-import { approveInWebAppUrl, LITE_RETURN_URL, openApproveInWebApp } from "../approve";
+import {
+  approveInWebAppUrl,
+  LITE_RETURN_URL,
+  liteWebAppUrl,
+  openApproveInWebApp,
+  openWebAppStep,
+} from "../approve";
 
 const mockOpen = jest.fn((_url: string, _redirect: string) => Promise.resolve({ type: "success" }));
+let mockBase = "https://kassa.example/api";
+jest.mock("@/api/client", () => ({
+  api: {
+    get baseUrl() {
+      return mockBase;
+    },
+  },
+  onApiError: () => () => {},
+}));
 jest.mock("expo-web-browser", () => ({
   openAuthSessionAsync: (url: string, redirect: string) => mockOpen(url, redirect),
 }));
@@ -34,5 +49,22 @@ describe("approve in the web app", () => {
     expect(mockOpen).toHaveBeenCalledTimes(1);
     expect(mockOpen).toHaveBeenCalledWith(url, LITE_RETURN_URL);
     expect(await openApproveInWebApp(new Error("x"), 20_000)).toBe(false);
+  });
+});
+
+describe("passkey steps Lite opens in the web app", () => {
+  it("opens the paired server's page with from=lite, and only over https", async () => {
+    expect(liteWebAppUrl("/linked-accounts", { intent: "card" })).toBe(
+      "https://kassa.example/linked-accounts?intent=card&from=lite"
+    );
+    mockOpen.mockClear();
+    expect(await openWebAppStep("/linked-accounts", { intent: "bank" })).toBe(true);
+    expect(mockOpen).toHaveBeenCalledWith(
+      "https://kassa.example/linked-accounts?intent=bank&from=lite",
+      LITE_RETURN_URL
+    );
+    mockBase = "http://192.168.1.5:4000/api";
+    expect(liteWebAppUrl("/linked-accounts")).toBeNull();
+    expect(await openWebAppStep("/linked-accounts")).toBe(false);
   });
 });

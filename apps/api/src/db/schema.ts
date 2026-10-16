@@ -797,6 +797,8 @@ export const devices = pgTable("devices", {
 export const demoState = pgTable("demo_state", {
   id: integer("id").primaryKey().default(1),
   clockOffsetMs: bigint("clock_offset_ms", { mode: "number" }).notNull().default(0),
+  /** (added 2026-10-16) REAL = the system clock; DEMO = system clock + clockOffsetMs (the offset is kept either way). */
+  clockMode: text("clock_mode", { enum: ["REAL", "DEMO"] }).notNull().default("REAL"),
   agentMode: agentModeEnum("agent_mode").notNull().default("LIVE"),
   seededAt: tstz("seeded_at"),
   /** (added) seeded hero user a reviewer can claim with their first passkey. */
@@ -805,6 +807,18 @@ export const demoState = pgTable("demo_state", {
   demoClaimed: boolean("demo_claimed").notNull().default(false),
 });
 
+
+/**
+ * (added 2026-10-16) Demo only: a row = this user turned the 24 h waits off (recipient cooling, loosening delays) with
+ * their passkey. Ignored unless DEMO_ENABLED (modules/demo/cooling.ts); deleting the row turns the waits back on.
+ */
+export const demoCoolingOff = pgTable("demo_cooling_off", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull(),
+  offAt: tstz("off_at").notNull(),
+});
 
 // ---------- Kassa Business (added 2026-10-14, Business M0, migration 0007) ----------
 /*

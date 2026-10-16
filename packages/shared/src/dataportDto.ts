@@ -169,6 +169,10 @@ export const ImportHistory = z.object({
 });
 export type ImportHistory = z.infer<typeof ImportHistory>;
 
+/** GET /history: the last imported history (statements or onboarding), or null before any import. */
+export const MoneyHistoryResponse = z.object({ history: ImportHistory.nullable() });
+export type MoneyHistoryResponse = z.infer<typeof MoneyHistoryResponse>;
+
 export const ImportPreviewResponse = z.object({
   source: z.enum(["kassa", "mapped"]),
   items: ImportItems,
