@@ -289,6 +289,14 @@ describe("what the history really shows", () => {
     expect([...w.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(0.93, 1);
   });
 
+  it("a large payment to the same party every month (rent) is a regular payment, not a one-off", async () => {
+    const rent = months.slice(-6).map((m) => mk(`${m}-01`, -90000000, "Rent Landlord in Budapest", "PURCHASE"));
+    const tuition = [mk("2026-08-20", -125000000, "University in Budapest tuition", "PURCHASE")];
+    const { history } = await buildHistory([...everyday, ...rent, ...tuition], { homeCurrency: "KZT", today: "2026-10-31", toHome, categoryOf: (r) => (r.description === "SPAR" ? "groceries" : r.description.startsWith("Rent") ? "rent" : r.description.startsWith("Univ") ? "tuition" : "eating_out"), statements: [year] });
+    expect(history.oneOffs.map((o) => o.name)).toEqual(["University in Budapest tuition"]);
+    expect(history.recurring.map((r) => r.name)).toContain("Rent Landlord in Budapest");
+  });
+
   it("money from home that comes in some months is planned at its average, a one-off for a payment is kept out, a stopped one is not planned", async () => {
     const dad = ["2025-11-10", "2026-01-12", "2026-04-08", "2026-07-09", "2026-09-10"].map((d) => mk(d, 20000000, "Нұрлан С.", "INCOME"));
     const deposit = [mk("2026-08-13", 100000000, "Нұрлан С.", "INCOME"), mk("2026-08-14", -97000000, "DORM DEPOSIT", "PURCHASE")];
