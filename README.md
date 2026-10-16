@@ -61,7 +61,7 @@ Details, phone testing and deployment are below.
 | Source code              | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md))                                                  |
 | Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7)                                               |
 | Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations; the attack results as a page at `/evidence` in the web app (no sign-in) |
-| Presentation deck        | Separate slide deck (10 slides, about 10 minutes): link to be added at submission                                                    |
+| Presentation deck        | Separate slide deck (14 slides, about 10 minutes): link to be added at submission                                                    |
 | Demo video               | Recorded with `bun run demo:video` ([docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)); link to be added at submission                       |
 
 Dates in the evidence (late October and November 2026) are on the **demo clock**: the seed data is a story set on 2026-10-27 and the demo moves its clock forward (rent day, payouts). The app itself runs on real time by default; the Stage's **Demo time** switch turns the story clock on (DECISIONS.md, 2026-10-16).
