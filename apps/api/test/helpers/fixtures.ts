@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "../../src/db/client.ts";
-import { mandates, obligations, payees, profiles, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
+import { kycChecks, mandates, obligations, payees, profiles, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { setBalanceProviderForTests } from "../../src/modules/rules/facts.ts";
 import { useFallbackFxForTests } from "../../src/modules/money/fx.ts";
@@ -66,6 +66,11 @@ export async function createUserWithPasskey(
     counter?: number;
     /** Consent to AI processing (agent/onboarding routes refuse without it). Default true. */
     aiConsent?: boolean;
+    /**
+     * (KYC) The user's identity check standing. Default VERIFIED (a document-less fixture check, like the seeded
+     * personas), so payments above the KYC threshold behave as before; "NONE" for a user who never ran the check.
+     */
+    kyc?: "VERIFIED" | "NONE";
   } = {},
 ) {
   const db = getDb();
@@ -85,6 +90,10 @@ export async function createUserWithPasskey(
     const row = { userId: id, credentialId: auth.id, publicKey: auth.publicKeyB64u(), counter: auth.counter, transports: ["internal"] };
     await tx.insert(webauthnCredentialsRules).values(row);
     await tx.insert(webauthnCredentialsPayments).values(row);
+    if ((opts.kyc ?? "VERIFIED") === "VERIFIED") {
+      const at = clock.now();
+      await tx.insert(kycChecks).values({ userId: id, outcome: "VERIFIED", documentType: "PASSPORT", documentCountry: "KZ", provider: "fixture", providerRef: "fixture", createdAt: at, checkedAt: at });
+    }
   });
   return { userId: id, auth };
 }
