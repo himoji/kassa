@@ -4,12 +4,14 @@ import { bestCard, dccFlag, rollingMedianBps, settlementFee, type CardFeeProfile
 import {
   addMonths,
   burnRate,
+  chooseBurn,
   computeForecast,
   medianInt,
   occurrences,
   projectBalances,
   type ForecastInput,
 } from "../../src/modules/fx/forecast.ts";
+import { historyDailyBurn } from "../../src/modules/fx/index.ts";
 import { RatesService } from "../../src/modules/fx/rates.ts";
 import { parseDecimal } from "../../src/modules/fx/rational.ts";
 
@@ -79,6 +81,48 @@ describe("projectBalances", () => {
     expect(eur!.points).toHaveLength(46);
     expect(eur!.points.find((p) => p.date === "2026-10-30")?.balanceMinor).toBe(30000);
     expect(eur!.shortfall).toEqual({ date: "2026-10-31", amountMinor: 210000 });
+  });
+});
+
+describe("burn from the imported history", () => {
+  const today = "2026-10-27";
+  const days = (n: number, amountMinor: number) =>
+    Array.from({ length: n }, (_, i) => ({ currency: "KZT", amountMinor, date: addDaysIso(today, -(i + 1)) }));
+  const month = (m: string, spending: number, transfers = 0, statements = 1) => ({
+    month: m,
+    spendingHomeMinor: spending,
+    transfersHomeMinor: transfers,
+    incomeHomeMinor: 0,
+    statements,
+  });
+
+  it("the median covered month / 30, so a tuition month stays out; null under 2 months", () => {
+    const h = { homeCurrency: "KZT", monthly: [month("2026-06", 300_000_00), month("2026-07", 9_000_000_00), month("2026-08", 330_000_00, 30_000_00), month("2026-09", 0, 0, 0)] };
+    expect(historyDailyBurn(h as never)).toBe(Math.round(360_000_00 / 30));
+    expect(historyDailyBurn({ homeCurrency: "KZT", monthly: [month("2026-06", 300_000_00)] } as never)).toBeNull();
+    expect(historyDailyBurn(null)).toBeNull();
+  });
+
+  it("thin recent data (fewer than 10 spending days) uses the history; enough recent data wins", () => {
+    const historyBurn = { KZT: 12_000_00 };
+    expect(chooseBurn({ today, spends: days(5, 1000), historyBurn }, "KZT")).toEqual({ dailyMinor: 12_000_00, from: "history" });
+    expect(chooseBurn({ today, spends: days(20, 5000), historyBurn }, "KZT")).toEqual({ dailyMinor: 5000, from: "recent" });
+    expect(chooseBurn({ today, spends: days(5, 1000) }, "KZT")).toEqual({ dailyMinor: 0, from: "recent" });
+  });
+
+  it("the projection subtracts the history burn and reports where it came from", () => {
+    const [kzt] = projectBalances({
+      today,
+      homeCurrency: "KZT",
+      balances: [{ currency: "KZT", amountMinor: 300_000_00 }],
+      incomes: [],
+      obligations: [],
+      spends: [],
+      historyBurn: { KZT: 10_000_00 },
+    });
+    expect(kzt!.burn).toEqual({ dailyMinor: 10_000_00, from: "history" });
+    expect(kzt!.points[30]!.balanceMinor).toBe(0);
+    expect(kzt!.shortfall?.date).toBe(addDaysIso(today, 31));
   });
 });
 

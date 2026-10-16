@@ -1,10 +1,10 @@
 import multipart from "@fastify/multipart";
-import { ImportCommitRequest, ImportCommitResponse, ImportPreviewRequest, ImportPreviewResponse, KassaExport } from "@kassa/shared";
+import { ImportCommitRequest, ImportCommitResponse, ImportPreviewRequest, ImportPreviewResponse, KassaExport, MoneyHistoryResponse } from "@kassa/shared";
 import { eq } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 
 import { getDb } from "../../db/client.ts";
-import { users } from "../../db/schema.ts";
+import { profiles, users } from "../../db/schema.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { isAiConfigError } from "../ai/errors.ts";
 import { currentAgentMode } from "../ai/mode.ts";
@@ -20,10 +20,20 @@ import { commitImport, exportData } from "./service.ts";
 /** Files per upload (a student's banks: a few statements at once). */
 const MAX_IMPORT_FILES = 6;
 
-/** GET /export, POST /import/preview (pasted text), POST /import/file (multipart files), POST /import/commit (read.ts, service.ts). */
+/** GET /export, GET /history, POST /import/preview (pasted text), POST /import/file (multipart files), POST /import/commit (read.ts, service.ts). */
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
   await app.register(multipart, { limits: { fileSize: MAX_IMPORT_FILE_BYTES, files: MAX_IMPORT_FILES, fields: 4, fieldSize: 64 } });
+
+  // The stored history for the Home card (computed in code at import time; a missing column reads as none).
+  app.get("/history", { schema: { response: { 200: MoneyHistoryResponse } } }, async (req) => {
+    const row = await getDb()
+      .select({ h: profiles.moneyHistory })
+      .from(profiles)
+      .where(eq(profiles.userId, userIdOf(req)))
+      .catch(() => []);
+    return { history: row[0]?.h ?? null };
+  });
 
   app.get("/export", { schema: { response: { 200: KassaExport } } }, async (req, reply) => {
     const data = await exportData(userIdOf(req));

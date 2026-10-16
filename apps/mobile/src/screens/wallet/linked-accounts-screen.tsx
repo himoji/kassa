@@ -1,6 +1,7 @@
 import { TestCard, type FundingSourceDto, type StartLinkResponse } from "@kassa/shared";
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Linking, Pressable, View } from "react-native";
 
 import {
   useConfirmLink,
@@ -19,6 +20,7 @@ import { confirm } from "@/lib/confirm";
 import { haptics } from "@/lib/haptics";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useKassaT } from "@/lib/i18n";
+import { LITE_RETURN_URL, openWebAppStep } from "@/lite/approve";
 
 import { ChipRow } from "../payees/recipient-fields";
 
@@ -284,8 +286,27 @@ export function LinkedAccountsScreen({ viewOnly = false }: { viewOnly?: boolean 
   const t = useKassaT();
   const sources = useFundingSources();
   const remove = useRemoveFundingSource();
-  const [sheet, setSheet] = useState<SheetState>(null);
-  const close = () => setSheet(null);
+  // Opened from KassaLite (`?from=lite&intent=card|bank`): open that form at once, and send the person back after it.
+  const params = useLocalSearchParams<{ from?: string; intent?: string }>();
+  const fromLite = params.from === "lite";
+  const [sheet, setSheet] = useState<SheetState>(() =>
+    viewOnly
+      ? null
+      : params.intent === "card"
+        ? { kind: "card" }
+        : params.intent === "bank"
+          ? { kind: "bank", resume: null }
+          : null
+  );
+  const [webUnavailable, setWebUnavailable] = useState(false);
+  const close = () => {
+    setSheet(null);
+    if (fromLite) void Linking.openURL(`${LITE_RETURN_URL}linked-accounts`).catch(() => {});
+  };
+  const linkInWebApp = async (intent: "card" | "bank") => {
+    const opened = await openWebAppStep("/linked-accounts", { intent });
+    setWebUnavailable(!opened);
+  };
 
   const onRemove = async (s: FundingSourceDto) => {
     const ok = await confirm({
@@ -375,7 +396,18 @@ export function LinkedAccountsScreen({ viewOnly = false }: { viewOnly?: boolean 
         }
       </QueryView>
       {viewOnly ? (
-        <Text variant="caption">{t("wallet:linked.viewOnly")}</Text>
+        // KassaLite has no passkey: linking happens on the web app's page, which sends the person back here.
+        <Box gap={2}>
+          <Button size="lg" onPress={() => void linkInWebApp("card")}>
+            {t("wallet:linked.linkCardWeb")}
+          </Button>
+          <Button variant="secondary" onPress={() => void linkInWebApp("bank")}>
+            {t("wallet:linked.linkBankWeb")}
+          </Button>
+          <Text variant="caption">
+            {t(webUnavailable ? "wallet:linked.webUnavailable" : "wallet:linked.viewOnly")}
+          </Text>
+        </Box>
       ) : (
         <Box gap={2}>
           <Button size="lg" onPress={() => setSheet({ kind: "card" })}>

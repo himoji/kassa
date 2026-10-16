@@ -192,7 +192,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       await registerPaymentsCredential(tx, row);
 
       // Freeze payments (instant tightening) and drop any pending unfreeze; sessions from before now stop working.
-      await tx.update(users).set({ sessionsRevokedAt: now, ...(u.frozenAt ? {} : { frozenAt: now }) }).where(eq(users.id, userId));
+      await tx.update(users).set({ sessionsRevokedAt: new Date(clock.realNowMs()), ...(u.frozenAt ? {} : { frozenAt: now }) }).where(eq(users.id, userId));
       if (!u.frozenAt) await ledger.append("ACCOUNT_FROZEN", { userId, reason: "ACCOUNT_RECOVERY" }, tx);
       await cancelPendingUnfreezes(tx, userId);
 

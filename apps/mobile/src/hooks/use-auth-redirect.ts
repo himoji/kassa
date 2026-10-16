@@ -38,7 +38,12 @@ export function useAuthRedirect(): void {
     const root = segments[0] ?? "";
     if (status === "unauthenticated") {
       if (!PUBLIC_ROOTS.has(root)) {
-        rememberReturnPath(pathname);
+        // The query matters for hand-offs from KassaLite (`?from=lite&intent=card`): keep it on web.
+        const search =
+          typeof window !== "undefined" && typeof window.location?.search === "string"
+            ? window.location.search
+            : "";
+        rememberReturnPath(pathname + search);
         router.replace("/welcome");
       }
       return;

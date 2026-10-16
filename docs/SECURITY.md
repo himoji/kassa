@@ -147,6 +147,14 @@ Stale items fixed in this pass: R3 (cross-currency cap) is fixed; R4 (Reader che
 | D6 | **Uploads are untrusted bytes.** The format comes from magic bytes, files are capped at 10 MB (6 per upload), spreadsheet cells and inflated XML are capped, formulas are never evaluated, legacy XLS and images are refused | `dataport/files.ts` | `test/dataport/statements.test.ts` ("file formats") |
 | D7 | **The agent reads history, never acts on it.** `get_money_history` is read-only (READ_TOOLS); its output is the stored aggregates, redacted like every tool result, with senders as person_N. It cannot add a payee, an income or a budget | `agent/tools.ts`, `agent/loop.ts` (`knownNames`) | `test/intel/agent-loop.test.ts` ("get_money_history") |
 
+### 5.4 Demo controls: real or demo time, the 24 h waits switch (2026-10-16)
+
+| ID | Control | Code path | Test path |
+| --- | --- | --- | --- |
+| C1 | **The 24 h waits switch is demo only, per user, and needs the passkey to turn off.** With `DEMO_ENABLED`, `POST /demo/cooling {enabled:false}` answers 428 with a fresh challenge; only an assertion from the user's own passkey turns their waits off (`DEMO_COOLING_OFF` in the ledger, with the credential). Turning them back on needs nothing (`DEMO_COOLING_ON`). Without `DEMO_ENABLED` the route is not registered and a stored row is ignored, so production always waits. Default on. While off, every screen shows a red banner with **Turn on**. Off removes the wait only: a new recipient still starts `COOLING` and is T2 only (passkey every time, never autopilot) | `demo/cooling.ts`, `demo/cooling-routes.ts`, `payees/service.ts`, `users/settings.ts`, `users/unfreeze.ts`, `mandates/service.ts`, `components/cooling-off-banner.tsx` | `test/core/demo-cooling.test.ts` (passkey needed, forged assertion 403, logged, per user, refused and ignored outside demo mode) |
+| C2 | **The attack suite and the agent cannot touch the switch.** No attack test or agent module references it; attacks run with the waits on | `agent/` (no tool) | `test/attacks/cooling-stays-on.test.ts` |
+| C3 | **Session lifetimes use wall time, not the demo clock.** Moving or switching the demo clock (Stage, `POST /demo/clock/mode`) neither signs people out nor keeps an expired token alive | `auth/session.ts` (`clock.realNowMs`), `auth/recovery.ts` | `test/core/clock-mode.test.ts`, `test/security/recovery-codes.test.ts` |
+
 ## 6. Attack suite
 
 The attack suite is `apps/api/test/attacks/` (A1 to A9). Each attack is a Vitest test that asserts: no payment, the expected reason code, and a ledger entry. The table lists where each attack is covered and what is missing.
@@ -307,6 +315,7 @@ Severity is the harm if the risk is realised in a real deployment; likelihood is
 
 | R34 | Counterparty names in statements (other people who sent or received money) reach the AI fallback and category call when the user has given AI consent. Only the holder's own name is redacted | A relative's or friend's name goes to the AI provider | The deterministic readers handle the common layouts without AI (three real statements: 0 AI calls); categories are named in one batched call; AI consent required; the onboarding model sees these names as person_N | Accepted. Documented in PRIVACY.md §5 |
 | R35 | An income or bill guessed from history can be wrong (an irregular gift read as monthly income, a repeated purchase read as a bill) | The forecast or the draft starts from a wrong number | Every suggestion is shown and switchable before import, and the draft is reviewed and signed with the passkey; history bills are never payable without account details | Accepted |
+| R36 | With the demo 24 h waits switch off, a new or changed recipient is payable at once, so the A2 "landlord changed IBAN" defence loses its day of delay for that user | A user who also approves the wrong recipient with the passkey could pay it the same day | Demo deployments only (`DEMO_ENABLED`); per user; the passkey to turn it off; ledger entries; a banner on every screen; the recipient is still COOLING, T2 only, screened and re-checked by payments. The demo Stage clock still moves the waits when the switch is on | Accepted for demos. Never enable `DEMO_ENABLED` on a deployment with real money |
 
 ### 7.4 Limits of the simulated payment rails
 

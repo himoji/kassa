@@ -35,7 +35,7 @@ import {
   transactions,
   users,
 } from "../../db/schema.ts";
-import { clock } from "../clock/index.ts";
+import { clock, type ClockMode } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { clearDekCache } from "../privacy/keys.ts";
 import { accountHash, encryptAccount, encryptDetails, normalizeAccount } from "../payees/crypto.ts";
@@ -269,12 +269,13 @@ async function insertBusinessData(tx: SeedTx, ownerUserId: string, b: SeedBusine
 
 /**
  * Insert seed data; `reset` truncates first; `personas` adds `seed.personas`; `aiConsent` pre-grants AI consent to
- * every seeded user (tests only; default false). Sets the demo clock to seed time.
+ * every seeded user (tests only; default false). Sets the demo clock to seed time; `clockMode` (default DEMO) says
+ * whether it runs: deployments that load the demo data pass REAL, so the app shows the real date.
  */
 export async function seedDatabase(
   db: Db,
   data: SeedData,
-  opts: { reset: boolean; personas?: boolean; aiConsent?: boolean },
+  opts: { reset: boolean; personas?: boolean; aiConsent?: boolean; clockMode?: ClockMode },
 ): Promise<{ userId: string; personaUserIds: string[] }> {
   if (opts.reset) await truncateAll(db);
   const u = data.user;
@@ -295,6 +296,7 @@ export async function seedDatabase(
   });
   const realNow = clock.nowMs() - clock.offsetMs();
   await clock.setOffset(Date.parse(data.seedNow) - realNow);
+  await clock.setMode(opts.clockMode ?? "DEMO");
   // One entry per user (p2 B2): each payload names only its own user, so exports stay per subject.
   for (const d of [data as SeedUserData, ...personas]) {
     await ledger.append("DEMO_SEEDED", {
