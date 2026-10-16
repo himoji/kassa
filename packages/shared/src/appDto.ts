@@ -30,7 +30,7 @@ import {
 
 /*
  * App-facing DTOs that spec §8/§16 imply but `dto.ts` did not define yet (added by Track C, mobile).
- * Additive only - see docs/spec/PHASE1_COORDINATION.md "Contract changes" for the endpoint list.
+ * Additive only: existing fields never change meaning.
  * Where the spec is silent the cited standard applies (noted per item).
  */
 

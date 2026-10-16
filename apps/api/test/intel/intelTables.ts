@@ -1,7 +1,7 @@
 /*
- * Track B tables (src/db/schema.intel.ts) for PGlite tests, generated with drizzle-kit from
- * schema.ts + schema.intel.ts. Idempotent: becomes a no-op once Track A's migrations include
- * schema.intel.ts (requested in PHASE1_COORDINATION.md).
+ * The schema.intel.ts tables for PGlite tests, generated with drizzle-kit from
+ * schema.ts + schema.intel.ts. Idempotent: becomes a no-op once the migrations include
+ * schema.intel.ts.
  */
 import { sql } from "drizzle-orm";
 

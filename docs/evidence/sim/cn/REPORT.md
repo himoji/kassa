@@ -25,3 +25,5 @@ Reviewer notes (WeBank lens): (1) swapped-QR check runs after the passkey approv
 
 **Finding B5a:** a mandate must only cover what the user signed it for (the rent obligation), not any payment to that payee. A fooled agent can spend the remaining mandate budget and block the real rent.
 (Report transcribed by the coordinator — the tester's file write was refused by the harness.)
+
+An earlier run of the same scenarios (before the fix pass) is kept in `first-run/`.
