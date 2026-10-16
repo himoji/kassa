@@ -14,6 +14,7 @@ export const REASON_TEXT_EN: Partial<Record<ReasonCode, string>> = {
   REFUSE_CAP: "This payment is above one of your limits, so it was refused. Lower the amount or raise the limit with your passkey.",
   INSUFFICIENT_FUNDS: "None of your balances can cover this payment and its fees in time, so nothing was sent. Add money or convert first, then try again.",
   DUPLICATE_OBLIGATION_PAYMENT: "This bill for this period is already paid or waiting for your approval, so a second payment was refused.",
+  KYC_REQUIRED: "This amount needs a verified identity first, so it was refused. Complete the identity check in Settings, then try again.",
   HANDOFF_REGION: "Because of your region, Kassa cannot send this payment. Pay it yourself using the handoff screen.",
   HANDOFF_MODE: "Your money mode is set to handoff, so you need to pay this one yourself from the handoff screen.",
   MANDATE_MATCH: "This bill matches a mandate you signed, so it can be paid automatically within its limits.",

@@ -97,6 +97,8 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/import/preview": "sensitive",
   "POST /api/import/commit": "sensitive",
   "POST /api/privacy/restrict": "sensitive",
+  // (added 2026-10-16) identity checks: no guessing documents in a loop
+  "POST /api/kyc/start": "sensitive",
 };
 
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;

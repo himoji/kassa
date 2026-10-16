@@ -18,6 +18,7 @@ export const keys = {
   caps: ["caps"] as const,
   wallet: ["wallet"] as const,
   fundingSources: ["funding-sources"] as const,
+  kyc: ["kyc"] as const,
   schools: (q: string) => ["schools", q] as const,
   sendQuote: (payeeId: string, amountMinor: number, sourceId: string | null) =>
     ["send-quote", payeeId, amountMinor, sourceId] as const,
