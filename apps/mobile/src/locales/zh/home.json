@@ -1,0 +1,102 @@
+{
+  "alertBlocked_other": "{{count}} 位收款人已被阻止",
+  "alertCooling_other": "{{count}} 位新收款人处于冷静期",
+  "alertCoolingHint": "向其付款需等待 24 小时。",
+  "alertDcc_other": "{{count}} 笔银行卡付款按较差汇率换算",
+  "alertFees": "本月因银行卡手续费损失 {{amount}}",
+  "alertFeesHint": "在“银行卡”中查看如何避免。",
+  "alerts": "提醒",
+  "allBills": "全部账单",
+  "balance": {
+    "title": "余额"
+  },
+  "budgetA11y": "{{category}}预算：已花费 {{spent}}，共 {{limit}}",
+  "budgets": "预算",
+  "daysLeft_other": "还剩 {{count}} 天",
+  "freeze": {
+    "a11y": "冻结所有付款",
+    "alreadyBody": "付款已冻结。解冻属于放宽更改，需要您的通行密钥。",
+    "alreadyTitle": "已冻结",
+    "button": "冻结",
+    "confirm": "冻结",
+    "confirmBody": "Kassa 会立即停止所有新付款。解冻需要您的通行密钥，并需等待 24 小时。",
+    "confirmTitle": "冻结所有付款？",
+    "done": "付款已冻结",
+    "frozen": "已冻结",
+    "frozenA11y": "付款已冻结"
+  },
+  "frozenBody": "在您解冻之前，不会有任何付款发出。解冻需要您的通行密钥，并需等待 24 小时。",
+  "frozenTitle": "付款已冻结",
+  "more": "更多",
+  "next45": "未来 45 天",
+  "noBills": "未来 45 天没有到期账单。",
+  "noBudgets": "暂无预算。",
+  "pace": {
+    "ON_TRACK": "进度正常",
+    "AHEAD_OF_PACE": "花得较快",
+    "OVER": "超出预算"
+  },
+  "rateDate": "汇率截至 {{date}}",
+  "runOut": "按此速度，将在 {{date}} 用完",
+  "spentOf": "已花费 {{spent}}，共 {{limit}}",
+  "tab": "首页",
+  "title": "首页",
+  "toSign": "待签署",
+  "totalA11y": "本国货币总额：{{amount}}",
+  "totalLabel": "{{currency}} 总额",
+  "upcoming": "即将到期",
+  "addBudget": {
+    "open": "添加预算",
+    "category": "类别",
+    "newCategory": "将“{{name}}”添加为新类别",
+    "limit": "每月限额",
+    "exists": "此类别已有预算。",
+    "add": "添加"
+  },
+  "budgetSummary": {
+    "leftThisMonth": "本月预算剩余",
+    "a11y": "剩余 {{left}}：已花费 {{spent}}，共 {{limit}}",
+    "attention_other": "{{count}} 项需要关注"
+  },
+  "budgetRow": {
+    "left": "剩余 {{amount}}",
+    "over": "超出 {{amount}}"
+  },
+  "runOutShort": "{{date}} 用完",
+  "editBudgets": "编辑",
+  "showAllBudgets": "显示全部 {{count}} 项",
+  "showFewerBudgets": "收起",
+  "addMoney": "充值",
+  "send": "转账",
+  "payTo": "付款",
+  "allRecipients": "全部收款人",
+  "history": {
+    "title": "您的银行记录显示",
+    "period": "{{rows}} 笔交易，{{from}} – {{to}}",
+    "all": "显示全部 {{count}} 项",
+    "less": "收起",
+    "update": "添加对账单",
+    "emptyTitle": "根据真实记录做规划",
+    "emptyBody": "添加您的银行对账单（PDF、CSV、Excel）。Kassa 在服务器上读取它们，从不保存账号，并会在保存任何内容之前向您展示它了解到的信息。",
+    "import": "添加银行对账单"
+  },
+  "agent": {
+    "title": "Kassa 本周做了什么",
+    "summary": "已付款 {{paid}} · 等待您的通行密钥 {{waiting}} · 被您的规则暂缓 {{held}}",
+    "empty": "暂时无事可做。Kassa 会检查您的账单，并在每笔账单到期前 3 天起草付款。",
+    "someone": "一位收款人",
+    "footer": "Kassa 负责起草；由您的规则和通行密钥决定。只有在您签署的授权范围内，它才会自行付款。",
+    "by": {
+      "AGENT": "由 Kassa 起草",
+      "SCHEDULER": "账单即将到期"
+    },
+    "outcome": {
+      "PAID_AUTO": "依据授权已付款",
+      "PAID_APPROVED": "已用通行密钥付款",
+      "WAITING": "需要您的通行密钥",
+      "HELD": "已暂缓",
+      "DECLINED": "您已拒绝",
+      "OTHER": "未发出"
+    }
+  }
+}

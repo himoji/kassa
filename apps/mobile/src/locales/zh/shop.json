@@ -1,0 +1,37 @@
+{
+  "timelineTitle": "订单状态",
+  "timelineHint": "由店铺报告（模拟），每隔几秒更新。",
+  "tillHint": "由店铺收银机报告（模拟）。",
+  "channel": {
+    "DELIVERY": "外送",
+    "TILL": "柜台"
+  },
+  "status": {
+    "SUBMITTED": "已发送给店铺",
+    "AWAITING_PAYMENT": "等待付款",
+    "RECEIVED": "已接收",
+    "ACCEPTED": "已接单",
+    "COOKING": "制作中",
+    "OUT_FOR_DELIVERY": "配送中",
+    "DELIVERED": "已送达",
+    "PAID": "已付款",
+    "DECLINED": "已拒绝",
+    "FAILED": "失败"
+  },
+  "item": "{{qty}} × {{name}}",
+  "reason": "原因：{{code}}",
+  "emptyOrders": "暂无店铺订单",
+  "segment": "订单",
+  "pay": {
+    "title": "支付账单",
+    "from": "来自{{merchant}}的账单",
+    "hint": "金额和商品来自店铺的收银机，而不是来自此链接。您将在下一屏用通行密钥批准付款。",
+    "review": "查看并付款",
+    "paid": "此账单已支付。",
+    "notPayee": "{{merchant}}还不是您的收款人。请先添加，然后重新扫描账单。"
+  },
+  "notifyStatusTitle": "{{merchant}}：{{status}}",
+  "notifyEndedBody": "不会再收取任何费用。原因：{{code}}。",
+  "notifyTillBody": "柜台收银机显示了您的付款（模拟）。",
+  "notifyShopBody": "来自店铺的订单状态（模拟）。"
+}
