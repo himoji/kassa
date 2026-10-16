@@ -217,6 +217,7 @@ export const LITE_DENIED: ReadonlySet<string> = new Set([
   "POST /api/auth/recovery-codes",
   "POST /api/business/purchase-orders/:id/sign",
   "POST /api/business/purchase-orders/:id/sign/options",
+  "POST /api/demo/cooling",
 ]);
 
 /**
@@ -238,6 +239,7 @@ export function approveInWebAppUrl(route: string, params: unknown): string {
     "POST /api/mandates/:id/revoke": "/payees",
     "POST /api/privacy/erase": "/data",
     "POST /api/auth/recovery-codes": "/backup-codes",
+    "POST /api/demo/cooling": "/demo",
     "POST /api/devices/shortcut": "/shortcut",
     "POST /api/auth/pair/start": "/pair-lite",
     "POST /api/business/purchase-orders/:id/sign": "/orders",

@@ -583,6 +583,19 @@ export const DemoStateResponse = z.object({
 });
 export type DemoStateResponse = z.infer<typeof DemoStateResponse>;
 
+/**
+ * POST /demo/cooling (demo deployments only): turn this user's 24 h waits off (passkey, 428 round trip) or back on
+ * (no passkey). The waits: a new recipient's cooling period and the delay before a loosening applies.
+ */
+export const DemoCoolingRequest = z.object({
+  enabled: z.boolean(),
+  challengeId: z.string().optional(),
+  assertion: AuthenticationResponseJSON.optional(),
+});
+export type DemoCoolingRequest = z.infer<typeof DemoCoolingRequest>;
+export const DemoCoolingResponse = z.object({ coolingOn: z.boolean(), offAt: IsoDateTime.nullable() });
+export type DemoCoolingResponse = z.infer<typeof DemoCoolingResponse>;
+
 /** POST /demo/agent-mode */
 export const DemoAgentModeRequest = z.object({ mode: AgentMode });
 export type DemoAgentModeRequest = z.infer<typeof DemoAgentModeRequest>;

@@ -18,6 +18,7 @@ import { audit, auditAssertionFailure } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock } from "../clock/index.ts";
+import { waitMs } from "../demo/cooling.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { LOOSEN_DELAY_MS } from "./settings.ts";
 
@@ -72,7 +73,7 @@ export async function requestUnfreeze(
   }
 
   const now = clock.now();
-  const effectiveAt = addMs(now, LOOSEN_DELAY_MS);
+  const effectiveAt = addMs(now, await waitMs(userId, LOOSEN_DELAY_MS));
   const id = await db.transaction(async (tx) => {
     const row = await tx
       .insert(ruleChanges)
