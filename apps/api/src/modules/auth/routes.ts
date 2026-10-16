@@ -257,7 +257,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.post("/auth/logout", { schema: { body: LogoutRequest.optional() } }, async (req, reply) => {
     await revokeRefresh(req.body?.refreshToken);
-    endSession(reply);
+    await endSession(req, reply);
     return reply.status(204).send();
   });
 };

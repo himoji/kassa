@@ -3,7 +3,8 @@
  * JWTs per RFC 7519, HS256 with SESSION_SECRET (RFC 7518 §3.2). iat/exp come from wall time (clock.realNowMs, never the demo clock) and are
  * verified against it too: moving or switching the demo clock neither signs people out nor revives expired tokens.
  * Refresh tokens rotate on every use (RFC 9700 §4.14.2); a reused refresh token is rejected. The spent list is in
- * Postgres (auth/revocation.ts, R13), so it survives a restart and is shared by every API instance.
+ * Postgres (auth/revocation.ts, R13), so it survives a restart and is shared by every API instance. Logout revokes the
+ * web cookie's jti in the same table (R14).
  */
 import type {} from "@fastify/cookie"; // augments FastifyRequest.cookies / reply.setCookie
 import type { FastifyReply, FastifyRequest } from "fastify";
@@ -16,7 +17,7 @@ import { profiles, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
-import { spendJti } from "./revocation.ts";
+import { isJtiRevoked, spendJti } from "./revocation.ts";
 
 export const SESSION_COOKIE = "kassa_session";
 export const ACCESS_TTL_S = 15 * 60;
@@ -138,7 +139,14 @@ export async function revokeRefresh(refreshToken: string | undefined): Promise<v
   if (v?.jti) await spendJti(v.jti, "refresh", v.exp);
 }
 
-export function endSession(reply: FastifyReply): void {
+/**
+ * Logout of a web session (R14): the cookie's jti is revoked until the cookie's own expiry, so a copy of the cookie
+ * stops working too (OWASP ASVS 3.3.1), then the cookie is cleared. A cookie that does not verify records nothing.
+ */
+export async function endSession(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const cookie = req.cookies?.[SESSION_COOKIE];
+  const v = cookie ? await verify(cookie, "session") : null;
+  if (v?.jti) await spendJti(v.jti, "session", v.exp);
   reply.clearCookie(SESSION_COOKIE, { path: "/api" });
 }
 
@@ -181,8 +189,11 @@ async function authenticateSession(req: FastifyRequest): Promise<{ userId: strin
   const cookie = req.cookies?.[SESSION_COOKIE];
   if (cookie) {
     const v = await verify(cookie, "session");
-    if (v) assertCookieOrigin(req);
-    return v ? { userId: v.sub, iat: v.iat, claims: v.claims } : null;
+    if (!v) return null;
+    assertCookieOrigin(req);
+    // R14: a cookie signed out with POST /auth/logout is refused before its 7-day expiry (every minted cookie has a jti).
+    if (!v.jti || (await isJtiRevoked(v.jti))) return null;
+    return { userId: v.sub, iat: v.iat, claims: v.claims };
   }
   return null;
 }
