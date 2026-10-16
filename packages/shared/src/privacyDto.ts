@@ -1,5 +1,5 @@
 /*
- * Phase 2 security & compliance contracts (ADDITIVE; see docs/spec/PHASE1_COORDINATION.md "Contract changes").
+ * Phase 2 security & compliance contracts (additive only).
  *
  * - AI transparency: EU AI Act Art. 50(1) (the user is told they interact with an AI system) and GDPR
  *   Art. 13(1)(e)/(f) (recipients of the data: the configured LLM provider; whether data leaves the server).

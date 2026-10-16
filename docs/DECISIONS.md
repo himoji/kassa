@@ -118,7 +118,7 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
 - **Extra tables** (`apps/api/src/db/schema.intel.ts`; spec §6 has no home for them): `agent_messages`
   (planner history, redacted model-facing messages only, I11), `agent_documents` (uploads → `docId`, cached
   Reader result), `merchant_category_memory` (spec §13 "user correction remembered per merchantNorm"),
-  `onboarding_drafts`. drizzle.config must list both schema files (see PHASE1_COORDINATION).
+  `onboarding_drafts`. drizzle.config must list both schema files.
 - **FX sources** (verified 2026-10-10): Frankfurter `https://api.frankfurter.dev/v1/{date}` (ECB; returns the
   last business day ≤ date), NBK `https://nationalbank.kz/rss/get_rates.cfm?fdate=DD.MM.YYYY` (KZT per `quant`
   units), fallback open.er-api.com (labelled `FALLBACK_ER_API`), last resort `fixtures/fx-rates.json`
@@ -418,8 +418,7 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
   so a checkpoint signature cannot pose as a head. `ledger:verify` requires a valid anchor naming the last entry:
   tail truncation and tail re-hashing after the last checkpoint are detected. Honest limit: someone with DB write
   access who kept an older signed head row can roll back to exactly that head; closing it needs the head published
-  outside the DB (transparency log / RFC 3161), out of scope. Migration 0004 (journal `when` after 0005, see
-  PHASE1_COORDINATION).
+  outside the DB (transparency log / RFC 3161), out of scope. Migration 0004 (journal `when` after 0005).
 - **X7 handoff QR before signing (cn note 1).** The QR request is fetched and checked (fuzzy name ≥ 0.92, amount,
   currency) when a pending HANDOFF order is first shown or approved, through a port (`registerHandoffPreflight`, so
   rules never imports rails, I1). Stored on the draft (`handoffQr`); a mismatch refuses the proposal up front
