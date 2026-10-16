@@ -1,6 +1,8 @@
 # Kassa — Build Plan
 
-Oct 10, 2026 · @Someone
+Oct 10, 2026 · Kassa team
+
+> The plan written before the build started. What changed during the build (for example an Expo app instead of a React PWA) is logged with dates in [DECISIONS.md](../DECISIONS.md); the README and ARCHITECTURE.md describe what was built.
 
 Submission deadline: Oct 20, 2026, 17:59 Budapest (23:59 Beijing).
 

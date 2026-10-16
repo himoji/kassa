@@ -151,12 +151,9 @@ best month. People who send money are known names to the agent's redactor (perso
 Tests: `test/dataport/statements.test.ts` ("what the history really shows", 3), `test/intel/agent-loop.test.ts`
 ("get_money_history", redaction of the senders).
 
-## Handoff (what is left)
+## Status and known limits (2026-10-16)
 
-Status (2026-10-16): PR zhkiarsa/kassa#24 and #25 are merged; the follow-up below is on branch
-`claude/sharp-edison-okqgbx` (new PR). Checks: api 992, mobile 563, mock-world 343, shared 53; typecheck and lint.
-
-Done in this round:
+Done last:
 
 - **Dictionary keywords** for Kazakh, Russian and Hungarian chains and generic words (`fixtures/merchants.json`):
   on the three real statements they move 251 of 680 "other" rows into a category (60 % → 38 % "other"). Most of what is
@@ -182,7 +179,3 @@ Open, in priority order:
 6. **KaspiQR rows** have no merchant in the statement; a category needs either the Kaspi app's own export or the user.
 7. Ideas not built: seasonality (tuition months each year), incomes in the forecast from the monthly series (today the
    signed draft's amounts, which already use the average for irregular money).
-
-Files to start from: `apps/api/src/modules/dataport/` (read.ts is the pipeline, history.ts the analysis, notes.ts
-the wording), `apps/api/src/modules/onboarding/history.ts`, `apps/api/src/modules/agent/tools.ts`
-(`get_money_history`), `apps/mobile/src/screens/settings/import-preview.tsx`.

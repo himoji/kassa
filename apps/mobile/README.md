@@ -1,6 +1,6 @@
-# ReadyNative
+# Kassa app
 
-An [Expo](https://expo.dev) app (SDK 57, Expo Router, TypeScript).
+Kassa's iOS, Android and web app: an [Expo](https://expo.dev) app (SDK 57, Expo Router, TypeScript), started from the ReadyNative Pro kit (licence in `LICENSE`, publication permission in [PUBLICATION_PERMISSION.md](PUBLICATION_PERMISSION.md)). The screens, flows and locales (en, kk, ru, zh) are Kassa's. For the whole system, run it from the repository root (see the [root README](../../README.md)); the commands below are for working on the app alone.
 
 ```bash
 bun install
@@ -50,19 +50,6 @@ install a dev build once with `bun run ios` (or `android`), or in the cloud with
 | `src/stores`        | Client state                                                                               |
 | `src/theme`         | Design tokens, colour scheme, navigation theme                                             |
 | `src/locales`       | Translation JSON                                                                           |
-
-## Examples
-
-`examples/` holds finished example apps - standalone projects, not part of this app.
-Nothing under `src/` imports them. Run one with:
-
-```bash
-cd examples/<name>
-bun install
-bun run ios       # or android / start
-```
-
-Delete `examples/` (or any app inside it) once you no longer need the reference.
 
 ## Config
 

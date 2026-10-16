@@ -40,7 +40,7 @@ not know the uploaded statements yet. Add the voiceover over the captions afterw
 
 1. Stack running with `DEMO_ENABLED=true` on both services, and the same `DEMO_ADMIN_TOKEN` and `MOCK_HMAC_SECRET` (`bun run env:setup`).
 2. Phone: Kassa app signed in as the demo user (Dana), and a browser tab on `/mock/stage` (the Demo Stage director). A second screen can mirror the app.
-3. Press "Reset demo" on `/mock/stage`. Optional: in the app's Settings, set region CN only when you reach scene 2.
+3. Press "Reset demo" on `/mock/stage`. Optional: in the app's Settings, set region CN only when you reach the China QR scene (3:30).
 
 ## Extended scenes (live final and Q&A)
 

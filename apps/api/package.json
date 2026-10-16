@@ -14,7 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "seed": "bun scripts/seed.ts",
     "ledger:verify": "bun scripts/ledger-verify.ts",
-    "kek:rotate": "bun scripts/rotate-kek.ts"
+    "kek:rotate": "bun scripts/rotate-kek.ts",
+    "eval:invoices": "bun scripts/eval-invoices.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.78",
