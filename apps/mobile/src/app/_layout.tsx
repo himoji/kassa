@@ -163,6 +163,10 @@ function RootStack() {
         options={{ ...largeTitleOptions, headerShown: true, title: t("wallet:linked.title") }}
       />
       <Stack.Screen
+        name="identity-check"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("kyc:title") }}
+      />
+      <Stack.Screen
         name="send"
         options={{ ...inlineTitleOptions, headerShown: true, title: t("wallet:sendTitle") }}
       />

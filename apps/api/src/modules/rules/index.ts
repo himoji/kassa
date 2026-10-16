@@ -26,6 +26,8 @@ import { ownedNotFound } from "../../http/audit.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { addMs, clock, MINUTE_MS } from "../clock/index.ts";
+import { kycStatusOf } from "../kyc/status.ts";
+import { kycThresholdInHome } from "../kyc/threshold.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { findMatchingMandate, type LinkedObligation } from "../mandates/scope.ts";
@@ -372,6 +374,9 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   const score = riskScore(features);
 
   const paymentsCapHome = await paymentsCapInHome(user.homeCurrency, now);
+  // (KYC) only orders Kassa pays out and only above the threshold need the identity check; read the standing then.
+  const kycRequired =
+    rail !== "HANDOFF" && home.amountMinor > (await kycThresholdInHome(user.homeCurrency, now)) && (await kycStatusOf(db, user.id)) !== "VERIFIED";
   const decided: DecideResult = decide({
     now,
     frozen: user.frozenAt !== null,
@@ -408,6 +413,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     baseRulesSigned: profile.baseRulesAssertion !== null && profile.baseRulesHash !== null,
     duplicateObligation,
     fundingAvailable: funding === null ? null : funding.status !== "NONE",
+    kycRequired,
   });
   // (M5) A supplier invoice is always paid with the owner's passkey (T2): never AUTO, never under a mandate; an
   // invoice for an undelivered PO says so.

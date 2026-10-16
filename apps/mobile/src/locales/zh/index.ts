@@ -25,6 +25,7 @@ import lite from "./lite.json";
 import wallet from "./wallet.json";
 import insights from "./insights.json";
 import evidence from "./evidence.json";
+import kyc from "./kyc.json";
 
 export const zh = {
   translation,
@@ -51,4 +52,5 @@ export const zh = {
   wallet,
   insights,
   evidence,
+  kyc,
 };

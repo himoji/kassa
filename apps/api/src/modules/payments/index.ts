@@ -18,6 +18,8 @@
  *        owner's stored passkey assertion re-verified over it, payee = the PO's supplier (and its signed account),
  *        amount ≤ the signed total, PO not already paid → BAD_SIGNATURE / INVOICE_ACCOUNT_MISMATCH / INVOICE_ABOVE_PO
  *  7 screening on every rail (X4)                      → REFUSE_SANCTIONS
+ *  8a (added 2026-10-16) above the KYC threshold (home currency, own conversion) without a VERIFIED identity check,
+ *    every rail but HANDOFF                            → KYC_REQUIRED
  *  8 [tx, per-user advisory lock] nonce inserted into used_nonces (PK) → NONCE_USED;
  *    own daily cap per user in the HOME currency, all currencies summed and converted by payments itself (X2,
  *    injected fx port) → PAYMENTS_DAILY_CAP (rolls the nonce back); (X3) small-auto per-day budget →
@@ -40,6 +42,7 @@ import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { pullIntoWallet, PullDeclined } from "../funding-sources/pull.ts";
 import { activeFundingSource } from "../funding-sources/store.ts";
+import { kycStatusOf } from "../kyc/status.ts";
 import { accountHash, decryptAccount } from "../payees/crypto.ts";
 import { railFor } from "../rails/index.ts";
 import { rulesPublicKey } from "../rules/publicKey.ts";
@@ -315,6 +318,21 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     const cap = await capInHome(u.homeCurrency, now);
     // X2: the order in the user's home currency, by payments' own conversion (not the order's homeAmountMinor).
     const orderHome = await ownHome(order.amountMinor, order.currency, u.homeCurrency, now, "PAYMENTS_DAILY_CAP");
+    // 8a (KYC) payments' own re-check, before the nonce: above the threshold (payments' own conversion; unconvertible
+    // means 0, fail closed) Kassa pays out only for a user whose latest identity check is VERIFIED. Handoff is paid
+    // in the user's own wallet.
+    if (order.rail !== "HANDOFF") {
+      const e = env();
+      let kycThreshold = 0;
+      try {
+        kycThreshold = await ownHome(e.KYC_THRESHOLD_MINOR, e.KYC_THRESHOLD_CURRENCY, u.homeCurrency, now, "KYC_REQUIRED", "down");
+      } catch {
+        kycThreshold = 0;
+      }
+      if (orderHome > kycThreshold && (await kycStatusOf(db, order.userId)) !== "VERIFIED") {
+        refuse("KYC_REQUIRED", `above the KYC threshold (${orderHome} > ${kycThreshold} ${u.homeCurrency}) without a verified identity check`);
+      }
+    }
     const paymentId = await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"payments:" + order.userId}))`);
       const inserted = await tx.insert(usedNonces).values({ nonce: order.nonce, usedAt: now }).onConflictDoNothing().returning();

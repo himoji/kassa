@@ -247,8 +247,8 @@ Tests: `apps/api/test/rules/risk.test.ts` (16 tests: median, weights sum, featur
 | 1 | User frozen | REFUSE (`REFUSE_FROZEN`) |
 | 2 | Payee missing, blocked, or cooling before `coolingUntil` | REFUSE (`REFUSE_UNVERIFIED_PAYEE`). Cooling after the window is usable only with a passkey (ASK, `PAYEE_COOLING`) |
 | 3 | Reader marks amount or account unverified | REFUSE (`REFUSE_SOURCE_MISMATCH`) |
-| 4 | Screening hit on a bank transfer | REFUSE (`REFUSE_SANCTIONS`) |
-| 5 | Per-payment, daily or monthly cap, or reserve breached | REFUSE (`REFUSE_CAP`). Smart turns this into ASK when the amount is within 2× the cap and the reserve is not breached |
+| 4 | Screening hit, on every rail (bank transfer, card, wallet, QR) | REFUSE (`REFUSE_SANCTIONS`) |
+| 5 | Per-payment, daily or monthly cap, or reserve breached | REFUSE (`REFUSE_CAP`) under every preset, never an ASK (the "within 2× the cap" ask was removed on 2026-10-14, DECISIONS.md). To pay more, the user first raises the cap with the passkey |
 | 6 | Region CN, or money mode HANDOFF | HANDOFF |
 | 7 | Active, effective mandate covers the order, and preset is not Ask me | AUTO (T1) |
 | 8 | Ask me; Autopilot without mandate; Smart with R ≥ 0.5 | ASK (T2) |
@@ -299,7 +299,7 @@ Providers that do not support tool calling or image input return an error code f
 ### 7.2 Planner loop
 
 - Up to 8 tool rounds per user turn, then one text-only step (`MAX_TOOL_STEPS = 8`, `apps/api/src/modules/agent/tools.ts`).
-- Eleven tools (`apps/api/src/modules/agent/tools.ts`, schemas in `packages/shared/src/tools.ts`): `get_profile_summary`, `get_balances`, `get_budget`, `get_obligations`, `get_payee_facts`, `search_catalog`, `get_routes`, `forecast_coverage`, `read_document`, `propose_order`, `log_expense`. `propose_order` is the only tool that writes, and it writes a proposal, not a payment. `log_expense` only logs.
+- Fourteen planner tools (`apps/api/src/modules/agent/tools.ts`, schemas in `packages/shared/src/tools.ts`): the 11 of the spec (`get_profile_summary`, `get_balances`, `get_budget`, `get_obligations`, `get_payee_facts`, `search_catalog`, `get_routes`, `forecast_coverage`, `read_document`, `propose_order`, `log_expense`) plus three read-only ones (`get_fx_rate`, `get_spending_summary`, `get_money_history`), and the `ask_*` UI tools that only show a picker. `propose_order` is the only tool that writes, and it writes a proposal, not a payment. `log_expense` only logs. The business owner's planner has its own set (`get_inventory`, `forecast_stock`, `propose_purchase_order`, which drafts a purchase order the owner signs). The test `apps/api/test/intel/agent-loop.test.ts` ("exposes the 11 spec tools plus read-only get_fx_rate and the ask_* UI tools; propose_order is the only write tool") pins the list.
 - When a tool returns REFUSE or a cooling payee, the next step runs with no tools so the agent can explain, and the loop stops.
 - Every model call sees redacted messages only (section 7.4).
 
