@@ -6,7 +6,7 @@ Kassa is a finance agent for people whose money lives in one country and whose b
 
 The agent does real financial work: it logs spending in every currency, exposes hidden card fees, plans bills against the forecast and pays by the cheapest route. Inside a mandate the user signed with a passkey (rent and insurance to verified payees, small purchases under a signed limit), it pays on its own, with no prompt at payment time. Anything else it prepares as an exact order that the user approves with a passkey. Plain code, not the model, decides which case applies: the agent cannot raise a limit, skip the 24-hour cooling period for a new payee, or pay above a signed cap.
 
-The safety line: the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money
+The safety line: the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money.
 
 Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT and USD, her bills are in HUF and EUR.
 

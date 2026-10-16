@@ -3,7 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 
 /*
- * Mock-world webhook authentication (spec §2 I13, PHASE1_COORDINATION.md):
+ * Mock-world webhook authentication (spec §2 I13):
  *   X-Kassa-Timestamp: unix seconds
  *   X-Kassa-Signature: hex(HMAC-SHA256(MOCK_HMAC_SECRET, `${timestamp}.${rawBody}`))
  * HMAC per RFC 2104 with SHA-256 (FIPS 180-4); hex is lower case (RFC 4648 §8 base16).

@@ -10,7 +10,7 @@ Five Haiku 5.5 testers, each on an isolated local stack (offline example FX). Th
 | [cn](cn/REPORT.md) | Chinese demos + compromised planner | demos match; 1 BROKEN (rent mandate covers any payment to the landlord) | Bounded: HUF 1,000 to the verified landlord without passkey |
 | [security](security/REPORT.md) | Scenario review C1–C6, S1–S9, T1–T3 | 14 COVERED, 4 WEAK, 0 MISSING; findings F1–F9 | — |
 
-All findings are tracked in docs/spec/PHASE2_PLAN.md ("Final fix pass") and fixed with regression tests; the "Fix status" column below is updated after the pass.
+All findings were tracked in a final fix pass and fixed with regression tests; the "Fix status" column below is updated after the pass.
 
 ## Fix status
 

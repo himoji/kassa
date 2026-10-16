@@ -54,7 +54,7 @@ type OnboardingModule = {
   applyOnboardingDraft?: (userId: string, draft: OnboardingProfileDraft) => Promise<void>;
 };
 
-/** Track B's onboarding module, if present (optional exports; see PHASE1_COORDINATION.md). */
+/** The onboarding module, if present (optional exports). */
 async function onboardingModule(): Promise<OnboardingModule> {
   try {
     const path = new URL("../onboarding/index.ts", import.meta.url).href;

@@ -16,7 +16,7 @@
  * Story time: every date is relative to SEED_NOW (2026-10-27, a Tuesday). Tuition is due in
  * 4 days and rent in 5, so the demo's "+3 days" clock jump brings rent inside the scheduler's
  * 3-day window (spec §15) and the rent mandate pays it. The API should set the demo clock offset
- * so that Clock.now() == SEED_NOW right after seeding/reset (see PHASE1_COORDINATION.md).
+ * so that Clock.now() == SEED_NOW right after seeding/reset.
  *
  * Types: shared enums come from @kassa/shared. Row shapes are local (`Seed*`) because the row
  * types live in Track A's Drizzle schema, which fixtures must not import.
