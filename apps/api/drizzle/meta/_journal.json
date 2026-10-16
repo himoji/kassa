@@ -120,6 +120,13 @@
       "when": 1792143051884,
       "tag": "0016_clock_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792144463102,
+      "tag": "0017_demo_cooling_off",
+      "breakpoints": true
     }
   ]
 }

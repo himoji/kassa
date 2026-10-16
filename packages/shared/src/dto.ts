@@ -58,7 +58,14 @@ export const MeResponse = z.object({
   settings: UserSettings,
   effective: EffectiveSettings,
   demo: z
-    .object({ agentMode: AgentMode, clockOffsetMs: z.number().int(), clockMode: z.enum(["REAL", "DEMO"]), now: IsoDateTime })
+    .object({
+      agentMode: AgentMode,
+      clockOffsetMs: z.number().int(),
+      clockMode: z.enum(["REAL", "DEMO"]),
+      now: IsoDateTime,
+      /** This user turned the 24 h waits off (POST /demo/cooling): the app shows a banner while true. */
+      coolingOff: z.boolean(),
+    })
     .nullable(),
   /** False until POST /onboarding/confirm succeeded (added by Track C; optional = treated as true). */
   onboarded: z.boolean().optional(),

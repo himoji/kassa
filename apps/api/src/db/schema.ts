@@ -808,6 +808,18 @@ export const demoState = pgTable("demo_state", {
 });
 
 
+/**
+ * (added 2026-10-16) Demo only: a row = this user turned the 24 h waits off (recipient cooling, loosening delays) with
+ * their passkey. Ignored unless DEMO_ENABLED (modules/demo/cooling.ts); deleting the row turns the waits back on.
+ */
+export const demoCoolingOff = pgTable("demo_cooling_off", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull(),
+  offAt: tstz("off_at").notNull(),
+});
+
 // ---------- Kassa Business (added 2026-10-14, Business M0, migration 0007) ----------
 /*
  * A BUSINESS user owns one merchant (a pizzeria). Stock is never stored as a number: on-hand = the sum of

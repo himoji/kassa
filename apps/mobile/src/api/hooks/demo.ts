@@ -4,6 +4,7 @@
  */
 import {
   DEMO_TOKEN_HEADER,
+  DemoCoolingResponse,
   DemoStateResponse,
   type AgentMode,
   type ClockMode,
@@ -14,7 +15,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { env } from "@/lib/env";
 
 import { api } from "../client";
-import { moneyKeys } from "../keys";
+import { keys, moneyKeys } from "../keys";
+import { withPasskeyGate } from "../passkey-gate";
 
 function demoHeaders(): Record<string, string> {
   return env.DEMO_ADMIN_TOKEN ? { [DEMO_TOKEN_HEADER]: env.DEMO_ADMIN_TOKEN } : {};
@@ -68,5 +70,20 @@ export function useDemoAction() {
       action.kind === "advance" || action.kind === "clock-mode" || action.kind === "reset"
         ? qc.invalidateQueries()
         : Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey }))),
+  });
+}
+
+/**
+ * POST /demo/cooling: this user's 24 h waits (recipient cooling, loosening delays). Off needs the passkey (428 round
+ * trip); on needs nothing. Not a demo admin call: it is the signed-in user's own switch.
+ */
+export function useDemoCooling() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      withPasskeyGate((proof) =>
+        api.request("/demo/cooling", { json: { enabled, ...proof }, schema: DemoCoolingResponse })
+      ),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.me }),
   });
 }

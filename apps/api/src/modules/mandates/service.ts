@@ -12,6 +12,7 @@ import { mandates, payees, ruleChanges } from "../../db/schema.ts";
 import { auditAssertionFailure, ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
+import { waitMs } from "../demo/cooling.ts";
 import { ledger } from "../ledger/index.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 import { mandatePeriodUsage } from "./scope.ts";
@@ -93,7 +94,7 @@ export async function createMandate(userId: string, core: MandateCore, assertion
     throw new HttpProblem(403, "PASSKEY_REQUIRED", check.detail, { reasonCodes: ["PASSKEY_REQUIRED", check.reason] });
   }
   const now = clock.now();
-  const effectiveAt = addMs(now, LOOSEN_DELAY_MS);
+  const effectiveAt = addMs(now, await waitMs(userId, LOOSEN_DELAY_MS));
   const row = await db.transaction(async (tx) => {
     const inserted = await tx
       .insert(mandates)
