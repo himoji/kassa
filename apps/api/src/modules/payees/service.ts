@@ -13,6 +13,7 @@ import { auditAssertionFailure, ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
 import { putGated, takeGated } from "../auth/challenges.ts";
 import { addMs, clock, DAY_MS } from "../clock/index.ts";
+import { waitMs } from "../demo/cooling.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { notify } from "../notifications/service.ts";
@@ -159,7 +160,8 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
     if (!old) throw notFound("replaced payee");
   }
   const now = clock.now();
-  const coolingUntil = addMs(now, COOLING_MS);
+  // The demo switch can drop the wait for this user (demo/cooling.ts); the payee still starts COOLING (T2 only).
+  const coolingUntil = addMs(now, await waitMs(userId, COOLING_MS));
   // A12: the id is chosen here so the account ciphertext is bound to this row (payees/crypto.ts v2).
   const id = randomUUID();
   const rows = await db.transaction(async (tx) => {

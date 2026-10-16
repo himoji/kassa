@@ -10,6 +10,7 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyPluginAsy
 import { hasZodFastifySchemaValidationErrors, serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { schemaStatus } from "./db/client.ts";
 
 import { env } from "./env.ts";
 import { HttpProblem, problemBody } from "./http/problem.ts";
@@ -19,6 +20,8 @@ import commerceRoutes from "./modules/commerce/routes.ts";
 import businessRoutes from "./modules/business/routes.ts";
 import creditRecordRoutes from "./modules/credit-record/routes.ts";
 import dataportRoutes from "./modules/dataport/routes.ts";
+import kycRoutes from "./modules/kyc/routes.ts";
+import demoCoolingRoutes from "./modules/demo/cooling-routes.ts";
 import demoRoutes from "./modules/demo/routes.ts";
 import ledgerRoutes from "./modules/ledger/routes.ts";
 import mandateRoutes from "./modules/mandates/routes.ts";
@@ -104,7 +107,8 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
 
   await app.register(
     async (api) => {
-      api.get("/health", async () => ({ ok: true, service: "api" }));
+      // `schema` says whether every migration has run (a deploy that skipped db:migrate shows "behind").
+      api.get("/health", async () => ({ ok: true, service: "api", schema: await schemaStatus() }));
       await api.register(authRoutes);
       await api.register(userRoutes);
       await api.register(payeeRoutes);
@@ -124,8 +128,12 @@ export async function buildServer(opts: { logger?: boolean } = {}): Promise<Fast
       await api.register(privacyRoutes);
       await api.register(businessRoutes);
       await api.register(dataportRoutes);
+      await api.register(kycRoutes);
       // Demo routes exist only when DEMO_ENABLED (they also re-check at request time).
-      if (e.DEMO_ENABLED) await api.register(demoRoutes);
+      if (e.DEMO_ENABLED) {
+        await api.register(demoRoutes);
+        await api.register(demoCoolingRoutes);
+      }
       for (const name of OPTIONAL_PLUGINS) {
         const plugin = await loadOptionalPlugin(name, app.log);
         if (plugin) await api.register(plugin);

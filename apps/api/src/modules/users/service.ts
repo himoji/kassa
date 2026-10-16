@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 
 import type { DbOrTx } from "../../db/client.ts";
 import { profiles, users, type CapsJson } from "../../db/schema.ts";
+import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { notFound } from "../../http/problem.ts";
 
 /**
@@ -34,7 +35,7 @@ export async function loadUser(db: DbOrTx, userId: string) {
   const rows = await db.select().from(users).where(eq(users.id, userId));
   const u = rows[0];
   if (!u) throw notFound("user");
-  const p = (await db.select().from(profiles).where(eq(profiles.userId, userId)))[0];
+  const p = (await db.select(PROFILE_CORE).from(profiles).where(eq(profiles.userId, userId)))[0];
   const profile = p ?? {
     userId,
     incomes: [],

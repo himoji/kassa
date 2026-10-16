@@ -61,6 +61,13 @@ export function BillsScreen() {
                 ) : (
                   <StatusChip tone="positive" label={t("bills:covered45")} />
                 )}
+                {c.burn && c.burn.dailyMinor > 0 ? (
+                  <Text variant="caption" color="mutedForeground">
+                    {t(c.burn.from === "history" ? "bills:burnHistory" : "bills:burnRecent", {
+                      amount: f.money(c.burn.dailyMinor, c.currency),
+                    })}
+                  </Text>
+                ) : null}
               </Box>
             ))}
           </RowGroup>

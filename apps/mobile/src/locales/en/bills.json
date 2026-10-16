@@ -16,5 +16,7 @@
   "suggestion": "Move {{amount}} from {{from}} to {{to}} by {{date}} to cover this",
   "title": "Bills",
   "upcomingTitle": "Upcoming",
-  "shortfallBody": "No single balance can pay this yet. Add {{currency}} from Home, or wait for money from home."
+  "shortfallBody": "No single balance can pay this yet. Add {{currency}} from Home, or wait for money from home.",
+  "burnHistory": "Counts about {{amount}} a day of spending, from your bank history (the last 30 days have too little to go on).",
+  "burnRecent": "Counts about {{amount}} a day of spending, from the last 30 days."
 }

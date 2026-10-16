@@ -1,0 +1,167 @@
+{
+  "name": "KassaLite",
+  "tabs": {
+    "home": "首页",
+    "activity": "动态",
+    "insights": "洞察",
+    "chat": "聊天",
+    "settings": "设置"
+  },
+  "lock": {
+    "title": "KassaLite 已锁定",
+    "body": "使用面容 ID 解锁以查看您的消费。",
+    "unlock": "解锁",
+    "reason": "解锁 KassaLite"
+  },
+  "activity": {
+    "title": "动态",
+    "homeAmount": "≈ {{amount}}",
+    "empty": "暂无消费",
+    "emptyBody": "使用 Apple Pay 付款。快捷指令发送每笔消费后，片刻就会显示在这里。",
+    "capturesTitle": "消费",
+    "nudgesTitle": "提示",
+    "dayTotal": "{{day}} · {{amount}}",
+    "uncategorised": "未分类",
+    "notifyTitle": "新消费",
+    "notifyBody": "{{merchant}} · {{amount}}",
+    "notifyManyTitle": "{{count}} 笔新消费",
+    "notifyManyBody": "打开 KassaLite 查看。",
+    "today": "今天",
+    "yesterday": "昨天",
+    "openHint": "打开这笔消费",
+    "notifyOpen": "点按查看详情。"
+  },
+  "pair": {
+    "title": "配对 KassaLite",
+    "intro": "在完整版 Kassa 应用或网页版中，打开“设置”→“配对 KassaLite”并扫描二维码，或在此输入 8 位代码。",
+    "codeLabel": "配对代码",
+    "codePlaceholder": "ABCD2345",
+    "serverLabel": "服务器 URL（https）",
+    "serverPlaceholder": "https://kassa.example.com",
+    "submit": "配对此 iPhone",
+    "invalidCode": "代码由 8 位字母和数字组成。",
+    "invalidServer": "请输入以 https:// 开头的服务器地址。",
+    "failed": "配对失败。代码可能已过期（有效期 2 分钟）：请创建新代码。",
+    "noTokens": "服务器未返回会话，请使用新代码重试。",
+    "deviceName": "KassaLite iPhone"
+  },
+  "settings": {
+    "title": "设置",
+    "accountTitle": "账户",
+    "signedInAs": "已登录为 {{name}}",
+    "unknownUser": "此 iPhone",
+    "shortcutTitle": "Apple Pay 快捷指令",
+    "shortcutIntro": "iOS 快捷指令会把每笔 Apple Pay 消费发送到您的 Kassa 服务器，然后 KassaLite 会在这里显示。",
+    "setup": {
+      "start": {
+        "title": "记录每笔 Apple Pay 消费",
+        "body": "“快捷指令”中的一个自动化会把每笔消费发送到 Kassa。只需设置一次，大约一分钟。",
+        "button": "设置 Apple Pay 记录"
+      },
+      "copiedLink": "链接已复制：请粘贴到快捷指令中",
+      "waiting": {
+        "title": "正在等待您的第一次 Apple Pay 付款",
+        "body": "在快捷指令中完成自动化，然后用 Apple Pay 付款一次（买杯咖啡就够了）。此卡片随后会检查所有内容是否正确到达。",
+        "testOnly": "连接正常。现在用 Apple Pay 付款一次来检查自动化。"
+      },
+      "openShortcuts": "打开快捷指令",
+      "copyLinkOpen": "复制链接并打开快捷指令",
+      "copyAi": "复制步骤给 AI",
+      "copiedAi": "步骤已复制：请粘贴到 ChatGPT、Claude 或其他助手中",
+      "aiHint": "卡住了？复制步骤给 AI 助手，它会一步一步带您完成。密钥只会留在您的剪贴板中。",
+      "showSteps": "显示步骤",
+      "hideSteps": "隐藏步骤",
+      "step": "{{n}}. {{text}}",
+      "stepsAction": {
+        "1": "快捷指令 →“自动化”→“+”→“交易”。选择您的钱包卡片，选择“立即运行”，然后点“下一步”→“新建空白自动化”。",
+        "2": "添加“在 Kassa 中记录付款”。将商家、金额和卡片分别设为快捷指令输入 › 商家、› 金额和 › 卡片或票证。点“完成”。",
+        "3": "用 Apple Pay 付款一次。此卡片会检查每个字段。"
+      },
+      "stepsManual": {
+        "1": "快捷指令 →“自动化”→“+”→“交易”。选择您的钱包卡片，选择“立即运行”，然后点“下一步”→“新建空白自动化”。",
+        "2": "添加“获取 URL 内容”，并将复制的链接粘贴为其 URL。点 ›：方法 POST，请求体 JSON。",
+        "3": "添加三个文本字段：merchant = 快捷指令输入 › 商家，amount = 快捷指令输入 › 金额，card = 快捷指令输入 › 卡片或票证。",
+        "4": "添加“获取词典值”（键 nudge）和显示该值的“显示通知”。点“完成”。",
+        "5": "用 Apple Pay 付款一次。此卡片会检查每个字段。"
+      },
+      "report": {
+        "ok": "一切正常",
+        "okBody": "您的 Apple Pay 付款带着所有字段到达了 Kassa。最近一次 {{time}}。",
+        "fix_other": "Kassa 已收到您的付款：有 {{count}} 处需要修复",
+        "fixBody": "请在自动化中修复，然后再付款一次：此卡片会再次检查。",
+        "legacy": "Apple Pay 付款已到达 Kassa。最近一次 {{time}}。"
+      },
+      "lines": {
+        "reached": "付款已于 {{time}} 到达 Kassa",
+        "merchantOk": "商家：{{name}}",
+        "merchantOkPlain": "已收到商家",
+        "merchantFix": "商家为空：请将商家设为快捷指令输入 › 商家。",
+        "amountOk": "金额：{{amount}}",
+        "amountOkPlain": "已收到金额",
+        "amountMissing": "金额为空：请将金额设为快捷指令输入 › 金额。",
+        "amountUnparsed": "Kassa 无法读取金额。它支持 KZT、HUF、EUR、USD 和 CNY：请检查金额是否为快捷指令输入 › 金额。",
+        "cardOk": "已收到卡片",
+        "cardTip": "没有卡片（可选）：将卡片设为快捷指令输入 › 卡片或票证，Kassa 就能知道该卡的费用。",
+        "placeOk": "已收到位置",
+        "placeTip": "没有位置（可选）：添加“获取当前位置”即可查看您在哪里付款。",
+        "loggedOk": "已记录到“动态”",
+        "loggedMerged": "已记录过：与之前的付款重复",
+        "loggedRefund": "已记为退款",
+        "loggedFix": "未记录：请修复上面的问题。"
+      },
+      "fixButton": "在快捷指令中修复",
+      "noToken": "此 iPhone 上没有快捷指令密钥。请退出登录后重新配对。",
+      "revoked": "服务器拒绝了此 iPhone 的密钥：它已被撤销或属于另一台服务器。请退出登录后重新配对。",
+      "unreachable": "此 iPhone 无法连接 {{host}}。请检查服务器（及其隧道）是否在运行，以及地址是否正确。",
+      "failed": "服务器有响应，但不是 Kassa。请检查服务器地址。",
+      "success": "成功了！您的 Apple Pay 消费现在会显示在“动态”中。",
+      "needsFix": "Kassa 已收到您的付款，但有问题需要修复。请查看设置。"
+    },
+    "noShortcutToken": "未保存快捷指令令牌。请重新配对此 iPhone。",
+    "serverTitle": "服务器",
+    "serverLabel": "服务器 URL",
+    "serverFooter": "必须是稳定的 https 地址，例如您的命名隧道。更改地址不会重新配对：如果服务器不同，请退出登录后重新配对。",
+    "serverSave": "保存",
+    "serverChange": "更改",
+    "serverSaved": "服务器已保存",
+    "serverInvalid": "请使用 https:// 地址。",
+    "signOut": "退出登录",
+    "signOutTitle": "退出 KassaLite？",
+    "signOutBody": "此 iPhone 上的令牌将被删除。快捷指令会继续工作，直到您在完整版应用中撤销它。",
+    "updatesTitle": "应用更新",
+    "updatesCheck": "检查更新",
+    "updatesChecking": "正在检查更新",
+    "updatesOff": "此版本已关闭无线更新。请设置 EAS 项目 ID 后在 Xcode 中重新构建（docs/OTA_UPDATES.md）。",
+    "updatesDebug": "调试版本：应用从 Metro 加载并忽略更新。请运行 Release 配置。",
+    "updatesInfo": "渠道 {{channel}}，应用版本 {{runtime}}。更新只会推送到渠道和版本相同的构建。",
+    "updatesEmbedded": "在 Xcode 中构建",
+    "updatesEmbeddedHint": "尚未应用无线更新。打开应用时会下载新更新，重启后生效。",
+    "updatesRunning": "更新 {{id}}",
+    "updatesCommit": "提交 {{commit}}",
+    "updatesNone": "已是最新版本",
+    "updatesFailed": "无法检查更新：{{message}}"
+  },
+  "approve": {
+    "opened": "请在 Kassa 网页版中批准。KassaLite 无法使用通行密钥。",
+    "back": "返回 KassaLite",
+    "backHint": "已批准。现在可以返回 KassaLite。"
+  },
+  "pairDevice": {
+    "rowTitle": "配对 KassaLite",
+    "rowHint": "关联第二台用于记录 Apple Pay 消费的 iPhone",
+    "title": "配对 KassaLite",
+    "intro": "在装有 KassaLite 的 iPhone 上，用相机扫描此二维码或输入代码。代码只能使用一次。",
+    "generate": "创建配对代码",
+    "creating": "正在创建代码",
+    "newCode": "新代码",
+    "codeLabel": "配对代码",
+    "qrLabel": "配对二维码",
+    "expiresIn": "{{time}} 后过期",
+    "expired": "此代码已过期。",
+    "countdown": "{{minutes}}:{{seconds}}"
+  },
+  "returnBar": {
+    "text": "从 KassaLite 打开。请用通行密钥完成此步骤，然后返回。",
+    "back": "返回 KassaLite"
+  }
+}

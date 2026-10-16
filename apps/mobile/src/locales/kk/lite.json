@@ -1,0 +1,168 @@
+{
+  "name": "KassaLite",
+  "tabs": {
+    "home": "Басты",
+    "activity": "Әрекеттер",
+    "insights": "Талдау",
+    "chat": "Чат",
+    "settings": "Баптаулар"
+  },
+  "lock": {
+    "title": "KassaLite құлыпталған",
+    "body": "Сатып алуларыңызды көру үшін Face ID арқылы ашыңыз.",
+    "unlock": "Ашу",
+    "reason": "KassaLite ашу"
+  },
+  "activity": {
+    "title": "Әрекеттер",
+    "homeAmount": "≈ {{amount}}",
+    "empty": "Әзірге сатып алу жоқ",
+    "emptyBody": "Apple Pay арқылы төлеңіз. Shortcut әр сатып алуды жібергеннен кейін ол сәлден соң осында шығады.",
+    "capturesTitle": "Сатып алулар",
+    "nudgesTitle": "Кеңестер",
+    "dayTotal": "{{day}} · {{amount}}",
+    "uncategorised": "Санатсыз",
+    "notifyTitle": "Жаңа сатып алу",
+    "notifyBody": "{{merchant}} · {{amount}}",
+    "notifyManyTitle": "{{count}} жаңа сатып алу",
+    "notifyManyBody": "Оларды көру үшін KassaLite ашыңыз.",
+    "today": "Бүгін",
+    "yesterday": "Кеше",
+    "openHint": "Сатып алуды ашады",
+    "notifyOpen": "Толығырақ көру үшін түртіңіз."
+  },
+  "pair": {
+    "title": "KassaLite байланыстыру",
+    "intro": "Толық Kassa қолданбасында немесе вебте Баптаулар → KassaLite байланыстыру бөлімін ашып, QR кодты сканерлеңіз немесе 8 таңбалы кодты осында енгізіңіз.",
+    "codeLabel": "Байланыстыру коды",
+    "codePlaceholder": "ABCD2345",
+    "serverLabel": "Сервер URL (https)",
+    "serverPlaceholder": "https://kassa.example.com",
+    "submit": "Осы iPhone-ды байланыстыру",
+    "invalidCode": "Кодта 8 әріп пен цифр бар.",
+    "invalidServer": "https:// деп басталатын сервер мекенжайын енгізіңіз.",
+    "failed": "Байланыстыру сәтсіз болды. Кодтың мерзімі өткен болуы мүмкін (ол 2 минут жарамды): жаңасын жасаңыз.",
+    "noTokens": "Сервер сеанс қайтармады. Жаңа кодпен көріңіз.",
+    "deviceName": "KassaLite iPhone"
+  },
+  "settings": {
+    "title": "Баптаулар",
+    "accountTitle": "Аккаунт",
+    "signedInAs": "{{name}} ретінде кірдіңіз",
+    "unknownUser": "осы iPhone",
+    "shortcutTitle": "Apple Pay үшін Shortcut",
+    "shortcutIntro": "iOS Shortcut әр Apple Pay сатып алуын Kassa серверіңізге жібереді. Содан кейін KassaLite оны осында көрсетеді.",
+    "setup": {
+      "start": {
+        "title": "Әр Apple Pay сатып алуын жазу",
+        "body": "Shortcuts қолданбасындағы бір автоматтандыру әр сатып алуды Kassa-ға жібереді. Бір рет, шамамен бір минут алады.",
+        "button": "Apple Pay жазуын баптау"
+      },
+      "copiedLink": "Сілтеме көшірілді: оны Shortcuts-қа қойыңыз",
+      "waiting": {
+        "title": "Алғашқы Apple Pay төлеміңізді күтудеміз",
+        "body": "Shortcuts-та автоматтандыруды аяқтап, Apple Pay арқылы бір рет төлеңіз (бір кофе жеткілікті). Содан кейін бұл карточка бәрі дұрыс келгенін тексереді.",
+        "testOnly": "Байланыс жұмыс істейді. Енді автоматтандыруды тексеру үшін Apple Pay арқылы бір рет төлеңіз."
+      },
+      "openShortcuts": "Shortcuts ашу",
+      "copyLinkOpen": "Сілтемені көшіріп, Shortcuts ашу",
+      "copyAi": "Қадамдарды AI үшін көшіру",
+      "copiedAi": "Қадамдар көшірілді: оларды ChatGPT, Claude немесе басқа көмекшіге қойыңыз",
+      "aiHint": "Қиындық туды ма? Қадамдарды AI көмекшісі үшін көшіріңіз, ол әр түртуді түсіндіріп береді. Кілт алмасу буферіңізден шықпайды.",
+      "showSteps": "Қадамдарды көрсету",
+      "hideSteps": "Қадамдарды жасыру",
+      "step": "{{n}}. {{text}}",
+      "stepsAction": {
+        "1": "Shortcuts → Automation → + → Transaction. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
+        "2": "«Log Payment in Kassa» қосыңыз. Merchant, Amount және Card өрістерін Shortcut Input › Merchant, › Amount және › Card or Pass етіп қойыңыз. Done түртіңіз.",
+        "3": "Apple Pay арқылы бір рет төлеңіз. Бұл карточка әр өрісті тексереді."
+      },
+      "stepsManual": {
+        "1": "Shortcuts → Automation → + → Transaction. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
+        "2": "«Get Contents of URL» қосып, көшірілген сілтемені оның URL-і ретінде қойыңыз. › түртіңіз: Method POST, Request Body JSON.",
+        "3": "Үш Text өрісін қосыңыз: merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass.",
+        "4": "«Get Dictionary Value» (кілт nudge) және сол мәнмен «Show Notification» қосыңыз. Done түртіңіз.",
+        "5": "Apple Pay арқылы бір рет төлеңіз. Бұл карточка әр өрісті тексереді."
+      },
+      "report": {
+        "ok": "Бәрі жұмыс істейді",
+        "okBody": "Apple Pay төлемдеріңіз Kassa-ға барлық өрістерімен жетеді. Соңғысы {{time}}.",
+        "fix_one": "Kassa төлеміңізді алды: {{count}} нәрсені түзету керек",
+        "fix_other": "Kassa төлеміңізді алды: {{count}} нәрсені түзету керек",
+        "fixBody": "Оны автоматтандыруда түзетіп, тағы бір рет төлеңіз: бұл карточка қайта тексереді.",
+        "legacy": "Apple Pay төлемдері Kassa-ға жетеді. Соңғысы {{time}}."
+      },
+      "lines": {
+        "reached": "Төлем Kassa-ға жетті {{time}}",
+        "merchantOk": "Сатушы: {{name}}",
+        "merchantOkPlain": "Сатушы алынды",
+        "merchantFix": "Сатушы бос болды: Merchant өрісін Shortcut Input › Merchant етіп қойыңыз.",
+        "amountOk": "Сома: {{amount}}",
+        "amountOkPlain": "Сома алынды",
+        "amountMissing": "Сома бос болды: Amount өрісін Shortcut Input › Amount етіп қойыңыз.",
+        "amountUnparsed": "Kassa соманы оқи алмады. Ол KZT, HUF, EUR, USD және CNY оқиды: Amount өрісі Shortcut Input › Amount екенін тексеріңіз.",
+        "cardOk": "Карта алынды",
+        "cardTip": "Карта жоқ (міндетті емес): Kassa картаның комиссиясын білуі үшін Card өрісін Shortcut Input › Card or Pass етіп қойыңыз.",
+        "placeOk": "Орын алынды",
+        "placeTip": "Орын жоқ (міндетті емес): қай жерде төлегеніңізді көру үшін Get Current Location қосыңыз.",
+        "loggedOk": "«Әрекеттер» бөліміне жазылды",
+        "loggedMerged": "Бұрын жазылған: ертерек төлемнің көшірмесі",
+        "loggedRefund": "Қайтарым ретінде белгіленді",
+        "loggedFix": "Жазылмады: жоғарыдағы жолдарды түзетіңіз."
+      },
+      "fixButton": "Shortcuts-та түзету",
+      "noToken": "Осы iPhone-да Shortcut кілті жоқ. Шығып, қайта байланыстырыңыз.",
+      "revoked": "Сервер осы iPhone кілтін қабылдамады: ол кері қайтарылған немесе басқа серверге тиесілі. Шығып, қайта байланыстырыңыз.",
+      "unreachable": "Осы iPhone {{host}} мекенжайына қосыла алмайды. Сервер (және оның туннелі) іске қосулы әрі мекенжай дұрыс екенін тексеріңіз.",
+      "failed": "Сервер жауап берді, бірақ Kassa ретінде емес. Сервер мекенжайын тексеріңіз.",
+      "success": "Жұмыс істейді! Apple Pay сатып алуларыңыз енді «Әрекеттер» бөлімінде шығады.",
+      "needsFix": "Kassa төлеміңізді алды, бірақ бірдеңені түзету керек. Баптауларды қараңыз."
+    },
+    "noShortcutToken": "Shortcut токені сақталмаған. Осы iPhone-ды қайта байланыстырыңыз.",
+    "serverTitle": "Сервер",
+    "serverLabel": "Сервер URL",
+    "serverFooter": "Тұрақты https мекенжайы болуы керек, мысалы, атаулы туннеліңіз. Оны өзгерту қайта байланыстырмайды: сервер басқа болса, шығып, қайта байланыстырыңыз.",
+    "serverSave": "Сақтау",
+    "serverChange": "Өзгерту",
+    "serverSaved": "Сервер сақталды",
+    "serverInvalid": "https:// мекенжайын пайдаланыңыз.",
+    "signOut": "Шығу",
+    "signOutTitle": "KassaLite-тан шығу керек пе?",
+    "signOutBody": "Осы iPhone-дағы токендер жойылады. Толық қолданбада кері қайтармайынша Shortcut жұмысын жалғастырады.",
+    "updatesTitle": "Қолданба жаңартулары",
+    "updatesCheck": "Жаңартуларды тексеру",
+    "updatesChecking": "Жаңартулар тексерілуде",
+    "updatesOff": "Бұл нұсқада сымсыз жаңартулар өшірулі. EAS жоба ID-ін орнатқаннан кейін оны Xcode-та қайта жинаңыз (docs/OTA_UPDATES.md).",
+    "updatesDebug": "Жөндеу нұсқасы: қолданба Metro-дан жүктеледі және жаңартуларды елемейді. Release конфигурациясын іске қосыңыз.",
+    "updatesInfo": "Арна {{channel}}, қолданба нұсқасы {{runtime}}. Жаңартулар тек арнасы мен нұсқасы бірдей жинақтарға жетеді.",
+    "updatesEmbedded": "Xcode-та жиналған",
+    "updatesEmbeddedHint": "Әзірге сымсыз жаңарту қолданылмаған. Жаңасы қолданба ашылғанда жүктеліп, қайта іске қосылғанда қолданылады.",
+    "updatesRunning": "Жаңарту {{id}}",
+    "updatesCommit": "коммит {{commit}}",
+    "updatesNone": "Ең соңғы нұсқа",
+    "updatesFailed": "Жаңартуларды тексеру мүмкін болмады: {{message}}"
+  },
+  "approve": {
+    "opened": "Мұны Kassa веб-қолданбасында мақұлдаңыз. KassaLite кіру кілтін пайдалана алмайды.",
+    "back": "KassaLite-қа оралу",
+    "backHint": "Мақұлданды. Енді KassaLite-қа орала аласыз."
+  },
+  "pairDevice": {
+    "rowTitle": "KassaLite байланыстыру",
+    "rowHint": "Apple Pay сатып алуларын жазатын екінші iPhone-ды байланыстыру",
+    "title": "KassaLite байланыстыру",
+    "intro": "KassaLite орнатылған iPhone-да осы QR кодты камерамен сканерлеңіз немесе кодты енгізіңіз. Код бір рет жұмыс істейді.",
+    "generate": "Байланыстыру кодын жасау",
+    "creating": "Код жасалуда",
+    "newCode": "Жаңа код",
+    "codeLabel": "Байланыстыру коды",
+    "qrLabel": "Байланыстыру QR коды",
+    "expiresIn": "{{time}} кейін мерзімі бітеді",
+    "expired": "Бұл кодтың мерзімі өтті.",
+    "countdown": "{{minutes}}:{{seconds}}"
+  },
+  "returnBar": {
+    "text": "KassaLite-тан ашылды. Қадамды кіру кілтімен аяқтап, артқа оралыңыз.",
+    "back": "KassaLite-қа оралу"
+  }
+}

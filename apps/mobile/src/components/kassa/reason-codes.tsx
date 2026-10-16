@@ -42,6 +42,16 @@ export function ReasonCodeList({ codes }: { codes: readonly ReasonCode[] }) {
               {t("home:addMoney")}
             </Button>
           ) : null}
+          {code === "KYC_REQUIRED" ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              style={{ alignSelf: "flex-start" }}
+              onPress={() => router.push("/identity-check")}
+            >
+              {t("kyc:openFromReason")}
+            </Button>
+          ) : null}
         </View>
       ))}
     </View>

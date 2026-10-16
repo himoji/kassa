@@ -2,6 +2,8 @@ import { router, Stack } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
+import { useMoneyHistory } from "@/api/hooks/dataport";
+import type { AgentOutcome } from "@kassa/shared";
 import { useSpendingInsights } from "@/api/hooks/insights";
 import { useMe } from "@/api/hooks/me";
 import {
@@ -9,6 +11,7 @@ import {
   useBudgets,
   useCardFees,
   useObligations,
+  useAgentActivity,
   usePendingProposals,
 } from "@/api/hooks/money";
 import { usePayees } from "@/api/hooks/payees";
@@ -36,6 +39,144 @@ function MonthSpend() {
   const insights = useSpendingInsights();
   return insights.data ? <MonthSummaryCard data={insights.data} onPress={openInsights} /> : null;
 }
+/** Agent actions listed on Home (the rest are in the activity timeline). */
+const AGENT_ITEMS = 4;
+
+const OUTCOME_TONE: Record<AgentOutcome, "positive" | "warning" | "critical" | "info" | "neutral"> =
+  {
+    PAID_AUTO: "positive",
+    PAID_APPROVED: "positive",
+    WAITING: "info",
+    HELD: "warning",
+    DECLINED: "neutral",
+    OTHER: "neutral",
+  };
+
+/**
+ * What Kassa did this week (GET /agent/activity): payments it made inside a signed mandate, orders waiting for the
+ * passkey, and orders the rules held, each with why. The AI's work made visible on the first screen.
+ */
+function AgentActivityCard() {
+  const t = useKassaT();
+  const f = useFormat();
+  const activity = useAgentActivity();
+  if (!activity.data) return null;
+  const { counts, items } = activity.data;
+  const paid = counts.PAID_AUTO + counts.PAID_APPROVED;
+  return (
+    <Card>
+      <Box gap={3}>
+        <Box row gap={2} align="center">
+          <Icon name="sparkles" fallback="auto_awesome" size={20} color="primary" />
+          <Text weight="semibold">{t("home:agent.title")}</Text>
+        </Box>
+        {items.length === 0 ? (
+          <Text variant="caption">{t("home:agent.empty")}</Text>
+        ) : (
+          <>
+            <Text variant="caption">
+              {t("home:agent.summary", { paid, waiting: counts.WAITING, held: counts.HELD })}
+            </Text>
+            <Box gap={2}>
+              {items.slice(0, AGENT_ITEMS).map((i) => (
+                <Pressable
+                  key={i.proposalId}
+                  accessibilityRole="button"
+                  onPress={() => router.push(`/order/${i.proposalId}`)}
+                >
+                  <Box row justify="between" align="center" gap={2}>
+                    <Box flex={1} gap={1}>
+                      <Text numberOfLines={1}>
+                        {i.payeeName || t("home:agent.someone")} ·{" "}
+                        {f.money(i.amountMinor, i.currency)}
+                      </Text>
+                      <Text variant="caption" color="mutedForeground" numberOfLines={2}>
+                        {t(`home:agent.by.${i.createdBy}`)}
+                        {i.reasonCodes[0] &&
+                        i.outcome !== "PAID_AUTO" &&
+                        i.outcome !== "PAID_APPROVED"
+                          ? ` · ${t(`reasonCodes:${i.reasonCodes[0]}.label`)}`
+                          : ""}
+                      </Text>
+                    </Box>
+                    <StatusChip
+                      tone={OUTCOME_TONE[i.outcome]}
+                      label={t(`home:agent.outcome.${i.outcome}`)}
+                    />
+                  </Box>
+                </Pressable>
+              ))}
+            </Box>
+          </>
+        )}
+        <Text variant="caption" color="mutedForeground">
+          {t("home:agent.footer")}
+        </Text>
+      </Box>
+    </Card>
+  );
+}
+
+/** History lines shown before "Show all". */
+const HISTORY_COLLAPSED = 3;
+
+/**
+ * What the imported bank statements show (GET /history; the lines are written by the server from the numbers), or an
+ * invitation to import them. Hidden while loading or on error: the rest of Home carries the page.
+ */
+function HistoryCard() {
+  const t = useKassaT();
+  const f = useFormat();
+  const history = useMoneyHistory();
+  const [all, setAll] = useState(false);
+  if (!history.data) return null;
+  const h = history.data.history;
+  if (!h)
+    return (
+      <Card>
+        <Box gap={3}>
+          <Text weight="semibold">{t("home:history.emptyTitle")}</Text>
+          <Text variant="caption">{t("home:history.emptyBody")}</Text>
+          <Button variant="outline" onPress={() => router.push("/data")}>
+            {t("home:history.import")}
+          </Button>
+        </Box>
+      </Card>
+    );
+  const shown = all ? h.notes : h.notes.slice(0, HISTORY_COLLAPSED);
+  return (
+    <Card>
+      <Box gap={2}>
+        <Text weight="semibold">{t("home:history.title")}</Text>
+        {h.from && h.to ? (
+          <Text variant="caption" color="mutedForeground">
+            {t("home:history.period", {
+              from: f.date(h.from, "medium"),
+              to: f.date(h.to, "medium"),
+              rows: h.counts.rows,
+            })}
+          </Text>
+        ) : null}
+        {shown.map((n) => (
+          <Text key={n} variant="caption">
+            • {n}
+          </Text>
+        ))}
+        <Box row gap={2}>
+          {h.notes.length > HISTORY_COLLAPSED ? (
+            <Button size="sm" variant="ghost" onPress={() => setAll((v) => !v)}>
+              {all ? t("home:history.less") : t("home:history.all", { count: h.notes.length })}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="ghost" onPress={() => router.push("/data")}>
+            {t("home:history.update")}
+          </Button>
+        </Box>
+      </Box>
+    </Card>
+  );
+}
+
 /** Budgets listed before "Show all" (the ones that need attention come first). */
 const BUDGETS_COLLAPSED = 4;
 
@@ -257,7 +398,11 @@ export function HomeScreen() {
           </Box>
         ) : null}
 
+        <AgentActivityCard />
+
         <MonthSpend />
+
+        <HistoryCard />
 
         <Box gap={3}>
           <Box row justify="between" align="center">

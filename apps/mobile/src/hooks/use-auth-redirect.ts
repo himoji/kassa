@@ -16,7 +16,7 @@ import { bootstrapSession } from "@/api/session";
 import { clearReturnPathIfAt, peekReturnPath, rememberReturnPath } from "@/lib/return-path";
 import { useSessionStore } from "@/stores/session";
 
-const PUBLIC_ROOTS = new Set(["(auth)", "verify"]);
+const PUBLIC_ROOTS = new Set(["(auth)", "verify", "evidence"]);
 const PERSONAL_TABS = new Set(["home", "activity", "cards"]);
 const BUSINESS_TABS = new Set(["today", "stock", "orders"]);
 
@@ -38,7 +38,12 @@ export function useAuthRedirect(): void {
     const root = segments[0] ?? "";
     if (status === "unauthenticated") {
       if (!PUBLIC_ROOTS.has(root)) {
-        rememberReturnPath(pathname);
+        // The query matters for hand-offs from KassaLite (`?from=lite&intent=card`): keep it on web.
+        const search =
+          typeof window !== "undefined" && typeof window.location?.search === "string"
+            ? window.location.search
+            : "";
+        rememberReturnPath(pathname + search);
         router.replace("/welcome");
       }
       return;

@@ -211,6 +211,9 @@ export function WelcomeScreen() {
           <Text variant="caption" align="center">
             {t("auth:welcome.demoNote")}
           </Text>
+          <Button variant="ghost" onPress={() => router.push("/evidence")}>
+            {t("evidence:open")}
+          </Button>
         </Box>
       </ScrollView>
     </SafeAreaView>

@@ -1,0 +1,234 @@
+{
+  "accountMissing": "需要账户信息",
+  "accountMissingBody": "此收款人来自您的设置聊天，没有账户信息。在添加并验证账户信息之前，Kassa 不会向其付款。",
+  "accountNotAdded": "尚未添加",
+  "add": {
+    "accountNumber": "账号",
+    "alipayId": "支付宝账号",
+    "cardNumber": "银联卡号",
+    "checking": "活期",
+    "coolingNote": "新的或已更改的收款人有 24 小时冷静期，之后才能付款。",
+    "country": "国家",
+    "created": "已添加收款人",
+    "currency": "货币",
+    "errors": {
+      "ACCOUNT_TOO_SHORT": "请至少输入 4 个字符。",
+      "ACH_ACCOUNT_INVALID": "美国账号为 4 到 17 位数字。",
+      "ACH_ROUTING_INVALID": "此路由号码的校验位有误。路由号码为 9 位数字。",
+      "ALIPAY_ID_INVALID": "请使用对方支付宝账户绑定的邮箱或 11 位中国大陆手机号。",
+      "IBAN_INVALID": "此 IBAN 的校验位不正确，请检查是否有输入错误。",
+      "INVALID_IBAN": "此 IBAN 的校验位不正确，请检查是否有输入错误。",
+      "NAME_MISSING": "请输入对方账户上的姓名。",
+      "SCHEME_CURRENCY_MISMATCH": "支付宝和银联接收 CNY，美国银行账户接收 USD，IBAN 账户接收其他货币。",
+      "UNIONPAY_CARD_INVALID": "这不是有效的银联卡号。银联卡号以 62 开头，共 16 到 19 位。",
+      "KASSA_ID_INVALID": "Kassa ID 的格式类似 KSA-7QMX-2HVA：KSA 后有 8 位字母和数字。",
+      "KASSA_ID_SELF": "这是您自己的 Kassa ID。请改为在首页充值。",
+      "KASSA_ID_UNKNOWN": "没有 Kassa 用户使用此 ID。请让对方在“设置”中查看。",
+      "DETAILS_MISSING": "请填写此项。",
+      "DETAILS_CATEGORY_MISMATCH": "这些信息与此类收款人不符。",
+      "URL_INVALID": "请使用完整的 https:// 链接。",
+      "KNP_INVALID": "KNP 代码为 3 位数字，例如工资为 311。"
+    },
+    "how": "收款方式",
+    "iban": "IBAN",
+    "kind": "类别",
+    "name": "账户姓名",
+    "other": "账户或商户 ID",
+    "preview": "Kassa 将付款给",
+    "routingNumber": "路由号码",
+    "savings": "储蓄",
+    "submit": "添加收款人",
+    "title": "添加收款人",
+    "kassaId": "Kassa ID",
+    "pickCategory": "您要支付什么？",
+    "changeCategory": "更改",
+    "nameFor": {
+      "PEOPLE": "对方账户上的姓名",
+      "TUITION": "学校或大学",
+      "RENT": "房东或宿舍（与其账户名一致）",
+      "BILLS": "公司名称",
+      "SHOPS": "店铺名称"
+    }
+  },
+  "coolingEndsIn": "{{remaining}} 后可付款",
+  "coolingFor": "冷静期中，还剩 {{remaining}}",
+  "coolingRule": "24 小时结束后，您就可以向此收款人付款。",
+  "detailTitle": "收款人",
+  "detailsTitle": "详情",
+  "empty": "暂无收款人。",
+  "explainerBody": "更改收款人的账户信息会创建一个新收款人。更改后的账户会被视为全新的收款人，需经过 24 小时冷静期才能付款。",
+  "explainerTitle": "为什么收款人有冷静期",
+  "field": {
+    "account": "账户",
+    "country": "国家",
+    "currency": "货币",
+    "kind": "类型",
+    "verifiedAt": "验证时间",
+    "category": "类别",
+    "reference": "参考号"
+  },
+  "kind": {
+    "LANDLORD": "房东",
+    "UNIVERSITY": "大学",
+    "INSURER": "保险公司",
+    "MERCHANT": "商家",
+    "SUPPLIER": "供应商",
+    "PERSON": "个人",
+    "OWN_ACCOUNT": "本人账户",
+    "BILLER": "账单方"
+  },
+  "meta": "{{kind}} · {{account}} · {{country}} · {{currency}}",
+  "never": "从未",
+  "newPayeeExplainer": "这是一位新收款人。需经过 24 小时冷静期，才能向其付款。",
+  "notFound": "找不到此收款人。",
+  "replaces": "替换 {{name}}（{{account}}）",
+  "simulateVerify": "模拟验证",
+  "simulateVerifyDone": "已模拟验证",
+  "status": {
+    "VERIFIED": "已验证",
+    "COOLING": "冷静期中",
+    "BLOCKED": "已阻止"
+  },
+  "title": "收款人",
+  "scheme": {
+    "IBAN": {
+      "short": "IBAN",
+      "hint": "在欧洲境内（SEPA），银行只需要姓名和 IBAN。可以包含空格。"
+    },
+    "CN_ALIPAY": {
+      "short": "支付宝",
+      "hint": "以 CNY 直接付到对方的支付宝余额。请使用对方支付宝账户绑定的邮箱或手机号。"
+    },
+    "CN_UNIONPAY": {
+      "short": "银联",
+      "hint": "以 CNY 付到对方银联借记卡对应的银行账户。"
+    },
+    "US_ACH": {
+      "short": "美国银行",
+      "hint": "ACH 转账需要 9 位路由号码和账号，两者都印在美国支票上。"
+    },
+    "KASSA_USER": {
+      "short": "Kassa 用户",
+      "hint": "通过 Kassa ID（“设置”→“您的 Kassa ID”）付到其他 Kassa 用户的钱包。支持任何货币，几分钟内到账。"
+    },
+    "OTHER": {
+      "short": "其他",
+      "hint": "用于二维码转交的商户 ID 或 Kassa 无法核验的账户。银行转账无法到达。"
+    }
+  },
+  "category": {
+    "ALL": "全部",
+    "PEOPLE": "个人",
+    "TUITION": "学费",
+    "RENT": "房租",
+    "BILLS": "账单",
+    "SHOPS": "商店"
+  },
+  "categoryHint": {
+    "PEOPLE": "家人、朋友，或为您工作的人的工资",
+    "TUITION": "您的学校或大学，按学号匹配",
+    "RENT": "您的房东或宿舍，每月付款",
+    "BILLS": "电费、水费、话费、网费、保险",
+    "SHOPS": "用银行卡或二维码付款的商店和咖啡馆"
+  },
+  "emptyCategory": "{{category}}中暂无内容。",
+  "details": {
+    "relationship": "对方是谁",
+    "note": "对方对账单上的附言",
+    "notePlaceholder": "每月生活费",
+    "purposeCode": "KNP 用途代码（哈萨克斯坦）",
+    "purposeCodeHint": "哈萨克斯坦的银行转账时会要求填写。311 为工资，119 为给家人的转账。",
+    "studentId": "学号",
+    "studentIdHint": "学校用它来匹配您的付款，每笔付款的参考号中都会包含它。",
+    "portalUrl": "学校缴费门户",
+    "portalUrlHint": "学校提供给您的缴费链接（例如 Flywire 或财务处页面）。",
+    "term": "学期",
+    "termPlaceholder": "2026 年秋季",
+    "rentReference": "合同、房间或单元",
+    "rentReferenceHint": "房东希望在参考号中看到的内容。",
+    "dueDay": "每月到期日",
+    "dueDayHint": "每月房租到期的日期（1 到 28）。",
+    "billType": "账单类型",
+    "customerNumber": "客户号或账户号",
+    "customerNumberHint": "印在您的账单上。公司用它来匹配您的付款。",
+    "billReference": "参考号（如账单要求）",
+    "shopNote": "备注"
+  },
+  "relationship": {
+    "FAMILY": "家人",
+    "FRIEND": "朋友",
+    "EMPLOYEE": "为我工作",
+    "OTHER": "其他"
+  },
+  "billType": {
+    "UTILITIES": "水电煤",
+    "PHONE": "话费",
+    "INTERNET": "网费",
+    "INSURANCE": "保险",
+    "OTHER": "其他"
+  },
+  "actions": {
+    "send": "转账",
+    "edit": "编辑信息",
+    "schedule": "设置付款计划",
+    "openPortal": "打开学校门户",
+    "remove": "移除收款人",
+    "removeConfirm": "移除 {{name}}？之后可以再次添加，但需重新经过 24 小时冷静期。",
+    "removed": "收款人已移除",
+    "saved": "信息已保存",
+    "hasBills": "请先移除此收款人的账单（在“账单”中）。"
+  },
+  "edit": {
+    "title": "编辑信息",
+    "note": "更改这些信息不会改变资金的去向，因此没有新的冷静期。如需更改账户，请添加新收款人。",
+    "save": "保存"
+  },
+  "schedule": {
+    "title": "设置付款计划",
+    "body": "Kassa 会规划这笔付款，并在到期时询问您（或在已签署的授权范围内直接付款）。",
+    "amount": "金额",
+    "firstDue": "首次付款日期",
+    "monthly": "每月",
+    "once": "一次",
+    "reference": "参考号",
+    "create": "创建付款计划",
+    "created": "付款计划已创建，可在“账单”中查看。",
+    "dateInvalid": "请使用类似 2026-11-01 的日期，且不早于今天。"
+  },
+  "school": {
+    "title": "查找您的学校",
+    "body": "选择您的学校并输入学号。Kassa 会获取您的缴费单，并以准确的金额和参考号添加为账单。",
+    "search": "学校",
+    "searchPlaceholder": "按名称或城市搜索",
+    "noneFound": "没有匹配的学校。您可以改为手动添加。",
+    "directoryNote": "学校列表和缴费单来自各学校的缴费门户。本演示中均为虚构学校。",
+    "manual": "我的学校不在列表中：手动输入信息",
+    "findInvoice": "查找我的缴费单",
+    "invoiceFor": "{{term}}学费，学号 {{studentId}}",
+    "dueOn": "{{date}} 到期",
+    "reference": "参考号 {{reference}}",
+    "status": {
+      "OPEN": "待支付",
+      "PARTLY_PAID": "部分已付",
+      "PAID": "已付"
+    },
+    "noInvoices": "该学生目前没有待支付的缴费单。",
+    "willAdd": "Kassa 会将学校添加为收款人（付到学校列出的账户），并将缴费单添加为账单。和所有新收款人一样，它首先需要 24 小时冷静期。",
+    "existing": "您已经在向这所学校付款。Kassa 会将其关联到学校的门户，并添加尚未成为账单的缴费单。",
+    "add": "添加{{name}}和账单",
+    "update": "关联到学校门户",
+    "added": "已添加{{name}}",
+    "updated": "已关联到学校门户",
+    "billAdded_other": "{{count}} 张缴费单已添加到“账单”中。",
+    "noNewBills": "没有需要添加的新缴费单。",
+    "checkInvoices": "检查新缴费单",
+    "payInvoice": "支付此缴费单",
+    "openInvoices": "待支付账单",
+    "errors": {
+      "STUDENT_ID_INVALID": "学号为 4 到 20 位字母、数字或连字符。",
+      "SCHOOL_DIRECTORY_UNAVAILABLE": "学校目录没有响应，请稍后重试。",
+      "SCHOOL_ACCOUNT_CHANGED": "学校现在列出了不同的银行账户。请重新添加学校：它将成为新收款人，并经过 24 小时冷静期。"
+    },
+    "otherCategory": "支付其他费用"
+  }
+}

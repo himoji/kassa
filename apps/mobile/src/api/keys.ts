@@ -1,6 +1,7 @@
 /** TanStack Query keys, one place so mutations invalidate exactly what they change. */
 export const keys = {
   me: ["me"] as const,
+  moneyHistory: ["history"] as const,
   demoAvailability: ["auth", "demo"] as const,
   balances: ["balances"] as const,
   budgets: ["budgets"] as const,
@@ -17,6 +18,7 @@ export const keys = {
   caps: ["caps"] as const,
   wallet: ["wallet"] as const,
   fundingSources: ["funding-sources"] as const,
+  kyc: ["kyc"] as const,
   schools: (q: string) => ["schools", q] as const,
   sendQuote: (payeeId: string, amountMinor: number, sourceId: string | null) =>
     ["send-quote", payeeId, amountMinor, sourceId] as const,
@@ -24,6 +26,7 @@ export const keys = {
   shortcutDevices: ["devices", "shortcut"] as const,
   ruleChanges: ["rule-changes", "pending"] as const,
   proposalsPending: ["proposals", "pending"] as const,
+  agentActivity: ["proposals", "agent-activity"] as const,
   order: (proposalId: string) => ["orders", proposalId] as const,
   // (added 2026-10-14, Business M2/M3) shop orders and till bills
   shopOrders: ["shop-orders"] as const,
@@ -43,6 +46,7 @@ export const keys = {
 /** Everything that depends on money state: refreshed after approvals, freezes and demo actions. */
 export const moneyKeys = [
   keys.me,
+  keys.moneyHistory,
   keys.balances,
   keys.budgets,
   keys.obligations,
@@ -57,6 +61,7 @@ export const moneyKeys = [
   keys.fundingSources,
   keys.ruleChanges,
   keys.proposalsPending,
+  keys.agentActivity,
   keys.ledger,
   keys.notifications,
   keys.shopOrders,

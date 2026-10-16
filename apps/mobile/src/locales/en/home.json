@@ -74,5 +74,34 @@
   "addMoney": "Add money",
   "send": "Send",
   "payTo": "Pay",
-  "allRecipients": "All recipients"
+  "allRecipients": "All recipients",
+  "history": {
+    "title": "What your bank history shows",
+    "period": "{{rows}} transactions, {{from}} – {{to}}",
+    "all": "Show all {{count}}",
+    "less": "Show fewer",
+    "update": "Add statements",
+    "emptyTitle": "Plan from your real history",
+    "emptyBody": "Add your bank statements (PDF, CSV, Excel). Kassa reads them on the server, never keeps account numbers, and shows what it learned before anything is saved.",
+    "import": "Add bank statements"
+  },
+  "agent": {
+    "title": "What Kassa did this week",
+    "summary": "{{paid}} paid · {{waiting}} waiting for your passkey · {{held}} held by your rules",
+    "empty": "Nothing to do yet. Kassa checks your bills and drafts each payment 3 days before it is due.",
+    "someone": "A recipient",
+    "footer": "Kassa drafts; your rules and your passkey decide. It pays on its own only inside a mandate you signed.",
+    "by": {
+      "AGENT": "Drafted by Kassa",
+      "SCHEDULER": "Bill due soon"
+    },
+    "outcome": {
+      "PAID_AUTO": "Paid in your mandate",
+      "PAID_APPROVED": "Paid with your passkey",
+      "WAITING": "Needs your passkey",
+      "HELD": "Held",
+      "DECLINED": "You declined",
+      "OTHER": "Not sent"
+    }
+  }
 }

@@ -24,6 +24,8 @@ import business from "./business.json";
 import lite from "./lite.json";
 import wallet from "./wallet.json";
 import insights from "./insights.json";
+import evidence from "./evidence.json";
+import kyc from "./kyc.json";
 
 export const en = {
   translation,
@@ -49,4 +51,6 @@ export const en = {
   lite,
   wallet,
   insights,
+  evidence,
+  kyc,
 };

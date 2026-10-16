@@ -1,5 +1,5 @@
 /*
- * B1 (PHASE2_PLAN "Reader checks lost across turns", I10 → rules §10 step 3): a document read in one turn and
+ * B1 ("Reader checks lost across turns", I10 → rules §10 step 3): a document read in one turn and
  * paid in a later turn (or another conversation, or uploaded without a conversationId) must still bring its
  * persisted Reader checks to the rules. Real DB, real rules module, Reader played by a mock model.
  */

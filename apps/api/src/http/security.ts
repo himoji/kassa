@@ -11,8 +11,8 @@
  * - Security headers (ASVS V14.4): @fastify/helmet with an API CSP (`default-src 'none'`), no framing.
  * - CORS (ASVS V14.5.3): only the configured origins (PUBLIC_ORIGIN + EXTRA_ORIGINS), credentials allowed;
  *   requests without an Origin (native app, webhooks, curl) are not CORS requests and are unaffected.
- * Honest limit: rate-limit counters are in memory (per API instance; the challenge stores and pairing codes are in
- * Postgres, auth/challenges.ts).
+ * Rate-limit counters are in Postgres (http/rate-limit-store.ts, R13), shared by every API instance, with an in-memory
+ * fallback when the database call fails.
  */
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -22,6 +22,7 @@ import type { FastifyInstance, RouteOptions } from "fastify";
 import { env } from "../env.ts";
 import { requireUser } from "../modules/auth/session.ts";
 import { HttpProblem } from "./problem.ts";
+import { PgRateLimitStore } from "./rate-limit-store.ts";
 
 /** "METHOD /api/path" → why the route may skip the session check (and what authenticates it instead). */
 export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
@@ -33,7 +34,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/auth/recovery/options": "lost passkey: a single-use backup code (auth/recovery.ts) instead of a session",
   "POST /api/auth/recovery/verify": "lost passkey: new-passkey registration bound to the backup code's single-use challenge",
   "POST /api/auth/refresh": "authenticated by the rotating refresh token in the body (RFC 9700)",
-  "POST /api/auth/logout": "only clears the cookie / revokes the presented refresh token",
+  "POST /api/auth/logout": "only revokes the presented session cookie / refresh token (if it verifies) and clears the cookie",
   "GET /api/auth/demo": "whether the welcome screen offers the demo account / dev sign-in (flags only, no personal data)",
   "POST /api/auth/dev/login": "dev sign-in: not registered in production; DEMO_ENABLED + DEV_LOGIN + a localhost / tunnel RP_ID (auth/dev.ts)",
   "POST /api/auth/pair/complete": "single-use 8-character pairing code, 2-minute TTL, created behind a passkey assertion (auth/pair.ts)",
@@ -53,6 +54,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/capture/shortcut": "per-device bearer token, only its hash is stored (I13)",
   "GET /api/demo/clock": "demo clock read for mock-world (DEMO_ENABLED only, no personal data)",
   "POST /api/demo/clock/advance": "demo admin token, constant-time compare (DEMO_ENABLED only)",
+  "POST /api/demo/clock/mode": "demo admin token, constant-time compare (DEMO_ENABLED only)",
   "POST /api/demo/reset": "demo admin token, constant-time compare (DEMO_ENABLED only)",
   "POST /api/demo/agent-mode": "demo admin token, constant-time compare (DEMO_ENABLED only)",
   "POST /api/demo/trigger/:scenario": "demo admin token, constant-time compare (DEMO_ENABLED only)",
@@ -78,6 +80,7 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "GET /api/public/verify/:id": "auth",
   "GET /api/public/credit-record/:file": "auth",
   "POST /api/demo/clock/advance": "auth",
+  "POST /api/demo/clock/mode": "auth",
   "POST /api/demo/reset": "auth",
   "POST /api/demo/agent-mode": "auth",
   "POST /api/demo/trigger/:scenario": "auth",
@@ -94,6 +97,8 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/import/preview": "sensitive",
   "POST /api/import/commit": "sensitive",
   "POST /api/privacy/restrict": "sensitive",
+  // (added 2026-10-16) identity checks: no guessing documents in a loop
+  "POST /api/kyc/start": "sensitive",
 };
 
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
@@ -174,6 +179,7 @@ export async function registerSecurity(app: FastifyInstance): Promise<void> {
     global: true,
     max: e.RATE_LIMIT_GLOBAL_PER_MIN,
     timeWindow: 60_000,
+    store: PgRateLimitStore,
     errorResponseBuilder: (_req, ctx) =>
       new HttpProblem(429, "RATE_LIMITED", `Too many requests; retry in ${ctx.after}`, { reasonCodes: ["RATE_LIMITED"] }),
   });

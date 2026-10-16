@@ -211,6 +211,10 @@
     "label": "Already being paid",
     "text": "This bill for this period is already paid or waiting for your approval, so a second payment was refused."
   },
+  "KYC_REQUIRED": {
+    "label": "Identity check needed",
+    "text": "This amount needs a verified identity first, so it was refused. Complete the identity check in Settings, then try again."
+  },
   "FUNDING_SOURCE_UNAVAILABLE": {
     "label": "Account no longer linked",
     "text": "The card or bank account you chose to pay from is no longer linked, so nothing was sent."

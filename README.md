@@ -6,7 +6,7 @@ Kassa is a finance agent for people whose money lives in one country and whose b
 
 The agent does real financial work: it logs spending in every currency, exposes hidden card fees, plans bills against the forecast and pays by the cheapest route. Inside a mandate the user signed with a passkey (rent and insurance to verified payees, small purchases under a signed limit), it pays on its own, with no prompt at payment time. Anything else it prepares as an exact order that the user approves with a passkey. Plain code, not the model, decides which case applies: the agent cannot raise a limit, skip the 24-hour cooling period for a new payee, or pay above a signed cap.
 
-The safety line: the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money
+The safety line: the agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money.
 
 Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT and USD, her bills are in HUF and EUR.
 
@@ -17,7 +17,7 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 Needs Bun 1.4 and, for the app, Node.js 22.18 or later.
 
 1. `bun install`
-2. `bun run env:setup` (writes gitignored `.env` files with generated dev keys). For live AI, put `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` in the root `.env`; without one the chat uses recorded replays.
+2. `bun run env:setup` (writes gitignored `.env` files with generated dev keys). For live AI, put `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` in the root `.env`; without one the chat answers from replays: scripted model answers in `fixtures/agent-recordings/` (hand-written, labelled **Replay** in the chat).
 3. `bun run db:migrate && bun run seed` (file-backed PGlite in `.data/`, seeds Dana)
 4. `bun run dev` (API on http://localhost:4000, mock world on http://localhost:4001)
 5. In a second terminal: `cd apps/mobile && bun run web`, then open http://localhost:8081
@@ -58,7 +58,11 @@ Details, phone testing and deployment are below.
 | Technical documentation  | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
 | Source code              | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md))                                                  |
 | Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7)                                               |
-| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations    |
+| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations; the attack results as a page at `/evidence` in the web app (no sign-in) |
+| Presentation deck        | Separate slide deck (10 slides, about 10 minutes): link to be added at submission                                                    |
+| Demo video               | Recorded with `bun run demo:video` ([docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)); link to be added at submission                       |
+
+Dates in the evidence (late October and November 2026) are on the **demo clock**: the seed data is a story set on 2026-10-27 and the demo moves its clock forward (rent day, payouts). The app itself runs on real time by default; the Stage's **Demo time** switch turns the story clock on (DECISIONS.md, 2026-10-16).
 
 ## Documents
 
@@ -173,7 +177,7 @@ bun run sim down         # stops everything it started and reports the ports
 
 Do not run `bun run dev` at the same time: both use ports 4000 and 4001. The runbook is in [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md). It lists every command, the personas (average user, careful user, bad-actor user), and the security scenarios with the test files that cover them.
 
-Persona and attacker runs (Haiku 5.5 acting as user and planner, no real AI calls) have their reports in `docs/evidence/sim/`: `p1/` (average user), `p2/` (careful user), `p3/` (bad actor), `cn/` (Chinese-context demos and a compromised planner), and `security/` (scenario review). [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) has the results and the fix status of every finding.
+Persona and attacker runs (a Haiku 5.5 model played both the user and the planner through the API; Kassa's own model calls were replayed, so these runs test the product's guards, not its live planner) have their reports in `docs/evidence/sim/`: `p1/` (average user), `p2/` (careful user), `p3/` (bad actor), `cn/` (Chinese-context demos and a compromised planner), and `security/` (scenario review). [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) has the results and the fix status of every finding.
 
 ## Tests and checks
 
@@ -184,7 +188,7 @@ bun run test           # Vitest suites (api, mock-world, shared) and the mobile 
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
 ```
 
-- Counts from the latest run (2026-10-15, per workspace): API 949 tests in 121 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 343, shared 53, mobile Jest 560. Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-16, per workspace): API 1,026 tests in 132 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 361, shared 53, mobile Jest 875 in 78 suites (including the locale checks for zh, ru and kk). Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - Attack suite (`apps/api/test/attacks/`): A1 to A8 from the spec, A9 (swapped invoice bank details), and A10 to A17, which recreate real incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake memories, MCP tool poisoning and EchoLeak, the Chevrolet "$1 Tahoe" and Project Vend, salami splitting, "safe account" scams). The planner and Reader in them obey the attacker. `bun run evidence:attacks`: **guarded paid 0 of 16, naive paid 16 of 16** (`docs/evidence/attacks.json`; sources in [docs/SECURITY.md](docs/SECURITY.md) §6).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.

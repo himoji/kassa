@@ -10,6 +10,7 @@ import {
   DEMO_TOKEN_HEADER,
   DemoAgentModeRequest,
   DemoClockAdvanceRequest,
+  DemoClockModeRequest,
   DemoScenario,
   DemoStateResponse,
   ReaderDocType,
@@ -62,7 +63,7 @@ function assertAdmin(req: FastifyRequest): void {
 async function state() {
   await clock.load();
   const ds = (await getDb().select().from(demoState).where(eq(demoState.id, 1)))[0];
-  return { now: clock.now().toISOString(), clockOffsetMs: clock.offsetMs(), agentMode: ds?.agentMode ?? env().AGENT_MODE };
+  return { now: clock.now().toISOString(), clockOffsetMs: clock.offsetMs(), clockMode: clock.mode(), agentMode: ds?.agentMode ?? env().AGENT_MODE };
 }
 
 async function demoUserId(): Promise<string> {
@@ -188,8 +189,19 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     return state();
   });
 
+  // Real or demo time. Switching to DEMO resumes the stored demo offset; REAL keeps it for later.
+  app.post("/demo/clock/mode", { ...admin, schema: { body: DemoClockModeRequest, response: { 200: DemoStateResponse } } }, async (req) => {
+    await clock.load();
+    await clock.setMode(req.body.mode);
+    await ledger.append("DEMO_CLOCK_MODE", { mode: req.body.mode, now: clock.now().toISOString() });
+    await tick((msg, err) => req.log.error({ err }, msg));
+    return state();
+  });
+
   app.post("/demo/reset", { ...admin, schema: { response: { 200: DemoStateResponse } } }, async (req) => {
-    await seedDatabase(getDb(), await loadSeedData(), { reset: true, personas: true });
+    // The reset keeps the clock mode the Stage chose (real time stays real).
+    await clock.load();
+    await seedDatabase(getDb(), await loadSeedData(), { reset: true, personas: true, clockMode: clock.mode() });
     // Mock world keeps its own in-memory state (wallet, transfers, QR codes): reset it too (best effort).
     await mockWorld("POST", "/reset", {}).catch((err: Error) => req.log.warn({ err }, "mock-world reset failed"));
     return state();

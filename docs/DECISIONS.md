@@ -21,6 +21,7 @@ Deviations from `docs/spec/TECH_SPEC.md` (spec §0: date, problem, choice). Newe
   demo locales were removed). Every user-facing string goes through `t()`, including server reason-code
   labels, which the app maps client-side from `ReasonCode` values in `@kassa/shared` (the server sends
   codes, never prose).
+- **Superseded** on 2026-10-16 by "App in English, Simplified Chinese, Russian and Kazakh" (end of this file).
 
 ## 2026-10-10 — Provider-agnostic LLM via the Vercel AI SDK
 
@@ -117,7 +118,7 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
 - **Extra tables** (`apps/api/src/db/schema.intel.ts`; spec §6 has no home for them): `agent_messages`
   (planner history, redacted model-facing messages only, I11), `agent_documents` (uploads → `docId`, cached
   Reader result), `merchant_category_memory` (spec §13 "user correction remembered per merchantNorm"),
-  `onboarding_drafts`. drizzle.config must list both schema files (see PHASE1_COORDINATION).
+  `onboarding_drafts`. drizzle.config must list both schema files.
 - **FX sources** (verified 2026-10-10): Frankfurter `https://api.frankfurter.dev/v1/{date}` (ECB; returns the
   last business day ≤ date), NBK `https://nationalbank.kz/rss/get_rates.cfm?fdate=DD.MM.YYYY` (KZT per `quant`
   units), fallback open.er-api.com (labelled `FALLBACK_ER_API`), last resort `fixtures/fx-rates.json`
@@ -417,8 +418,7 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
   so a checkpoint signature cannot pose as a head. `ledger:verify` requires a valid anchor naming the last entry:
   tail truncation and tail re-hashing after the last checkpoint are detected. Honest limit: someone with DB write
   access who kept an older signed head row can roll back to exactly that head; closing it needs the head published
-  outside the DB (transparency log / RFC 3161), out of scope. Migration 0004 (journal `when` after 0005, see
-  PHASE1_COORDINATION).
+  outside the DB (transparency log / RFC 3161), out of scope. Migration 0004 (journal `when` after 0005).
 - **X7 handoff QR before signing (cn note 1).** The QR request is fetched and checked (fuzzy name ≥ 0.92, amount,
   currency) when a pending HANDOFF order is first shown or approved, through a port (`registerHandoffPreflight`, so
   rules never imports rails, I1). Stored on the draft (`handoffQr`); a mismatch refuses the proposal up front
@@ -775,3 +775,113 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   before the insert). `v1` stays readable for existing rows and for callers that do not pass a payee id. Payments
   decrypts for the payee row and requires `accountHash(account) = order.payeeAccountHash`, else
   `REFUSE_UNVERIFIED_PAYEE`. Residual: v1 rows are not bound (SECURITY.md R30).
+
+## 2026-10-16 — Real time by default, demo time as a switch; sessions on wall time
+
+- **Problem:** spec §15 puts the whole app on the demo clock (real now + `demo_state.clockOffsetMs`), and the seed sets
+  it to story time (2026-10-27). A deployment that loads the demo data showed that date to everyone, and a reviewer
+  using the app normally saw due dates and cooling periods 11 days off.
+- **Choice:** `demo_state.clock_mode` (migration 0018): `REAL` (the default) is the system clock, `DEMO` adds the stored
+  offset. The offset is kept while `REAL`, so switching back resumes the story time. Deployments seed with `REAL`
+  (`api/index.ts`); `bun run seed`, the tests and the Stage reset keep the mode the script needs (`DEMO` for the seed
+  and tests, the current one for a reset). The Stage screen (Settings → Demo) has a **Demo time** switch
+  (`POST /demo/clock/mode`, demo admin token, ledger `DEMO_CLOCK_MODE`); the +1 h / +1 day / +3 days buttons still move
+  the demo clock, and pressed in real time they start it at real now. Everything that read the clock (scheduler,
+  cooling periods, due dates, expiries, the mock world through `GET /demo/clock`) follows the clock in use with no
+  change of its own.
+- **Exception:** session and refresh token lifetimes (`iat`/`exp`, and the "signed out before" mark of a backup-code
+  recovery) use wall time (`clock.realNowMs()`), so moving or switching the demo clock neither signs people out (an
+  11-day jump used to end the 7-day web session) nor keeps an expired token alive when the clock goes back.
+
+## 2026-10-16 — A demo switch for the 24 h waits
+
+- **Problem:** I7 (a new recipient cools 24 h) and the 24 h loosening delay (settings, mandates, unfreeze) make a live
+  demo wait a day or depend on the Stage clock. Reviewers asked for a way to turn the waits off.
+- **Choice:** `POST /demo/cooling` (registered only with `DEMO_ENABLED`), per user, stored in `demo_cooling_off`
+  (migration 0019; a row = off). Off needs the user's passkey (428 round trip) and is logged as `DEMO_COOLING_OFF`; on
+  needs nothing (it tightens) and is logged as `DEMO_COOLING_ON`. Default on. With it off, the waits are 0 for that user:
+  a new recipient still starts COOLING (T2 only, never autopilot) but can be verified and paid at once, and loosenings
+  apply at the next scheduler tick. Outside demo mode a stored row is ignored. The app shows a red banner on every screen
+  while off (`MeResponse.demo.coolingOff`), and the switch sits on the Stage screen (Settings → Demo). The attack suite
+  keeps the waits on, and no agent tool reaches the switch. Known risk: SECURITY.md R36.
+
+## 2026-10-16 — App in English, Simplified Chinese, Russian and Kazakh (replaces "i18n via i18next, English only")
+
+- **Problem:** the app shipped English only (2026-10-10). Reviewers include a Shenzhen jury, and the users the app is
+  for (students from Kazakhstan abroad) read Russian or Kazakh more easily than English.
+- **Choice:** `zh` (Simplified Chinese), `ru` and `kk` (Kazakh, Cyrillic) next to `en`, one folder per language in
+  `apps/mobile/src/locales/`, same 23 namespaces and keys. Plurals use i18next's suffixes per `Intl.PluralRules`:
+  `zh` has only `_other`, `ru` `_one/_few/_many/_other`, `kk` `_one/_other`. The language comes from the device (or
+  browser) preference list, the first supported one wins, English otherwise; every Chinese tag gets the Simplified
+  strings. Settings → Appearance has a **Language** picker (Device language, then each language by its native name),
+  stored like before under `readynative:language` through the storage adapter; "Device language" removes the key.
+  Web renders English first (the static HTML is English) and switches after hydration. Product names (Kassa,
+  KassaLite), currency codes, reason-code identifiers and JSON field names stay as they are. Server-sent prose (notes
+  the API writes) stays English; `apps/api` is unchanged.
+- **Tests:** `apps/mobile/src/locales/__tests__/locales.test.ts` checks each locale has exactly the English keys, the
+  plural forms its language needs, the same `{{placeholders}}` per key and the product names;
+  `src/lib/__tests__/i18n.test.tsx` covers device-language fallback, plurals and the "Device language" choice.
+- **Review needed:** the Kazakh text has not been read by a native speaker and needs that review before release
+  (iOS Shortcuts steps keep the English action names in Kazakh). Russian and Chinese should get a native read too.
+
+## 2026-10-16 — Revocations and rate limits in Postgres; logout revokes the cookie; a KEK rotation script
+
+- **R13, shared stores.** The refresh-token spent list (a `Set` in `auth/session.ts`) and the `@fastify/rate-limit`
+  counters lived in process memory, so a restart or a second instance accepted a spent refresh token again and reset
+  every limit. Both are tables now (migration 0020), following the challenge stores of migration 0012:
+  `revoked_tokens` (jti, kind, the token's `exp`; spending is one `INSERT ... ON CONFLICT DO NOTHING RETURNING`, so of
+  two concurrent uses one wins) and `rate_limit_counters` (one row per bucket key, one atomic upsert per request). The
+  scheduler purges rows whose token or window has expired, on wall time. Logout now records a refresh token only when
+  it verifies (before, any decodable jti was added). Deviation from a window aligned to the clock: a window starts at a
+  key's first hit, as in the plugin's in-memory store, so limits behave exactly as before and a burst cannot get twice
+  the budget across a boundary. If the database call fails, that hit is counted in memory (per instance, the old
+  behaviour) rather than refused or let through. Cost: one write per request.
+- **R14, logout revokes the cookie.** `POST /auth/logout` used to clear the web cookie only, so a copy of it stayed
+  valid for its 7 days. Logout now records the cookie's jti in `revoked_tokens` (kind `session`, kept until the
+  cookie's `exp`, wall time), and the session check (`authenticateSession`, used by `requireUser` and `authenticate`)
+  refuses a revoked or jti-less cookie. Cost: one indexed read per cookie-authenticated request. Native access tokens
+  (15 minutes) are still not revoked on logout; their refresh token is.
+- **R15, KEK behind a provider, with a rotation script.** Per-user data keys are wrapped through a small `KeyProvider`
+  interface (`privacy/keys.ts`): `kekId()`, async `wrap` and `unwrap`. The env provider is the previous behaviour
+  (`USER_KEK`, local AES-256-GCM, AAD bound to the user). `scripts/rotate-kek.ts` (`bun run kek:rotate [--dry-run]`)
+  re-wraps every `user_keys` row from `USER_KEK_PREVIOUS` to `USER_KEK` in one transaction under an exclusive table
+  lock, checking each new wrap before writing it, and prints only counts and KEK ids. `USER_KEK_PREVIOUS` is a new,
+  optional variable the env provider uses to unwrap (never wrap) while a rotation is under way, so the API can switch
+  KEKs without downtime. No cloud KMS SDK was added: SECURITY.md §5.5 describes how a KMS provider plugs in. Not
+  done: rotation of the other keys; the PAN reference key is still derived from `USER_KEK` (a rotation changes card
+  placeholders' digests, nothing stored is lost).
+
+## 2026-10-16 — A simulated identity check (KYC) gates payments and top-ups above EUR 1,000
+
+- **Problem.** Licensing and KYC were "on paper only": COMPLIANCE.md listed customer due diligence as out of scope
+  and nothing in the code knew whether a user had been identified, so any amount under the caps could be paid.
+- **Choice.** A deterministic identity checker in mock-world (`/mock/kyc/checks`: fictitious document + simulated
+  liveness → VERIFIED / REVIEW / REJECTED with reason codes, no network) and an API module `kyc` (`POST /kyc/start`,
+  `GET /kyc`, migration 0021). The latest check decides the standing. Stored: outcome, reason codes, document type
+  and country, timestamps, and the last 4 characters of the number sealed with the user's data key; never the full
+  number, the name, the date of birth or an image. Each outcome is a ledger entry (`KYC_VERIFIED`, `KYC_REVIEW`,
+  `KYC_REJECTED`).
+- **Threshold: EUR 1,000.00 per payment, and per day for top-ups** (`KYC_THRESHOLD_MINOR` = 100000 in
+  `KYC_THRESHOLD_CURRENCY` = EUR, converted to each home currency and rounded down, like the payments daily cap;
+  unconvertible means 0, fail closed). EUR 1,000 is the amount at which EU AML rules already require due diligence
+  for an occasional transfer of funds (AMLD Art. 11(b)(ii)) and full payer data (TFR); it lets small everyday
+  payments (pizza, rent shares, most bills) work before the check and puts the hero's tuition (about EUR 2,400)
+  behind it. It is a sandbox gate, not a CDD policy: a licensed partner identifies every customer at onboarding.
+- **Enforcement.** Rules: new decide step 6b, `KYC_REQUIRED` (a hard refusal, added to `HARD_REFUSE_CODES`) after
+  the existing refusals (their codes are unchanged) and before mandates and small-auto, so no tier skips it. Payments:
+  its own re-check before the nonce (step 8a, own conversion, own read of `kyc_checks`), so a check that fails after
+  signing still stops the payout. Wallet top-ups: a day's total above the threshold is refused (422, ledgered
+  `WALLET_TOPUP_REFUSED`). Handoff (region CN or money mode HANDOFF) is not gated: Kassa moves no money there and the
+  user's own wallet runs real-name verification.
+- **No passkey to start a check.** It adds information and loosens no signed rule; above the threshold each payment
+  still needs the passkey (or a signed mandate) and stays under the passkey-signed caps. `POST /kyc/start` is in the
+  sensitive rate-limit bucket.
+- **Seeded demo personas and test fixtures start VERIFIED** with a document-less check (`provider` `seed` or
+  `fixture`), as an account opened at the licensed partner would be, so the scripted demo and the existing tests
+  (attack suite unchanged) behave as before. `createUserWithPasskey({ kyc: "NONE" })` gives an unchecked user;
+  accounts created in the app start unchecked and see `KYC_REQUIRED` with a link to the Identity check screen.
+- **Erasure** keeps the check rows (AMLD Art. 40 record keeping, listed in `RETAINED`); the last 4 characters become
+  unreadable with the shredded key. The DSAR export lists the checks.
+- **Not done / honest limits:** no document authenticity, issuer data, real liveness, PEP screening or ongoing due
+  diligence; REVIEW is never resolved (SECURITY.md R37). Jurisdiction mapping: COMPLIANCE.md §12. The Kazakh,
+  Russian and Chinese strings of the new screen need a native read like the rest of the app.

@@ -1,13 +1,15 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
-import { OnboardingMessageResponse } from "@kassa/shared";
+import { OnboardingMessageResponse, OnboardingProfileDraft } from "@kassa/shared";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { budgets, cards, profiles } from "../../src/db/schema.ts";
+import { conversations, onboardingDrafts } from "../../src/db/schema.intel.ts";
 import { mintAccessTokenForTests } from "../../src/modules/auth/session.ts";
 import { applyOnboardingDraft, getOnboardingDraft } from "../../src/modules/onboarding/index.ts";
+import { emptyDraft } from "../../src/modules/onboarding/service.ts";
 import { readUntrusted } from "../../src/modules/reader/reader.ts";
 import { buildServer } from "../../src/server.ts";
 import { useTestDb } from "../helpers/db.ts";
@@ -33,6 +35,41 @@ afterAll(() => {
 });
 
 describe("onboarding chat in REPLAY (no API key)", () => {
+  it("keeps what the statements put in the draft: recorded turns merge onto it instead of replacing it", async () => {
+    const { userId } = await createUserWithPasskey();
+    const token = await mintAccessTokenForTests(userId);
+    const app = await buildServer({ logger: false });
+    const conversationId = randomUUID();
+    // The draft as POST /onboarding/history leaves it (fictitious statements): money from home, two bills, a budget.
+    const fromHistory = {
+      ...emptyDraft(),
+      incomes: [{ source: "Transfer from Aigerim S.", currency: "KZT", amountMinor: 51000000, cadence: "MONTHLY" as const, nextDate: "2026-11-03" }],
+      obligations: [{ payeeName: "KCELL mobile", payeeKind: "BILLER" as const, category: "phone", amountMinor: 399000, currency: "KZT", dueDate: "2026-11-12", recurrence: "MONTHLY" as const }],
+      budgets: [{ category: "health", limitHomeMinor: 1500000 }],
+    };
+    await t.db().insert(onboardingDrafts).values({ conversationId, userId, draft: OnboardingProfileDraft.parse(fromHistory), complete: false, updatedAt: new Date() });
+    await t.db().insert(conversations).values({ id: conversationId, userId, channel: "onboarding" }).onConflictDoNothing();
+    try {
+      let last: OnboardingMessageResponse | null = null;
+      for (const turn of rec.turns) {
+        const res = await app.inject({ method: "POST", url: "/api/onboarding/message", headers: { authorization: `Bearer ${token}` }, payload: { conversationId, text: turn.userText } });
+        expect(res.statusCode, res.body).toBe(200);
+        last = OnboardingMessageResponse.parse(res.json());
+      }
+      const d = last!.draft;
+      expect(last!.complete).toBe(true);
+      // The statements' money in stays (a recorded "Parents ₸600,000" would count the same money twice).
+      expect(d.incomes.map((i) => i.source)).toEqual(["Transfer from Aigerim S."]);
+      // Bills joined: the statement's phone bill and the recorded rent, tuition and insurance.
+      expect(d.obligations.map((o) => o.payeeName)).toEqual(expect.arrayContaining(["KCELL mobile", "Landlord in Budapest", "University in Budapest"]));
+      // Budgets: the stated ones, plus the history's own category the recording does not mention.
+      expect(d.budgets.map((b) => b.category)).toEqual(expect.arrayContaining(["groceries", "eating_out", "transport", "health"]));
+      expect(d).toMatchObject({ homeCurrency: "KZT", region: "EU", preset: "SMART" });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("runs Dana's four turns over HTTP and ends with a complete draft matching the seed", async () => {
     const { userId } = await createUserWithPasskey();
     const token = await mintAccessTokenForTests(userId);

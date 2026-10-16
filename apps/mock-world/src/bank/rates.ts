@@ -6,8 +6,7 @@ import type { FetchLike } from "../clock.ts";
 
 /*
  * Mid-market rates for mock bank quotes (spec §11: "rates come from the API's fx service plus a
- * per-rail markup in fixtures/rails.json"). Tries GET {API_URL}/api/fx/rates (contract proposed in
- * PHASE1_COORDINATION.md "Contract changes"); falls back to the labelled example table in
+ * per-rail markup in fixtures/rails.json"). Tries GET {API_URL}/api/fx/rates; falls back to the labelled example table in
  * fixtures/fx-rates.json. Rates are decimal strings quoted against one base, ECB style.
  */
 

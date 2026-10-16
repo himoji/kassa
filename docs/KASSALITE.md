@@ -15,7 +15,7 @@ What is in it (since 2026-10-15 it matches the web app for everything that does 
 - **Chat**, **Activity** (purchases and nudges, refreshed every 30 s while the app is open) and **Settings**.
 - **Recipients** and **Bills**: add a recipient (it cools for 24 h like anywhere else), find your school, pay a bill.
 - **Send** and **Add money**, from your Kassa balance or a linked card or bank, with the live quote.
-- **Linked accounts** (view only), **Your data** (export) and **Credit record**, from Settings.
+- **Linked accounts** (the list; **Link a card** / **Link a bank account** open that form on the web app, which confirms it with the passkey and sends you back), **Your data** (export) and **Credit record**, from Settings.
 - Face ID lock, Shortcut install, server URL, updates, sign out.
 
 Not in it, by design: anything that signs with a passkey (approving a payment, linking a card or bank, confirming a recipient, changing rules and budgets, backup codes), remote push (KassaLite notifies when it is open or comes to the foreground, the Shortcut itself shows the instant banner), Apple Pay inside the app, passkey sign-in. Those steps hand off to the web app (see Approvals).
@@ -111,14 +111,22 @@ Note: the autolinking exclusion lives in `package.json` only while `lite:ios` ru
 
 A KassaLite session cannot sign with a passkey, so every passkey-gated write (approve an order, link a card or bank, confirm a recipient) answers HTTP 428 `PASSKEY_REQUIRED` with `details.approveInWebApp`. The server builds that link (`approveInWebAppUrl` in `apps/api/src/modules/auth/session.ts`) to the page that finishes the step, tagged `?from=lite`:
 
-| Refused write                       | Opens                           |
-| ----------------------------------- | ------------------------------- |
-| `POST /orders/:id/approve`          | `/order/<proposalId>?from=lite` |
-| `POST /payees/:id/verify-callback`  | `/payees/<id>?from=lite`        |
-| `POST /funding-sources/:id/confirm` | `/linked-accounts?from=lite`    |
-| anything else                       | `/?from=lite`                   |
+| Refused write                                 | Opens                           |
+| --------------------------------------------- | ------------------------------- |
+| `POST /orders/:id/approve`                    | `/order/<proposalId>?from=lite` |
+| `POST /payees/:id/verify-callback`            | `/payees/<id>?from=lite`        |
+| `POST /funding-sources/:id/confirm`           | `/linked-accounts?from=lite`    |
+| `PATCH /settings`, `PUT /budgets/*`, unfreeze | `/settings?from=lite`           |
+| mandates                                      | `/payees?from=lite`             |
+| `POST /privacy/erase`                         | `/data?from=lite`               |
+| recovery codes                                | `/backup-codes?from=lite`       |
+| Shortcut device keys                          | `/shortcut?from=lite`           |
+| `POST /pair/start`                            | `/pair-lite?from=lite`          |
+| business purchase-order signing               | `/orders?from=lite`             |
+| onboarding confirm                            | `/onboarding/review?from=lite`  |
+| anything else                                 | `/?from=lite`                   |
 
-KassaLite opens it in an auth session (`src/lite/approve.ts`, wired once in the lite root layout through `onApiError`). On the order page, a `from=lite` approval ends with a "Back to KassaLite" box and sends the person to `kassalite://order/<id>`, which closes the browser by itself. Back in the app, orders, balances and bills are refreshed. In the Lite build the order screen's approve button posts `{}` on purpose, so this round trip starts on the first tap.
+KassaLite opens it in an auth session (`src/lite/approve.ts`, wired once in the lite root layout through `onApiError`). On the order page, a `from=lite` approval ends with a "Back to KassaLite" box and sends the person to `kassalite://order/<id>`, which closes the browser by itself. Every web page opened with `from=lite` shows a "Back to KassaLite" bar on top (`src/components/lite-return-bar.tsx`), and the linked accounts page also takes `intent=card|bank` to open that form at once and returns to `kassalite://linked-accounts` when it closes. Back in the app, orders, balances, bills and linked accounts are refreshed. Before 2026-10-16 the linked accounts screen in KassaLite only said "view only" and the fallback link opened the web app's home, which looked like a blank page to people in the in-app browser. In the Lite build the order screen's approve button posts `{}` on purpose, so this round trip starts on the first tap.
 
 ## Where the code is
 

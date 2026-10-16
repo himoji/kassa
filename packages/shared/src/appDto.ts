@@ -30,7 +30,7 @@ import {
 
 /*
  * App-facing DTOs that spec §8/§16 imply but `dto.ts` did not define yet (added by Track C, mobile).
- * Additive only - see docs/spec/PHASE1_COORDINATION.md "Contract changes" for the endpoint list.
+ * Additive only: existing fields never change meaning.
  * Where the spec is silent the cited standard applies (noted per item).
  */
 
@@ -261,6 +261,32 @@ export const ProposalsResponse = z.object({ proposals: z.array(ProposalSummary) 
 export type ProposalsResponse = z.infer<typeof ProposalsResponse>;
 
 export const ProposalStatusFilter = ProposalStatus;
+
+/**
+ * GET /agent/activity: what the agent and the scheduler proposed in the last days and what became of each, for the
+ * Home card. Outcome: PAID_AUTO = paid inside a signed mandate or small-auto limit; PAID_APPROVED = paid after the
+ * user's passkey; WAITING = waiting for the passkey; HELD = refused by the rules (reasonCodes say why); DECLINED = the
+ * user said no; OTHER = expired, failed or handed off.
+ */
+export const AgentOutcome = z.enum(["PAID_AUTO", "PAID_APPROVED", "WAITING", "HELD", "DECLINED", "OTHER"]);
+export type AgentOutcome = z.infer<typeof AgentOutcome>;
+export const AgentActivityResponse = z.object({
+  since: IsoDateTime,
+  counts: z.record(AgentOutcome, z.number().int().nonnegative()),
+  items: z.array(
+    z.object({
+      proposalId: z.string().uuid(),
+      createdBy: z.enum(["AGENT", "SCHEDULER"]),
+      outcome: AgentOutcome,
+      payeeName: z.string(),
+      amountMinor: z.number().int(),
+      currency: CurrencyCode,
+      reasonCodes: z.array(ReasonCode),
+      createdAt: IsoDateTime,
+    }),
+  ),
+});
+export type AgentActivityResponse = z.infer<typeof AgentActivityResponse>;
 
 // ---------- Onboarding (spec §8 onboarding) ----------
 
@@ -568,12 +594,33 @@ export type DemoScenario = z.infer<typeof DemoScenario>;
 /** POST /demo/clock/advance */
 export const DemoClockAdvanceRequest = z.object({ hours: z.number().int().positive().max(24 * 31) });
 export type DemoClockAdvanceRequest = z.infer<typeof DemoClockAdvanceRequest>;
+/** REAL = the system clock (default); DEMO = the demo clock the Stage moves. */
+export const ClockMode = z.enum(["REAL", "DEMO"]);
+export type ClockMode = z.infer<typeof ClockMode>;
+/** POST /demo/clock/mode */
+export const DemoClockModeRequest = z.object({ mode: ClockMode });
+export type DemoClockModeRequest = z.infer<typeof DemoClockModeRequest>;
 export const DemoStateResponse = z.object({
   now: IsoDateTime,
+  /** The offset in effect (0 when the clock is REAL). */
   clockOffsetMs: z.number().int(),
+  clockMode: ClockMode,
   agentMode: AgentMode,
 });
 export type DemoStateResponse = z.infer<typeof DemoStateResponse>;
+
+/**
+ * POST /demo/cooling (demo deployments only): turn this user's 24 h waits off (passkey, 428 round trip) or back on
+ * (no passkey). The waits: a new recipient's cooling period and the delay before a loosening applies.
+ */
+export const DemoCoolingRequest = z.object({
+  enabled: z.boolean(),
+  challengeId: z.string().optional(),
+  assertion: AuthenticationResponseJSON.optional(),
+});
+export type DemoCoolingRequest = z.infer<typeof DemoCoolingRequest>;
+export const DemoCoolingResponse = z.object({ coolingOn: z.boolean(), offAt: IsoDateTime.nullable() });
+export type DemoCoolingResponse = z.infer<typeof DemoCoolingResponse>;
 
 /** POST /demo/agent-mode */
 export const DemoAgentModeRequest = z.object({ mode: AgentMode });

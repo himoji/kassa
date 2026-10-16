@@ -247,6 +247,38 @@ export const pairCodes = pgTable(
 );
 
 /**
+ * (added, R13) Session JWTs that may no longer be used, by jti: spent (rotated) refresh tokens and logged-out ones.
+ * In Postgres so a restart or another API instance still refuses them. Kept until the token's own `exp` (wall time,
+ * clock.realNowMs), then purged by the scheduler; after that the JWT check refuses the token by itself.
+ */
+export const revokedTokens = pgTable(
+  "revoked_tokens",
+  {
+    jti: text("jti").primaryKey(),
+    /** The token's `typ`: "refresh" | "session". */
+    kind: text("kind").notNull(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("revoked_tokens_expires_idx").on(t.expiresAt)],
+);
+
+/**
+ * (added, R13) Rate-limit counters (http/rate-limit-store.ts), shared by every API instance. One row per bucket key
+ * (route bucket + client IP) holding its current window: the window starts at the first hit, as in the in-memory store
+ * of @fastify/rate-limit. Expired rows are purged by the scheduler.
+ */
+export const rateLimitCounters = pgTable(
+  "rate_limit_counters",
+  {
+    key: text("key").primaryKey(),
+    hits: integer("hits").notNull(),
+    windowStart: tstz("window_start").notNull(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("rate_limit_counters_expires_idx").on(t.expiresAt)],
+);
+
+/**
  * (added, Phase 2) Per-user data encryption key (DEK) for personal fields in append-only stores (ledger
  * payload `pii`). The DEK is wrapped (AES-256-GCM, NIST SP 800-38D) with USER_KEK; erasure (GDPR Art. 17)
  * nulls `wrappedDek` — crypto-shredding — and the row stays as a tombstone so a new key is never minted.
@@ -373,6 +405,34 @@ export const fundingSources = pgTable(
     removedAt: tstz("removed_at"),
   },
   (t) => [index("funding_sources_user_idx").on(t.userId)],
+);
+
+/**
+ * (added 2026-10-16) Identity checks (KYC), simulated (modules/kyc). Only the outcome, the checker's reason codes, the
+ * document type and country and the timestamps are stored in the clear; the last 4 characters of the document number
+ * are sealed with the user's data key (`pii`, privacy/keys.ts). Never the full number, the name, the date of birth or
+ * an image. Kept after erasure (AMLD record keeping) with `pii` unreadable.
+ */
+export const kycChecks = pgTable(
+  "kyc_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    outcome: text("outcome").$type<"VERIFIED" | "REVIEW" | "REJECTED">().notNull(),
+    reasonCodes: jsonb("reason_codes").$type<string[]>().notNull().default([]),
+    documentType: text("document_type").$type<"PASSPORT" | "ID_CARD" | "DRIVING_LICENCE" | "RESIDENCE_PERMIT">().notNull(),
+    documentCountry: text("document_country").notNull(),
+    /** Sealed { documentLast4 } (AES-256-GCM under the user's data key). */
+    pii: text("pii"),
+    provider: text("provider").notNull(),
+    providerRef: text("provider_ref").notNull(),
+    simulated: boolean("simulated").notNull().default(true),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    checkedAt: tstz("checked_at").notNull(),
+  },
+  (t) => [index("kyc_checks_user_idx").on(t.userId, t.createdAt)],
 );
 
 export const obligations = pgTable(
@@ -814,6 +874,8 @@ export type ShortcutCheckJson = {
 export const demoState = pgTable("demo_state", {
   id: integer("id").primaryKey().default(1),
   clockOffsetMs: bigint("clock_offset_ms", { mode: "number" }).notNull().default(0),
+  /** (added 2026-10-16) REAL = the system clock; DEMO = system clock + clockOffsetMs (the offset is kept either way). */
+  clockMode: text("clock_mode", { enum: ["REAL", "DEMO"] }).notNull().default("REAL"),
   agentMode: agentModeEnum("agent_mode").notNull().default("LIVE"),
   seededAt: tstz("seeded_at"),
   /** (added) seeded hero user a reviewer can claim with their first passkey. */
@@ -822,6 +884,18 @@ export const demoState = pgTable("demo_state", {
   demoClaimed: boolean("demo_claimed").notNull().default(false),
 });
 
+
+/**
+ * (added 2026-10-16) Demo only: a row = this user turned the 24 h waits off (recipient cooling, loosening delays) with
+ * their passkey. Ignored unless DEMO_ENABLED (modules/demo/cooling.ts); deleting the row turns the waits back on.
+ */
+export const demoCoolingOff = pgTable("demo_cooling_off", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull(),
+  offAt: tstz("off_at").notNull(),
+});
 
 // ---------- Kassa Business (added 2026-10-14, Business M0, migration 0007) ----------
 /*

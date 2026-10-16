@@ -5,6 +5,8 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
+import { CoolingOffBanner } from "@/components/cooling-off-banner";
+import { LiteReturnBar } from "@/components/lite-return-bar";
 import { UpdatesBanner } from "@/components/updates-banner";
 import { useAuthRedirect } from "@/hooks/use-auth-redirect";
 import { useOnboardingRedirect } from "@/hooks/use-onboarding-redirect";
@@ -37,6 +39,8 @@ export default function RootLayout() {
         <Providers>
           <AnimatedSplashOverlay />
           <UpdatesBanner />
+          <LiteReturnBar />
+          <CoolingOffBanner />
           <RootStack />
         </Providers>
       </KeyboardProvider>
@@ -121,6 +125,10 @@ function RootStack() {
         options={{ ...inlineTitleOptions, headerShown: true, title: t("lite:pairDevice.title") }}
       />
       <Stack.Screen
+        name="evidence"
+        options={{ ...inlineTitleOptions, headerShown: true, title: t("evidence:title") }}
+      />
+      <Stack.Screen
         name="verify/[id]"
         options={{ ...largeTitleOptions, headerShown: true, title: t("credit:verifyTitle") }}
       />
@@ -153,6 +161,10 @@ function RootStack() {
       <Stack.Screen
         name="linked-accounts"
         options={{ ...largeTitleOptions, headerShown: true, title: t("wallet:linked.title") }}
+      />
+      <Stack.Screen
+        name="identity-check"
+        options={{ ...largeTitleOptions, headerShown: true, title: t("kyc:title") }}
       />
       <Stack.Screen
         name="send"
