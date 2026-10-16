@@ -74,5 +74,15 @@
   "addMoney": "Add money",
   "send": "Send",
   "payTo": "Pay",
-  "allRecipients": "All recipients"
+  "allRecipients": "All recipients",
+  "history": {
+    "title": "What your bank history shows",
+    "period": "{{rows}} transactions, {{from}} – {{to}}",
+    "all": "Show all {{count}}",
+    "less": "Show fewer",
+    "update": "Add statements",
+    "emptyTitle": "Plan from your real history",
+    "emptyBody": "Add your bank statements (PDF, CSV, Excel). Kassa reads them on the server, never keeps account numbers, and shows what it learned before anything is saved.",
+    "import": "Add bank statements"
+  }
 }

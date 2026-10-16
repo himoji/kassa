@@ -186,6 +186,11 @@ export const ForecastResponse = z.object({
       reserveMinor: AmountMinor,
       points: z.array(z.object({ date: IsoDate, balanceMinor: AmountMinor })),
       shortfall: z.object({ date: IsoDate, amountMinor: AmountMinor }).nullable(),
+      /**
+       * The daily spending the projection subtracts, and where it comes from: the last 30 days, or the imported bank
+       * history (the median month) when the last 30 days have too few spending days to say.
+       */
+      burn: z.object({ dailyMinor: AmountMinor, from: z.enum(["recent", "history"]) }).optional(),
     }),
   ),
   suggestions: z.array(
