@@ -10,7 +10,7 @@
  */
 import * as WebBrowser from "expo-web-browser";
 
-import { onApiError } from "@/api/client";
+import { api, onApiError } from "@/api/client";
 import { KassaApiError } from "@/api/errors";
 import { moneyKeys } from "@/api/keys";
 import { queryClient } from "@/lib/query";
@@ -50,4 +50,32 @@ export async function openApproveInWebApp(
 
 export function registerApproveInWebApp(): () => void {
   return onApiError((err) => void openApproveInWebApp(err).catch(() => {}));
+}
+
+/**
+ * The web app's page for a passkey step Lite cannot do (linking a card or bank), on the paired server, with `from=lite`
+ * so the web page sends the person back here. Null when the server is not https (a dev server on plain http cannot run
+ * passkeys in a browser either).
+ */
+export function liteWebAppUrl(path: string, params: Record<string, string> = {}): string | null {
+  const origin = api.baseUrl.replace(/\/api\/?$/, "");
+  if (!/^https:\/\//i.test(origin)) return null;
+  const q = new URLSearchParams({ ...params, from: "lite" });
+  return `${origin}${path}?${q.toString()}`;
+}
+
+/** Open a web-app page for a passkey step, then refresh what it may have changed. Resolves false without a page. */
+export async function openWebAppStep(
+  path: string,
+  params: Record<string, string> = {}
+): Promise<boolean> {
+  const url = liteWebAppUrl(path, params);
+  if (!url) return false;
+  await WebBrowser.openAuthSessionAsync(url, LITE_RETURN_URL);
+  await Promise.all(
+    [["funding-sources"], ["orders"], ...moneyKeys].map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey })
+    )
+  );
+  return true;
 }

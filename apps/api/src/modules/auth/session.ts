@@ -227,14 +227,30 @@ export function approveInWebAppUrl(route: string, params: unknown): string {
   const origin = env().PUBLIC_ORIGIN.replace(/\/$/, "");
   const p = (params ?? {}) as Record<string, unknown>;
   const id = (k: string) => (typeof p[k] === "string" && /^[0-9a-f-]{36}$/i.test(p[k] as string) ? (p[k] as string) : null);
+  // Each passkey step opens the web page where it is done (the start page only for routes without one).
+  const pages: Record<string, string> = {
+    "POST /api/funding-sources/:id/confirm": "/linked-accounts",
+    "PATCH /api/settings": "/settings",
+    "PUT /api/budgets": "/settings",
+    "POST /api/unfreeze": "/settings",
+    "POST /api/mandates": "/payees",
+    "POST /api/mandates/options": "/payees",
+    "POST /api/mandates/:id/revoke": "/payees",
+    "POST /api/privacy/erase": "/data",
+    "POST /api/auth/recovery-codes": "/backup-codes",
+    "POST /api/devices/shortcut": "/shortcut",
+    "POST /api/auth/pair/start": "/pair-lite",
+    "POST /api/business/purchase-orders/:id/sign": "/orders",
+    "POST /api/business/purchase-orders/:id/sign/options": "/orders",
+    "POST /api/onboarding/confirm": "/onboarding/review",
+    "POST /api/onboarding/confirm/options": "/onboarding/review",
+  };
   const path =
     route === "POST /api/orders/:proposalId/approve" && id("proposalId")
       ? `/order/${id("proposalId")}`
       : route === "POST /api/payees/:id/verify-callback" && id("id")
         ? `/payees/${id("id")}`
-        : route === "POST /api/funding-sources/:id/confirm"
-          ? "/linked-accounts"
-          : "/";
+        : (pages[route] ?? "/");
   return `${origin}${path}?from=lite`;
 }
 

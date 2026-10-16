@@ -127,7 +127,10 @@
       "code": "Code",
       "confirm": "Confirm with passkey"
     },
-    "viewOnly": "Linking opens the web app, where your passkey is."
+    "viewOnly": "Linking needs your passkey, so it opens on the web app and comes back here when you are done.",
+    "linkCardWeb": "Link a card (opens the web app)",
+    "linkBankWeb": "Link a bank account (opens the web app)",
+    "webUnavailable": "This server has no https web app to open. Link cards and banks from the Kassa web app on a computer."
   },
   "bill": {
     "paying": "Paying a bill to {{name}}",
