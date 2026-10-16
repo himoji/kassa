@@ -21,7 +21,14 @@ import { auth } from "@/lib/auth";
 import { confirm } from "@/lib/confirm";
 import { env } from "@/lib/env";
 import { currencyCodes, useFormat } from "@/lib/format";
-import { useKassaT } from "@/lib/i18n";
+import {
+  LANGUAGES,
+  LANGUAGE_LABELS,
+  setLanguagePreference,
+  useKassaT,
+  useLanguagePreference,
+  type LanguagePreference,
+} from "@/lib/i18n";
 import { KassaIdCard } from "@/screens/wallet/send-screen";
 
 import { BackupCodesSection } from "./backup-codes-section";
@@ -56,6 +63,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
   const customised = Object.values(s.overrides).some((v) => v !== null);
   const [advanced, setAdvanced] = useState(customised);
   const themeMode = useThemeMode();
+  const language = useLanguagePreference();
 
   const setOverride = <K extends keyof SettingsOverrides>(key: K, value: string) =>
     void apply({
@@ -186,6 +194,17 @@ function SettingsBody({ me }: { me: MeResponse }) {
             label: t(`settings:theme.${m}`),
           }))}
           onChange={setThemeMode}
+        />
+        <SettingPicker<LanguagePreference>
+          label={t("settings:languageLabel")}
+          value={language}
+          options={[
+            { value: "system", label: t("settings:languageSystem") },
+            // Native names, never translated, so a reader can find their own language.
+            ...LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_LABELS[l] })),
+          ]}
+          onChange={(value) => void setLanguagePreference(value)}
+          testID="settings-language"
         />
       </RowGroup>
 

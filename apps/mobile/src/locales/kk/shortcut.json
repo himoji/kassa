@@ -1,0 +1,66 @@
+{
+  "title": "Жанасу арқылы төлем → Kassa",
+  "settingsHint": "Apple Pay, Google Pay, Samsung Pay, Alipay және WeChat Pay төлемдерін жазу",
+  "intro": "Телефоныңыз әр төлемді Kassa-ға жібереді. Kassa шығынды жазып, бір жолмен жауап береді (бюджет қалдығы, комиссия немесе DCC ескертуі), телефон оны хабарландыру ретінде көрсетеді.",
+  "limits": "Дүкендегі жанасу төлемдері: iOS 17 немесе жаңасы және Apple Wallet-тегі карта керек. Сома кейін өткізілетін алдын ала авторизация болуы мүмкін. Тек шығындар жазылады: төлем ешқашан мақұлданбайды және бұғатталмайды. Интернетсіз жасалған төлем қайта жіберілмейді.",
+  "endpointTitle": "Мекенжай",
+  "endpointFooter": "Мұны «Get Contents of URL» әрекетінің URL өрісіне қойыңыз.",
+  "endpointUnknown": "Толық мекенжайды көрсету үшін EXPO_PUBLIC_API_URL орнатыңыз; Kassa серверіңіздегі жол — /api/capture/shortcut.",
+  "copyEndpoint": "URL көшіру",
+  "tokenTitle": "Құрылғы токені",
+  "tokenFooter": "Әр iPhone-ға бір токен. Токені бар кез келген адам журналыңызға тек шығын қоса алады, басқа ештеңе емес. Токен жайылып кетсе, оны төменде кері қайтарыңыз.",
+  "createToken": "Токен жасау",
+  "tokenOnce": "Қазір көшіріңіз: Kassa бұл токенді тек бір рет көрсетеді.",
+  "copyToken": "Токенді көшіру",
+  "copyHeader": "«Bearer …» тақырып мәнін көшіру",
+  "done": "Көшірдім",
+  "copied": "Көшірілді",
+  "stepsTitle": "iPhone-да баптау",
+  "steps": {
+    "1": "Жоғарыда токен жасап, тақырып мәнін көшіріңіз.",
+    "2": "Shortcuts → Automation → + → Transaction ашыңыз. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
+    "3": "«Get Contents of URL» қосыңыз. URL: жоғарыдағы мекенжай. Method: POST. Headers: Authorization = Bearer <token>. Request Body: JSON, мұнда merchant = Shortcut Input › Merchant, amount = Shortcut Input › Amount, card = Shortcut Input › Card or Pass.",
+    "4": "«Get Dictionary Value» қосыңыз: Contents of URL ішіндегі nudge кілтінің мәні.",
+    "5": "Dictionary Value мәнімен «Show Notification» қосыңыз.",
+    "6": "Apple Pay арқылы төлеңіз. Сәлден соң Kassa жолы шығады, ал шығын «Әрекеттер» бөлімінде болады."
+  },
+  "step": "{{n}}. {{text}}",
+  "devicesTitle": "Қосылған Shortcuts",
+  "devicesEmpty": "Әзірге Shortcut қосылмаған.",
+  "deviceCreated": "Жасалған күні {{date}}",
+  "lastCapture": "Соңғы төлем алынды: {{time}}.",
+  "noCapture": "Әзірге төлем алынған жоқ.",
+  "revoke": "Кері қайтару",
+  "revokeTitle": "Осы Shortcut токенін кері қайтару керек пе?",
+  "revokeBody": "Shortcut төлемдерді жазуды бірден тоқтатады. Қайта қосу үшін жаңа токен жасаңыз.",
+  "revoked": "Токен кері қайтарылды",
+  "phone": {
+    "iphone": "iPhone",
+    "android": "Android"
+  },
+  "online": {
+    "title": "Онлайн және қолданба ішіндегі Apple Pay",
+    "why": "Apple-дың Transaction триггері тек төлем терминалындағы жанасу кезінде іске қосылады. Safari-дегі немесе қолданба ішіндегі Apple Pay оған жетпейді, сондықтан Kassa оның орнына банк әр карта төлемі үшін жіберетін SMS-ті оқиды. Қытай банктерінің SMS-тері (尾号…消费…元) да осылай жұмыс істейді.",
+    "footer": "Тек өзіңіз таңдаған хабарлар жіберіледі. Kassa төлем ретінде оқи алмайтын мәтіндерді елемейді.",
+    "steps": {
+      "1": "Shortcuts → Automation → + → Message ашыңыз. Message Contains: банктің әр төлем SMS-інде болатын сөз, немесе банкіңізді Sender ретінде таңдаңыз. Run Immediately таңдаңыз.",
+      "2": "Жоғарыдағыдай URL, method және Authorization тақырыбымен «Get Contents of URL» қосыңыз. Request Body: JSON, мұнда text = Shortcut Input › Content және app = Shortcut Input › Sender.",
+      "3": "Жоғарыдағыдай nudge үшін «Get Dictionary Value», содан кейін «Show Notification» қосыңыз.",
+      "4": "Apple Pay арқылы онлайн төлеңіз. Банк SMS-і келгенде шығын «Әрекеттер» бөлімінде болады."
+    }
+  },
+  "android": {
+    "title": "Android-та баптау",
+    "limits": "Google Wallet, Samsung Wallet, Alipay, WeChat Pay және банкіңіздің қолданбасымен жұмыс істейді: дүкенде, онлайн немесе қолданбада төлем туралы хабарландыру көрсететін кез келген нәрсемен. Тек шығындар жазылады: төлем ешқашан мақұлданбайды және бұғатталмайды.",
+    "footer": "Android автоматтандыру қолданбасына хабарландыруларды оқуға рұқсат береді; iOS бермейді, сондықтан iPhone-да Shortcuts қолданылады.",
+    "copyBody": "JSON денесін көшіру",
+    "steps": {
+      "1": "Жоғарыда токен жасап, тақырып мәнін көшіріңіз.",
+      "2": "MacroDroid немесе Tasker сияқты автоматтандыру қолданбасын орнатыңыз. Жаңа макрос → «Notification received» триггері → Google Wallet, Samsung Wallet, Alipay, WeChat және банк қолданбасын таңдаңыз.",
+      "3": "Android сұрағанда қолданбаға хабарландыруларға қол жеткізуге рұқсат беріңіз.",
+      "4": "«HTTP request» әрекеті: жоғарыдағы мекенжайға POST, Authorization = Bearer <token> тақырыбы, content type application/json, төмендегі денемен.",
+      "5": "Қосымша: жауапты сақтап, оның nudge өрісін хабарландыру ретінде көрсетіңіз.",
+      "6": "Телефонмен төлеңіз. Сәлден соң шығын «Әрекеттер» бөлімінде болады."
+    }
+  }
+}
