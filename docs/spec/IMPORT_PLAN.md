@@ -153,14 +153,25 @@ Tests: `test/dataport/statements.test.ts` ("what the history really shows", 3), 
 
 ## Handoff (what is left)
 
-Status: everything above is merged into PR zhkiarsa/kassa#24 (branch `claude/sharp-edison-okqgbx`). All checks pass:
-api 954, mobile 562, mock-world 343, shared 53; typecheck and lint.
+Status (2026-10-16): PR zhkiarsa/kassa#24 and #25 are merged; the follow-up below is on branch
+`claude/sharp-edison-okqgbx` (new PR). Checks: api 992, mobile 563, mock-world 343, shared 53; typecheck and lint.
+
+Done in this round:
+
+- **Dictionary keywords** for Kazakh, Russian and Hungarian chains and generic words (`fixtures/merchants.json`):
+  on the three real statements they move 251 of 680 "other" rows into a category (60 % → 38 % "other"). Most of what is
+  left is bare "по KaspiQR" payments with no merchant name. Test: `apps/api/test/dataport/keywords.test.ts`.
+- **Forecast from history:** when the last 30 days have fewer than 10 spending days, the 45-day forecast subtracts the
+  history's median month / 30 (`chooseBurn`, `historyDailyBurn` in `apps/api/src/modules/fx/`); the Bills forecast
+  says which it used (`ForecastResponse.currencies[].burn`).
+- **Home history card:** `GET /history` and `HistoryCard` in `apps/mobile/src/screens/home/home-screen.tsx` (the
+  server-written lines, or an invitation to add statements).
 
 Open, in priority order:
 
 1. **Live check with a model key.** Set `ANTHROPIC_API_KEY`, import the three statements, then ask the agent "Will I
    have enough in December?" and confirm it calls `get_money_history` and plans with the averages. Categories: with a
-   key, the batched Reader call should shrink "other" (about 45 % without a key).
+   key, the batched Reader call should shrink "other" further (38 % without a key, after the keywords).
 2. **FX markup on history** needs live rates (the build container cannot reach them). On a machine with network, check
    the "foreign purchases cost about X % over the mid rate" line.
 3. **KassaLite rebuild** (`bun run lite:ios`) for the native file picker; older builds show a message instead.
@@ -168,8 +179,9 @@ Open, in priority order:
    Re-record `fixtures/agent-recordings/onboarding.json` with a key (`RECORD=1`).
 5. **Unnamed senders** ("MOBILE BANK") cannot be told from own transfers unless the sending bank's statement is also
    uploaded; the user can switch them off in the preview or the draft.
-6. Ideas not built: seasonality (tuition months each year), the forecast using the monthly series instead of flat
-   incomes, a "history" card on the Home screen, and dictionary keywords for more Kazakh and Hungarian chains.
+6. **KaspiQR rows** have no merchant in the statement; a category needs either the Kaspi app's own export or the user.
+7. Ideas not built: seasonality (tuition months each year), incomes in the forecast from the monthly series (today the
+   signed draft's amounts, which already use the average for irregular money).
 
 Files to start from: `apps/api/src/modules/dataport/` (read.ts is the pipeline, history.ts the analysis, notes.ts
 the wording), `apps/api/src/modules/onboarding/history.ts`, `apps/api/src/modules/agent/tools.ts`
