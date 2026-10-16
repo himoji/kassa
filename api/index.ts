@@ -110,7 +110,8 @@ async function seedIfEmpty(): Promise<void> {
   if (!(await empty())) return;
   console.log("kassa: empty database, loading the demo data");
   try {
-    await seedDatabase(getDb(), await loadSeedData(), { reset: false, personas: true });
+    // Real time by default: the Stage can switch to the demo clock (story time) when a script needs it.
+    await seedDatabase(getDb(), await loadSeedData(), { reset: false, personas: true, clockMode: "REAL" });
   } catch (err) {
     if (await empty()) throw err;
   }

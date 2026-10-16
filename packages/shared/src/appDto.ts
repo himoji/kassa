@@ -568,9 +568,17 @@ export type DemoScenario = z.infer<typeof DemoScenario>;
 /** POST /demo/clock/advance */
 export const DemoClockAdvanceRequest = z.object({ hours: z.number().int().positive().max(24 * 31) });
 export type DemoClockAdvanceRequest = z.infer<typeof DemoClockAdvanceRequest>;
+/** REAL = the system clock (default); DEMO = the demo clock the Stage moves. */
+export const ClockMode = z.enum(["REAL", "DEMO"]);
+export type ClockMode = z.infer<typeof ClockMode>;
+/** POST /demo/clock/mode */
+export const DemoClockModeRequest = z.object({ mode: ClockMode });
+export type DemoClockModeRequest = z.infer<typeof DemoClockModeRequest>;
 export const DemoStateResponse = z.object({
   now: IsoDateTime,
+  /** The offset in effect (0 when the clock is REAL). */
   clockOffsetMs: z.number().int(),
+  clockMode: ClockMode,
   agentMode: AgentMode,
 });
 export type DemoStateResponse = z.infer<typeof DemoStateResponse>;

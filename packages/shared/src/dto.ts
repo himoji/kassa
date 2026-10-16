@@ -57,7 +57,9 @@ export const MeResponse = z.object({
   frozenAt: IsoDateTime.nullable(),
   settings: UserSettings,
   effective: EffectiveSettings,
-  demo: z.object({ agentMode: AgentMode, clockOffsetMs: z.number().int(), now: IsoDateTime }).nullable(),
+  demo: z
+    .object({ agentMode: AgentMode, clockOffsetMs: z.number().int(), clockMode: z.enum(["REAL", "DEMO"]), now: IsoDateTime })
+    .nullable(),
   /** False until POST /onboarding/confirm succeeded (added by Track C; optional = treated as true). */
   onboarded: z.boolean().optional(),
   /** (added Phase 2) EU AI Act Art. 50 / GDPR Art. 13 notice about the AI and its provider. */
