@@ -10,7 +10,9 @@ The safety line: the agent can prepare anything, but only your signature, now or
 
 Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT and USD, her bills are in HUF and EUR.
 
-> **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos.
+> **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos. The statement importer reads real banks' file formats (for example Kaspi) and names them so the user knows which file is which; Kassa is not affiliated with any of them.
+
+**Live demo:** https://kassa-sand.vercel.app/ (web app; approvals use a passkey on your device).
 
 ## Quickstart
 
@@ -188,9 +190,10 @@ bun run test           # Vitest suites (api, mock-world, shared) and the mobile 
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
 ```
 
-- Counts from the latest run (2026-10-16, per workspace): API 1,026 tests in 132 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 361, shared 53, mobile Jest 875 in 78 suites (including the locale checks for zh, ru and kk). Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-16, per workspace): API 1,029 tests in 133 files (one opt-in live-AI smoke test file skipped) (unit, invariant, attack, security and integration), mock world 361, shared 53, mobile Jest 875 in 78 suites (including the locale checks for zh, ru and kk). Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - Attack suite (`apps/api/test/attacks/`): A1 to A8 from the spec, A9 (swapped invoice bank details), and A10 to A17, which recreate real incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake memories, MCP tool poisoning and EchoLeak, the Chevrolet "$1 Tahoe" and Project Vend, salami splitting, "safe account" scams). The planner and Reader in them obey the attacker. `bun run evidence:attacks`: **guarded paid 0 of 16, naive paid 16 of 16** (`docs/evidence/attacks.json`; sources in [docs/SECURITY.md](docs/SECURITY.md) §6).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
+- Reader accuracy: `bun run eval:invoices` runs the live Reader (`READER_MODEL`, needs its key) on the 30 labelled invoices in `fixtures/invoices/` and writes the exact-match rate per field, wrong values the evidence check still verified, and latency to `docs/evidence/invoice-eval.json`.
 - CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.
 
 ## Deploy on Vercel

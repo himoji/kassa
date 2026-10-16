@@ -8,7 +8,7 @@
 curl -Ls "https://get.maestro.mobile.dev" | bash   # once
 bunx expo run:ios   # or run:android - a dev build must be installed and the Metro server running
 bun run test:e2e                                  # all flows, dev variant
-bun run test:e2e .maestro/flows/onboarding.yaml   # one flow (any extra arg goes to maestro)
+bun run test:e2e .maestro/flows/theme-switch.yaml # one flow (any extra arg goes to maestro)
 bun run test:e2e --variant preview                # dev | preview | prod (aliases: development, production)
 bun run test:e2e --dry-run                        # print the maestro command, run nothing
 ```
@@ -22,10 +22,9 @@ Expo Go cannot be targeted: the flows assume the app is installed under its own 
 
 ## Flows
 
-- `flows/onboarding.yaml` - clears app state, steps through the three slides via **Next** / **Get started** and asserts the tab bar (**Settings**) is showing.
 - `flows/theme-switch.yaml` - opens **Settings**, taps **Dark** and asserts the "Currently Dark" readout (then restores **Light** / **System**). Skips onboarding when it is still showing.
 
 ## Notes
 
-- Strings come from `src/screens/onboarding/onboarding-screen.tsx` and `src/screens/settings/settings-screen.tsx` (English locale; the i18n module starts in the device language, so keep the simulator in English or translate the assertions).
-- `onboarding.yaml` ends on the tab bar, so it passes with the weather demo home and with the plain welcome `setup` leaves (without `--with-examples`). Add your own home screen's assertions after it.
+- Strings come from the English locale (`src/locales/en/`; the i18n module starts in the device language, so keep the simulator in English or translate the assertions).
+- Kassa's own flows (onboarding with a passkey, paying a bill) are covered by the Jest suite and the API sim (`docs/evidence/sim/`), not by Maestro yet.
