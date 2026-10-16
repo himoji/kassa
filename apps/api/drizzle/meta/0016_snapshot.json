@@ -1,5 +1,5 @@
 {
-  "id": "86c43235-07ef-49d5-a39f-8c40a1fa23e4",
+  "id": "341aa714-15f6-406a-b851-c5f397e39579",
   "prevId": "d7248136-51d4-4912-a46f-d5726741df35",
   "version": "7",
   "dialect": "postgresql",
@@ -330,13 +330,6 @@
           "notNull": true,
           "default": 0
         },
-        "clock_mode": {
-          "name": "clock_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'REAL'"
-        },
         "agent_mode": {
           "name": "agent_mode",
           "type": "agent_mode",
@@ -424,6 +417,12 @@
         },
         "revoked_at": {
           "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false

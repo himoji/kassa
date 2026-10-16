@@ -34,14 +34,32 @@ KassaLite has no sign-in screen. You pair it from the full Kassa app or the web 
 
 ## Shortcut setup
 
-The Shortcut is the capture path: it must be set up once. The reference is [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md); KassaLite mirrors its steps in **Settings → Apple Pay Shortcut**.
+The Shortcut is the capture path: it must be set up once. The reference is [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md). KassaLite does it from **Settings → Apple Pay Shortcut** with one button, then checks the result on the first real tap.
 
-1. Tap **Install Shortcut**. KassaLite copies two lines to the clipboard: the endpoint (`https://<server>/api/capture/shortcut`) and the header value (`Bearer <token>`). iCloud Shortcuts cannot take parameters, so you paste them where the Shortcut asks.
-2. If the build has a Shortcut template link, the Shortcut opens next. Without one (the default), build it by hand with the steps on the screen (they are the steps of SHORTCUT_SETUP.md).
-3. Shortcuts → Automation → **Transaction** → your Wallet cards → **Run Immediately**.
-4. Pay with Apple Pay. The purchase appears in Activity within seconds.
+**Set up Apple Pay logging** (the one button):
 
-The template link is `extra.shortcutTemplateUrl` in `apps/mobile/app.config.ts`. Create the Shortcut once, share it (Shortcuts → Share → Copy iCloud Link) and set `KASSALITE_SHORTCUT_TEMPLATE_URL=https://www.icloud.com/shortcuts/<id>` when you generate the project (or edit the constant). It is empty by default, and the screen then shows only the manual steps.
+1. Checks the server and key from this iPhone: POST `/api/capture/shortcut` `{"test": true}` with the Shortcut's key (nothing logged or recorded). A revoked key or an unreachable server is reported here, before the person goes to Shortcuts.
+2. Readies the automation's only input. A build **with** the Kassa action: writes the action's Keychain copy, nothing to paste. Any other build: copies **one link**, `https://<server>/api/capture/shortcut?key=<token>` (the key in the URL, so no header; the server log redacts `key`).
+3. Opens Shortcuts. The card shows the few steps (Automation → Transaction → Run Immediately → the Kassa action, or Get Contents of URL with the link and the three JSON fields) and **Copy steps for AI**: a prompt for ChatGPT, Claude or another assistant that walks the person through it tap by tap. The prompt never contains the key.
+
+iOS does not let an app create a personal automation, so the Transaction automation itself is always made in Shortcuts by the person.
+
+**The tap check.** The card then waits (it polls GET `/api/devices` every 5 s while open) for the first real Apple Pay tap and reports line by line, from the device's `lastCheck`:
+
+| Line | Right | Needs a fix |
+| --- | --- | --- |
+| Tap reached Kassa | the time (the automation triggered) | (nothing arrives: the card keeps waiting) |
+| Merchant | the merchant Kassa logged | empty: set Merchant to Shortcut Input › Merchant |
+| Amount | the amount Kassa logged | empty, or not readable (unsupported currency) |
+| Card | received | optional tip: Card or Pass, for card fees |
+| Place | received | optional tip: Get Current Location |
+| Logged | in Activity (or "already logged", "refund") | not logged |
+
+All required lines right: **Everything works**, with a success haptic and toast if it arrives while the screen is open. Otherwise **Kassa got your tap: N things to fix**, a **Fix in Shortcuts** button, and the card keeps checking until the next tap is right. A tap whose automation sends a merchant but no amount reaches the server as `INCOMPLETE`, and the Shortcut's own notification already says what to fix.
+
+**Log Payment in Kassa** is an App Intent compiled into the app (`apps/mobile/plugins/log-payment-intent/LogPaymentIntent.swift`, added to the app target by `plugins/with-log-payment-intent.js` for `APP_VARIANT=lite`). App Intents need no entitlement, so a free Personal Team signs it. It POSTs `{merchant, amount, card, street?, city?, country?}` to `<server>/api/capture/shortcut` with the Shortcut's key and `X-Kassa-Client: log-payment-action` (empty amount: a test run), posts the reply's `nudgeTitle` / `nudgeBody` as a local notification when KassaLite may notify (parameter **Show Notification**, on by default) and returns `nudge` as its result. It runs in the background without opening KassaLite. Server and key come from a Keychain copy the app writes at launch, after pairing and after a server change (`src/lite/intent-config.ts`, removed on sign out): unlike the session's key item it is *after first unlock, this device only*, because the Transaction automation can run while the iPhone is still locked after an Apple Pay tap — the same exposure as the key a hand-built Shortcut stores in Shortcuts.
+
+The action exists only in a KassaLite built (in Xcode) after it was added; an over-the-air update cannot add it. The same plugin declares the URL scheme `kassalite-log-payment` (and lists it in `LSApplicationQueriesSchemes`), and the app asks `Linking.canOpenURL("kassalite-log-payment://")` before offering the action, so a newer JS bundle on an older build offers the link path instead.
 
 ## Build it with a free Personal Team
 
