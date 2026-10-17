@@ -12,10 +12,10 @@ Workspace totals from the run of 2026-10-17 (see "Changelog" at the end). Per-fi
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 134 | 1,034 (+1 opt-in live smoke test, skipped) | all pass |
+| apps/api | 134 | 1,042 (+1 opt-in live smoke test, skipped) | all pass |
 | apps/mock-world | 11 | 361 | all pass |
 | packages/shared | 7 | 53 | all pass |
-| apps/mobile (jest) | 78 | 875 | all pass |
+| apps/mobile (jest) | 82 | 893 | all pass |
 
 Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 of 16 paid** (`docs/evidence/attacks.json`: A1 to A8 and the real-world incidents A10 to A17, 2026-10-15). A9 is refused by its own test; it is not in the naive baseline.
 

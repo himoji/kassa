@@ -29,7 +29,11 @@ const client: ClientKind = api.kind;
  * login route is on (dev/demo builds only, never production, except the judge build); `judgeMode` = the judge build
  * (a separate deployment on throwaway demo data). Public, no session.
  */
-const DemoAvailability = z.object({ enabled: z.boolean(), devLogin: z.boolean(), judgeMode: z.boolean().optional() });
+const DemoAvailability = z.object({
+  enabled: z.boolean(),
+  devLogin: z.boolean(),
+  judgeMode: z.boolean().optional(),
+});
 
 export function useDemoAvailability() {
   return useQuery({

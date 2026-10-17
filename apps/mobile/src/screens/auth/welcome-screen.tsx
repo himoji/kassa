@@ -72,7 +72,9 @@ function DevModeButton() {
         {t("auth:welcome.devLogin")}
       </Button>
       <Text variant="caption">{t("auth:welcome.devModeNote")}</Text>
-      {demo.data.judgeMode ? <Text variant="caption">{t("auth:welcome.judgeModeNote")}</Text> : null}
+      {demo.data.judgeMode ? (
+        <Text variant="caption">{t("auth:welcome.judgeModeNote")}</Text>
+      ) : null}
       {error ? (
         <Text color="destructive" align="center">
           {error}

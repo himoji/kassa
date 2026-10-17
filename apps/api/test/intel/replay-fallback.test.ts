@@ -50,6 +50,7 @@ describe("LIVE with a replay safety net (ai/fallback.ts)", () => {
   it("knows unavailable from rejected", () => {
     expect(isModelUnavailable(new AiConfigError("AI_PROVIDER_KEY_MISSING", "no key"))).toBe(true);
     expect(isModelUnavailable(apiError(401))).toBe(true);
+    expect(isModelUnavailable(apiError(402))).toBe(true);
     expect(isModelUnavailable(apiError(429))).toBe(true);
     expect(isModelUnavailable(apiError(400))).toBe(false);
     expect(isModelUnavailable(new TypeError("fetch failed"))).toBe(true);

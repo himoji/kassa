@@ -22,7 +22,8 @@ export function isModelUnavailable(e: unknown): boolean {
   if (e instanceof AiConfigError) return true;
   if (isRetryableAiError(e)) return true;
   const status = apiCallErrorOf(e)?.statusCode;
-  if (status === 401 || status === 403 || status === 404) return true;
+  // 402: the provider account is out of credit (OpenRouter), as unusable as a missing key.
+  if (status === 401 || status === 402 || status === 403 || status === 404) return true;
   // A request that never got an HTTP answer (DNS, refused connection) has no APICallError.
   return apiCallErrorOf(e) === null && e instanceof Error && /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|network/i.test(`${e.message} ${String((e as { cause?: unknown }).cause ?? "")}`);
 }
