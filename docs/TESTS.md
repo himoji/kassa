@@ -145,5 +145,4 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 - 2026-10-15 (later): bank statement import (IMPORT_PLAN.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
 - 2026-10-15 (latest): history patterns (IMPORT_PLAN S14) and `get_money_history`; api 121 files / 954 tests, 1 skipped; mobile 75 / 562; mock-world 10 / 343; shared 7 / 53.
 - 2026-10-16: identity check (KYC) and `eval:invoices` (live Reader accuracy on the 30 labelled invoices, `docs/evidence/invoice-eval.json`); api 133 files / 1,029 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
-- 2026-10-14: ledger-anchor.test.ts added (5 tests); api now 106 files / 849 tests (full re-run).
 - 2026-10-17: ledger-anchor.test.ts added (testnet anchoring of ledger checkpoints, 5 tests); api 134 files / 1,034 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
