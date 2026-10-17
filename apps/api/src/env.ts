@@ -76,8 +76,8 @@ const EnvSchema = z.object({
    */
   DEV_LOGIN: bool,
   /**
-   * Judge build (a separate deployment for reviewers and AI judges): dev sign-in without a passkey, also in
-   * production, but only with DEMO_ENABLED and a throwaway PGlite database, never a postgres:// one (auth/dev.ts).
+   * Judge build (a separate deployment with its own demo-only database, for reviewers and AI judges): dev sign-in
+   * without a passkey, also in production, with DEMO_ENABLED (auth/dev.ts). Never set on the public demo.
    */
   JUDGE_MODE: bool,
   /** Stable phone host (named tunnel), e.g. kassa.example.com: the server URL KassaLite and the Shortcut use. */

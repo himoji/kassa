@@ -61,10 +61,7 @@ async function preloadTracedModules(): Promise<void> {
 async function start(): Promise<Instance> {
   await preloadTracedModules();
   const { resolveDbTarget } = await import("../apps/api/src/db/client.ts");
-  // Judge build (JUDGE_MODE=true, a separate project): a throwaway PGlite database in /tmp, demo data only, reset
-  // on every cold start. Every other deployment needs Postgres.
-  if (process.env.JUDGE_MODE === "true") process.env.DATABASE_URL ??= "pglite:///tmp/kassa-judge";
-  else if (resolveDbTarget().driver !== "postgres") {
+  if (resolveDbTarget().driver !== "postgres") {
     throw new Error("DATABASE_URL must be a postgres:// URL on Vercel (the PGlite file database needs a writable disk)");
   }
   const { env } = await import("../apps/api/src/env.ts");

@@ -12,7 +12,7 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 
 > **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos. The statement importer reads real banks' file formats (for example Kaspi) and names them so the user knows which file is which; Kassa is not affiliated with any of them.
 
-**Live demo:** https://kassa-sand.vercel.app/ (web app; approvals use a passkey on your device). **Judge build:** https://kassa-judge.vercel.app/ is the same code with passkeys replaced by a server-held test key, for reviewers and automated (AI) judges without a passkey device: choose a demo persona or "Start fresh" on the welcome screen. It runs on throwaway demo data that resets when the server restarts (`JUDGE_MODE`, see "Deploy on Vercel"). **Evidence room:** https://kassa-sand.vercel.app/showcase replays the 16 attacks against the guarded and the naive agent, walks a request through rules and passkey, and lets you tamper with a ledger entry (static page, `apps/mobile/public/showcase/`).
+**Live demo:** https://kassa-sand.vercel.app/ (web app; approvals use a passkey on your device). **Judge build:** https://kassa-judge.vercel.app/ is the same code with passkeys replaced by a server-held test key, for reviewers and automated (AI) judges without a passkey device: choose a demo persona or "Start fresh" on the welcome screen. It has its own database with demo data only (`JUDGE_MODE`, see "Deploy on Vercel"). **Evidence room:** https://kassa-sand.vercel.app/showcase replays the 16 attacks against the guarded and the naive agent, walks a request through rules and passkey, and lets you tamper with a ledger entry (static page, `apps/mobile/public/showcase/`).
 
 ## Quickstart
 
@@ -255,7 +255,7 @@ Notes:
 - The mock world keeps its state (bank transfers, QR payments, shop orders) in memory. A cold start, or a second instance under load, starts it empty; `POST /api/demo/reset` puts the API and the mock world back in step.
 - Function timers only run while an instance is awake, so the 15 s scheduler and the mock bank tick also run, at most once per interval, after incoming requests.
 - `DEV_LOGIN` does not work on Vercel (production mode); sign in with a passkey.
-- **Judge build** (a second Vercel project, here `kassa-judge`): `JUDGE_MODE=true`, `DEMO_ENABLED=true`, `MIGRATE_ON_BUILD=false`, no `DATABASE_URL`. The function then uses a PGlite database in `/tmp` (migrated and seeded at cold start, reset on the next one) and turns dev sign-in on, so approvals are signed by a server-held test passkey. Dev sign-in stays off on any deployment with a postgres:// database, whatever its flags (`judgeModeActive` in `apps/api/src/modules/auth/dev.ts`). Each instance has its own database, so state can differ between two instances under load.
+- **Judge build** (a second Vercel project, here `kassa-judge`): `JUDGE_MODE=true`, `DEMO_ENABLED=true`, its own Neon database (never the public demo's) and its own signing keys. Dev sign-in is then on, so approvals are signed by a server-held test passkey (`judgeModeActive` in `apps/api/src/modules/auth/dev.ts`). Migrations run at cold start and the demo data loads into the empty database; `POST /api/demo/reset` resets it.
 
 ## Docker Compose (optional deployment path)
 

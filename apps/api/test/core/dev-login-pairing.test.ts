@@ -50,26 +50,16 @@ async function startPairing(h: Record<string, string>, sign: (challenge: string)
 }
 
 describe("judge build (JUDGE_MODE)", () => {
-  it("turns dev sign-in on with DEMO_ENABLED on a PGlite database, whatever the RP_ID", async () => {
+  it("turns dev sign-in on with DEMO_ENABLED, whatever the RP_ID", async () => {
     setEnvForTests({ DEMO_ENABLED: "true", JUDGE_MODE: "true", RP_ID: "kassa-judge.vercel.app" });
     expect(judgeModeActive()).toBe(true);
     expect((await app().inject({ method: "GET", url: "/api/auth/demo" })).json()).toMatchObject({ devLogin: true, judgeMode: true });
   });
 
-  it("stays off without DEMO_ENABLED or on a postgres:// database", () => {
+  it("stays off without DEMO_ENABLED", () => {
     setEnvForTests({ DEMO_ENABLED: "false", JUDGE_MODE: "true", RP_ID: "kassa-judge.vercel.app" });
     expect(judgeModeActive()).toBe(false);
     expect(devLoginAllowed()).toBe(false);
-    const saved = process.env.DATABASE_URL;
-    process.env.DATABASE_URL = "postgres://u:p@db.example.com/kassa";
-    try {
-      setEnvForTests({ DEMO_ENABLED: "true", JUDGE_MODE: "true", RP_ID: "kassa-judge.vercel.app" });
-      expect(judgeModeActive()).toBe(false);
-      expect(devLoginAllowed()).toBe(false);
-    } finally {
-      if (saved === undefined) delete process.env.DATABASE_URL;
-      else process.env.DATABASE_URL = saved;
-    }
   });
 });
 
