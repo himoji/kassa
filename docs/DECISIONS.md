@@ -346,7 +346,7 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
 
 ## 2026-10-12 — Chinese-context demos (D-CN1..3): data, seed option, per-region AI notice
 
-- **Problem:** the judges are Chinese; the plan asks for three CN demos without new product features, and the
+- **Problem:** the competition is held in Shenzhen; the plan asks for three CN demos without new product features, and the
   hero seed must stay single-user for the existing tests.
 - **Per-region AI notice (PIPL).** `privacy/notice.ts` had one text for everyone. `aiNotice(region)` now appends one
   line for region CN: AI providers outside mainland China receive the reduced chat and uploaded documents, which is

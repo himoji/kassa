@@ -1,0 +1,1452 @@
+{
+  "model": "openrouter:deepseek/deepseek-v4.1-flash",
+  "invoices": 30,
+  "exactInvoices": 21,
+  "perField": {
+    "payeeName": {
+      "matched": 27,
+      "verified": 29,
+      "total": 30,
+      "exactMatchRate": 0.9
+    },
+    "accountNumber": {
+      "matched": 27,
+      "verified": 27,
+      "total": 30,
+      "exactMatchRate": 0.9
+    },
+    "reference": {
+      "matched": 25,
+      "verified": 29,
+      "total": 30,
+      "exactMatchRate": 0.8333333333333334
+    },
+    "amount": {
+      "matched": 28,
+      "verified": 28,
+      "total": 30,
+      "exactMatchRate": 0.9333333333333333
+    },
+    "currency": {
+      "matched": 28,
+      "verified": 28,
+      "total": 30,
+      "exactMatchRate": 0.9333333333333333
+    },
+    "dueDate": {
+      "matched": 29,
+      "verified": 24,
+      "total": 30,
+      "exactMatchRate": 0.9666666666666667
+    }
+  },
+  "wrongButVerified": {
+    "payeeName": 2,
+    "accountNumber": 0,
+    "reference": 4,
+    "amount": 0,
+    "currency": 0,
+    "dueDate": 0
+  },
+  "medianMs": 16395,
+  "results": [
+    {
+      "id": "inv-01",
+      "layout": "classic",
+      "language": "en",
+      "ms": 25672,
+      "fields": {
+        "payeeName": {
+          "expected": "University in Budapest",
+          "got": "University in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU83118009905400221700000005",
+          "got": null,
+          "match": false,
+          "verified": false
+        },
+        "reference": {
+          "expected": "RF39RUB2026F04217",
+          "got": "RF39RUB2026F04217",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "2400.00",
+          "got": "2400.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-10-31",
+          "got": "2026-10-31",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [
+        "READER_SOURCE_MISMATCH"
+      ],
+      "exact": false
+    },
+    {
+      "id": "inv-02",
+      "layout": "hu",
+      "language": "hu",
+      "ms": 4116,
+      "fields": {
+        "payeeName": {
+          "expected": "Landlord in Budapest",
+          "got": "Landlord in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU75109183242065038100000003",
+          "got": "HU75 1091 8324 2065 0381 0000 0003",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "HF-APT4B-RENT",
+          "got": "HF-2026/0311",
+          "match": false,
+          "verified": true
+        },
+        "amount": {
+          "expected": "180000.00",
+          "got": "180000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-01",
+          "got": "2026-11-01",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": false
+    },
+    {
+      "id": "inv-03",
+      "layout": "modern",
+      "language": "en",
+      "ms": 10404,
+      "fields": {
+        "payeeName": {
+          "expected": "Student Insurer in EU",
+          "got": "Dana Seitkali",
+          "match": false,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU92104051760049812600000008",
+          "got": "HU92 1040 5176 0049 8126 0000 0008",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "POL-778201-Q4",
+          "got": "POL-778201-Q4",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "96.00",
+          "got": "96.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-15",
+          "got": "2026-11-15",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": false
+    },
+    {
+      "id": "inv-04",
+      "layout": "de",
+      "language": "de",
+      "ms": 5561,
+      "fields": {
+        "payeeName": {
+          "expected": "Data Bootcamp in Berlin",
+          "got": "Data Bootcamp in Berlin",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "DE79100100104820193746",
+          "got": "DE79 1001 0010 4820 1937 46",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "BDS-2026-0193",
+          "got": "BDS-2026-0193",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "1487.50",
+          "got": "1487.50",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-30",
+          "got": "2026-11-30",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-05",
+      "layout": "letter",
+      "language": "en",
+      "ms": 28801,
+      "fields": {
+        "payeeName": {
+          "expected": "Language School in Budapest",
+          "got": "Language School in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU68117005083309188200000002",
+          "got": "HU68117005083309188200000002",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "LLS/2026/311",
+          "got": "LLS/2026/311",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "145000.00",
+          "got": "145000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-20",
+          "got": "2026-11-20",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-06",
+      "layout": "statement",
+      "language": "en",
+      "ms": 4380,
+      "fields": {
+        "payeeName": {
+          "expected": "Dormitory Office in Budapest",
+          "got": "Dormitory Office in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU49109120504400177300000004",
+          "got": "HU49 1091 2050 4400 1773 0000 0004",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "NDS-STU-5521",
+          "got": "NDS-STU-5521",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "120000.00",
+          "got": "120000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-05",
+          "got": "2026-11-05",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-07",
+      "layout": "fr",
+      "language": "fr",
+      "ms": 3125,
+      "fields": {
+        "payeeName": {
+          "expected": "Atelier Langues Paris SARL",
+          "got": "Atelier Langues Paris SARL",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "FR7630004008200001047758183",
+          "got": "FR76 3000 4008 2000 0104 7758 183",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "ALP-26-0457",
+          "got": "ALP-26-0457",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "380.00",
+          "got": "380.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-15",
+          "got": "2026-12-15",
+          "match": true,
+          "verified": false
+        }
+      },
+      "reasonCodes": [
+        "READER_FIELD_UNVERIFIED"
+      ],
+      "exact": true
+    },
+    {
+      "id": "inv-08",
+      "layout": "receipt",
+      "language": "en",
+      "ms": 2790,
+      "fields": {
+        "payeeName": {
+          "expected": "Mobile Operator in Hungary",
+          "got": "Mobile Operator in Hungary",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU88104011275509211600000007",
+          "got": "HU88104011275509211600000007",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "MN-302918844",
+          "got": "MN-302918844",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "4990.00",
+          "got": "4990.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-10",
+          "got": "2026-11-10",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-09",
+      "layout": "classic",
+      "language": "en",
+      "ms": 15663,
+      "fields": {
+        "payeeName": {
+          "expected": "Euro Conference Services BV",
+          "got": "Euro Conference Services BV",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "NL91ABNA0417164300",
+          "got": "NL91 ABNA 0417 1643 00",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "ECS-REG-88412",
+          "got": "ECS-REG-88412",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "150.00",
+          "got": "150.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "USD",
+          "got": "USD",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-30",
+          "got": "2026-11-30",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-10",
+      "layout": "classic",
+      "language": "en",
+      "ms": 9062,
+      "fields": {
+        "payeeName": {
+          "expected": "Almaty Student Housing LLP",
+          "got": "Almaty Student Housing LLP",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "KZ11722S000098765432",
+          "got": null,
+          "match": false,
+          "verified": false
+        },
+        "reference": {
+          "expected": "ASH-2026-1107",
+          "got": "ASH-2026-1107",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "85000.00",
+          "got": null,
+          "match": false,
+          "verified": false
+        },
+        "currency": {
+          "expected": "KZT",
+          "got": null,
+          "match": false,
+          "verified": false
+        },
+        "dueDate": {
+          "expected": "2026-11-07",
+          "got": "2026-11-07",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [
+        "READER_SOURCE_MISMATCH"
+      ],
+      "exact": false
+    },
+    {
+      "id": "inv-11",
+      "layout": "modern",
+      "language": "en",
+      "ms": 2079,
+      "fields": {
+        "payeeName": {
+          "expected": "Summer Academy in Austria",
+          "got": "Summer Academy in Austria",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "AT611904300234573201",
+          "got": "AT61 1904 3002 3457 3201",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "VSA-2027-S-0042",
+          "got": "VSA-2027-S-0042",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "640.00",
+          "got": "640.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2027-01-15",
+          "got": "2027-01-15",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-12",
+      "layout": "hu",
+      "language": "hu",
+      "ms": 5989,
+      "fields": {
+        "payeeName": {
+          "expected": "Utility Company in Budapest",
+          "got": "Utility Company in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU09120030006603144800000004",
+          "got": "HU09 1200 3000 6603 1448 0000 0004",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "DU-0098812734",
+          "got": "DU-0098812734",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "18450.00",
+          "got": "18450.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-12",
+          "got": "2026-11-12",
+          "match": true,
+          "verified": false
+        }
+      },
+      "reasonCodes": [
+        "READER_FIELD_UNVERIFIED"
+      ],
+      "exact": true
+    },
+    {
+      "id": "inv-13",
+      "layout": "de",
+      "language": "de",
+      "ms": 3177,
+      "fields": {
+        "payeeName": {
+          "expected": "Online Language Course from Germany",
+          "got": "Online Language Course from Germany",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "DE46370100502091837465",
+          "got": "DE46 3701 0050 2091 8374 65",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": null,
+          "got": "SKO-261101",
+          "match": false,
+          "verified": true
+        },
+        "amount": {
+          "expected": "105.91",
+          "got": "105.91",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-01",
+          "got": "2026-12-01",
+          "match": true,
+          "verified": false
+        }
+      },
+      "reasonCodes": [
+        "READER_FIELD_UNVERIFIED"
+      ],
+      "exact": false
+    },
+    {
+      "id": "inv-14",
+      "layout": "statement",
+      "language": "en",
+      "ms": 54835,
+      "fields": {
+        "payeeName": {
+          "expected": "Print Shop in Budapest",
+          "got": "Print Shop in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU74116007147710263900000007",
+          "got": "HU74116007147710263900000007",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "CPS-11-0234",
+          "got": "CPS-11-0234",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "11900.00",
+          "got": "11900.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-08",
+          "got": "2026-11-08",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-15",
+      "layout": "letter",
+      "language": "en",
+      "ms": 1869,
+      "fields": {
+        "payeeName": {
+          "expected": "University in Budapest",
+          "got": "University in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU83118009905400221700000005",
+          "got": "HU83 1180 0990 5400 2217 0000 0005",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "LIB-FINE-77120",
+          "got": "LIB-FINE-77120",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "25.00",
+          "got": "25.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-20",
+          "got": "2026-11-20",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-16",
+      "layout": "classic",
+      "language": "en",
+      "ms": 34229,
+      "fields": {
+        "payeeName": {
+          "expected": "Gym in Budapest",
+          "got": "Dana Seitkali",
+          "match": false,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU81108004478804129500000003",
+          "got": "HU81 1080 0447 8804 1295 0000 0003",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "GYM-DANA-2026-11",
+          "got": "GYM-DANA-2026-11",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "12900.00",
+          "got": "12900.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-03",
+          "got": "2026-11-03",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": false
+    },
+    {
+      "id": "inv-17",
+      "layout": "slip",
+      "language": "en",
+      "ms": 24682,
+      "fields": {
+        "payeeName": {
+          "expected": "Madrid Spanish Courses SL",
+          "got": "Madrid Spanish Courses SL",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "ES8021000418424502000513",
+          "got": "ES80 2100 0418 4245 0200 0513",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "MSC/2026/1188",
+          "got": "MSC/2026/1188",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "210.00",
+          "got": "210.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-10",
+          "got": "2026-12-10",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-18",
+      "layout": "receipt",
+      "language": "en",
+      "ms": 19127,
+      "fields": {
+        "payeeName": {
+          "expected": "Student Union Budapest",
+          "got": "Student Union Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU14118010189905276400000002",
+          "got": "HU14 1180 1018 9905 2764 0000 0002",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": null,
+          "got": "No payment reference required",
+          "match": false,
+          "verified": true
+        },
+        "amount": {
+          "expected": "5000.00",
+          "got": "5000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-30",
+          "got": "2026-11-30",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": false
+    },
+    {
+      "id": "inv-19",
+      "layout": "modern",
+      "language": "en",
+      "ms": 22206,
+      "fields": {
+        "payeeName": {
+          "expected": "Student Insurer in EU",
+          "got": "Student Insurer in EU",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU92104051760049812600000008",
+          "got": "HU92 1040 5176 0049 8126 0000 0008",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "POL-778201-2027",
+          "got": "POL-778201-2027",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "384.00",
+          "got": "384.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2027-01-15",
+          "got": "2027-01-15",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-20",
+      "layout": "hu",
+      "language": "hu",
+      "ms": 32370,
+      "fields": {
+        "payeeName": {
+          "expected": "Landlord in Budapest",
+          "got": "Landlord in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU75109183242065038100000003",
+          "got": "HU75109183242065038100000003",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "HF-APT4B-RENT",
+          "got": "HF-APT4B-RENT",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "180000.00",
+          "got": "180000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-01",
+          "got": "2026-12-01",
+          "match": true,
+          "verified": false
+        }
+      },
+      "reasonCodes": [
+        "READER_FIELD_UNVERIFIED"
+      ],
+      "exact": true
+    },
+    {
+      "id": "inv-21",
+      "layout": "de",
+      "language": "de",
+      "ms": 40939,
+      "fields": {
+        "payeeName": {
+          "expected": "Exam Center in Germany",
+          "got": "Exam Center in Germany",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "DE63200100206619283740",
+          "got": "DE63 2001 0020 6619 2837 40",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "HEC-PRF-26-551",
+          "got": "HEC-26-551",
+          "match": false,
+          "verified": true
+        },
+        "amount": {
+          "expected": "175.00",
+          "got": "175.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-15",
+          "got": "2026-11-15",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": false
+    },
+    {
+      "id": "inv-22",
+      "layout": "statement",
+      "language": "en",
+      "ms": 8871,
+      "fields": {
+        "payeeName": {
+          "expected": "Almaty Student Housing LLP",
+          "got": "Almaty Student Housing LLP",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "KZ11722S000098765432",
+          "got": "KZ11 722S 0000 9876 5432",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "ASH-2026-1207",
+          "got": "ASH-2026-1207",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "85000.00",
+          "got": "85000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "KZT",
+          "got": "KZT",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-07",
+          "got": "2026-12-07",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-23",
+      "layout": "classic",
+      "language": "en",
+      "ms": 49262,
+      "fields": {
+        "payeeName": {
+          "expected": "Amsterdam Academic Press BV",
+          "got": "Amsterdam Academic Press BV",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "NL12INGB0006723941",
+          "got": "NL12INGB0006723941",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "AAP-INV-20261102",
+          "got": "AAP-INV-20261102",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "59.90",
+          "got": "59.90",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-02",
+          "got": "2026-12-02",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-24",
+      "layout": "letter",
+      "language": "en",
+      "ms": 25968,
+      "fields": {
+        "payeeName": {
+          "expected": "Astana Alumni Association",
+          "got": "Astana Alumni Association",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "KZ79601A000044332211",
+          "got": "KZ79 601A 0000 4433 2211",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "AAA-FEE-2027",
+          "got": "AAA-FEE-2027",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "15000.00",
+          "got": "15000.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "KZT",
+          "got": "KZT",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2027-01-31",
+          "got": "2027-01-31",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-25",
+      "layout": "slip",
+      "language": "hu",
+      "ms": 24120,
+      "fields": {
+        "payeeName": {
+          "expected": "Utility Company in Budapest",
+          "got": "Sharma General Store",
+          "match": false,
+          "verified": false
+        },
+        "accountNumber": {
+          "expected": "HU09120030006603144800000004",
+          "got": "658902780",
+          "match": false,
+          "verified": false
+        },
+        "reference": {
+          "expected": "DU-0098815520",
+          "got": "Vendor ID: VEN-4821",
+          "match": false,
+          "verified": false
+        },
+        "amount": {
+          "expected": "21590.00",
+          "got": "42500.00",
+          "match": false,
+          "verified": false
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "INR",
+          "match": false,
+          "verified": false
+        },
+        "dueDate": {
+          "expected": "2026-12-12",
+          "got": "2026-06-15",
+          "match": false,
+          "verified": false
+        }
+      },
+      "reasonCodes": [
+        "READER_SOURCE_MISMATCH",
+        "READER_FIELD_UNVERIFIED"
+      ],
+      "exact": false
+    },
+    {
+      "id": "inv-26",
+      "layout": "receipt",
+      "language": "en",
+      "ms": 1665,
+      "fields": {
+        "payeeName": {
+          "expected": "Coach Company from EU",
+          "got": "Coach Company from EU",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU55107009071029384700000004",
+          "got": "HU55107009071029384700000004",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "GLC-7781-HU",
+          "got": "GLC-7781-HU",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "9800.00",
+          "got": "9800.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "HUF",
+          "got": "HUF",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-02",
+          "got": "2026-11-02",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-27",
+      "layout": "modern",
+      "language": "en",
+      "ms": 23606,
+      "fields": {
+        "payeeName": {
+          "expected": "Data Skills Academy from EU",
+          "got": "Data Skills Academy from EU",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "DE15500100609182736450",
+          "got": "DE15 5001 0060 9182 7364 50",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "DSA-US-55102",
+          "got": "DSA-US-55102",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "49.00",
+          "got": "49.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "USD",
+          "got": "USD",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-11-25",
+          "got": "2026-11-25",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-28",
+      "layout": "fr",
+      "language": "fr",
+      "ms": 16395,
+      "fields": {
+        "payeeName": {
+          "expected": "Lyon Student Residences SAS",
+          "got": "Lyon Student Residences SAS",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "FR7630002005500000157912347",
+          "got": "FR76 3000 2005 5000 0015 7912 347",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "LSR-2026-12-B14",
+          "got": "LSR-2026-12-B14",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "520.00",
+          "got": "520.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-12-01",
+          "got": "2026-12-01",
+          "match": true,
+          "verified": false
+        }
+      },
+      "reasonCodes": [
+        "READER_FIELD_UNVERIFIED"
+      ],
+      "exact": true
+    },
+    {
+      "id": "inv-29",
+      "layout": "de",
+      "language": "de",
+      "ms": 2040,
+      "fields": {
+        "payeeName": {
+          "expected": "Payment Agent in EU",
+          "got": "Payment Agent in EU",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "DE14700100803355172904",
+          "got": "DE14 7001 0080 3355 1729 04",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "MVS-26-3317",
+          "got": "MVS-26-3317",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "71.40",
+          "got": "71.40",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2026-10-31",
+          "got": "2026-10-31",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    },
+    {
+      "id": "inv-30",
+      "layout": "classic",
+      "language": "en",
+      "ms": 23607,
+      "fields": {
+        "payeeName": {
+          "expected": "University in Budapest",
+          "got": "University in Budapest",
+          "match": true,
+          "verified": true
+        },
+        "accountNumber": {
+          "expected": "HU83118009905400221700000005",
+          "got": "HU83 1180 0990 5400 2217 0000 0005",
+          "match": true,
+          "verified": true
+        },
+        "reference": {
+          "expected": "RF56RUB2027S04217",
+          "got": "RF56RUB2027S04217",
+          "match": true,
+          "verified": true
+        },
+        "amount": {
+          "expected": "2400.00",
+          "got": "2400.00",
+          "match": true,
+          "verified": true
+        },
+        "currency": {
+          "expected": "EUR",
+          "got": "EUR",
+          "match": true,
+          "verified": true
+        },
+        "dueDate": {
+          "expected": "2027-02-15",
+          "got": "2027-02-15",
+          "match": true,
+          "verified": true
+        }
+      },
+      "reasonCodes": [],
+      "exact": true
+    }
+  ],
+  "generatedAt": "2026-10-17T22:33:06.416Z"
+}

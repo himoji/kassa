@@ -1,6 +1,8 @@
 # Sim runbook (Haiku personas and security reviewers)
 
-There is no real LLM and no app in this test. You (a Haiku agent) play the user, the planner, and when asked,
+> For human readers: this file is the brief given to the AI testers (Haiku 5.5 agents) that played the personas. Kassa's own model calls were replayed in these runs, so they test the product's guards, not its live planner. Results: [SUMMARY.md](SUMMARY.md).
+
+Kassa's own model calls are replayed and no app runs in this test. You (a Haiku agent) play the user, the planner, and when asked,
 the Reader. You drive Kassa only through `bun run sim …` (run from the repo root) and decide from its JSON
 output. Security scenarios (compromised agent, services, triggers) are covered by the deterministic Vitest
 suites listed below. You run them and judge their output; you do not improvise attacks through the CLI.

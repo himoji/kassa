@@ -129,7 +129,7 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 | sim/sim-smoke.test.ts | sim CLI end to end on ports 4190–4192 | 1 passed |
 | sim/sim-down.test.ts | `sim down` kills the whole daemon tree; a test sim stops when its owner dies (Y7) | 2 passed |
 
-## Persona and attacker runs (Haiku 5.5 acting as user + planner, no real LLM)
+## Persona and attacker runs (Haiku 5.5 acting as user + planner; Kassa's own model calls replayed)
 - `docs/evidence/sim/p1/REPORT.md` — average user
 - `docs/evidence/sim/p2/REPORT.md` — careful user
 - `docs/evidence/sim/p3/REPORT.md` — bad actor

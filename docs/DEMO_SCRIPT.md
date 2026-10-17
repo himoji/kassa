@@ -1,6 +1,6 @@
 # Demo script (5 minutes)
 
-Reviewers are WeBank industry experts and university scholars. The theme is "AI as a Financial Participant", so the video shows the agent doing the work, and the limits that keep it safe.
+The theme is "AI as a Financial Participant", so the video shows the agent doing the work, and the limits that keep it safe.
 
 Pitch line: "Kassa's agent pays your bills across borders on its own, inside the limits you signed with your passkey."
 Safety line: "The agent can prepare anything, but only your signature, now or in a mandate signed earlier, can move your money."
@@ -95,7 +95,7 @@ Headless proof: `bun run sim story` runs the same beats against a fresh sim over
 - "Reset demo" on `/mock/stage` restores the seed and the clock.
 - A red "Kassa API refused the stage call" means `DEMO_ENABLED` or `DEMO_ADMIN_TOKEN` differs between the API and mock-world.
 - "Waiting for Kassa" on the wallet means no QR code has been prepared yet. Approve the handoff in the app first.
-- Turn the swap attack off after scene 2 ("关闭攻击 Turn attack off").
+- Turn the swap attack off after the swap scene (4:10–4:30) ("关闭攻击 Turn attack off").
 
 ## URLs
 
