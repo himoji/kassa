@@ -1,6 +1,6 @@
 # Kassa test catalogue
 
-Workspace totals from the run of 2026-10-16 (see "Changelog" at the end). Per-file rows below were last counted on 2026-10-12, after the final fix pass, except the attack and naive rows (2026-10-15); files added since then are counted in the totals and listed where they matter for security.
+Workspace totals from the run of 2026-10-17 (see "Changelog" at the end). Per-file rows below were last counted on 2026-10-12, after the final fix pass, except the attack and naive rows (2026-10-15); files added since then are counted in the totals and listed where they matter for security.
 
 ## How to run
 - Everything: `bun run typecheck && bun run lint && bun run test` (turbo; all workspaces incl. mobile jest).
@@ -12,7 +12,7 @@ Workspace totals from the run of 2026-10-16 (see "Changelog" at the end). Per-fi
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 133 | 1,029 (+1 opt-in live smoke test, skipped) | all pass |
+| apps/api | 134 | 1,034 (+1 opt-in live smoke test, skipped) | all pass |
 | apps/mock-world | 11 | 361 | all pass |
 | packages/shared | 7 | 53 | all pass |
 | apps/mobile (jest) | 78 | 875 | all pass |
@@ -77,6 +77,7 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 | funding.test.ts | funding route bound into the signed order; INSUFFICIENT_FUNDS before signing | 5 passed | I2, I3 |
 | ledger.test.ts | hash chain, checkpoints, tamper, forgery, concurrency | 7 passed | I12 |
 | ledger-head.test.ts | signed ledger head: tail truncation, re-hashed tail, deleted head (X6) | 6 passed | I12 |
+| ledger-anchor.test.ts | testnet anchoring of checkpoints: memo format, anchor once, verify against chain and ledger, rewritten checkpoint, missing or foreign transaction, signed self-transaction | 5 passed | I12, R28 |
 | obligation-settlement.test.ts | no double payment per obligation period | 8 passed | idempotency |
 | order-expiry.test.ts | expired orders are re-issued, never re-signed; 410 ORDER_EXPIRED (X8) | 3 passed | I3, I4 |
 | orders-onboarding.test.ts | canonical order over HTTP; expiry; BOLA | 5 passed | I3 |
@@ -144,3 +145,5 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 - 2026-10-15 (later): bank statement import (IMPORT_PLAN.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
 - 2026-10-15 (latest): history patterns (IMPORT_PLAN S14) and `get_money_history`; api 121 files / 954 tests, 1 skipped; mobile 75 / 562; mock-world 10 / 343; shared 7 / 53.
 - 2026-10-16: identity check (KYC) and `eval:invoices` (live Reader accuracy on the 30 labelled invoices, `docs/evidence/invoice-eval.json`); api 133 files / 1,029 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
+- 2026-10-14: ledger-anchor.test.ts added (5 tests); api now 106 files / 849 tests (full re-run).
+- 2026-10-17: ledger-anchor.test.ts added (testnet anchoring of ledger checkpoints, 5 tests); api 134 files / 1,034 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
