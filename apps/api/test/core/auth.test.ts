@@ -94,9 +94,9 @@ describe("auth", () => {
       setEnvForTests({ DEMO_ENABLED: "true" });
       const on = await app().inject({ method: "GET", url: "/api/auth/demo" });
       expect(on.statusCode).toBe(200);
-      expect(on.json()).toEqual({ enabled: true, devLogin: false });
+      expect(on.json()).toEqual({ enabled: true, devLogin: false, judgeMode: false });
       setEnvForTests({ DEMO_ENABLED: "false" });
-      expect((await app().inject({ method: "GET", url: "/api/auth/demo" })).json()).toEqual({ enabled: false, devLogin: false });
+      expect((await app().inject({ method: "GET", url: "/api/auth/demo" })).json()).toEqual({ enabled: false, devLogin: false, judgeMode: false });
     } finally {
       resetEnvCache();
     }

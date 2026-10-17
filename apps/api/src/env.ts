@@ -75,6 +75,11 @@ const EnvSchema = z.object({
    * and only when RP_ID is localhost, a *.trycloudflare.com quick tunnel or PHONE_HOST.
    */
   DEV_LOGIN: bool,
+  /**
+   * Judge build (a separate deployment for reviewers and AI judges): dev sign-in without a passkey, also in
+   * production, but only with DEMO_ENABLED and a throwaway PGlite database, never a postgres:// one (auth/dev.ts).
+   */
+  JUDGE_MODE: bool,
   /** Stable phone host (named tunnel), e.g. kassa.example.com: the server URL KassaLite and the Shortcut use. */
   PHONE_HOST: z.string().optional(),
   MOCK_WORLD_URL: z.string().url().default("http://localhost:4001"),

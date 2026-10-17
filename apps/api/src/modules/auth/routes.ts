@@ -38,7 +38,7 @@ import { verifyRulesAssertion } from "../rules/webauthn.ts";
 import { createUser } from "../users/service.ts";
 import { putChallenge, takeChallenge } from "./challenges.ts";
 import { demoClaimUserId } from "./demoClaim.ts";
-import devRoutes, { devLoginAllowed } from "./dev.ts";
+import devRoutes, { devLoginAllowed, judgeModeActive } from "./dev.ts";
 import pairRoutes from "./pair.ts";
 import recoveryRoutes from "./recovery.ts";
 import { authenticate, endSession, refreshSession, revokeRefresh, sessionBody, startSession } from "./session.ts";
@@ -49,9 +49,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   // Registration stays a passkey ceremony either way: this only reports the flag.
   app.get(
     "/auth/demo",
-    { schema: { response: { 200: z.object({ enabled: z.boolean(), devLogin: z.boolean() }) } } },
+    { schema: { response: { 200: z.object({ enabled: z.boolean(), devLogin: z.boolean(), judgeMode: z.boolean() }) } } },
     // devLogin: the welcome screen offers "Continue as dev user" (auth/dev.ts guards).
-    async () => ({ enabled: env().DEMO_ENABLED, devLogin: devLoginAllowed() }),
+    async () => ({ enabled: env().DEMO_ENABLED, devLogin: devLoginAllowed(), judgeMode: judgeModeActive() }),
   );
 
   await app.register(devRoutes);

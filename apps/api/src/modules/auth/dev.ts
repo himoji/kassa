@@ -4,7 +4,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
-import { getDb } from "../../db/client.ts";
+import { getDb, resolveDbTarget } from "../../db/client.ts";
 import { users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
@@ -30,6 +30,7 @@ import { SoftAuthenticator } from "./soft-authenticator.ts";
  *
  * Guards, all required: the routes are not registered when NODE_ENV=production; each request also needs
  * DEMO_ENABLED and DEV_LOGIN, and RP_ID must be localhost, a *.trycloudflare.com quick tunnel or PHONE_HOST.
+ * The one exception is the judge build (`judgeModeActive`): JUDGE_MODE + DEMO_ENABLED on a PGlite database.
  */
 
 export const DEV_DISPLAY_NAME = "Dev";
@@ -39,8 +40,18 @@ export const DEV_FRESH_DISPLAY_NAME = "Dev (fresh)";
 /** One software passkey per dev user, for this process (a restart registers a fresh one on the next use). */
 const devKeys = new Map<string, SoftAuthenticator>();
 
+/**
+ * Judge build: JUDGE_MODE + DEMO_ENABLED on a PGlite database (a separate deployment that holds only demo data, reset
+ * on every cold start). A deployment on a real postgres:// database never qualifies, whatever its flags say.
+ */
+export function judgeModeActive(): boolean {
+  const e = env();
+  return e.JUDGE_MODE && e.DEMO_ENABLED && resolveDbTarget().driver === "pglite";
+}
+
 export function devLoginAllowed(): boolean {
   const e = env();
+  if (judgeModeActive()) return true;
   if (e.NODE_ENV === "production" || !e.DEMO_ENABLED || !e.DEV_LOGIN) return false;
   const rp = e.RP_ID.toLowerCase();
   return rp === "localhost" || rp === "127.0.0.1" || rp.endsWith(".trycloudflare.com") || (!!e.PHONE_HOST && rp === e.PHONE_HOST.toLowerCase());
@@ -91,7 +102,7 @@ const DevLoginBody = z.object({
 });
 
 const devRoutes: FastifyPluginAsyncZod = async (app) => {
-  if (env().NODE_ENV === "production") return;
+  if (env().NODE_ENV === "production" && !judgeModeActive()) return;
 
   app.post(
     "/auth/dev/login",

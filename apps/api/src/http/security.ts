@@ -36,7 +36,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/auth/refresh": "authenticated by the rotating refresh token in the body (RFC 9700)",
   "POST /api/auth/logout": "only revokes the presented session cookie / refresh token (if it verifies) and clears the cookie",
   "GET /api/auth/demo": "whether the welcome screen offers the demo account / dev sign-in (flags only, no personal data)",
-  "POST /api/auth/dev/login": "dev sign-in: not registered in production; DEMO_ENABLED + DEV_LOGIN + a localhost / tunnel RP_ID (auth/dev.ts)",
+  "POST /api/auth/dev/login": "dev sign-in: not registered in production (except the judge build on a PGlite database); DEMO_ENABLED + DEV_LOGIN + a localhost / tunnel RP_ID (auth/dev.ts)",
   "POST /api/auth/pair/complete": "single-use 8-character pairing code, 2-minute TTL, created behind a passkey assertion (auth/pair.ts)",
   "GET /api/public/verify/:id": "lender verification of a credit record by its 128-bit capability id",
   "GET /api/public/credit-record/:file": "credit record JSON/PDF by its 128-bit capability id",

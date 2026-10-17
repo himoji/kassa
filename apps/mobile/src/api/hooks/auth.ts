@@ -26,9 +26,10 @@ const client: ClientKind = api.kind;
 
 /**
  * GET /auth/demo: `enabled` = the server runs in demo mode (DEMO_ENABLED); `devLogin` = the dev
- * login route is on (dev/demo builds only, never production). Public, no session.
+ * login route is on (dev/demo builds only, never production, except the judge build); `judgeMode` = the judge build
+ * (a separate deployment on throwaway demo data). Public, no session.
  */
-const DemoAvailability = z.object({ enabled: z.boolean(), devLogin: z.boolean() });
+const DemoAvailability = z.object({ enabled: z.boolean(), devLogin: z.boolean(), judgeMode: z.boolean().optional() });
 
 export function useDemoAvailability() {
   return useQuery({
