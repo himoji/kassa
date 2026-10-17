@@ -1,6 +1,8 @@
 # Kassa: Technical Spec and Decisions
 
-Build spec for the FinTechathon 2026 entry (Topic C). Audience: an engineer or coding agent building the frontend and backend. This file is the source of truth for **how** to build. The product plan (`Kassa_Build_Plan.md`) is the source of truth for **what** and **why**.
+> The spec written before the build started (2026-10-10). The build follows it, with every deviation dated in [DECISIONS.md](../DECISIONS.md): bun instead of pnpm, the Vercel AI SDK instead of the Anthropic SDK, an Expo app. [ARCHITECTURE.md](../ARCHITECTURE.md) and [TESTS.md](../TESTS.md) describe what exists.
+
+Build spec for the FinTechathon 2026 entry (Topic C). Audience: an engineer or coding agent building the frontend and backend. This file is the source of truth for **how** to build. The product plan ([Kassa — Build Plan.md](Kassa%20—%20Build%20Plan.md)) is the source of truth for **what** and **why**.
 
 Deadline: feature freeze **Oct 17**, submission **Oct 20, 12:00 Budapest** (hard deadline 17:59 Budapest = 23:59 Beijing).
 
@@ -27,7 +29,7 @@ Three presets: Ask me, Smart, Autopilot. Three money modes: pay in place, capped
 
 ## 2. Security invariants (each must have a test)
 
-1. **I1. The agent has no payment capability.** The LLM's only write tool is `propose_order`. The `agent/` module must not import `payments/`, and an ESLint `no-restricted-imports` rule enforces this.
+1. **I1. The agent has no payment capability.** The LLM's only money tool is `propose_order`, which creates a proposal. The `agent/` module must not import `payments/`, and an ESLint `no-restricted-imports` rule enforces this.
 2. **I2. Payments execute only signed approvals.**
    - The payments module verifies the rules approval signature (Ed25519) and its expiry.
    - **T2 (ask):** it also verifies the user's WebAuthn assertion against **its own** credential store.
@@ -47,7 +49,7 @@ Three presets: Ask me, Smart, Autopilot. Three money modes: pay in place, capped
     - Documents, emails, notifications and screenshots are parsed by the Reader (no tools, no memory, schema output).
     - Amounts and account numbers it extracts are re-checked against the source text.
 11. **I11. Personal data is reduced before planner calls.** Placeholders replace names, account and card numbers. The server keeps the mapping.
-12. **I12. Append-only ledger.** Each entry carries `prevHash` and `hash`. Signed checkpoints are written every 20 entries. `pnpm ledger:verify` checks the chain.
+12. **I12. Append-only ledger.** Each entry carries `prevHash` and `hash`. Signed checkpoints are written every 20 entries. `bun run ledger:verify` checks the chain.
 13. **I13. Webhooks are authenticated.**
     - Stripe: signature check.
     - Mock world: HMAC-SHA256 over `timestamp.body`, with a 5-minute replay window.
@@ -59,7 +61,7 @@ Three presets: Ask me, Smart, Autopilot. Three money modes: pay in place, capped
 
 | Area | Decision | Why |
 | --- | --- | --- |
-| Monorepo | pnpm workspaces + Turborepo | Shared types between app and API; one `pnpm dev` |
+| Monorepo | bun workspaces + Turborepo | Shared types between app and API; one `bun run dev` |
 | Language | TypeScript everywhere (strict) | Shared zod schemas; mature WebAuthn, Stripe and Anthropic SDKs |
 | App | Expo (SDK current stable) + Expo Router, React Native, React Native Web | One codebase for phone and web |
 | Demo target | **Expo web build served over HTTPS** (works in phone browsers), plus native dev builds via EAS if time allows | Passkeys and Stripe work on web without native config; native passkeys need associated domains and a dev build |
@@ -93,7 +95,7 @@ kassa/
         reader/          # untrusted-content parser (no tools)
         rules/           # decisions, risk, mandates, presets, canonical order, approvals
         payments/        # approval verification, rails, own credential store, caps, nonces
-        rails/           # stripeIssuing, fakeIssuing, mockBank, handoff, payInPlace
+        rails/           # issuing (Stripe or fake), mockBank, handoff, payInPlace
         capture/         # ingest, parse, dedupe, categorize, reconcile
         budget/          # budgets, pace, notifications
         fx/              # rates, route optimizer, coverage forecast, fee profiles
@@ -101,8 +103,8 @@ kassa/
         ledger/          # hash chain, checkpoints
         payees/ mandates/ users/ auth/ notifications/ clock/ demo/
       src/db/schema.ts   # Drizzle schema
-      scripts/           # ledger-verify, scenarios, results-table, demo-evidence
-      test/              # unit, attacks/A1..A8, scenarios
+      scripts/           # ledger-verify, eval-invoices, sim/ (scenario CLI)
+      test/              # unit, invariants, attacks/A1..A17, naive baseline
     mock-world/          # Fastify: mock bank (Wise-shaped), shops, suppliers, QR wallet, POS, remittance
   packages/
     shared/              # zod schemas, CanonicalOrder, enums, money utils, currency exponents
@@ -364,7 +366,7 @@ interface Rail {
 }
 ```
 
-**Stripe Issuing (sandbox), `rails/stripeIssuing.ts`:**
+**Stripe Issuing (sandbox), `rails/issuing.ts`:**
 
 1. Create one test cardholder per user, once.
 2. For each approval, create a virtual card with `spending_controls.spending_limits: [{amount, interval: 'per_authorization'}, {amount, interval: 'all_time'}]`.
@@ -457,7 +459,7 @@ Status moves on the demo clock: `incoming_payment_waiting` → `processing` → 
 
 - `append(type, payload)`: in a transaction, read the last hash, then `hash = sha256(prevHash + JCS({seq, ts, type, payload}))`.
 - Every 20 entries, write a checkpoint signed with `LEDGER_CHECKPOINT_KEY` (Ed25519).
-- `pnpm ledger:verify`: recompute the chain, verify checkpoint signatures, exit non-zero on mismatch. The output is saved to `docs/evidence/`.
+- `bun run ledger:verify`: recompute the chain, verify checkpoint signatures, exit non-zero on mismatch. The output is saved to `docs/evidence/`.
 
 ## 15. Clock, scheduler, demo
 
@@ -540,7 +542,7 @@ app/
 
 All outgoing webhooks are HMAC-signed. Every page shows a "Simulated" banner.
 
-## 18. Seed data (`fixtures/seed.ts`)
+## 18. Seed data (`fixtures/seed-data.ts`)
 
 - **Dana:** home KZT, region EU, preset SMART, money mode CAPPED_WALLET.
 - **Incomes:** parents ₸600,000 monthly on the 25th; scholarship $400 monthly on the 1st.
@@ -576,10 +578,9 @@ All outgoing webhooks are HMAC-signed. Every page shows a "Simulated" banner.
 | A8 | Confirmation that lies (agent text differs from order) | Sheet shows canonical values; a tampered order fails signature verification |
 
 - **Naive baseline** (test-only): `test/naive/` executes the agent's raw intent directly through a stub rail without rules, for the same A1–A8. It records how many attacks paid.
-- **Scenario runs:** `pnpm scenarios --runs 10 --live` covers tuition, rent autopay, purchase, handoff, money from home and auto-log. It writes `docs/evidence/scenarios.json` (success, latency).
-- **Invoice accuracy:** `pnpm eval:invoices` runs the Reader on 30 labelled invoices and reports exact-match rate per field.
-- **Results table:** `pnpm results:table` fills the measured-results table in `docs/TESTS.md` from these JSON files.
-- **Evidence:** `pnpm demo:evidence` writes the ledger export, `ledger:verify` output, Stripe test request and event IDs, mock-bank transfer logs and scenario results to `docs/evidence/`.
+- **Scenario runs:** built as the sim CLI instead: `bun run sim` drives the API and mock world over HTTP with soft passkeys (`docs/evidence/sim/RUNBOOK.md`); `sim story` writes `docs/evidence/story.json`, and persona and attacker runs are in `docs/evidence/sim/`. Attack results: `bun run evidence:attacks`.
+- **Invoice accuracy:** `bun run eval:invoices` runs the live Reader (`READER_MODEL`) on the 30 labelled invoices and writes the exact-match rate per field, wrong values the evidence check still verified, and latency to `docs/evidence/invoice-eval.json`.
+- **Results table and evidence bundle:** not built as separate scripts; `docs/TESTS.md` and `docs/evidence/` are updated from the runs above and `bun run ledger:verify`.
 - **CI:** GitHub Actions runs lint, typecheck, unit, invariants and attacks on every push (replay mode, no API keys needed). Badge in the README.
 
 ## 20. Configuration (`.env.example`)
@@ -608,7 +609,7 @@ DEMO_ADMIN_TOKEN=
 MOCK_WORLD_URL=http://mock-world:4001
 ```
 
-`pnpm keys:generate` creates the Ed25519 and AES keys. Never commit real keys; test keys only.
+`bun run keys:generate` creates the Ed25519 and AES keys. Never commit real keys; test keys only.
 
 ## 21. Build order (three tracks, Oct 11–17)
 

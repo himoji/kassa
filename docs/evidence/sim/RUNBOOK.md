@@ -18,7 +18,7 @@ suites listed below. You run them and judge their output; you do not improvise a
 - The demo clock starts at the seed time. Only `demo clock` moves it. The 15 s scheduler is **off** in the sim;
   each `demo clock +…` runs one scheduler tick, and `demo tick` runs one without moving time.
 - Planner role: you see only placeholders (`payee_1`, `iban_1`, `person_1`). Never ask for or invent real
-  details. `propose_order` is the only write tool; the rules engine decides `AUTO` / `ASK` / `HANDOFF` / `REFUSE`.
+  details. `propose_order` is the only money tool; the rules engine decides `AUTO` / `ASK` / `HANDOFF` / `REFUSE`.
 - User role: before `approve`, run `order <proposalId>` and check the **canonical order** (payee, amount,
   currency, rail) and `hashMatches: true`. Approve only what you meant to pay. `approve` signs `orderHash` with
   the persona's passkey (the "finger").

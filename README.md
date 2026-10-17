@@ -10,7 +10,9 @@ The safety line: the agent can prepare anything, but only your signature, now or
 
 Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT and USD, her bills are in HUF and EUR.
 
-> **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos.
+> **Scope.** Everything runs in sandbox and simulated mode. There is no real money, no real bank or Wise API, and no custody. In production the wallet would be held by a licensed bank or e-money institution. All companies in the demo are fictitious and carry generic names with no real brand logos. The statement importer reads real banks' file formats (for example Kaspi) and names them so the user knows which file is which; Kassa is not affiliated with any of them.
+
+**Live demo:** https://kassa-sand.vercel.app/ (web app; approvals use a passkey on your device). **Evidence room:** https://kassa-sand.vercel.app/showcase replays the 16 attacks against the guarded and the naive agent, walks a request through rules and passkey, and lets you tamper with a ledger entry (static page, `apps/mobile/public/showcase/`).
 
 ## Quickstart
 
@@ -58,8 +60,8 @@ Details, phone testing and deployment are below.
 | Technical documentation  | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
 | Source code              | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md))                                                  |
 | Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7)                                               |
-| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations; the attack results as a page at `/evidence` in the web app (no sign-in) |
-| Presentation deck        | Separate slide deck (10 slides, about 10 minutes): link to be added at submission                                                    |
+| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations; `bun run ledger:anchor` adds the testnet transaction hashes of anchored ledger checkpoints (`anchors.json`, see "On-chain anchoring"); the attack results as a page at `/evidence` in the web app (no sign-in) |
+| Presentation deck        | Separate slide deck (14 slides, about 10 minutes): link to be added at submission                                                    |
 | Demo video               | Recorded with `bun run demo:video` ([docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)); link to be added at submission                       |
 
 Dates in the evidence (late October and November 2026) are on the **demo clock**: the seed data is a story set on 2026-10-27 and the demo moves its clock forward (rent day, payouts). The app itself runs on real time by default; the Stage's **Demo time** switch turns the story clock on (DECISIONS.md, 2026-10-16).
@@ -186,12 +188,29 @@ bun run typecheck      # tsc in every workspace
 bun run lint           # ESLint: root config for api, mock-world and shared (includes the I1 and I2 import rules); mobile runs `expo lint`
 bun run test           # Vitest suites (api, mock-world, shared) and the mobile Jest suite
 bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; exits 1 on any mismatch
+bun run ledger:anchor:verify  # re-reads each anchor transaction from the testnet and compares it with the ledger
 ```
 
-- Counts from the latest run (2026-10-16, per workspace): API 1,026 tests in 132 files, one opt-in live-AI smoke test skipped (unit, invariant, attack, security and integration), mock world 361, shared 53, mobile Jest 875 in 78 suites (including the locale checks for zh, ru and kk). Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+- Counts from the latest run (2026-10-17, per workspace): API 1,034 tests in 134 files (one opt-in live-AI smoke test file skipped) (unit, invariant, attack, security and integration), mock world 361, shared 53, mobile Jest 875 in 78 suites (including the locale checks for zh, ru and kk). Each test file and what it asserts is listed in [docs/TESTS.md](docs/TESTS.md) and [docs/SECURITY.md](docs/SECURITY.md).
 - Attack suite (`apps/api/test/attacks/`): A1 to A8 from the spec, A9 (swapped invoice bank details), and A10 to A17, which recreate real incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake memories, MCP tool poisoning and EchoLeak, the Chevrolet "$1 Tahoe" and Project Vend, salami splitting, "safe account" scams). The planner and Reader in them obey the attacker. `bun run evidence:attacks`: **guarded paid 0 of 16, naive paid 16 of 16** (`docs/evidence/attacks.json`; sources in [docs/SECURITY.md](docs/SECURITY.md) §6).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
+- Reader accuracy: `bun run eval:invoices` runs the live Reader (`READER_MODEL`, needs its key) on the 30 labelled invoices in `fixtures/invoices/` and writes the exact-match rate per field, wrong values the evidence check still verified, and latency to `docs/evidence/invoice-eval.json`.
 - CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.
+
+## On-chain anchoring (testnet)
+
+Every 20 ledger entries Kassa writes a checkpoint signed with Ed25519. `bun run ledger:anchor` publishes each checkpoint not yet anchored on an EVM testnet (Sepolia by default): a zero-value transaction from the anchor account to itself, with the plain-text memo `kassa:ledger-anchor:v1:<seq>:<headHash>:<keyId>` as its input data, so a block explorer shows it as text. It also adds a `LEDGER_ANCHORED` entry to the ledger and keeps the list, with explorer links, in `docs/evidence/anchors.json`.
+
+```bash
+ANCHOR_PRIVATE_KEY=0x... bun run ledger:anchor          # a testnet-only account with a little test ETH from a faucet
+bun run ledger:anchor:verify                            # chain vs. evidence file vs. current ledger; exits 1 on any mismatch
+bun run ledger:anchor:verify --no-db                    # chain vs. evidence file only, for a reviewer without the database
+```
+
+- Options: `ANCHOR_CHAIN` (`sepolia` or `holesky`), `ANCHOR_RPC_URL` (defaults to the chain's public RPC), `ANCHOR_EXPLORER_URL`.
+- What it proves: a checkpoint changed or removed after it was anchored no longer matches its transaction, and a mined transaction cannot be edited. It closes the rollback gap in SECURITY.md R28 up to the last anchored checkpoint.
+- What it does not do: no money or tokens move (value 0, test gas only), no personal data goes on chain (only the checkpoint hash and key id), and the anchor key is separate from every Kassa signing key.
+- Code: `apps/api/src/modules/ledger/anchor.ts`, `apps/api/scripts/ledger-anchor.ts`, `apps/api/scripts/ledger-anchor-verify.ts`; tests: `apps/api/test/core/ledger-anchor.test.ts`.
 
 ## Deploy on Vercel
 
