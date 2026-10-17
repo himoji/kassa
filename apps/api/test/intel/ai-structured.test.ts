@@ -79,6 +79,22 @@ describe("structured output strategy (any provider)", () => {
     expect(cachedStructuredMode(model)).toBe("json");
   });
 
+  it("a schema too large for constrained decoding (Anthropic's 'compiled grammar is too large') falls back like a missing capability", async () => {
+    const tooLarge = () =>
+      new APICallError({ message: "Provider returned error", url: "https://x/chat/completions", requestBodyValues: {}, statusCode: 400, responseBody: '{"error":{"message":"Provider returned error","code":400,"metadata":{"raw":"{\\"type\\":\\"error\\",\\"error\\":{\\"type\\":\\"invalid_request_error\\",\\"message\\":\\"The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools.\\"}}"}}}' });
+    const model = new MockLanguageModelV4({
+      provider: "test",
+      modelId: `m-${randomUUID()}`,
+      doGenerate: async (call) => {
+        if (modeOf(call) !== "json") throw tooLarge();
+        return text(JSON.stringify({ name: "g", count: 4 }));
+      },
+    });
+    const r = await generateStructured({ model, schema: Schema, instructions: "x", prompt: "p", env });
+    expect(r).toEqual({ output: { name: "g", count: 4 }, mode: "json" });
+    expect(model.doGenerateCalls.map(modeOf)).toEqual(["native", "tool", "json"]);
+  });
+
   it("AI_STRUCTURED_MODE picks the first mode to try", async () => {
     const model = provider({ native: true, tools: true }, () => ({ name: "d", count: 4 }));
     const r = await generateStructured({ model, schema: Schema, instructions: "x", prompt: "p", env: { AI_STRUCTURED_MODE: "json" } });

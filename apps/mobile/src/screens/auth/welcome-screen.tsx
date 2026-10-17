@@ -100,6 +100,7 @@ function DemoButton() {
   const [error, setError] = useState<string | null>(null);
   if (!demo.data?.enabled) return null;
   const pending = register.isPending || devLogin.isPending;
+  const judge = demo.data.judgeMode === true && demo.data.devLogin;
 
   const start = async (dev: boolean) => {
     setError(null);
@@ -143,14 +144,15 @@ function DemoButton() {
           <Button
             size="lg"
             variant="secondary"
-            onPress={() => void start(false)}
-            loading={register.isPending}
-            disabled={devLogin.isPending}
+            // Judge build: no passkey device needed, the main button signs in with the server-held key.
+            onPress={() => void start(judge)}
+            loading={judge ? devLogin.isPending : register.isPending}
+            disabled={judge ? register.isPending : devLogin.isPending}
           >
             {t("auth:welcome.demo")}
           </Button>
         </View>
-        {demo.data.devLogin ? (
+        {demo.data.devLogin && !judge ? (
           <View accessibilityLabel={t("common:devPasskeyLabel")} testID="demo-dev-button">
             <Button
               size="lg"

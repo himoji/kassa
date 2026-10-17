@@ -52,6 +52,9 @@ export function structuredModeOverride(env: Env = process.env): StructuredMode |
 }
 
 const CAPABILITY_STATUS = new Set([400, 404, 422]);
+// A schema too big for the provider's constrained decoding (Anthropic: "The compiled grammar is too large") is a
+// capability limit of that mode too: the next mode (a looser tool call, then JSON text) still works.
+const SCHEMA_TOO_LARGE = /grammar is too large|schema is too (?:large|complex)/i;
 const NATIVE_UNSUPPORTED = /structured[-_ ]?outputs?|response[-_ ]?format|json[-_ ]?schema|json[-_ ]?object|json[-_ ]?mode/i;
 const TOOLS_UNSUPPORTED = /tool|function[-_ ]?call/i;
 
@@ -60,7 +63,7 @@ export function isCapabilityError(e: unknown, mode: Exclude<StructuredMode, "jso
   const api = apiCallErrorOf(e);
   if (!api || api.statusCode === undefined || !CAPABILITY_STATUS.has(api.statusCode)) return false;
   const text = `${api.message}\n${api.responseBody ?? ""}`;
-  return (mode === "native" ? NATIVE_UNSUPPORTED : TOOLS_UNSUPPORTED).test(text);
+  return SCHEMA_TOO_LARGE.test(text) || (mode === "native" ? NATIVE_UNSUPPORTED : TOOLS_UNSUPPORTED).test(text);
 }
 
 class InvalidOutput extends Error {
