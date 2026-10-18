@@ -3,7 +3,8 @@
   "bestRoute": "最佳路线：从{{from}}通过 {{rail}}，约 {{cost}}",
   "coverage": {
     "COVERED": "资金充足",
-    "SHORTFALL": "资金不足"
+    "SHORTFALL": "资金不足",
+    "UNKNOWN": "无法核实"
   },
   "covered45": "未来 45 天资金充足",
   "dueOn": "{{date}} 到期 · {{category}}",

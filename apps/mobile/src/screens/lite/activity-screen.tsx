@@ -10,6 +10,7 @@ import { RowGroup } from "@/components/row-group";
 import { Box, Icon, Text } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { useDataMode, visibleCaptures } from "@/lite/data-mode";
 import { useRecentCaptures } from "@/lite/use-recent-captures";
 import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
 import { purchaseHref } from "@/screens/transaction/transaction-detail-screen";
@@ -111,7 +112,10 @@ export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
   const t = useKassaT();
   const f = useFormat();
   const insights = useSpendingInsights();
-  const groups = groupByDay(data.captures);
+  const mode = useDataMode();
+  const shown = visibleCaptures(data.captures, mode);
+  const hidden = data.captures.length - shown.length;
+  const groups = groupByDay(shown);
   const home = insights.data?.homeCurrency;
   return (
     <>
@@ -166,11 +170,21 @@ export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
           </RowGroup>
         );
       })}
+      {hidden > 0 ? (
+        <Box px={4} testID="simulated-hidden">
+          <Text variant="caption" align="center">
+            {t("lite:activity.simulatedHidden", { count: hidden })}
+          </Text>
+        </Box>
+      ) : null}
     </>
   );
 }
 
-/** Activity tab: purchases the Apple Pay Shortcut captured (GET /capture/recent), polled while visible. */
+/**
+ * Activity tab: purchases the Apple Pay Shortcut captured (GET /capture/recent), polled while visible. Real mode
+ * (Settings → Data shown, the default) leaves out simulated and demo-seed purchases.
+ */
 export function ActivityScreen() {
   const recent = useRecentCaptures();
   const insights = useSpendingInsights();

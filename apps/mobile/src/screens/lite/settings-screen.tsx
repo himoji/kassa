@@ -2,10 +2,12 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
+import { Segmented } from "@/components/kassa/segmented";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Icon, Input, Row, Text, toast, useTheme } from "@/components/ui";
 import { confirm } from "@/lib/confirm";
 import { useKassaT } from "@/lib/i18n";
+import { setDataMode, useDataMode, type DataMode } from "@/lite/data-mode";
 import { syncIntentConfig } from "@/lite/intent-config";
 import { loadDisplayName } from "@/lite/profile";
 import {
@@ -19,10 +21,11 @@ import { liteSignOut } from "@/lite/sign-out";
 import { serverHost, ShortcutSetup } from "./shortcut-setup";
 import { UpdatesSection } from "./updates-section";
 
-/** KassaLite settings: pairing state, Shortcut install, server URL, sign out. */
+/** KassaLite settings: pairing state, Shortcut install, data shown, server URL, sign out. */
 export function LiteSettingsScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
+  const dataMode = useDataMode();
   const [name, setName] = useState<string | null>(null);
   const [server, setServer] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -122,6 +125,22 @@ export function LiteSettingsScreen() {
       </RowGroup>
 
       <ShortcutSetup />
+
+      <RowGroup
+        title={t("lite:settings.dataMode.title")}
+        footer={t(`lite:settings.dataMode.${dataMode}Footer`)}
+      >
+        <Box p={4} testID="data-mode">
+          <Segmented<DataMode>
+            options={[
+              { value: "real", label: t("lite:settings.dataMode.real") },
+              { value: "simulated", label: t("lite:settings.dataMode.simulated") },
+            ]}
+            value={dataMode}
+            onChange={setDataMode}
+          />
+        </Box>
+      </RowGroup>
 
       <RowGroup
         title={t("lite:settings.serverTitle")}

@@ -10,8 +10,8 @@
  */
 import { isoDate } from "../clock/index.ts";
 import { loadRails } from "../fx/rails.ts";
-import { getRoutes } from "../fx/routes.ts";
-import { walletBalances } from "./facts.ts";
+import { getRoutes, type RankedRoute } from "../fx/routes.ts";
+import { walletBalances, type WalletBalances } from "./facts.ts";
 
 /** Head-room for rate moves / rounding between proposal and bank quote, on converted routes only. */
 export const FX_TOLERANCE_BPS = 100;
@@ -28,7 +28,8 @@ export type Funding = {
 };
 
 export type FundingChoice =
-  | { status: "OK"; funding: Funding }
+  /** `route`: the optimizer's ranked route behind `funding` (shown as the bill's best route, money/routes.ts). */
+  | { status: "OK"; funding: Funding; route: RankedRoute }
   /** Balances known and no executable route covers the order. */
   | { status: "NONE" }
   /** Balances unknown (mock bank unreachable): same-currency route bound, the bank's funds check is the backstop. */
@@ -54,10 +55,19 @@ export async function chooseFunding(a: {
    * whatever the route needs (the pull leg brings exactly the signed maximum into the wallet first).
    */
   linkedCurrency?: string | undefined;
+  /**
+   * (added 2026-10-18) Wallet balances already read by the caller (null = unknown), so a list of bills reads the
+   * wallet once. Omitted = read here. Ignored with linkedCurrency.
+   */
+  balances?: WalletBalances | null;
 }): Promise<FundingChoice> {
   const today = isoDate(a.now);
   const rails = a.linkedCurrency ? bankRails().filter((r) => !r.fundingCurrencies || r.fundingCurrencies.includes(a.linkedCurrency!)) : bankRails();
-  const balances = a.linkedCurrency ? [{ currency: a.linkedCurrency, amountMinor: Number.MAX_SAFE_INTEGER }] : await walletBalances(a.userId);
+  const balances = a.linkedCurrency
+    ? [{ currency: a.linkedCurrency, amountMinor: Number.MAX_SAFE_INTEGER }]
+    : a.balances !== undefined
+      ? a.balances
+      : await walletBalances(a.userId);
 
   if (!balances) {
     // Unknown balances: bind the same-currency route (no conversion, so the debit is exact).
@@ -95,5 +105,6 @@ export async function chooseFunding(a: {
       markupBps: best.markupBps,
       arrivalDate: best.arrivalDate,
     },
+    route: best,
   };
 }

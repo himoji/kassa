@@ -13,8 +13,9 @@
  * Ledger (p2 B2): one DEMO_SEEDED entry per seeded user, naming only that user, so a DSAR export
  * (payload userId = subject) never contains another persona's identifiers.
  */
-import { PRESET_DEFAULTS, type PayeeKind, type RecipientDetails } from "@kassa/shared";
+import { PRESET_DEFAULTS, type MandateCore, type PayeeKind, type RecipientDetails } from "@kassa/shared";
 import { sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 
 import type { Db } from "../../db/client.ts";
 import {
@@ -81,6 +82,10 @@ export type SeedData = {
   mockBankProfileId: number;
   /** Extra demo personas (only inserted with `{ personas: true }`). */
   personas?: readonly SeedPersonaData[];
+  /** Capped-wallet balances in the mock bank (mock-world seeds them for the seeded profile ids). */
+  balances?: readonly { currency: string; amountMinor: number }[];
+  /** Mandates the user signs during onboarding (never inserted by the seed: they need a passkey signature). */
+  mandates?: readonly { label: string; core: MandateCore }[];
   /** (added 2026-10-16) Linked cards and bank accounts, inserted ACTIVE (simulated). */
   fundingSources?: readonly { id: string; kind: "CARD" | "BANK"; provider: "STRIPE" | "MOCK_BANK"; institution: string; last4: string; country: string; currency: string; providerRef: string }[];
   user: { id: string; displayName: string; homeCurrency: string; region: "EU" | "CN"; preset: "ASK_ME" | "SMART" | "AUTOPILOT"; moneyMode: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF"; createdAt: string };
@@ -178,7 +183,13 @@ const SEED_KYC_COUNTRY: Readonly<Record<string, string>> = { KZT: "KZ", CNY: "CN
 /** Insert one user and everything they own (inside the seed transaction). */
 type SeedTx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
-async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaData, "accountType">, aiConsent: boolean): Promise<void> {
+/** `bankProfileId` defaults to the seeded mock-bank profile; a judge-build copy passes null (its own wallet, opened later). */
+async function insertUserData(
+  tx: SeedTx,
+  data: SeedUserData & Pick<SeedPersonaData, "accountType">,
+  aiConsent: boolean,
+  bankProfileId: number | null = data.mockBankProfileId,
+): Promise<void> {
   const u = data.user;
   const minBalances = data.profile.reserveRules.minBalances ?? [];
   const reserveHome = minBalances.filter((b) => b.currency === u.homeCurrency).reduce((s, b) => s + b.amountMinor, 0);
@@ -205,7 +216,7 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
     },
     // DEFAULT_CAPS are KZT-sized (the hero's home currency); other personas bring caps in their own currency.
     caps: data.profile.caps ?? { ...DEFAULT_CAPS, reserveMinor: reserveHome || DEFAULT_CAPS.reserveMinor },
-    bankProfileId: data.mockBankProfileId,
+    bankProfileId,
   });
   if (data.cards.length) await tx.insert(cards).values(data.cards.map((c) => ({ id: c.id, label: c.label, last4: c.last4, billingCurrency: c.billingCurrency, kind: c.kind, userId: u.id })));
   if (data.cardFeeProfiles.length) {
@@ -257,14 +268,11 @@ async function insertUserData(tx: SeedTx, data: SeedUserData & Pick<SeedPersonaD
   if (data.budgets.length) {
     await tx.insert(budgets).values(data.budgets.map((b) => ({ id: b.id, category: b.category, periodStart: b.periodStart, periodEnd: b.periodEnd, limitHomeMinor: b.limitHomeMinor, userId: u.id })));
   }
-  for (const t of data.transactions) {
-    await tx.insert(transactions).values({
-      ...t,
-      userId: u.id,
-      occurredAt: new Date(t.occurredAt),
-      rateUsed: Number(t.rateUsed),
-      createdAt: new Date(t.occurredAt),
-    });
+  // Batched: one round trip instead of one per row (a judge-build sign-in copies these on every login).
+  for (let i = 0; i < data.transactions.length; i += 500) {
+    await tx.insert(transactions).values(
+      data.transactions.slice(i, i + 500).map((t) => ({ ...t, userId: u.id, occurredAt: new Date(t.occurredAt), rateUsed: Number(t.rateUsed), createdAt: new Date(t.occurredAt) })),
+    );
   }
 }
 
@@ -326,4 +334,63 @@ export async function seedDatabase(
     });
   }
   return { userId: u.id, personaUserIds: personas.map((p) => p.user.id) };
+}
+
+// ---------- Judge build: a private copy of a seeded persona per sign-in ----------
+
+/** RFC 9562 §5.5 UUIDv5 (SHA-1, name-based), the construction fixtures/uuid.ts uses for the seed ids. */
+function uuidV5(name: string, namespace: string): string {
+  const h = createHash("sha1").update(Buffer.from(namespace.replace(/-/g, ""), "hex")).update(name, "utf8").digest().subarray(0, 16);
+  h[6] = (h[6]! & 0x0f) | 0x50; // version 5
+  h[8] = (h[8]! & 0x3f) | 0x80; // variant 10xx (RFC 9562 §4.1)
+  const x = h.toString("hex");
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+
+function collectIds(v: unknown, out: Set<string>): void {
+  if (Array.isArray(v)) for (const x of v) collectIds(x, out);
+  else if (v && typeof v === "object") {
+    for (const [k, x] of Object.entries(v)) {
+      if (k === "id" && typeof x === "string") out.add(x);
+      else collectIds(x, out);
+    }
+  }
+}
+
+function remapValue(v: unknown, ids: ReadonlyMap<string, string>, fromUser: string, toUser: string): unknown {
+  if (typeof v === "string") return ids.get(v) ?? (v.includes(fromUser) ? v.replaceAll(fromUser, toUser) : v);
+  if (Array.isArray(v)) return v.map((x) => remapValue(x, ids, fromUser, toUser));
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, remapValue(x, ids, fromUser, toUser)]));
+  return v;
+}
+
+/**
+ * The same seeded user under a new user id `userId`. Every seeded row id (each `id` field: payees, bills, cards, budgets,
+ * transactions, funding sources, the merchant and its rows) becomes UUIDv5(old id, namespace = userId), and every
+ * reference to one (payeeId, cardId, replacesPayeeId, mergedIntoId, supplierPayeeId, mandate payeeIds) follows it; the
+ * old user id is replaced everywhere it appears (user.id, dedupe keys, mandate cores). A business copy gets its own
+ * merchant slug (`<slug>-<userId>`, merchants.slug is unique), so mock-world's storefront and till stay with the
+ * seeded shop.
+ */
+export function seedUserCopy<T extends SeedUserData & Pick<SeedPersonaData, "business">>(data: T, userId: string): T {
+  const old = new Set<string>();
+  collectIds(data, old);
+  old.add(data.user.id);
+  const ids = new Map([...old].map((id) => [id, id === data.user.id ? userId : uuidV5(id, userId)]));
+  const copy = remapValue(data, ids, data.user.id, userId) as T;
+  if (copy.business) copy.business.merchant.slug = `${data.business!.merchant.slug}-${userId}`;
+  return copy;
+}
+
+/**
+ * Judge build (auth/dev.ts `judgeModeActive`): insert `copy` (from `seedUserCopy`) as a new, private account. Same rows
+ * as `seedDatabase` inserts for a persona, except the wallet: `bankProfileId` stays null, so the caller opens a wallet
+ * of the copy's own in the mock bank (wallet/service.ts ensureWalletProfile). No AI consent, like the seed.
+ */
+export async function insertSeedUserCopy(db: Db, seedNow: string, copy: SeedUserData & Pick<SeedPersonaData, "accountType" | "business">, copyOf: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await insertUserData(tx, copy, false, null);
+    if (copy.business) await insertBusinessData(tx, copy.user.id, copy.business);
+  });
+  await ledger.append("DEMO_SEEDED", { userId: copy.user.id, seedNow, payees: copy.payees.length, transactions: copy.transactions.length, copyOf });
 }

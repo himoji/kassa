@@ -181,6 +181,36 @@ Instead of the `Authorization` header, the key can be the `key` query parameter:
 `https://<host>/api/capture/shortcut?key=<token>`. KassaLite copies this one link so a hand-built Shortcut needs a
 single paste. The server log redacts `key`.
 
+### The ready-made Shortcut (KassaLite, optional)
+
+KassaLite's one setup button can open a published Shortcut instead of making the person build one. Nothing in the
+repository contains such a Shortcut: someone publishes it once from an iPhone and the link goes into the KassaLite
+bundle. Until then the button copies the link for a hand-built Shortcut (above), and nothing else changes.
+
+Publish it:
+
+1. In Shortcuts, make a new shortcut named **Log to Kassa** (the name KassaLite tells people to pick).
+2. Add the actions of section 3 (Get Contents of URL with `POST`, JSON body `merchant`, `amount`, `card` from
+   Shortcut Input; Get Dictionary Value `nudge`; Show Notification). Put **no header**: the URL carries the key. If
+   the editor does not offer Merchant, Amount and Card or Pass on Shortcut Input outside an automation, stop here:
+   that iOS version cannot run this route, keep the hand-built one.
+3. Open the shortcut's details (**ⓘ**) → **Setup** → **Add Question**, choose the URL field of Get Contents of URL and
+   use the question "Paste the link KassaLite copied". An import question's answer is not shared, so your own key is
+   not in the published copy; check that the URL field is empty in the copy you share anyway, and revoke your token
+   if it was not.
+4. **Share** → **Copy iCloud Link**.
+5. Set `EXPO_PUBLIC_KASSALITE_SHORTCUT_URL=https://www.icloud.com/shortcuts/<id>` in `apps/mobile/.env` (or the EAS
+   environment) and ship it with `bun run ota lite "…"`. KassaLite ignores a value that is not an
+   `https://www.icloud.com/shortcuts/…` link.
+6. Test it on a second iPhone before shipping: set up from KassaLite, pay once, and read the tap check. The shortcut
+   must get the Transaction as its Shortcut Input from the automation that runs it; if the Merchant or Amount line
+   says "empty", it does not on that iOS version, and the link must not be shipped.
+
+The flow with the link set: the button checks the server and key, copies `https://<host>/api/capture/shortcut?key=<token>`
+(the key is only on the clipboard, never in a URL KassaLite opens) and opens the iCloud link. The person taps **Add
+Shortcut**, pastes when asked, then makes the automation, which iOS lets no app create: **Automation → + →
+Transaction → Run Immediately → Log to Kassa**.
+
 ### Tap check (GET /api/devices)
 
 Every request from a Shortcut (or the KassaLite action, `X-Kassa-Client: log-payment-action`) records on its device

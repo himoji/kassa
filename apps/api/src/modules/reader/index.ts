@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { ReaderDocType } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
+import { users } from "../../db/schema.ts";
 import { agentDocuments } from "../../db/schema.intel.ts";
 import { currentAgentMode, recordingEnabled } from "../ai/mode.ts";
 import { DocumentError, loadDocument, sourceOf } from "./documents.ts";
@@ -32,13 +33,21 @@ export async function readUntrusted(kind: ReaderDocType, source: UntrustedSource
   return readCore(kind, src, await modeOptions(opts));
 }
 
+/** The user's own names as the Reader's payee check knows them (users.displayName; there is no separate legal name). */
+async function accountHolderNames(userId: string): Promise<string[]> {
+  const u = (await getDb().select({ displayName: users.displayName }).from(users).where(eq(users.id, userId)))[0];
+  return u?.displayName ? [u.displayName] : [];
+}
+
 /** Read an uploaded document (cached per doc). `kind` defaults to the upload's kind, else invoice. */
 export async function readDocument(docId: string, opts: ReadOptions & { userId?: string; kind?: ReaderDocType } = {}): Promise<ReaderResult> {
   const row = await loadDocument(docId, opts.userId);
   if (!row) throw new DocumentError("DOC_NOT_FOUND", "Document not found");
   const kind = opts.kind ?? row.kind ?? "invoice";
   if (row.readerResult && (row.readerResult as { kind?: string }).kind === kind) return row.readerResult as unknown as ReaderResult;
-  const result = await readCore(kind, sourceOf(row), await modeOptions(opts));
+  // The reader's own name is never accepted as an invoice's payee (the "Bill to" person, not the creditor).
+  const holder = opts.accountHolderNames ?? (await accountHolderNames(row.userId));
+  const result = await readCore(kind, sourceOf(row), { ...(await modeOptions(opts)), accountHolderNames: holder });
   await getDb()
     .update(agentDocuments)
     .set({ kind, readerResult: result as unknown as Record<string, unknown> })

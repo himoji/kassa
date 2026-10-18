@@ -15,10 +15,12 @@ import { ingestCapture, type CaptureInput } from "../capture/index.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { addDays } from "../fx/dates.ts";
 import { forecastCoverage, getBalances, getRoutes, toHome } from "../fx/index.ts";
+import { getRoutes as rankRoutes } from "../fx/routes.ts";
 import { accountHash, readDetails } from "../payees/crypto.ts";
 import { readDocument, type ReaderResult } from "../reader/index.ts";
 import { payeeHistory } from "../rules/facts.ts";
 import { proposeOrder, type ProposeOrderInput, type ProposeOrderResult } from "../rules/index.ts";
+import { maxPayablePerRoute } from "./capacity.ts";
 
 /*
  * Everything the planner's tools can touch, as one interface. The DB implementation below is the only
@@ -88,6 +90,15 @@ export interface CatalogLookup {
   storeId?: string;
 }
 
+/** One funding route's ceiling: the most of the bill currency it pays from `balanceMinor` (fundingCurrency). */
+export interface MaxPayableRow {
+  routeId: string;
+  label: string;
+  fundingCurrency: string;
+  balanceMinor: number;
+  maxAmountMinor: number;
+}
+
 export interface AgentPorts {
   userId: string;
   conversationId: string;
@@ -106,6 +117,11 @@ export interface AgentPorts {
    */
   catalogDirectory?(): Promise<Array<{ id: string; name: string; storeId?: string }>>;
   routes(a: { fromCurrency?: string; toCurrency: string; amountMinor: number; dueDate?: string }): Promise<{ homeCurrency: string; routes: RouteDto[] }>;
+  /**
+   * The largest bill in `toCurrency` each funding route can pay from today's balance (capacity.ts), so the planner
+   * never probes get_routes with guessed amounts. Optional: without it get_routes answers routes only.
+   */
+  maxPayable?(a: { toCurrency: string; dueDate?: string }): Promise<MaxPayableRow[]>;
   forecast(): Promise<ForecastResponse>;
   /** This month's spending per category, budgeted or not, against a usual month and monthly income (budget/context.ts). */
   spending(): Promise<SpendContext>;
@@ -266,6 +282,21 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     async routes(a) {
       const r = await getRoutes({ userId, ...a });
       return { homeCurrency: r.homeCurrency, routes: r.routes.map(({ amountInFundingMinor: _a, totalDebitFundingMinor: _t, ...dto }) => dto) };
+    },
+    async maxPayable({ toCurrency, dueDate }) {
+      const [{ homeCurrency }, balances] = await Promise.all([this.profile(), getBalances(userId)]);
+      const today = isoDate(clock.now());
+      const out: MaxPayableRow[] = [];
+      for (const b of balances) {
+        // The optimizer without its balance cap, for this funding currency only; the cap is applied by the search.
+        const priced = (amountMinor: number) =>
+          rankRoutes({ amountMinor, toCurrency, homeCurrency, today, dueDate, balances: [{ currency: b.currency, amountMinor: Number.MAX_SAFE_INTEGER }], top: Number.MAX_SAFE_INTEGER });
+        const labels = new Map((await priced(1)).map((r) => [r.routeId, r.label]));
+        for (const [routeId, maxAmountMinor] of await maxPayablePerRoute(priced, b.amountMinor)) {
+          out.push({ routeId, label: labels.get(routeId) ?? routeId, fundingCurrency: b.currency, balanceMinor: b.amountMinor, maxAmountMinor });
+        }
+      }
+      return out;
     },
     forecast: () => forecastCoverage(userId),
     spending: () => spendContext(userId, "other"),

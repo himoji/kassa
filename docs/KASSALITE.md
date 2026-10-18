@@ -16,7 +16,7 @@ What is in it (since 2026-10-15 it matches the web app for everything that does 
 - **Recipients** and **Bills**: add a recipient (it cools for 24 h like anywhere else), find your school, pay a bill.
 - **Send** and **Add money**, from your Kassa balance or a linked card or bank, with the live quote.
 - **Linked accounts** (the list; **Link a card** / **Link a bank account** open that form on the web app, which confirms it with the passkey and sends you back), **Your data** (export) and **Credit record**, from Settings.
-- Face ID lock, Shortcut install, server URL, updates, sign out.
+- Face ID lock, Shortcut install, data shown (Real or Simulated), server URL, updates, sign out.
 
 Not in it, by design: anything that signs with a passkey (approving a payment, linking a card or bank, confirming a recipient, changing rules and budgets, backup codes), remote push (KassaLite notifies when it is open or comes to the foreground, the Shortcut itself shows the instant banner), Apple Pay inside the app, passkey sign-in. Those steps hand off to the web app (see Approvals).
 
@@ -39,8 +39,13 @@ The Shortcut is the capture path: it must be set up once. The reference is [SHOR
 **Set up Apple Pay logging** (the one button):
 
 1. Checks the server and key from this iPhone: POST `/api/capture/shortcut` `{"test": true}` with the Shortcut's key (nothing logged or recorded). A revoked key or an unreachable server is reported here, before the person goes to Shortcuts.
-2. Readies the automation's only input. A build **with** the Kassa action: writes the action's Keychain copy, nothing to paste. Any other build: copies **one link**, `https://<server>/api/capture/shortcut?key=<token>` (the key in the URL, so no header; the server log redacts `key`).
-3. Opens Shortcuts. The card shows the few steps (Automation → Transaction → Run Immediately → the Kassa action, or Get Contents of URL with the link and the three JSON fields) and **Copy steps for AI**: a prompt for ChatGPT or another assistant that walks the person through it tap by tap. The prompt never contains the key.
+2. Readies the automation's only input. A build **with** the Kassa action: writes the action's Keychain copy, nothing to paste. Any other build: copies **one link**, `https://<server>/api/capture/shortcut?key=<token>` (the key in the URL, so no header; the server log redacts `key`). The key goes on the clipboard only on this tap and is never part of a URL the app opens.
+3. Opens the **ready-made Shortcut** when the bundle has its iCloud link (`EXPO_PUBLIC_KASSALITE_SHORTCUT_URL`, see [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md), "The ready-made Shortcut"), Shortcuts otherwise. One line then says what is left:
+   - ready-made Shortcut: "Tap Add Shortcut and paste when asked. Then Automation → + → Transaction → Run Immediately → choose “Log to Kassa”."
+   - Kassa action: "Automation → + → Transaction → Run Immediately → New Blank Automation → add “Log Payment in Kassa”."
+   - hand-built: "Automation → + → Transaction → Run Immediately → New Blank Automation → Get Contents of URL → paste."
+
+The full steps, and **Copy steps for AI** (a prompt for ChatGPT or another assistant that walks the person through it tap by tap; it never contains the key), sit behind **Manual setup**, closed by default. **Fix in Shortcuts** after a tap that needs a fix opens Shortcuts itself, never the ready-made Shortcut again (that would add a second copy).
 
 iOS does not let an app create a personal automation, so the Transaction automation itself is always made in Shortcuts by the person.
 
@@ -56,6 +61,8 @@ iOS does not let an app create a personal automation, so the Transaction automat
 | Logged | in Activity (or "already logged", "refund") | not logged |
 
 All required lines right: **Everything works**, with a success haptic and toast if it arrives while the screen is open. Otherwise **Kassa got your tap: N things to fix**, a **Fix in Shortcuts** button, and the card keeps checking until the next tap is right. A tap whose automation sends a merchant but no amount reaches the server as `INCOMPLETE`, and the Shortcut's own notification already says what to fix.
+
+**Data shown** (Settings): **Real**, the default, shows only purchases that really happened in Activity (Apple Pay taps from the Shortcut or the action, text, voice and screenshot captures) and only those notify. **Simulated** also shows the demo world: notification-simulator purchases (`source: NOTIF_SIM`) and the demo seed's purchases. GET `/api/capture/recent` has no demo flag, so a seeded purchase is recognised by its `createdAt` being equal to its `occurredAt` (the seed writes both from one value; a live capture's `createdAt` comes later). The choice is kept on the iPhone (`src/lite/data-mode.ts`). The month summary above the list comes from the server and is not filtered.
 
 **Log Payment in Kassa** is an App Intent compiled into the app (`apps/mobile/plugins/log-payment-intent/LogPaymentIntent.swift`, added to the app target by `plugins/with-log-payment-intent.js` for `APP_VARIANT=lite`). App Intents need no entitlement, so a free Personal Team signs it. It POSTs `{merchant, amount, card, street?, city?, country?}` to `<server>/api/capture/shortcut` with the Shortcut's key and `X-Kassa-Client: log-payment-action` (empty amount: a test run), posts the reply's `nudgeTitle` / `nudgeBody` as a local notification when KassaLite may notify (parameter **Show Notification**, on by default) and returns `nudge` as its result. It runs in the background without opening KassaLite. Server and key come from a Keychain copy the app writes at launch, after pairing and after a server change (`src/lite/intent-config.ts`, removed on sign out): unlike the session's key item it is *after first unlock, this device only*, because the Transaction automation can run while the iPhone is still locked after an Apple Pay tap — the same exposure as the key a hand-built Shortcut stores in Shortcuts.
 

@@ -29,7 +29,9 @@
     "today": "Today",
     "yesterday": "Yesterday",
     "openHint": "Opens the purchase",
-    "notifyOpen": "Tap to see the details."
+    "notifyOpen": "Tap to see the details.",
+    "simulatedHidden_one": "1 simulated purchase hidden. Settings → Data shown → Simulated shows it.",
+    "simulatedHidden_other": "{{count}} simulated purchases hidden. Settings → Data shown → Simulated shows them."
   },
   "pair": {
     "title": "Pair KassaLite",
@@ -55,22 +57,29 @@
     "setup": {
       "start": {
         "title": "Log every Apple Pay purchase",
-        "body": "One automation in the Shortcuts app sends each purchase to Kassa. It takes about a minute, once.",
+        "body": "One tap readies everything and opens Shortcuts. You then add one automation, once.",
         "button": "Set up Apple Pay logging"
       },
       "copiedLink": "Link copied: paste it into Shortcuts",
+      "copiedLinkReady": "Link copied: paste it in the Shortcut when asked",
+      "copyFailed": "Could not copy the link. Try again.",
+      "next": {
+        "ready": "Tap Add Shortcut and paste when asked. Then Automation → + → Transaction → Run Immediately → choose “Log to Kassa”.",
+        "action": "Now Automation → + → Transaction → Run Immediately → New Blank Automation → add “Log Payment in Kassa”.",
+        "link": "Link copied. Now Automation → + → Transaction → Run Immediately → New Blank Automation → Get Contents of URL → paste. Manual setup has the rest."
+      },
       "waiting": {
         "title": "Waiting for your first Apple Pay tap",
-        "body": "Finish the automation in Shortcuts, then pay with Apple Pay once (a coffee is enough). This card then checks that everything arrived right.",
         "testOnly": "Connection works. Now pay with Apple Pay once to check the automation."
       },
       "openShortcuts": "Open Shortcuts",
       "copyLinkOpen": "Copy link and open Shortcuts",
+      "copyLinkAdd": "Copy link and add the Shortcut",
       "copyAi": "Copy steps for AI",
       "copiedAi": "Steps copied: paste them into ChatGPT or another assistant",
       "aiHint": "Stuck? Copy the steps for an AI assistant and it walks you through, tap by tap. The key never leaves your clipboard.",
-      "showSteps": "Show the steps",
-      "hideSteps": "Hide the steps",
+      "showSteps": "Manual setup",
+      "hideSteps": "Hide manual setup",
       "step": "{{n}}. {{text}}",
       "stepsAction": {
         "1": "Shortcuts → Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation.",
@@ -117,6 +126,13 @@
       "failed": "The server answered, but not as Kassa. Check the server address.",
       "success": "It works! Your Apple Pay purchases now show up in Activity.",
       "needsFix": "Kassa got your tap, but something needs fixing. See Settings."
+    },
+    "dataMode": {
+      "title": "Data shown",
+      "real": "Real",
+      "simulated": "Simulated",
+      "realFooter": "Only real purchases: your Apple Pay taps and what you logged yourself.",
+      "simulatedFooter": "Also shows demo data: simulated notifications and the demo account's sample purchases."
     },
     "noShortcutToken": "No Shortcut token stored. Pair this iPhone again.",
     "serverTitle": "Server",

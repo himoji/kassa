@@ -3,7 +3,8 @@
   "bestRoute": "Үздік жол: {{from}}, {{rail}} арқылы, шамамен {{cost}}",
   "coverage": {
     "COVERED": "Жетеді",
-    "SHORTFALL": "Жетпейді"
+    "SHORTFALL": "Жетпейді",
+    "UNKNOWN": "Тексеру мүмкін емес"
   },
   "covered45": "45 күнге жетеді",
   "dueOn": "Мерзімі {{date}} · {{category}}",

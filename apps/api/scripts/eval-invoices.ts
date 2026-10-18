@@ -22,12 +22,16 @@ const limit = limitArg > 0 ? Number(process.argv[limitArg + 1]) : invoices.lengt
 const model = readerSpec().id;
 getReaderModel(); // fail fast (AI_PROVIDER_KEY_MISSING) before reading anything
 
+// The invoices are billed to the demo user (modules/demo/seed.ts, display name "Dana"); she reads them, so her own
+// name is never accepted as the payee, as in readDocument for a signed-in user.
+const ACCOUNT_HOLDER_NAMES = ["Dana"];
+
 const results: InvoiceOutcome[] = [];
 for (const label of invoices.slice(0, limit)) {
   const data = new Uint8Array(readFileSync(new URL(label.file, invoicesDir)));
   const t0 = performance.now();
   try {
-    const result = await readUntrusted("invoice", { type: "pdf", data });
+    const result = await readUntrusted("invoice", { type: "pdf", data }, { accountHolderNames: ACCOUNT_HOLDER_NAMES });
     results.push(scoreInvoice(label, result, Math.round(performance.now() - t0)));
   } catch (e) {
     const code = (e as { code?: unknown })?.code;

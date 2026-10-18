@@ -290,6 +290,14 @@ export function userIdOf(req: FastifyRequest): string {
   return req.userId;
 }
 
+/**
+ * A short-lived access token for a call the server makes on the user's behalf through its own routes (the judge build's
+ * dev sign-in signs a copied persona's onboarding with it, auth/dev.ts). Never sent to a client.
+ */
+export async function mintInternalAccessToken(userId: string, claims: SessionClaims = {}): Promise<string> {
+  return (await mint(userId, "access", ACCESS_TTL_S, claims)).token;
+}
+
 /** Tests: an access token for a user. */
 export async function mintAccessTokenForTests(userId: string, claims: SessionClaims = {}): Promise<string> {
   return (await mint(userId, "access", ACCESS_TTL_S, claims)).token;

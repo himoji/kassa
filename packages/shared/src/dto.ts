@@ -167,7 +167,8 @@ export const ObligationDto = z.object({
   reference: z.string().nullable(),
   category: z.string(),
   bestRoute: RouteDto.nullable(),
-  coverage: z.enum(["COVERED", "SHORTFALL"]),
+  /** UNKNOWN (added 2026-10-18): balances unknown or the funding check failed; never reported as COVERED. */
+  coverage: z.enum(["COVERED", "SHORTFALL", "UNKNOWN"]),
   mandateId: Uuid.nullable(),
 });
 export type ObligationDto = z.infer<typeof ObligationDto>;

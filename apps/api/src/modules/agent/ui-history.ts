@@ -1,10 +1,11 @@
 import type { ModelMessage } from "ai";
 
-import type { DataChoices, StoredUIMessage } from "@kassa/shared";
+import { RouteDto, type DataChoices, type StoredUIMessage } from "@kassa/shared";
 
 import { answersOf, storedChoices } from "./choices.ts";
 import type { AgentPorts } from "./ports.ts";
 import { Redactor, type PlaceholderEntry } from "./redact.ts";
+import { choicesForUser } from "./tools.ts";
 
 /*
  * Stored (redacted, model-facing) messages → AI SDK UIMessages for the owner's chat view: text rehydrated for the
@@ -64,13 +65,18 @@ export async function toUIMessages(
           if (card?.budgetImpact) cards.push({ type: "data-budget-impact", id: `impact-${value.proposalId}`, data: card.budgetImpact });
         }
         if (call.toolName === "get_routes" && Array.isArray(value.routes) && value.routes.length > 0) {
-          cards.push({ type: "data-routes", data: { toCurrency: call.input.toCurrency, amountMinor: call.input.amountMinor, homeCurrency: value.homeCurrency, routes: value.routes } });
+          // The tool output also carries model-only text (formatted amounts, maxPayable): the card gets the route fields.
+          const routes = (value.routes as unknown[]).map((r) => {
+            const p = RouteDto.safeParse(r);
+            return p.success ? p.data : r;
+          });
+          cards.push({ type: "data-routes", data: { toCurrency: call.input.toCurrency, amountMinor: call.input.amountMinor, homeCurrency: value.homeCurrency, routes } });
         }
         if (typeof value.choiceId === "string") {
           const part = choicesById.get(value.choiceId);
           if (part) {
             const answer = answers.get(part.id);
-            cards.push({ type: "data-choices", id: part.id, data: { ...part, prompt: forUser(part.prompt), ...(answer ? { answer } : {}) } });
+            cards.push({ type: "data-choices", id: part.id, data: await choicesForUser({ ...part, ...(answer ? { answer } : {}) }, forUser) });
           }
         }
       }

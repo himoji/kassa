@@ -28,7 +28,7 @@ Rules:
 - Amounts: value is a plain decimal with a dot and no thousands separators (e.g. 2400.00). Currency: ISO 4217 code. Dates: YYYY-MM-DD.`;
 
 const FIELD_TYPES: Record<ReaderDocType, Record<string, FieldType>> = {
-  invoice: { payeeName: "text", accountNumber: "account", reference: "text", amount: "amount", currency: "currency", dueDate: "date" },
+  invoice: { payeeName: "payee", accountNumber: "account", reference: "reference", amount: "amount", currency: "currency", dueDate: "date" },
   notification: { merchant: "text", amount: "amount", currency: "currency", cardHint: "text", time: "text" },
   email_change_request: { claimedPayee: "text", newAccount: "account" },
 };
@@ -42,6 +42,13 @@ export interface ReadOptions {
   /** Label for `ReaderResult.model` when a model is injected (tests / replay). */
   modelLabel?: string;
   abortSignal?: AbortSignal;
+  /** The reading user's own names (display / legal name): a payee equal to them is not verified (evidence.ts). */
+  accountHolderNames?: readonly string[];
+}
+
+/** Context of the server checks beyond the document itself. */
+export interface VerifyContext {
+  accountHolderNames?: readonly string[];
 }
 
 type RawField = { value: string | null; evidence: string | null };
@@ -64,7 +71,7 @@ export async function readUntrusted(kind: ReaderDocType, source: UntrustedSource
     const rec = loadReaderRecording(key);
     if (!rec) throw new AiConfigError("AI_REPLAY_MISSING", "No Reader recording for this document (record it live with RECORD=1).", { key });
     const text = rec.transcript ?? pdfText ?? (source.type === "text" ? source.text : "");
-    return verifyExtraction(kind, rec.extraction, text.slice(0, MAX_SOURCE_CHARS), source.type, "replay");
+    return verifyExtraction(kind, rec.extraction, text.slice(0, MAX_SOURCE_CHARS), source.type, "replay", verifyContext(opts));
   }
   if (source.type === "image" && !opts.model) assertReaderVision();
   const model = opts.model ?? getReaderModel();
@@ -104,8 +111,10 @@ export async function readUntrusted(kind: ReaderDocType, source: UntrustedSource
     extraction = output;
     if (opts.record) saveReaderRecording(key, { kind, sourceKind: source.type, extraction });
   }
-  return verifyExtraction(kind, extraction, sourceText, source.type, label);
+  return verifyExtraction(kind, extraction, sourceText, source.type, label, verifyContext(opts));
 }
+
+const verifyContext = (opts: ReadOptions): VerifyContext => (opts.accountHolderNames ? { accountHolderNames: opts.accountHolderNames } : {});
 
 /** Deterministic server checks (exported for tests and for replayed extractions). */
 export function verifyExtraction(
@@ -114,6 +123,7 @@ export function verifyExtraction(
   sourceText: string,
   sourceKind: ReaderResult["sourceKind"],
   model: string,
+  vctx: VerifyContext = {},
 ): ReaderResult {
   const types = FIELD_TYPES[kind];
   const fields: Record<string, ReaderField> = {};
@@ -130,9 +140,15 @@ export function verifyExtraction(
   const currency = currencyCheck?.check === "VERIFIED" ? currencyField!.value!.trim().toUpperCase() : null;
 
   const critical = CRITICAL_FIELDS[kind];
+  const ctx = {
+    currency,
+    accountHolderNames: vctx.accountHolderNames ?? [],
+    amount: critical.amount ? raw(critical.amount).value : null,
+    account: critical.account ? raw(critical.account).value : null,
+  };
   for (const [name, type] of Object.entries(types)) {
     const f = raw(name);
-    const r = name === "currency" && currencyCheck ? currencyCheck : checkField(type, f, sourceText, { currency });
+    const r = name === "currency" && currencyCheck ? currencyCheck : checkField(type, f, sourceText, ctx);
     fields[name] = { value: f.value, evidence: f.evidence, check: r.check };
     checks.fields[name] = r.check;
     if (r.check === "UNVERIFIED") checks.failures[name] = r.why ?? "unverified";

@@ -3,7 +3,8 @@
   "bestRoute": "Best route: {{from}} by {{rail}}, about {{cost}}",
   "coverage": {
     "COVERED": "Covered",
-    "SHORTFALL": "Short"
+    "SHORTFALL": "Short",
+    "UNKNOWN": "Can't check"
   },
   "covered45": "Covered for 45 days",
   "dueOn": "Due {{date}} · {{category}}",

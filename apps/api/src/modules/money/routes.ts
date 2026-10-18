@@ -127,14 +127,29 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const obligationDtos: ObligationDto[] = [];
     // Coverage the way the rules check it before a bank transfer (rules/funding.ts): can one wallet balance pay this
     // bill, with fees, in time? Checked for bills due in the next 45 days; "Covered" on Home then means "Pay" works.
+    // The route that check picks (cheapest by home-currency cost, spec §12 optimizer) is the bill's best route.
+    // Unknown balances or a failed check are UNKNOWN, never COVERED. The wallet is read once for the whole list;
+    // FX quotes come from the rates service's daily cache.
     const horizon = isoDate(new Date(now.getTime() + 45 * DAY_MS));
-    const coverageOf = async (o: (typeof rows)[number]): Promise<"COVERED" | "SHORTFALL"> => {
-      if (o.payeeKind === "MERCHANT" || o.payeeAccountHash === null || o.dueDate > horizon) return "COVERED";
+    let balances: Awaited<ReturnType<typeof walletBalances>> = null;
+    let balancesRead = false;
+    const planOf = async (o: (typeof rows)[number]): Promise<Pick<ObligationDto, "coverage" | "bestRoute">> => {
+      if (o.payeeKind === "MERCHANT" || o.payeeAccountHash === null || o.dueDate > horizon) return { coverage: "COVERED", bestRoute: null };
       try {
-        const f = await chooseFunding({ userId, homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: o.dueDate });
-        return f.status === "NONE" ? "SHORTFALL" : "COVERED";
-      } catch {
-        return "COVERED";
+        if (!balancesRead) {
+          balancesRead = true;
+          balances = await walletBalances(userId);
+        }
+        if (!balances) return { coverage: "UNKNOWN", bestRoute: null };
+        const f = await chooseFunding({ userId, homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: o.dueDate, balances });
+        if (f.status === "NONE") return { coverage: "SHORTFALL", bestRoute: null };
+        if (f.status === "UNKNOWN") return { coverage: "UNKNOWN", bestRoute: null };
+        const { amountInFundingMinor: _a, totalDebitFundingMinor: _t, ...route } = f.route;
+        const direct = route.fundingCurrency === o.currency ? { noConversion: true, balanceCovers: true } : {};
+        return { coverage: "COVERED", bestRoute: { ...route, ...direct } };
+      } catch (err) {
+        req.log.warn({ err, obligationId: o.id }, "obligation coverage check failed");
+        return { coverage: "UNKNOWN", bestRoute: null };
       }
     };
 
@@ -154,8 +169,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         recurrence: o.recurrence,
         reference: o.reference,
         category: o.category,
-        bestRoute: null,
-        coverage: await coverageOf(o),
+        ...(await planOf(o)),
         mandateId: mandate?.id ?? null,
       });
     }

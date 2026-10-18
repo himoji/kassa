@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { api } from "@/api/client";
 import { useSessionStore } from "@/stores/session";
 
+import { dataModeStore, visibleResponse } from "./data-mode";
 import { notifyNewCaptures } from "./notifier";
 
 export const RECENT_KEY = ["lite", "recent"] as const;
@@ -31,7 +32,12 @@ export function useRecentCaptures() {
   });
   const { data } = query;
   useEffect(() => {
-    if (data) void notifyNewCaptures(data).catch(() => {});
+    if (!data) return;
+    // Only what Activity shows (Settings → Data shown): a simulated purchase does not notify in Real mode.
+    void dataModeStore
+      .hydrate()
+      .then(() => notifyNewCaptures(visibleResponse(data, dataModeStore.getState().mode)))
+      .catch(() => {});
   }, [data]);
   return query;
 }

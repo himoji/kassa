@@ -29,7 +29,9 @@
     "today": "Бүгін",
     "yesterday": "Кеше",
     "openHint": "Сатып алуды ашады",
-    "notifyOpen": "Толығырақ көру үшін түртіңіз."
+    "notifyOpen": "Толығырақ көру үшін түртіңіз.",
+    "simulatedHidden_one": "{{count}} симуляцияланған сатып алу жасырылды. Көрсету: Баптаулар → Деректер → Симуляция.",
+    "simulatedHidden_other": "{{count}} симуляцияланған сатып алу жасырылды. Көрсету: Баптаулар → Деректер → Симуляция."
   },
   "pair": {
     "title": "KassaLite байланыстыру",
@@ -55,22 +57,29 @@
     "setup": {
       "start": {
         "title": "Әр Apple Pay сатып алуын жазу",
-        "body": "Shortcuts қолданбасындағы бір автоматтандыру әр сатып алуды Kassa-ға жібереді. Бір рет, шамамен бір минут алады.",
+        "body": "Бір түрту бәрін дайындап, Shortcuts ашады. Содан кейін бір рет бір автоматтандыру қосасыз.",
         "button": "Apple Pay жазуын баптау"
       },
       "copiedLink": "Сілтеме көшірілді: оны Shortcuts-қа қойыңыз",
+      "copiedLinkReady": "Сілтеме көшірілді: Shortcut сұрағанда қойыңыз",
+      "copyFailed": "Сілтемені көшіру мүмкін болмады. Қайталап көріңіз.",
+      "next": {
+        "ready": "Add Shortcut түртіп, сұрағанда сілтемені қойыңыз. Содан кейін Automation → + → Transaction → Run Immediately → «Log to Kassa» таңдаңыз.",
+        "action": "Енді Automation → + → Transaction → Run Immediately → New Blank Automation → «Log Payment in Kassa» қосыңыз.",
+        "link": "Сілтеме көшірілді. Енді Automation → + → Transaction → Run Immediately → New Blank Automation → Get Contents of URL → қойыңыз. Қалғаны «Қолмен баптау» ішінде."
+      },
       "waiting": {
         "title": "Алғашқы Apple Pay төлеміңізді күтудеміз",
-        "body": "Shortcuts-та автоматтандыруды аяқтап, Apple Pay арқылы бір рет төлеңіз (бір кофе жеткілікті). Содан кейін бұл карточка бәрі дұрыс келгенін тексереді.",
         "testOnly": "Байланыс жұмыс істейді. Енді автоматтандыруды тексеру үшін Apple Pay арқылы бір рет төлеңіз."
       },
       "openShortcuts": "Shortcuts ашу",
       "copyLinkOpen": "Сілтемені көшіріп, Shortcuts ашу",
+      "copyLinkAdd": "Сілтемені көшіріп, Shortcut қосу",
       "copyAi": "Қадамдарды AI үшін көшіру",
       "copiedAi": "Қадамдар көшірілді: оларды ChatGPT немесе басқа көмекшіге қойыңыз",
       "aiHint": "Қиындық туды ма? Қадамдарды AI көмекшісі үшін көшіріңіз, ол әр түртуді түсіндіріп береді. Кілт алмасу буферіңізден шықпайды.",
-      "showSteps": "Қадамдарды көрсету",
-      "hideSteps": "Қадамдарды жасыру",
+      "showSteps": "Қолмен баптау",
+      "hideSteps": "Қолмен баптауды жасыру",
       "step": "{{n}}. {{text}}",
       "stepsAction": {
         "1": "Shortcuts → Automation → + → Transaction. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
@@ -117,6 +126,13 @@
       "failed": "Сервер жауап берді, бірақ Kassa ретінде емес. Сервер мекенжайын тексеріңіз.",
       "success": "Жұмыс істейді! Apple Pay сатып алуларыңыз енді «Әрекеттер» бөлімінде шығады.",
       "needsFix": "Kassa төлеміңізді алды, бірақ бірдеңені түзету керек. Баптауларды қараңыз."
+    },
+    "dataMode": {
+      "title": "Көрсетілетін деректер",
+      "real": "Нақты",
+      "simulated": "Симуляция",
+      "realFooter": "Тек нақты сатып алулар: Apple Pay төлемдеріңіз және өзіңіз жазғандар.",
+      "simulatedFooter": "Демо деректерді де көрсетеді: симуляцияланған хабарландырулар және демо аккаунттың үлгі сатып алулары."
     },
     "noShortcutToken": "Shortcut токені сақталмаған. Осы iPhone-ды қайта байланыстырыңыз.",
     "serverTitle": "Сервер",

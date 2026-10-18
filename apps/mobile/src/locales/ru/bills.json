@@ -3,7 +3,8 @@
   "bestRoute": "Лучший путь: {{from}} через {{rail}}, около {{cost}}",
   "coverage": {
     "COVERED": "Хватает",
-    "SHORTFALL": "Не хватает"
+    "SHORTFALL": "Не хватает",
+    "UNKNOWN": "Не удалось проверить"
   },
   "covered45": "Денег хватит на 45 дней",
   "dueOn": "Срок {{date}} · {{category}}",

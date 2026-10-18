@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type { RecentCapturesResponse } from "@kassa/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react-native";
+import { render, screen, waitFor } from "@testing-library/react-native";
 
 import { ThemeProvider } from "@/components/ui";
+import { dataModeStore, setDataMode } from "@/lite/data-mode";
 import { useSessionStore } from "@/stores/session";
 import { ActivityScreen, sortCaptures } from "../activity-screen";
 
@@ -86,7 +87,55 @@ describe("ActivityScreen", () => {
     expect(screen.getByText("Blue Bottle Coffee")).toBeTruthy();
     expect(screen.queryByText("SQ *BB 0412")).toBeNull();
     expect(screen.getByText(/.* · Eating out · Váci utca 10, Budapest/)).toBeTruthy();
-    expect(mockNotify).toHaveBeenCalledWith(DATA);
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledWith(DATA));
+  });
+
+  it("real mode (default) hides simulated and demo-seed purchases, and does not notify them", async () => {
+    dataModeStore.reset();
+    const sim = {
+      ...DATA,
+      captures: [
+        ...DATA.captures,
+        {
+          ...DATA.captures[0]!,
+          id: "00000000-0000-4000-8000-000000000004",
+          source: "NOTIF_SIM",
+          merchant: "Simulated Shop",
+        },
+        {
+          ...DATA.captures[0]!,
+          id: "00000000-0000-4000-8000-000000000005",
+          merchant: "Seeded Market",
+          createdAt: DATA.captures[0]!.occurredAt,
+        },
+      ],
+    };
+    jest
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify(sim), { headers: { "content-type": "application/json" } })
+      );
+    const view = () => (
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}
+      >
+        <ThemeProvider>
+          <ActivityScreen />
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+    await render(view());
+    expect(await screen.findByText("Newest Cafe")).toBeTruthy();
+    expect(screen.queryByText("Simulated Shop")).toBeNull();
+    expect(screen.queryByText("Seeded Market")).toBeNull();
+    expect(screen.getByText(/2 simulated purchases hidden/)).toBeTruthy();
+    await waitFor(() => expect(mockNotify).toHaveBeenCalledWith(DATA));
+
+    setDataMode("simulated");
+    expect(await screen.findByText("Simulated Shop")).toBeTruthy();
+    expect(screen.getByText("Seeded Market")).toBeTruthy();
+    expect(screen.queryByTestId("simulated-hidden")).toBeNull();
+    dataModeStore.reset();
   });
 
   it("sorts by occurredAt, newest first", () => {

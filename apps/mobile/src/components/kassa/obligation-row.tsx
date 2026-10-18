@@ -46,7 +46,13 @@ export function ObligationRow({
       ) : null}
       <Box row gap={2} style={{ flexWrap: "wrap" }}>
         <StatusChip
-          tone={o.coverage === "COVERED" ? "positive" : "critical"}
+          tone={
+            o.coverage === "COVERED"
+              ? "positive"
+              : o.coverage === "UNKNOWN"
+                ? "neutral"
+                : "critical"
+          }
           label={t(`bills:coverage.${o.coverage}`)}
         />
         {o.payeeAccountMissing ? (

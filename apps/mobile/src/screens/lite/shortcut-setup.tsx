@@ -16,6 +16,7 @@ import {
   aiSetupPrompt,
   checkShortcutConnection,
   loadSetupStarted,
+  readyShortcutLink,
   saveSetupStarted,
   shortcutUrlWithKey,
   tapCheckLines,
@@ -38,14 +39,23 @@ export function serverHost(url: string): string {
 }
 
 type Mode = "start" | "waiting" | "report" | "legacy";
+/**
+ * How this iPhone gets its automation: "action", the build's "Log Payment in Kassa" action (nothing to paste);
+ * "ready", the published ready-made Shortcut (its import question takes the copied link); "link", a hand-built
+ * Shortcut with the copied link in Get Contents of URL.
+ */
+type Path = "action" | "ready" | "link";
 
 /**
  * KassaLite Settings → "Apple Pay Shortcut": one button, then proof.
  *
  * "Set up" checks the server and key from this iPhone (`{test: true}`, nothing logged), readies the automation's
  * one input (builds with the "Log Payment in Kassa" action: its Keychain copy; other builds: the endpoint link with
- * the key, copied) and opens Shortcuts. The card then waits for a real Apple Pay tap and reports, line by line, what
- * the automation sent and whether Kassa logged it (GET /devices `lastCheck`), with the fix for each wrong line.
+ * the key, copied, only on this tap) and opens the ready-made Shortcut when one is published, Shortcuts otherwise.
+ * One line then says what is left (paste when asked, and the Transaction automation, which iOS lets no app create);
+ * the hand-built steps sit behind "Manual setup". The card waits for a real Apple Pay tap and reports, line by
+ * line, what the automation sent and whether Kassa logged it (GET /devices `lastCheck`), with the fix for each
+ * wrong line.
  */
 export function ShortcutSetup() {
   const t = useKassaT();
@@ -56,6 +66,8 @@ export function ShortcutSetup() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<Exclude<ConnectionCheck, "ok"> | null>(null);
   const [showSteps, setShowSteps] = useState(false);
+  const readyLink = readyShortcutLink();
+  const path: Path = hasAction ? "action" : readyLink ? "ready" : "link";
 
   useEffect(() => {
     void hasLogPaymentAction().then(setHasAction);
@@ -125,17 +137,29 @@ export function ShortcutSetup() {
       setError(result);
       return;
     }
-    if (hasAction) {
+    if (path === "action") {
       await syncIntentConfig();
     } else {
-      await copyToClipboard(shortcutUrlWithKey(stored, token), {
-        toast: t("lite:settings.setup.copiedLink"),
+      // The key goes on the clipboard only here, on this tap; never into a URL that is opened.
+      const copied = await copyToClipboard(shortcutUrlWithKey(stored, token), {
+        toast: t(
+          path === "ready"
+            ? "lite:settings.setup.copiedLinkReady"
+            : "lite:settings.setup.copiedLink"
+        ),
       });
+      if (!copied) {
+        haptics.error();
+        toast.show({ title: t("lite:settings.setup.copyFailed"), kind: "error" });
+        return;
+      }
     }
     await saveSetupStarted();
     setStarted(true);
+    // Fixing an automation opens Shortcuts itself: adding the ready-made Shortcut again would make a second copy.
+    const target = path === "ready" && mode !== "report" && readyLink ? readyLink : "shortcuts://";
     try {
-      await Linking.openURL("shortcuts://");
+      await Linking.openURL(target);
     } catch (err) {
       toast.show({ title: errorText(t, err), kind: "error" });
     }
@@ -163,7 +187,7 @@ export function ShortcutSetup() {
       : mode === "waiting"
         ? check?.kind === "TEST"
           ? t("lite:settings.setup.waiting.testOnly")
-          : t("lite:settings.setup.waiting.body")
+          : t(`lite:settings.setup.next.${path}`)
         : mode === "legacy"
           ? t("lite:settings.setup.report.legacy", { time: f.dateTime(lastAt!) })
           : passed
@@ -173,13 +197,14 @@ export function ShortcutSetup() {
     mode === "start"
       ? t("lite:settings.setup.start.button")
       : mode === "waiting"
-        ? hasAction
+        ? path === "action"
           ? t("lite:settings.setup.openShortcuts")
-          : t("lite:settings.setup.copyLinkOpen")
+          : path === "ready"
+            ? t("lite:settings.setup.copyLinkAdd")
+            : t("lite:settings.setup.copyLinkOpen")
         : mode === "report" && !passed
           ? t("lite:settings.setup.fixButton")
           : null;
-  const stepsOpen = mode === "waiting" || showSteps;
   const steps = hasAction ? ACTION_STEPS : MANUAL_STEPS;
   const stepsKey = hasAction ? "stepsAction" : "stepsManual";
 
@@ -233,9 +258,14 @@ export function ShortcutSetup() {
           </ErrorText>
         ) : null}
 
-        {mode !== "start" ? (
-          <Box gap={3}>
-            {stepsOpen ? (
+        <Box gap={3}>
+          <Box row>
+            <Button size="sm" variant="ghost" onPress={() => setShowSteps((v) => !v)}>
+              {t(showSteps ? "lite:settings.setup.hideSteps" : "lite:settings.setup.showSteps")}
+            </Button>
+          </Box>
+          {showSteps ? (
+            <Box gap={3}>
               <Box gap={2} testID="setup-steps">
                 {steps.map((n) => (
                   <Text key={n} variant="caption">
@@ -247,19 +277,14 @@ export function ShortcutSetup() {
                 ))}
                 <Text variant="caption">{t("lite:settings.setup.aiHint")}</Text>
               </Box>
-            ) : null}
-            <Box row gap={2} style={{ flexWrap: "wrap" }}>
-              <Button size="sm" variant="outline" onPress={() => void copyAi()}>
-                {t("lite:settings.setup.copyAi")}
-              </Button>
-              {mode !== "waiting" ? (
-                <Button size="sm" variant="ghost" onPress={() => setShowSteps((v) => !v)}>
-                  {t(showSteps ? "lite:settings.setup.hideSteps" : "lite:settings.setup.showSteps")}
+              <Box row>
+                <Button size="sm" variant="outline" onPress={() => void copyAi()}>
+                  {t("lite:settings.setup.copyAi")}
                 </Button>
-              ) : null}
+              </Box>
             </Box>
-          </Box>
-        ) : null}
+          ) : null}
+        </Box>
       </Box>
     </RowGroup>
   );

@@ -1,5 +1,6 @@
-import { AuthSessionResponse, ClientKind } from "@kassa/shared";
+import { AuthSessionResponse, ClientKind, type MandateCore } from "@kassa/shared";
 import { eq } from "drizzle-orm";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -11,8 +12,8 @@ import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { createUser } from "../users/service.ts";
-import { demoClaimUserId } from "./demoClaim.ts";
-import { requireUser, sessionBody, startSession, userIdOf } from "./session.ts";
+import { demoClaimUserId, judgeDemoCopy } from "./demoClaim.ts";
+import { mintInternalAccessToken, requireUser, sessionBody, startSession, userIdOf } from "./session.ts";
 import { SoftAuthenticator } from "./soft-authenticator.ts";
 
 /*
@@ -31,6 +32,12 @@ import { SoftAuthenticator } from "./soft-authenticator.ts";
  * Guards, all required: the routes are not registered when NODE_ENV=production; each request also needs
  * DEMO_ENABLED and DEV_LOGIN, and RP_ID must be localhost, a *.trycloudflare.com quick tunnel or PHONE_HOST.
  * The one exception is the judge build (`judgeModeActive`): JUDGE_MODE + DEMO_ENABLED on a separate deployment.
+ *
+ * Judge build: reviewers must not see each other's actions, so no sign-in reuses an account. `demoClaim` makes a
+ * private copy of that seeded persona under a new user id (auth/demoClaim.ts `judgeDemoCopy`) and signs its onboarding
+ * with the copy's dev passkey through the app's own routes (base rules, then the persona's seeded mandates), so the
+ * app opens on the home screen and every signature verifies like a user's. `fresh` and the plain sign-in both make a
+ * brand-new user (onboarding from the start); the shared "Dev" user is never used there.
  */
 
 export const DEV_DISPLAY_NAME = "Dev";
@@ -93,6 +100,56 @@ async function devUser(): Promise<string> {
   return newDevUser(DEV_DISPLAY_NAME);
 }
 
+/**
+ * Sign a copied persona's onboarding as the user would in the app: POST /onboarding/confirm/options + /onboarding/confirm
+ * (passkey-signed base rules), then /mandates/options + /mandates for each seeded mandate, each assertion made by the
+ * user's dev passkey. Requests go through `app.inject` with a server-minted dev token and the caller's address, so the
+ * routes' checks and rate limits apply as for the caller's own requests. Throws on any non-2xx answer.
+ */
+async function signSeededOnboarding(app: FastifyInstance, req: FastifyRequest, userId: string, mandates: readonly { core: MandateCore }[]): Promise<void> {
+  const e = env();
+  const key = await devKeyFor(userId);
+  const forwarded = req.headers["x-forwarded-for"];
+  const headers = { authorization: `Bearer ${await mintInternalAccessToken(userId, { dev: true })}`, ...(forwarded ? { "x-forwarded-for": forwarded } : {}) };
+  const post = async <T>(url: string, payload: Record<string, unknown>): Promise<T> => {
+    const res = await app.inject({ method: "POST", url, headers, payload, ...(req.socket?.remoteAddress ? { remoteAddress: req.socket.remoteAddress } : {}) });
+    if (res.statusCode < 200 || res.statusCode >= 300) throw new Error(`${url} answered ${res.statusCode}: ${res.body.slice(0, 300)}`);
+    return res.json() as T;
+  };
+  const sign = (challenge: string) => key.assert(challenge, { origin: e.PUBLIC_ORIGIN, rpId: e.RP_ID });
+  type Options = { webauthnOptions: { challenge: string } };
+  const conversationId = randomUUID();
+  const rules = await post<Options & { core: unknown; challengeId: string }>("/api/onboarding/confirm/options", { conversationId });
+  await post("/api/onboarding/confirm", { conversationId, challengeId: rules.challengeId, core: rules.core, assertion: sign(rules.webauthnOptions.challenge) });
+  for (const { core: m } of mandates) {
+    const opt = await post<Options & { core: unknown }>("/api/mandates/options", {
+      payeeIds: m.payeeIds,
+      categories: m.categories,
+      currency: m.currency,
+      maxPerPaymentMinor: m.maxPerPaymentMinor,
+      maxPerPeriodMinor: m.maxPerPeriodMinor,
+      period: m.period,
+      validUntil: m.validUntil,
+    });
+    await post("/api/mandates", { core: opt.core, assertion: sign(opt.webauthnOptions.challenge) });
+  }
+}
+
+/** Judge build sign-in: a private persona copy (onboarded) for `demoClaim`, else a brand-new user. Never a shared account. */
+async function judgeLoginUser(app: FastifyInstance, req: FastifyRequest, demoClaim: true | string | undefined): Promise<string> {
+  if (!demoClaim) return newDevUser(DEV_FRESH_DISPLAY_NAME);
+  const { userId, copy } = await judgeDemoCopy(demoClaim);
+  // Dev convenience, as for the other dev users: AI consent given, so the chat works right away.
+  await getDb().update(users).set({ aiConsentAt: clock.now() }).where(eq(users.id, userId));
+  try {
+    await signSeededOnboarding(app, req, userId, copy.mandates ?? []);
+  } catch (err) {
+    // The copy stays usable; the app then opens on onboarding, where the user can sign the rules themselves.
+    req.log.error({ err, userId }, "judge build: signing the copied persona's onboarding failed");
+  }
+  return userId;
+}
+
 const DevLoginBody = z.object({
   client: ClientKind,
   /** Dev mode: a brand-new user (onboarding from the start) instead of the reused "Dev" user. */
@@ -110,7 +167,13 @@ const devRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       assertAllowed();
       const { demoClaim, fresh } = req.body;
-      const userId = demoClaim ? await demoClaimUserId(demoClaim) : fresh ? await newDevUser(DEV_FRESH_DISPLAY_NAME) : await devUser();
+      const userId = judgeModeActive()
+        ? await judgeLoginUser(app, req, demoClaim)
+        : demoClaim
+          ? await demoClaimUserId(demoClaim)
+          : fresh
+            ? await newDevUser(DEV_FRESH_DISPLAY_NAME)
+            : await devUser();
       await devKeyFor(userId);
       await audit("AUTH_LOGIN_SUCCEEDED", { userId, client: req.body.client, method: "DEV_LOGIN" });
       return sessionBody(userId, await startSession(reply, userId, req.body.client, { dev: true }));

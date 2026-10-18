@@ -29,7 +29,8 @@
     "today": "今天",
     "yesterday": "昨天",
     "openHint": "打开这笔消费",
-    "notifyOpen": "点按查看详情。"
+    "notifyOpen": "点按查看详情。",
+    "simulatedHidden_other": "已隐藏 {{count}} 笔模拟消费。在 设置 → 显示的数据 → 模拟 中查看。"
   },
   "pair": {
     "title": "配对 KassaLite",
@@ -55,22 +56,29 @@
     "setup": {
       "start": {
         "title": "记录每笔 Apple Pay 消费",
-        "body": "“快捷指令”中的一个自动化会把每笔消费发送到 Kassa。只需设置一次，大约一分钟。",
+        "body": "点一下即可准备好一切并打开快捷指令。然后只需添加一个自动化，一次即可。",
         "button": "设置 Apple Pay 记录"
       },
       "copiedLink": "链接已复制：请粘贴到快捷指令中",
+      "copiedLinkReady": "链接已复制：快捷指令询问时粘贴",
+      "copyFailed": "无法复制链接，请重试。",
+      "next": {
+        "ready": "点“添加快捷指令”，询问时粘贴链接。然后“自动化”→“+”→“交易”→“立即运行”→ 选择“Log to Kassa”。",
+        "action": "现在“自动化”→“+”→“交易”→“立即运行”→“新建空白自动化”→ 添加“在 Kassa 中记录付款”。",
+        "link": "链接已复制。现在“自动化”→“+”→“交易”→“立即运行”→“新建空白自动化”→“获取 URL 内容”→ 粘贴。其余步骤见“手动设置”。"
+      },
       "waiting": {
         "title": "正在等待您的第一次 Apple Pay 付款",
-        "body": "在快捷指令中完成自动化，然后用 Apple Pay 付款一次（买杯咖啡就够了）。此卡片随后会检查所有内容是否正确到达。",
         "testOnly": "连接正常。现在用 Apple Pay 付款一次来检查自动化。"
       },
       "openShortcuts": "打开快捷指令",
       "copyLinkOpen": "复制链接并打开快捷指令",
+      "copyLinkAdd": "复制链接并添加快捷指令",
       "copyAi": "复制步骤给 AI",
       "copiedAi": "步骤已复制：请粘贴到 ChatGPT 或其他助手中",
       "aiHint": "卡住了？复制步骤给 AI 助手，它会一步一步带您完成。密钥只会留在您的剪贴板中。",
-      "showSteps": "显示步骤",
-      "hideSteps": "隐藏步骤",
+      "showSteps": "手动设置",
+      "hideSteps": "隐藏手动设置",
       "step": "{{n}}. {{text}}",
       "stepsAction": {
         "1": "快捷指令 →“自动化”→“+”→“交易”。选择您的钱包卡片，选择“立即运行”，然后点“下一步”→“新建空白自动化”。",
@@ -116,6 +124,13 @@
       "failed": "服务器有响应，但不是 Kassa。请检查服务器地址。",
       "success": "成功了！您的 Apple Pay 消费现在会显示在“动态”中。",
       "needsFix": "Kassa 已收到您的付款，但有问题需要修复。请查看设置。"
+    },
+    "dataMode": {
+      "title": "显示的数据",
+      "real": "真实",
+      "simulated": "模拟",
+      "realFooter": "只显示真实消费：您的 Apple Pay 付款和您自己记录的消费。",
+      "simulatedFooter": "同时显示演示数据：模拟通知和演示账户的示例消费。"
     },
     "noShortcutToken": "未保存快捷指令令牌。请重新配对此 iPhone。",
     "serverTitle": "服务器",

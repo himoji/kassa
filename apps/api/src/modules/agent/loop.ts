@@ -11,12 +11,13 @@ import type { AgentPorts } from "./ports.ts";
 import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "./replay.ts";
-import { buildTools, MAX_TOOL_STEPS, type ToolContext } from "./tools.ts";
+import { buildTools, MAX_TOOL_CALLS, MAX_TOOL_STEPS, type ToolContext } from "./tools.ts";
 import type { ReaderResult } from "../reader/index.ts";
 
 /*
- * One planner turn (spec §9): ≤ 8 tool rounds, then a final text step. If a tool returns REFUSE or a
- * COOLING payee, the next step gets no tools (explain plainly) and the loop stops.
+ * One planner turn (spec §9): ≤ 8 tool rounds (MAX_TOOL_STEPS) and ≤ MAX_TOOL_CALLS tool calls, then a final
+ * text step. If a tool returns REFUSE or a COOLING payee, the next step gets no tools (explain plainly) and the loop
+ * stops. The model's reasoning never reaches the client stream (only its answer text and the cards).
  */
 
 export interface TurnStore {
@@ -83,6 +84,8 @@ export function rehydrateStream(redactor: Redactor, payeeNames: Map<string, stri
   const HOLD = /[a-z]+(?:_\d*(?:_\d*)?)?$/; // a placeholder may be split across deltas
   return new TransformStream({
     transform(chunk, ctl) {
+      // Reasoning is the model's scratchpad: large, redacted and not for the user (also off in toUIMessageStream).
+      if (chunk.type === "reasoning-start" || chunk.type === "reasoning-delta" || chunk.type === "reasoning-end") return;
       if (chunk.type === "text-delta") {
         const buf = (pending.get(chunk.id) ?? "") + chunk.delta;
         const m = HOLD.exec(buf);
@@ -173,8 +176,9 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     stopWhen: [isStepCount(MAX_TOOL_STEPS + 1), stopAfterExplanation, stopForPicker],
     prepareStep: ({ stepNumber }) => {
       if (ctx.stop.requested && stopAtStep === null) stopAtStep = stepNumber;
-      // After REFUSE / COOLING, or once 8 tool rounds are used: text only.
-      if (stopAtStep !== null || stepNumber >= MAX_TOOL_STEPS) return { activeTools: [], toolChoice: "none" as const };
+      // After REFUSE / COOLING, once 8 tool rounds are used, or once MAX_TOOL_CALLS tool calls ran: text only.
+      const callsUsed = (ctx.toolCalls?.count ?? 0) >= MAX_TOOL_CALLS;
+      if (stopAtStep !== null || stepNumber >= MAX_TOOL_STEPS || callsUsed) return { activeTools: [], toolChoice: "none" as const };
       return {};
     },
     ...(o.abortSignal ? { abortSignal: o.abortSignal } : {}),
@@ -183,6 +187,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   const payeeNames = new Map(payees.map((p) => [p.id, p.name]));
   const uiStream = result
     .toUIMessageStream({
+      sendReasoning: false,
       // `replay` is known at the start for REPLAY mode, and at the finish when a live turn fell back to a recording.
       messageMetadata: ({ part }) =>
         part.type === "start" ? { replay: (o.mode === "REPLAY" || fallback.used) && !o.model } : part.type === "finish" && fallback.used ? { replay: true } : undefined,
