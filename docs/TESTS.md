@@ -13,7 +13,7 @@ Workspace totals from the run of 2026-10-18 (see "Changelog" at the end). Per-fi
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
 | apps/api | 139 | 1,122 (+1 opt-in live smoke test, skipped) | all pass |
-| apps/mock-world | 11 | 361 | all pass |
+| apps/mock-world | 11 | 363 | all pass |
 | packages/shared | 7 | 53 | all pass |
 | apps/mobile (jest) | 84 | 908 | all pass |
 
