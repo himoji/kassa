@@ -1,6 +1,6 @@
 # Kassa test catalogue
 
-Workspace totals from the run of 2026-10-17 (see "Changelog" at the end). Per-file rows below were last counted on 2026-10-12, after the final fix pass, except the attack and naive rows (2026-10-15); files added since then are counted in the totals and listed where they matter for security.
+Workspace totals from the run of 2026-10-18 (see "Changelog" at the end). Per-file rows below were last counted on 2026-10-12, after the final fix pass, except the attack and naive rows (2026-10-15); files added since then are counted in the totals and listed where they matter for security.
 
 ## How to run
 - Everything: `bun run typecheck && bun run lint && bun run test` (turbo; all workspaces incl. mobile jest).
