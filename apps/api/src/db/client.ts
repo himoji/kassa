@@ -114,10 +114,15 @@ export async function migrateDatabaseUrl(url: string | undefined = process.env.D
     }
     return `pglite ${target.dataDir ?? "(memory)"}`;
   }
-  const client = postgres(target.url, { max: 1 });
+  // A session-level advisory lock needs one server connection from lock to unlock. Behind a transaction-mode pooler
+  // (Neon's -pooler host) the unlock can reach another connection and the lock leaks into the pool, so every later
+  // cold start waits on it: migrate over the direct URL when the platform provides one.
+  const direct = url === process.env.DATABASE_URL ? directDatabaseUrl() : undefined;
+  const client = postgres(direct ?? target.url, { max: 1 });
   try {
-    // Serverless cold starts can migrate at the same moment: one at a time (a session-level advisory lock).
-    await client`select pg_advisory_lock(${MIGRATION_LOCK})`;
+    // Serverless cold starts can migrate at the same moment: one at a time. Wait a bounded time, never forever: an
+    // instance that cannot get the lock skips (another one is migrating, or the build already did).
+    if (!(await acquireMigrationLock(client))) return "postgres (skipped: migration lock busy)";
     try {
       await migratePostgres(drizzlePostgres(client), { migrationsFolder: MIGRATIONS_DIR });
     } finally {
@@ -127,6 +132,27 @@ export async function migrateDatabaseUrl(url: string | undefined = process.env.D
     await client.end({ timeout: 5 });
   }
   return "postgres";
+}
+
+/** The unpooled Postgres URL Vercel's Neon integration sets next to DATABASE_URL, if any. */
+function directDatabaseUrl(): string | undefined {
+  for (const key of ["DATABASE_URL_UNPOOLED", "POSTGRES_URL_NON_POOLING"]) {
+    const v = process.env[key]?.trim();
+    if (v && /^postgres(ql)?:\/\//.test(v)) return v;
+  }
+  return undefined;
+}
+
+const MIGRATION_LOCK_WAIT_MS = 30_000;
+
+async function acquireMigrationLock(client: postgres.Sql): Promise<boolean> {
+  const until = Date.now() + MIGRATION_LOCK_WAIT_MS;
+  for (;;) {
+    const [row] = await client<{ ok: boolean }[]>`select pg_try_advisory_lock(${MIGRATION_LOCK}) as ok`;
+    if (row?.ok) return true;
+    if (Date.now() >= until) return false;
+    await new Promise((r) => setTimeout(r, 500));
+  }
 }
 
 /** Advisory lock key for migrations ("kassa" in ASCII, as a bigint). */
