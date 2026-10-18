@@ -44,6 +44,8 @@ const Env = z.object({
   DEMO_ENABLED: z.enum(["true", "false", "1", "0", ""]).default("false"),
   /** Sent to the API's demo admin routes by the stage server. Never rendered into a page. */
   DEMO_ADMIN_TOKEN: z.string().optional(),
+  /** (added 2026-10-18) The judge build (same flag as the API): Stage actions that change the shared world are off. */
+  JUDGE_MODE: z.enum(["true", "false", "1", "0", ""]).default("false"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   NODE_ENV: z.string().default("development"),
 });
@@ -67,6 +69,7 @@ export interface MockWorldConfig {
   logLevel: string;
   demoEnabled: boolean;
   demoAdminToken: string | null;
+  judgeMode: boolean;
 }
 
 const DEV_SECRET = "dev-only-mock-hmac-secret-change-me";
@@ -102,6 +105,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): MockWorldConfi
     logLevel: e.LOG_LEVEL,
     demoEnabled: e.DEMO_ENABLED === "true" || e.DEMO_ENABLED === "1",
     demoAdminToken: e.DEMO_ADMIN_TOKEN || null,
+    judgeMode: e.JUDGE_MODE === "true" || e.JUDGE_MODE === "1",
   };
 }
 

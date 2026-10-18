@@ -29,7 +29,7 @@ International students live in two currencies: money arrives from home in one, b
 | 10 | Permission tiers | 5:55–6:30 | "That gives four tiers. T0: read and advise, the agent alone. T1: automatic inside a mandate you signed. T2: anything else, you approve the exact order. T3: never, whoever asks: no approval, a payee in cooling, above a signed cap. Loosening any rule needs your passkey and waits 24 hours; tightening applies at once." |
 | 11 | Attacks recreated | 6:30–7:10 | "Does it hold? We recreated sixteen attacks, including the famous ones: Freysa, Grok and Bankrbot, AIXBT, fake memories, the one-dollar Tahoe, 'move your money to a safe account'. In each, the model obeys the attacker; we assume the worst. A naive agent with the same intent pays sixteen of sixteen. Kassa pays zero of sixteen, 49 of 49 guarded cases blocked. The model can be fooled; your money cannot be moved by fooling it." |
 | 12 | Controls and risks | 7:10–7:45 | "Security and compliance are written down, not claimed. Passkeys for every approval, a hash-chained ledger, sanctions screening with transliteration, redaction before any model, data export and erase, thirteen invariants each with a code path and a test, and a mapping to EU and Chinese rules. And the risks we name ourselves: sandbox rails only, self-assessed, no hardware key store yet." |
-| 13 | Evidence | 7:45–8:25 | "Every claim leaves a log. The attack results against the naive baseline, a 55-entry ledger verified with signed checkpoints, persona simulations, and a live run of the Reader on 30 labelled invoices: 21 read perfectly, every field at 83 to 97 percent. A misread can delay a payment but cannot redirect it: money only goes to a payee that is verified and out of cooling. And a live run of the planner on the judge build: seven conversations, three of them attacks, where even a user who confirms the scam and taps approve only pays the landlord already on file. All of it is in the repository, and the evidence room replays the attacks in your browser." |
+| 13 | Evidence | 7:45–8:25 | "Every claim leaves a log you can open. Sixteen attacks against a naive baseline. A signed, hash-chained ledger that verifies. The live Reader on 30 labelled invoices: 21 perfect, every field 83 to 97 percent. And the live planner on the judge build: in three attacks, even a user who confirms the scam only pays the landlord already on file. The evidence room replays it all in your browser." |
 | 14 | Check it yourself | 8:25–8:50 | "You can check all of this without a passkey device: the judge build gives every reviewer a private, ready copy of Dana. The repository has 2,444 automated tests, deployment steps and the security self-assessment." |
 | 15 | Where it stands | 8:50–9:20 | "Kassa is built, tested and ready to inspect. Next: a licensed e-money partner, so the sandbox rails become real ones. The agent can prepare anything. Only your signature can move your money. Thank you." |
 
@@ -44,7 +44,8 @@ International students live in two currencies: money arrives from home in one, b
 | How accurate is the Reader? | 21 of 30 labelled invoices exact on every field; per field 83 % (reference) to 97 % (due date), median 16 s (`docs/evidence/invoice-eval.json`). A wrong account number cannot pay: the payee must already be verified and out of cooling. |
 | Credit record: who trusts it? | Today it is a signed, verifiable statement of facts from the ledger, not a score. A landlord can check it was not edited. Bureau reporting needs a licensed partner. |
 | What about China? | Region CN: Kassa prepares the payment and hands it to the user's QR wallet after checking the payee name; a separate PIPL cross-border consent is required before any model outside the server sees data (`docs/COMPLIANCE.md`). |
-| Blockchain? | Signed ledger checkpoints can be anchored on a testnet (`bun run ledger:anchor`); it is implemented and tested, no anchor is published yet. |
+| Blockchain? | The ledger's signed checkpoints are anchored on Sepolia: two transactions whose input data is the checkpoint hash (`docs/evidence/anchors.json`, Etherscan links in the README). Anyone can re-check them with `bun run ledger:anchor:verify --no-db`. No money or personal data goes on chain. |
+| Why iPhone only? | Only the Apple Pay capture is iPhone-specific (iOS lets no app read other apps' notifications, so a Shortcut does it). The app is a web app on any phone, Android captures through a notification forwarder (Settings → Payment taps), and the judge build needs no phone at all. |
 | What is not done? | Real rails, an external pentest, a hardware key store, and some stores are in memory. All listed in `docs/SECURITY.md` §7. |
 
 ## Submission checklist (from the brief)
@@ -54,7 +55,7 @@ International students live in two currencies: money arrives from home in one, b
 | 01 Technical documentation | `docs/ARCHITECTURE.md`, `docs/SECURITY.md` | Done |
 | 02 Presentation deck (10 min or less) | The deck linked above, with this script | Done |
 | 03 Demo video (5 min or less, optional) | `docs/DEMO_SCRIPT.md`, `bun run demo:video` | To record and link in README |
-| 04 Source code | This repository, README, deployment steps, `docs/TESTS.md` | Make the repository public |
+| 04 Source code | github.com/himoji/kassa: README, deployment steps, `docs/TESTS.md` | Done (public) |
 | 05 Security self-assessment | `docs/SECURITY.md` §2 (tiers), §7 (known risks) | Done |
 | 06 Execution evidence | `docs/evidence/`, including the live-agent run (`live-agent.md`) | Done |
 

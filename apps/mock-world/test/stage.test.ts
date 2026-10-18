@@ -7,6 +7,7 @@ import { buildMockWorld } from "../src/app.ts";
 import { StaticRates } from "../src/bank/rates.ts";
 import { type FetchLike, ManualClock } from "../src/clock.ts";
 import { loadConfig, type MockWorldConfig } from "../src/config.ts";
+import { STAGE_GLOBAL_ACTIONS } from "../src/routes/stage.ts";
 import type { Issuer } from "../src/shop/issuer.ts";
 import { RecordingSink } from "../src/webhooks.ts";
 
@@ -186,7 +187,7 @@ beforeEach(async () => {
   mainApi.flags.failNext = false;
   mainApi.flags.unauthorizeCaptureNext = false;
   mainSink.sent.length = 0;
-  await app.inject({ method: "POST", url: "/mock/stage/api/reset" });
+  await app.inject({ method: "POST", url: "/mock/stage/api/reset", headers: { "x-stage-key": TOKEN } });
   mainApi.calls.length = 0;
 });
 
@@ -213,8 +214,10 @@ async function stateOf(a: FastifyInstance): Promise<StageState> {
   return JSON.parse(res.body) as StageState;
 }
 
+/** The operator's key goes with the actions that change the shared world (STAGE_GLOBAL_ACTIONS). */
 function act(a: FastifyInstance, action: string, payload: Record<string, unknown> = {}) {
-  return a.inject({ method: "POST", url: `/mock/stage/api/${action}`, payload });
+  const headers = STAGE_GLOBAL_ACTIONS.includes(action) ? { "x-stage-key": TOKEN } : {};
+  return a.inject({ method: "POST", url: `/mock/stage/api/${action}`, payload, headers });
 }
 
 async function createQr(a: FastifyInstance): Promise<string> {
@@ -545,6 +548,38 @@ describe("failures and guards", () => {
   it("rejects an unknown action with 400", async () => {
     const res = await act(app, "pay-everything");
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe("actions that change the shared world", () => {
+  it("need the operator key: none or a wrong one is 401 and never reaches the API", async () => {
+    for (const action of STAGE_GLOBAL_ACTIONS) {
+      for (const headers of [{}, { "x-stage-key": "wrong" }]) {
+        mainApi.calls.length = 0;
+        const res = await app.inject({ method: "POST", url: `/mock/stage/api/${action}`, payload: { hours: 1 }, headers });
+        expect(res.statusCode, action).toBe(401);
+        expect(jsonOf(res).code).toBe("STAGE_KEY_REQUIRED");
+        expect(mainApi.calls, action).toHaveLength(0);
+      }
+    }
+    // Scene actions on the base persona stay open, as on stage.
+    expect((await app.inject({ method: "POST", url: "/mock/stage/api/tap-coffee", payload: {} })).statusCode).toBe(200);
+  });
+
+  it("are off on the judge build, even with the key", async () => {
+    const judgeApi = makeFakeApi();
+    const judge = await buildWorld(
+      loadConfig({ ...baseEnv, DEMO_ENABLED: "true", DEMO_ADMIN_TOKEN: TOKEN, JUDGE_MODE: "true" } as NodeJS.ProcessEnv),
+      judgeApi,
+      new ManualClock(Date.parse("2026-10-27T09:00:00Z")),
+      new RecordingSink(),
+    );
+    for (const action of STAGE_GLOBAL_ACTIONS) {
+      const res = await judge.inject({ method: "POST", url: `/mock/stage/api/${action}`, payload: { hours: 1 }, headers: { "x-stage-key": TOKEN } });
+      expect(res.statusCode, action).toBe(403);
+      expect(jsonOf(res).code).toBe("STAGE_GLOBAL_OFF");
+    }
+    expect(judgeApi.fetch).not.toHaveBeenCalled();
   });
 });
 

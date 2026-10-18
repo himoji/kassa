@@ -1,0 +1,26 @@
+{
+  "domain": "kassa:ledger-anchor:v1",
+  "network": "Sepolia",
+  "chainId": 11155111,
+  "account": "0x0a65C50fe68977eB9b62673446eB9581A000f464",
+  "anchors": [
+    {
+      "seq": 20,
+      "headHash": "RzCqdCtM3Dko1LqGiXW8dthCI_fjKhXVf8ieqbXFCNo",
+      "keyId": "e6gyi4k1eeEetkjSrrHrNETdTaJBupGMBYoXt5BCFKs",
+      "chainId": 11155111,
+      "txHash": "0x83b2b7b9adaec23116b02ee00663d5437d8e5220977a0a70716ef364a36fba13",
+      "blockNumber": 11943311,
+      "explorerUrl": "https://sepolia.etherscan.io/tx/0x83b2b7b9adaec23116b02ee00663d5437d8e5220977a0a70716ef364a36fba13"
+    },
+    {
+      "seq": 40,
+      "headHash": "ikWL0oU5omYCCV1AJ8jdODUNHhrjn_L6ic4QNGmTvUM",
+      "keyId": "e6gyi4k1eeEetkjSrrHrNETdTaJBupGMBYoXt5BCFKs",
+      "chainId": 11155111,
+      "txHash": "0xd889b2467b7d646b0c30d89c033da8193e3bb0d3ca378214a75610ab39848b2d",
+      "blockNumber": 11943312,
+      "explorerUrl": "https://sepolia.etherscan.io/tx/0xd889b2467b7d646b0c30d89c033da8193e3bb0d3ca378214a75610ab39848b2d"
+    }
+  ]
+}

@@ -158,6 +158,33 @@ export async function revokeMandate(userId: string, mandateId: string) {
   });
 }
 
+/**
+ * Judge build only (auth/dev.ts): a reviewer's copy of a demo persona opens as an account in use for a while, with
+ * the seed's mandates (just signed by the copy's own passkey) already in effect. In the live demo they mature when
+ * the Stage jumps the shared clock, which the judge build turns off, so without this the agent's autopay inside a
+ * signed mandate could not be seen in a review. Only this user's pending mandates skip the loosening delay;
+ * recipient cooling and every other wait stay on. Ledgered (MANDATE_ACTIVE, reason JUDGE_COPY_OF_SEEDED_MANDATE).
+ */
+export async function activateJudgeCopyMandates(userId: string): Promise<number> {
+  const db = getDb();
+  const now = clock.now();
+  const pending = await db
+    .select()
+    .from(mandates)
+    .where(and(eq(mandates.userId, userId), eq(mandates.status, "PENDING_EFFECTIVE")));
+  for (const m of pending) {
+    await db.transaction(async (tx) => {
+      await tx.update(mandates).set({ status: "ACTIVE", effectiveAt: now }).where(and(eq(mandates.id, m.id), eq(mandates.status, "PENDING_EFFECTIVE")));
+      await tx
+        .update(ruleChanges)
+        .set({ appliedAt: now })
+        .where(and(eq(ruleChanges.kind, "MANDATE_CREATE"), eq(ruleChanges.changeHash, m.mandateHash)));
+      await ledger.append("MANDATE_ACTIVE", { userId, mandateId: m.id, reason: "JUDGE_COPY_OF_SEEDED_MANDATE" }, tx);
+    });
+  }
+  return pending.length;
+}
+
 /** Scheduler: PENDING_EFFECTIVE mandates whose effectiveAt passed become ACTIVE. */
 export async function activateDueMandates(): Promise<number> {
   const db = getDb();

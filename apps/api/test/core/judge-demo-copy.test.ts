@@ -14,7 +14,7 @@ import { clock } from "../../src/modules/clock/index.ts";
 import { loadSeedData, seedDatabase, type SeedData } from "../../src/modules/demo/seed.ts";
 import { ledger } from "../../src/modules/ledger/index.ts";
 import { mockWorld } from "../../src/modules/rails/http.ts";
-import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
+import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { offlineEnvironment } from "../helpers/fixtures.ts";
@@ -100,6 +100,8 @@ describe("judge build: a private copy of the persona per dev sign-in", () => {
       const ms = await db.select().from(mandates).where(eq(mandates.userId, s.user.id));
       expect(ms).toHaveLength(seed.mandates?.length ?? 0);
       for (const m of ms) for (const id of m.payeeIds) expect(own.has(id)).toBe(true);
+      // In effect at once on the judge build (the shared clock cannot be moved there); payee cooling is untouched.
+      for (const m of ms) expect(m.status).toBe("ACTIVE");
       const prof = (await db.select().from(profiles).where(eq(profiles.userId, s.user.id)))[0]!;
       expect(prof.baseRulesSignedAt).not.toBeNull();
       expect(prof.bankProfileId).not.toBe(seed.mockBankProfileId);
@@ -132,18 +134,17 @@ describe("judge build: a private copy of the persona per dev sign-in", () => {
       return proposeOrder({ userId, createdBy: "AGENT", payeeId: o.payeeId, amountMinor: o.amountMinor, currency: o.currency, purpose: "Rent", category: "rent", obligationId: o.id });
     };
 
+    // The copy's rent mandate is in effect: the agent pays the verified landlord on its own (T1).
     const first = await propose(a.user.id);
-    expect(first.decision, JSON.stringify(first)).toBe("ASK");
-    const view = await getOrderView(a.user.id, first.proposalId);
-    const assertion = (await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: a.h, payload: { challenge: view.orderHash } })).json().assertion;
-    expect((await approveOrder(a.user.id, first.proposalId, assertion)).paymentStatus).toBe("PROCESSING");
+    expect(first.decision, JSON.stringify(first)).toBe("AUTO");
+    expect(first.reasonCodes).toContain("MANDATE_MATCH");
     // The check the judge ran into still holds within one account...
     const again = await propose(a.user.id);
     expect(again.decision).toBe("REFUSE");
     expect(again.reasonCodes).toContain("DUPLICATE_OBLIGATION_PAYMENT");
     // ...but the other copy's rent is its own.
     const other = await propose(b.user.id);
-    expect(other.decision, JSON.stringify(other)).toBe("ASK");
+    expect(other.decision, JSON.stringify(other)).toBe("AUTO");
     expect(other.reasonCodes).not.toContain("DUPLICATE_OBLIGATION_PAYMENT");
   });
 

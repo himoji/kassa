@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import { timingSafeEqual } from "node:crypto";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { formatMoney } from "@kassa/shared";
 import { z } from "zod";
 
@@ -43,6 +44,19 @@ export interface StageDeps {
   resetWorld: () => void;
   /** Drops the cached demo-clock offset so the next read follows a clock move this server just made. */
   syncClock: () => void;
+}
+
+/**
+ * Actions that change the world for everyone on the deployment: wipe and reseed it, or move the shared demo clock.
+ * The Stage is public, so these need the operator's demo admin token (header `x-stage-key`, typed once into the
+ * Stage page and kept in that browser); on the judge build, where many reviewers share one database, they are off.
+ */
+export const STAGE_GLOBAL_ACTIONS: readonly string[] = ["reset", "clock", "forecast-tick"];
+
+function sameSecret(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 type Tone = "ok" | "bad" | "warn" | "info";
@@ -213,6 +227,10 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
 
   app.post("/stage/api/:action", async (req, reply) => {
     const { action } = parseWith(ActionParam, req.params, "params");
+    if (STAGE_GLOBAL_ACTIONS.includes(action)) {
+      const refused = globalActionRefusal(req);
+      if (refused) return reply.code(refused.status).send(refused.body);
+    }
     try {
       const result = await runAction(action, req.body ?? {});
       return reply.send(result);
@@ -223,6 +241,24 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
       throw err;
     }
   });
+
+  function globalActionRefusal(req: FastifyRequest): { status: number; body: ActionResult & { code: string } } | null {
+    if (deps.config.judgeMode) {
+      return {
+        status: 403,
+        body: { ok: false, tone: "bad", code: "STAGE_GLOBAL_OFF", title: "Off on the judge build", detail: "Reset and the shared clock would change every reviewer's demo. Each sign-in already gets its own fresh copy." },
+      };
+    }
+    const key = req.headers["x-stage-key"];
+    const expected = deps.config.demoAdminToken;
+    if (!expected || typeof key !== "string" || !sameSecret(key, expected)) {
+      return {
+        status: 401,
+        body: { ok: false, tone: "warn", code: "STAGE_KEY_REQUIRED", title: "Operator key needed", detail: "Reset and the demo clock need the demo admin token of this deployment." },
+      };
+    }
+    return null;
+  }
 
   async function trigger(scenario: string): Promise<ApiResult> {
     return deps.api.demo(`trigger/${scenario}`);

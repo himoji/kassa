@@ -1,10 +1,10 @@
 {
   "ok": true,
-  "entries": 55,
+  "entries": 57,
   "checkpoints": 2,
-  "headHash": "bJrTk_aPlXmoZ0Rmc2_PErTXz0-G0ZJ4L6zDeIb9_mU",
-  "headAnchorSeq": 55,
+  "headHash": "Zi3VoChxw3NTuwtMBIpKrmi4a7jOaEwsSQ5k7lZYrg8",
+  "headAnchorSeq": 57,
   "problems": [],
-  "verifiedAt": "2026-10-27T09:00:06.461Z",
-  "source": "bun run sim story (docs/evidence/story.json): every beat of the connected world, then ledger:verify"
+  "verifiedAt": "2026-10-18T20:02:39.675Z",
+  "source": "bun run sim story (run of 2026-10-18), then bun run ledger:anchor: its 2 signed checkpoints (seq 20, 40) are anchored on Sepolia (docs/evidence/anchors.json; 2 LEDGER_ANCHORED entries make 57). docs/evidence/story.json is an earlier run of the same story (55 entries)."
 }

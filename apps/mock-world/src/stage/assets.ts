@@ -449,16 +449,39 @@ export const STAGE_JS: string = `
     return Object.prototype.hasOwnProperty.call(table, tone) ? table[tone] : String(tone);
   }
 
-  async function post(action, body) {
+  var KEY_STORE = "kassa:stageKey";
+
+  function storedKey() {
+    try {
+      return localStorage.getItem(KEY_STORE) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  async function post(action, body, retried) {
     var res;
+    var headers = { "content-type": "application/json" };
+    var key = storedKey();
+    if (key) headers["x-stage-key"] = key;
     try {
       res = await fetch("/mock/stage/api/" + action, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: headers,
         body: JSON.stringify(body || {})
       });
     } catch (e) {
       return { ok: false, tone: "bad", title: "Network error", detail: String(e) };
+    }
+    // Reset and the shared clock need the operator's key: ask once, keep it in this browser, retry once.
+    if (res.status === 401 && !retried) {
+      var typed = window.prompt("Operator key (the demo admin token) for reset and the demo clock:");
+      if (typed) {
+        try {
+          localStorage.setItem(KEY_STORE, typed.trim());
+        } catch (e) {}
+        return post(action, body, true);
+      }
     }
     var j;
     try {

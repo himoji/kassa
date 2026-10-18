@@ -12,6 +12,7 @@ import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
 import { createUser } from "../users/service.ts";
+import { activateJudgeCopyMandates } from "../mandates/service.ts";
 import { demoClaimUserId, judgeDemoCopy } from "./demoClaim.ts";
 import { mintInternalAccessToken, requireUser, sessionBody, startSession, userIdOf } from "./session.ts";
 import { SoftAuthenticator } from "./soft-authenticator.ts";
@@ -150,6 +151,8 @@ async function judgeLoginUser(app: FastifyInstance, req: FastifyRequest, demoCla
   await getDb().update(users).set({ aiConsentAt: clock.now() }).where(eq(users.id, userId));
   try {
     await signSeededOnboarding(app, req, userId, copy.mandates ?? []);
+    // The copy opens as an account in use for a while: its seeded mandates in effect (mandates/service.ts).
+    await activateJudgeCopyMandates(userId);
   } catch (err) {
     // The copy stays usable; the app then opens on onboarding, where the user can sign the rules themselves.
     req.log.error({ err, userId }, "judge build: signing the copied persona's onboarding failed");
