@@ -26,13 +26,13 @@ import {
   type MandateOptionsRequest,
   type OnboardingProfileDraft,
 } from "@kassa/shared";
-import { and, asc, desc, eq, isNull, max, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, max, ne, sql } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
-import { demoState, devices, obligations, payees, profiles, ruleChanges, transactions, users } from "../../db/schema.ts";
+import { demoState, devices, obligations, payees, profiles, ruleChanges, SHORTCUT_ATTEMPTS_KEPT, transactions, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { auditAssertionFailure, ownedNotFound } from "../../http/audit.ts";
 import { conflict, HttpProblem } from "../../http/problem.ts";
@@ -126,6 +126,26 @@ const ShortcutDevicesResponse = z.object({
       transactionId: z.string().nullable(),
     })
     .nullable(),
+  /**
+   * (added 2026-10-18) The newest requests made with any of the user's Shortcut tokens, revoked ones included, refused
+   * requests too (the live Shortcut test). `payment`: what was logged, as the Shortcut sent it.
+   */
+  recentChecks: z.array(
+    z.object({
+      at: z.string(),
+      deviceId: z.string().uuid(),
+      kind: z.enum(["TEST", "PAYMENT", "FORWARDED", "INCOMPLETE", "REVOKED_KEY", "BAD_BODY", "FAILED"]),
+      via: z.enum(["action", "shortcut"]),
+      client: z.string().nullable(),
+      fields: z.object({ merchant: z.boolean(), amount: z.boolean(), card: z.boolean(), place: z.boolean() }),
+      status: z.enum(["LOGGED", "MERGED", "IGNORED_INCOMING", "UNPARSED"]).nullable(),
+      problem: z.string().nullable(),
+      replyTitle: z.string().nullable(),
+      payment: z.object({ merchant: z.string(), amountMinor: z.number().int(), currency: z.string() }).nullable(),
+    }),
+  ),
+  /** (added 2026-10-18) The server's clock, so the live test counts only requests after its own start. */
+  serverTime: z.string(),
 });
 
 /**
@@ -309,11 +329,44 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     )[0]?.at;
     const newest = rows.reduce<(typeof rows)[number] | null>((m, r) => (r.lastUsedAt && (!m?.lastUsedAt || r.lastUsedAt > m.lastUsedAt) ? r : m), null);
     const used = newest?.lastUsedAt ?? null;
+    // Every token's recent requests, revoked tokens included: an old key still in the Shortcut is a common fault.
+    const all = await db
+      .select({ id: devices.id, recent: devices.recentChecks })
+      .from(devices)
+      .where(and(eq(devices.userId, userId), eq(devices.kind, "IOS_SHORTCUT")));
+    const recent = all
+      .flatMap((d) => (d.recent ?? []).map((a) => ({ ...a, deviceId: d.id })))
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, SHORTCUT_ATTEMPTS_KEPT);
+    const txIds = [...new Set(recent.map((a) => a.transactionId).filter((id): id is string => !!id))];
+    const txs = txIds.length
+      ? await db
+          .select({ id: transactions.id, merchant: transactions.merchantRaw, amountMinor: transactions.amountMinor, currency: transactions.currency })
+          .from(transactions)
+          .where(and(eq(transactions.userId, userId), inArray(transactions.id, txIds)))
+      : [];
+    const txById = new Map(txs.map((t) => [t.id, t]));
     return {
       devices: rows.map((r) => ({ id: r.id, kind: "IOS_SHORTCUT" as const, createdAt: r.createdAt.toISOString(), lastUsedAt: r.lastUsedAt?.toISOString() ?? null })),
       lastCaptureAt: last ? new Date(last).toISOString() : null,
       lastUsedAt: used?.toISOString() ?? null,
       lastCheck: newest?.lastCheck ?? null,
+      recentChecks: recent.map((a) => {
+        const tx = a.transactionId ? txById.get(a.transactionId) : undefined;
+        return {
+          at: a.at,
+          deviceId: a.deviceId,
+          kind: a.kind,
+          via: a.via,
+          client: a.client,
+          fields: a.fields,
+          status: a.status,
+          problem: a.problem ?? null,
+          replyTitle: a.replyTitle ?? null,
+          payment: tx ? { merchant: tx.merchant, amountMinor: Number(tx.amountMinor), currency: tx.currency } : null,
+        };
+      }),
+      serverTime: clock.now().toISOString(),
     };
   });
 

@@ -94,8 +94,8 @@
         "5": "Pay with Apple Pay once. This card checks every field."
       },
       "report": {
-        "ok": "Everything works",
-        "okBody": "Your Apple Pay taps reach Kassa with every field. Last one {{time}}.",
+        "ok": "Your last Apple Pay tap arrived complete",
+        "okBody": "Your last tap ({{time}}) reached Kassa with every field. To check again right now, use Test it live.",
         "fix_one": "Kassa got your tap: 1 thing to fix",
         "fix_other": "Kassa got your tap: {{count}} things to fix",
         "fixBody": "Fix it in the automation, then pay once more: this card checks again.",

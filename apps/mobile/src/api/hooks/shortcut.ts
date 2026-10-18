@@ -40,7 +40,43 @@ export const ShortcutDevicesResponse = z.object({
     })
     .nullable()
     .optional(),
+  /** Every request made with the user's Shortcut keys, refused ones too (the live Shortcut test); absent on older servers. */
+  recentChecks: z
+    .array(
+      z.object({
+        at: z.string(),
+        deviceId: z.string(),
+        kind: z.enum([
+          "TEST",
+          "PAYMENT",
+          "FORWARDED",
+          "INCOMPLETE",
+          "REVOKED_KEY",
+          "BAD_BODY",
+          "FAILED",
+        ]),
+        via: z.enum(["action", "shortcut"]),
+        client: z.string().nullable(),
+        fields: z.object({
+          merchant: z.boolean(),
+          amount: z.boolean(),
+          card: z.boolean(),
+          place: z.boolean(),
+        }),
+        status: z.enum(["LOGGED", "MERGED", "IGNORED_INCOMING", "UNPARSED"]).nullable(),
+        problem: z.string().nullable(),
+        replyTitle: z.string().nullable(),
+        payment: z
+          .object({ merchant: z.string(), amountMinor: z.number(), currency: z.string() })
+          .nullable(),
+      })
+    )
+    .optional(),
+  serverTime: z.string().optional(),
 });
+export type ShortcutAttempt = NonNullable<
+  z.infer<typeof ShortcutDevicesResponse>["recentChecks"]
+>[number];
 export type ShortcutDevices = z.infer<typeof ShortcutDevicesResponse>;
 
 export const ShortcutTokenResponse = z.object({ deviceId: z.string(), token: z.string() });

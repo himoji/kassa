@@ -6,7 +6,7 @@
  */
 import { storage } from "@/lib/storage";
 
-import { shortcutEndpointFor } from "./server-url";
+import { shortcutEndpointFor, voiceEndpointFor } from "./server-url";
 
 const STARTED_KEY = "kassalite:shortcutSetup.v2";
 const OLD_PROGRESS_KEY = "kassalite:shortcutSetup.v1";
@@ -40,6 +40,11 @@ export async function clearSetupProgress(): Promise<void> {
 /** `https://<server>/api/capture/shortcut?key=<token>`: the only value a hand-built Shortcut needs pasted. */
 export function shortcutUrlWithKey(serverUrl: string, token: string): string {
   return `${shortcutEndpointFor(serverUrl)}?key=${encodeURIComponent(token)}`;
+}
+
+/** `https://<server>/api/capture/voice?key=<token>`: the one value the voice Shortcut needs pasted. */
+export function voiceUrlWithKey(serverUrl: string, token: string): string {
+  return `${voiceEndpointFor(serverUrl)}?key=${encodeURIComponent(token)}`;
 }
 
 /**

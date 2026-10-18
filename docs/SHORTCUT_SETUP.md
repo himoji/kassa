@@ -219,6 +219,17 @@ Every request from a Shortcut (or the KassaLite action, `X-Kassa-Client: log-pay
 GET `/api/devices` returns the newest device's `lastCheck`; KassaLite's Settings reads it to tell the person whether
 their last Apple Pay tap arrived complete.
 
+### Live test (GET /api/devices `recentChecks`)
+
+Each token also keeps its newest 20 requests (`devices.recent_checks`), refused ones too: a **revoked** token still in
+a Shortcut (`REVOKED_KEY`), a body that is not JSON or has the wrong shape (`BAD_BODY`, with the problem but no
+values), a failure while logging (`FAILED`), besides the kinds above. Each records the caller's User-Agent product
+(`BackgroundShortcutRunner` for an automation; a browser or `curl` does not count as the Shortcut). Only accepted
+requests move `lastUsedAt`. GET `/api/devices` returns them for all of the user's tokens with the logged merchant and
+amount, and `serverTime`. **Settings → Payment taps → Test it live** (web app and KassaLite) shows them from the moment
+you press Start and passes only on a logged purchase from the Shortcut that you confirm (amount, notification). A
+request with an unknown token names no user and cannot be shown.
+
 ### Errors
 
 | HTTP | `code` | Meaning |
@@ -227,6 +238,31 @@ their last Apple Pay tap arrived complete.
 | 401 | `DEVICE_TOKEN_INVALID` | The token is wrong or has been revoked |
 | 400 | — | The body is malformed, for example `amount` is missing |
 | 429 | — | Rate limit: the sensitive tier, 30 per minute per IP |
+
+## Voice: “Hey Siri, Ask Kassa”
+
+A second Shortcut lets you talk to Kassa's agent. It records you, sends the recording, and speaks the answer.
+
+1. Shortcuts → **+** (a new Shortcut, not an automation). Name it **Ask Kassa**.
+2. **Record Audio**: Start Recording **Immediately**, Finish Recording **On Tap**.
+3. **Base64 Encode** the Recorded Audio.
+4. **Get Contents of URL**: URL `https://<your-kassa-host>/api/capture/voice?key=<token>` (Settings → Payment taps
+   → **Copy voice link**, or KassaLite → Settings → **Ask Kassa by voice**). Method POST, Request Body JSON:
+   `audio` = Base64 Encoded, `format` = `m4a`.
+5. **Get Dictionary Value**: `reply` in Contents of URL.
+6. **Speak Text** (or **Show Result**) with the Dictionary Value.
+
+The server sends the audio to `VOICE_MODEL` (default `openrouter:xiaomi/mimo-v2.6-pro`, which takes text, image,
+audio and video) as an OpenRouter `input_audio` part, base64 with its format (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`,
+`flac`; OpenRouter takes no audio URLs). If the provider refuses m4a, add **Encode Media** (Audio Only, AIFF) after
+Record Audio and send `format` = `aiff`. A recording is at most 3 MB. Instead of audio, `text` (from **Dictate Text**)
+skips the voice model.
+
+The transcript then goes to the agent as a chat message (it appears in Chat), in a **read-only** turn: no
+`propose_order`, no purchase-order draft and no pickers. The token's power stays what it is for taps, logging
+spending (`log_expense`); a request to pay gets an answer and "open Kassa to pay it". AI consent is required as for
+the chat. Every answer, failures included, is a 200 with `{ok, transcript, reply, conversationId}`, because a Shortcut
+shows a body, not a status code.
 
 ## Limits
 

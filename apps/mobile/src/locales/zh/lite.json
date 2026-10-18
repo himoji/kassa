@@ -93,8 +93,8 @@
         "5": "用 Apple Pay 付款一次。此卡片会检查每个字段。"
       },
       "report": {
-        "ok": "一切正常",
-        "okBody": "您的 Apple Pay 付款带着所有字段到达了 Kassa。最近一次 {{time}}。",
+        "ok": "最近一次 Apple Pay 付款已完整到达",
+        "okBody": "最近一次付款（{{time}}）已带着所有字段到达 Kassa。要现在再检查一次，请使用“实时测试”。",
         "fix_other": "Kassa 已收到您的付款：有 {{count}} 处需要修复",
         "fixBody": "请在自动化中修复，然后再付款一次：此卡片会再次检查。",
         "legacy": "Apple Pay 付款已到达 Kassa。最近一次 {{time}}。"

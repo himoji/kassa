@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Linking } from "react-native";
 
@@ -257,6 +258,10 @@ export function ShortcutSetup() {
             {t(`lite:settings.setup.${error}`, { host: server ? serverHost(server) : "" })}
           </ErrorText>
         ) : null}
+
+        <Button variant="outline" onPress={() => router.push("/shortcut-test")}>
+          {t("shortcut:test.open")}
+        </Button>
 
         <Box gap={3}>
           <Box row>

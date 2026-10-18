@@ -62,5 +62,85 @@
       "5": "可选：保存响应，并将其中的 nudge 字段显示为通知。",
       "6": "用手机付款。片刻后，这笔支出会出现在“动态”中。"
     }
+  },
+  "test": {
+    "title": "测试你的快捷指令",
+    "open": "实时测试",
+    "openHint": "用 Apple Pay 付一次款，看看到底有什么到达了 Kassa。",
+    "intro": "此测试只相信服务器实际收到的内容。点“开始”，然后在 iPhone 上用 Apple Pay 付款。从现在起，快捷指令的每一个请求（包括被拒绝的）都会列在下面，并显示它带了什么。",
+    "keysTitle": "你的密钥",
+    "keysFooter": "密钥就是快捷指令里的令牌或链接。使用 Kassa 不认识的密钥（打错或别的服务器）发出的请求无法在这里显示。",
+    "keys": "有效密钥：{{n}} · 最近一次被接受的请求：{{last}}",
+    "never": "从未",
+    "noKey": "你没有有效密钥，快捷指令无法连到 Kassa。请先创建一个。",
+    "createKey": "创建密钥",
+    "oldServer": "此服务器版本过旧，无法进行实时测试。请先更新服务器。",
+    "endpoint": "快捷指令必须发送到：{{url}}",
+    "runTitle": "实时测试",
+    "before": "准备好 iPhone，自动化需设为“立即运行”。",
+    "start": "开始",
+    "restart": "重新开始",
+    "running": "已监听 {{seconds}} 秒",
+    "payNow": "现在在收款终端用 Apple Pay 付款（小额即可）。网上和应用内的 Apple Pay 不会触发“交易”自动化。",
+    "resultTitle": "结果",
+    "state": {
+      "waiting": "点“开始”之后，还没有任何请求到达 Kassa。",
+      "fix": "尚未正常工作：{{problem}}",
+      "manualOnly": "快捷指令已到达 Kassa，但没有付款信息（是手动运行的）。这只证明链接和密钥正确，不能证明 Apple Pay 触发器。现在请用 Apple Pay 付款。",
+      "notShortcuts": "收到了一笔消费，但来自“{{client}}”，不是快捷指令 App。iPhone 上的自动化尚未得到证明。",
+      "confirm": "一笔消费已从你的快捷指令到达 Kassa 并已记录。还有两项只有你能确认：",
+      "wrongAmount": "已记录，但金额不对：在自动化中，Amount 必须是“快捷指令输入 › 金额”（不是手动输入的数字）。",
+      "noNotification": "记录正常，但 iPhone 没有显示任何通知。请添加“获取词典值”（从“URL 的内容”中取键 nudge），再添加“显示通知”，内容为词典值。",
+      "noNotificationAction": "记录正常，但 iPhone 没有显示任何通知。请在“Log Payment in Kassa”操作中打开“显示通知”。",
+      "passed": "正常工作：一笔真实的 Apple Pay 消费从你的 iPhone 到达 Kassa，以正确金额记录，并且 iPhone 显示了 Kassa 的回复。"
+    },
+    "askAmount": "这是你的消费吗？金额正确吗？",
+    "askNotification": "iPhone 是否显示了通知“{{title}}”？",
+    "yes": "是",
+    "no": "否",
+    "purchase": "{{merchant}} · {{amount}} · {{time}}",
+    "tryAgain": "在快捷指令 App 中修正后再付一次款。列表会自动更新。",
+    "nothing": {
+      "title": "仍然没有收到。常见原因：",
+      "1": "自动化设为“确认后运行”：请改为“立即运行”。",
+      "2": "你付款用的卡没有在自动化的“卡”中选中。",
+      "3": "付款是在网上或应用内完成的：只有在终端刷卡才会触发“交易”。",
+      "4": "快捷指令发送到了别的地址：请与上面的 URL 对比。",
+      "5": "快捷指令里的密钥有误：创建新密钥并重新粘贴链接。"
+    },
+    "logTitle": "开始后的请求（{{n}}）",
+    "logFooter": "数据来自服务器。✓ = 字段已收到，✗ = 未收到。",
+    "attemptMeta": "{{time}} · 来自 {{client}}",
+    "viaAction": "KassaLite 操作",
+    "fields": "商户 {{merchant}} · 金额 {{amount}} · 卡 {{card}} · 地点 {{place}}",
+    "scriptClient": "此请求来自浏览器或脚本，而不是快捷指令 App。",
+    "attempt": {
+      "logged": "消费已记录",
+      "forwarded": "银行短信已记录",
+      "manualRun": "无付款运行（手动）",
+      "noAmount": "收到但没有金额：请把 Amount 设为“快捷指令输入 › 金额”",
+      "noMerchant": "收到但没有商户：请把 Merchant 设为“快捷指令输入 › 商户”",
+      "amountUnreadable": "已收到，但 Kassa 无法读取金额",
+      "textUnreadable": "短信已收到，但 Kassa 没有从中识别出付款",
+      "revokedKey": "已拒绝：快捷指令使用的是已撤销的密钥。请换成新的链接。",
+      "badBody": "已拒绝：{{problem}}。请求体必须是 JSON。",
+      "failed": "已收到，但记录失败：{{problem}}"
+    }
+  },
+  "voice": {
+    "title": "用语音问 Kassa",
+    "intro": "一个用“嘿 Siri，Ask Kassa”启动的快捷指令：你说话，Kassa 的 AI 听取录音并朗读回答。可以问花了多少钱、有什么要付，或者说“咖啡 1200 福林”来记一笔消费。",
+    "footer": "只回答问题，从不付款。要付款请打开 Kassa。链接里包含你的快捷指令密钥：只把它粘贴到快捷指令中。",
+    "copyLink": "复制语音链接",
+    "copied": "语音链接已复制",
+    "needToken": "请先在上方创建令牌：语音链接要用到它。",
+    "steps": {
+      "1": "快捷指令 → +（新建快捷指令），命名为“Ask Kassa”。",
+      "2": "添加“录制音频”：立即开始录制，轻点时结束录制。",
+      "3": "添加“Base64 编码”，输入为录制的音频。",
+      "4": "添加“获取 URL 的内容”：把语音链接粘贴为 URL。轻点 ›：方法 POST，请求体 JSON，文本字段 audio = Base64 编码结果，format = m4a。",
+      "5": "添加“获取词典值”：从“URL 的内容”中获取键 reply 的值。",
+      "6": "添加“朗读文本”（或“显示结果”），内容为词典值。然后说“嘿 Siri，Ask Kassa”。"
+    }
   }
 }

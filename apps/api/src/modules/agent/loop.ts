@@ -11,7 +11,7 @@ import type { AgentPorts } from "./ports.ts";
 import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "./replay.ts";
-import { buildTools, MAX_TOOL_CALLS, MAX_TOOL_STEPS, type ToolContext } from "./tools.ts";
+import { buildTools, DRAFT_TOOLS, MAX_TOOL_CALLS, MAX_TOOL_STEPS, UI_TOOLS, WRITE_TOOLS, type ToolContext } from "./tools.ts";
 import type { ReaderResult } from "../reader/index.ts";
 
 /*
@@ -42,7 +42,18 @@ export interface TurnOptions {
   emit: (chunk: UIMessageChunk) => void;
   abortSignal?: AbortSignal;
   replayChunkDelayMs?: number;
+  /**
+   * A channel that only holds a Shortcut key (POST /capture/voice): no propose_order or purchase-order draft, so the
+   * key keeps its one power (logging spending), and no pickers, which a Shortcut cannot show. Reading, advice and
+   * log_expense stay.
+   */
+  readOnly?: boolean;
 }
+
+/** Tools a read-only turn never gets (TurnOptions.readOnly). */
+const NOT_READ_ONLY: readonly string[] = [...WRITE_TOOLS, ...DRAFT_TOOLS, ...UI_TOOLS];
+
+export const READ_ONLY_PROMPT = `This message was spoken into the user's iPhone Shortcut and your answer is read aloud or shown as one notification. Answer in at most three short sentences, plain text, no Markdown or lists. In this channel you cannot propose or make payments: when the user asks to pay or send money, say what you found and tell them to open Kassa to pay it. You can still log a purchase they describe with log_expense.`;
 
 export interface TurnHandle {
   /** UI message stream of the model output (text rehydrated for the user). */
@@ -123,7 +134,8 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     business,
     awaitingUser: null,
   };
-  const tools = buildTools(ctx);
+  const all = buildTools(ctx);
+  const tools = o.readOnly ? Object.fromEntries(Object.entries(all).filter(([name]) => !NOT_READ_ONLY.includes(name))) : all;
 
   // Model: injected (tests) → REPLAY recording → live planner from the registry, falling back to the recording when
   // the provider can't be used (ai/fallback.ts; the message is then labelled Replay).
@@ -168,7 +180,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
 
   const result = streamText({
     model,
-    instructions: business ? `${SYSTEM_PROMPT}\n\n${BUSINESS_PROMPT}` : SYSTEM_PROMPT,
+    instructions: [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [READ_ONLY_PROMPT] : [])].join("\n\n"),
     messages: [...history, userMsg],
     tools,
     // Live models retry 429 / 5xx themselves (ai/retry.ts: AI_MAX_RETRIES, backoff + jitter, Retry-After).

@@ -159,7 +159,7 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 | Replay         | `AGENT_MODE=REPLAY`                                | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model                                                                                                     |
 
 - Models are `provider:model` strings. Providers: `openrouter`, `openai`, `google`, `local`. Bare ids are treated as OpenRouter model ids.
-- Defaults: `PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`, `READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`.
+- Defaults: `PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`, `READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`, `VOICE_MODEL=openrouter:xiaomi/mimo-v2.6-pro` (speech to text for the voice Shortcut, [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md) "Voice").
 - Keys: `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`.
 - OpenRouter: `PLANNER_MODEL=openrouter:inclusionai/ling-3.1-flash` (any OpenRouter model id) with `OPENROUTER_API_KEY`; the base URL `https://openrouter.ai/api/v1` is built in.
 - Structured output works with any model: native structured output first; if the provider rejects it, one forced call of a schema-carrier tool that never executes; if tools are rejected too, JSON text. Every answer is validated with the same schema (one retry on invalid output). The working mode is detected once per model; `AI_STRUCTURED_MODE=native|tool|json` sets the first mode to try.

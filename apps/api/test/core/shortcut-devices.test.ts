@@ -183,6 +183,51 @@ describe("/capture/shortcut test run (KassaLite setup check)", () => {
     expect(JSON.stringify(list.lastCheck)).not.toContain("4821");
   });
 
+  it("recentChecks: the live test sees every request after its start, refused ones too, and the caller", async () => {
+    const { userId } = await createUserWithPasskey();
+    const old = await createDevice(userId);
+    const { token } = await createDevice(userId);
+    const startedAt = (await listDevices(userId) as unknown as { serverTime: string }).serverTime;
+    const ua = { "user-agent": "BackgroundShortcutRunner/1.0 CFNetwork/1568 Darwin/24.0.0" };
+
+    // A form body instead of JSON, and a JSON body of the wrong shape: refused, recorded on the key.
+    const form = await app().inject({ method: "POST", url: "/api/capture/shortcut", headers: { authorization: `Bearer ${token}`, "content-type": "application/x-www-form-urlencoded", ...ua }, payload: "merchant=Cafe&amount=12" });
+    expect(form.statusCode).toBe(415);
+    const shape = await app().inject({ method: "POST", url: "/api/capture/shortcut", headers: { authorization: `Bearer ${token}`, ...ua }, payload: { merchant: 42, amount: true } });
+    expect(shape.statusCode).toBe(400);
+    // A revoked key still in a Shortcut: 401, recorded on that key; an unknown key names nobody.
+    await app().inject({ method: "DELETE", url: `/api/devices/${old.deviceId}`, headers: await bearer(userId) });
+    expect((await capture(old.token, { merchant: "Cafe", amount: "12 EUR" })).statusCode).toBe(401);
+    expect((await capture("not-a-key", { merchant: "Cafe", amount: "12 EUR" })).statusCode).toBe(401);
+    // A real purchase from the Shortcuts app.
+    const ok = await app().inject({ method: "POST", url: "/api/capture/shortcut", headers: { authorization: `Bearer ${token}`, ...ua }, payload: { merchant: "Blue Bottle", amount: "2 100 Ft", card: "Visa" } });
+    expect(ok.statusCode).toBe(200);
+
+    const list = (await listDevices(userId)) as unknown as {
+      lastUsedAt: string | null;
+      recentChecks: { at: string; kind: string; client: string | null; problem: string | null; replyTitle: string | null; payment: { merchant: string; amountMinor: number; currency: string } | null }[];
+      serverTime: string;
+    };
+    const since = list.recentChecks.filter((c) => c.at >= startedAt);
+    expect(since.map((c) => c.kind)).toEqual(["PAYMENT", "REVOKED_KEY", "BAD_BODY", "BAD_BODY"]);
+    expect(since[0]!.client).toBe("BackgroundShortcutRunner");
+    expect(since[0]!.payment).toEqual({ merchant: "Blue Bottle", amountMinor: 210000, currency: "HUF" });
+    expect(since[0]!.replyTitle).toMatch(/Blue Bottle/);
+    expect(since[2]!.problem).toMatch(/wrong shape/);
+    expect(since[3]!.problem).toMatch(/not JSON/);
+    // Only the accepted request moved lastUsedAt (KassaLite reads a moving lastUsedAt as "connected").
+    expect(list.lastUsedAt).toBe(since[0]!.at);
+  });
+
+  it("refused requests do not move lastUsedAt", async () => {
+    const { userId } = await createUserWithPasskey();
+    const { token } = await createDevice(userId);
+    expect((await app().inject({ method: "POST", url: "/api/capture/shortcut", headers: { authorization: `Bearer ${token}` }, payload: { merchant: ["Cafe"], amount: { value: 5 } } })).statusCode).toBe(400);
+    const list = await listDevices(userId);
+    expect(list.lastUsedAt).toBeNull();
+    expect(list.lastCheck).toBeNull();
+  });
+
   it("?key= works instead of the Authorization header (one pasted URL); a wrong key is 401", async () => {
     const { userId } = await createUserWithPasskey();
     const { token } = await createDevice(userId);

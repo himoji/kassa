@@ -19,6 +19,7 @@ import {
 import { liteSignOut } from "@/lite/sign-out";
 
 import { serverHost, ShortcutSetup } from "./shortcut-setup";
+import { VoiceShortcut } from "./voice-shortcut";
 import { UpdatesSection } from "./updates-section";
 
 /** KassaLite settings: pairing state, Shortcut install, data shown, server URL, sign out. */
@@ -125,6 +126,7 @@ export function LiteSettingsScreen() {
       </RowGroup>
 
       <ShortcutSetup />
+      <VoiceShortcut />
 
       <RowGroup
         title={t("lite:settings.dataMode.title")}

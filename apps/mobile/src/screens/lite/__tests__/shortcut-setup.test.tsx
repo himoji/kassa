@@ -217,7 +217,7 @@ describe("ShortcutSetup", () => {
   it("a complete tap: every line checked, with the merchant and amount Kassa logged", async () => {
     mockDevices = { ...mockDevices, lastUsedAt: PAYMENT.at, lastCheck: PAYMENT };
     await render(ui());
-    expect(screen.getByText("Everything works")).toBeTruthy();
+    expect(screen.getByText("Your last Apple Pay tap arrived complete")).toBeTruthy();
     await waitFor(() => expect(screen.getByText("Merchant: Blue Bottle")).toBeTruthy());
     expect(screen.getByText(/Amount: .*2,100/)).toBeTruthy();
     expect(screen.getByTestId("check-place-tip")).toBeTruthy();

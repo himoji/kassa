@@ -52,3 +52,8 @@ export function applyServerUrl(serverUrl: string): void {
 export function shortcutEndpointFor(serverUrl: string): string {
   return `${apiBaseUrl(serverUrl)}/capture/shortcut`;
 }
+
+/** The voice Shortcut's endpoint (POST /api/capture/voice, the same key). */
+export function voiceEndpointFor(serverUrl: string): string {
+  return `${apiBaseUrl(serverUrl)}/capture/voice`;
+}

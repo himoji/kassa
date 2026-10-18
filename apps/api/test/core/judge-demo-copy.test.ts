@@ -71,6 +71,10 @@ describe("judge build: a private copy of the persona per dev sign-in", () => {
       const me = await app().inject({ method: "GET", url: "/api/me", headers: s.h });
       expect(me.statusCode, me.body).toBe(200);
       expect(me.json().onboarded).toBe(true);
+      // Backup codes made with the copy's dev passkey: the app opens on the home screen, not on the backup-codes step.
+      const codes = await app().inject({ method: "GET", url: "/api/auth/recovery-codes", headers: s.h });
+      expect(codes.statusCode, codes.body).toBe(200);
+      expect(codes.json().remaining).toBe(10);
     }
 
     const db = getDb();

@@ -102,8 +102,8 @@ async function devUser(): Promise<string> {
 
 /**
  * Sign a copied persona's onboarding as the user would in the app: POST /onboarding/confirm/options + /onboarding/confirm
- * (passkey-signed base rules), then /mandates/options + /mandates for each seeded mandate, each assertion made by the
- * user's dev passkey. Requests go through `app.inject` with a server-minted dev token and the caller's address, so the
+ * (passkey-signed base rules), /mandates/options + /mandates for each seeded mandate, then /auth/recovery-codes (backup
+ * codes), each assertion made by the user's dev passkey. Requests go through `app.inject` with a server-minted dev token and the caller's address, so the
  * routes' checks and rate limits apply as for the caller's own requests. Throws on any non-2xx answer.
  */
 async function signSeededOnboarding(app: FastifyInstance, req: FastifyRequest, userId: string, mandates: readonly { core: MandateCore }[]): Promise<void> {
@@ -111,8 +111,9 @@ async function signSeededOnboarding(app: FastifyInstance, req: FastifyRequest, u
   const key = await devKeyFor(userId);
   const forwarded = req.headers["x-forwarded-for"];
   const headers = { authorization: `Bearer ${await mintInternalAccessToken(userId, { dev: true })}`, ...(forwarded ? { "x-forwarded-for": forwarded } : {}) };
+  const remote = req.socket?.remoteAddress ? { remoteAddress: req.socket.remoteAddress } : {};
   const post = async <T>(url: string, payload: Record<string, unknown>): Promise<T> => {
-    const res = await app.inject({ method: "POST", url, headers, payload, ...(req.socket?.remoteAddress ? { remoteAddress: req.socket.remoteAddress } : {}) });
+    const res = await app.inject({ method: "POST", url, headers, payload, ...remote });
     if (res.statusCode < 200 || res.statusCode >= 300) throw new Error(`${url} answered ${res.statusCode}: ${res.body.slice(0, 300)}`);
     return res.json() as T;
   };
@@ -133,6 +134,12 @@ async function signSeededOnboarding(app: FastifyInstance, req: FastifyRequest, u
     });
     await post("/api/mandates", { core: opt.core, assertion: sign(opt.webauthnOptions.challenge) });
   }
+  // Backup codes, so the copy opens on the home screen and not on the mandatory backup-codes step. Nobody sees these
+  // codes: the copy is signed in with the dev login only.
+  const gate = await app.inject({ method: "POST", url: "/api/auth/recovery-codes", headers, payload: {}, ...remote });
+  if (gate.statusCode !== 428) throw new Error(`/api/auth/recovery-codes answered ${gate.statusCode}: ${gate.body.slice(0, 300)}`);
+  const { details } = gate.json() as { details: { challengeId: string; webauthnOptions: { challenge: string } } };
+  await post("/api/auth/recovery-codes", { challengeId: details.challengeId, assertion: sign(details.webauthnOptions.challenge) });
 }
 
 /** Judge build sign-in: a private persona copy (onboarded) for `demoClaim`, else a brand-new user. Never a shared account. */

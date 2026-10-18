@@ -855,6 +855,8 @@ export const devices = pgTable("devices", {
   lastUsedAt: tstz("last_used_at"),
   /** (added) IOS_SHORTCUT: what the last request carried and what came of it (KassaLite's tap check). */
   lastCheck: jsonb("last_check").$type<ShortcutCheckJson>(),
+  /** (added 2026-10-18) IOS_SHORTCUT: the newest requests made with this token, refused ones too (the live Shortcut test). */
+  recentChecks: jsonb("recent_checks").$type<ShortcutAttemptJson[]>(),
 });
 
 /**
@@ -869,6 +871,27 @@ export type ShortcutCheckJson = {
   status: "LOGGED" | "MERGED" | "IGNORED_INCOMING" | "UNPARSED" | null;
   transactionId: string | null;
 };
+
+/**
+ * One request made with a Shortcut token, kept for the live Shortcut test (the newest SHORTCUT_ATTEMPTS_KEPT per
+ * token). Besides the outcomes of ShortcutCheckJson it records requests Kassa refused: a revoked token (REVOKED_KEY),
+ * a body it could not read (BAD_BODY) and a failure while logging (FAILED). No merchant text or amount is kept here.
+ */
+export type ShortcutAttemptJson = {
+  at: string;
+  kind: ShortcutCheckJson["kind"] | "REVOKED_KEY" | "BAD_BODY" | "FAILED";
+  via: ShortcutCheckJson["via"];
+  /** The caller's User-Agent product, e.g. "BackgroundShortcutRunner" (iOS Shortcuts) or "curl". */
+  client: string | null;
+  fields: ShortcutCheckJson["fields"];
+  status: ShortcutCheckJson["status"];
+  transactionId: string | null;
+  /** BAD_BODY and FAILED: what was wrong, without the request's values. */
+  problem?: string;
+  /** The notification title Kassa answered with, which the iPhone should show. */
+  replyTitle?: string;
+};
+export const SHORTCUT_ATTEMPTS_KEPT = 20;
 
 /** Singleton row (id = 1). */
 export const demoState = pgTable("demo_state", {

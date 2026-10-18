@@ -62,5 +62,85 @@
       "5": "Optional: save the response and show its nudge field as a notification.",
       "6": "Pay with your phone. A moment later the spend is in Activity."
     }
+  },
+  "test": {
+    "title": "Test your Shortcut",
+    "open": "Test it live",
+    "openHint": "Pay once with Apple Pay and see exactly what reached Kassa.",
+    "intro": "This test only trusts what the server receives. Press Start, then pay with Apple Pay on your iPhone. Every request your Shortcut makes from now on is listed below, refused ones too, with what it carried.",
+    "keysTitle": "Your keys",
+    "keysFooter": "A key is the token or link inside your Shortcut. A request with a key Kassa has never seen (a typo, or another server) cannot be shown here.",
+    "keys": "Active keys: {{n}} · last accepted request: {{last}}",
+    "never": "never",
+    "noKey": "You have no active key, so your Shortcut cannot reach Kassa. Create one first.",
+    "createKey": "Create a key",
+    "oldServer": "This server is too old for the live test. Update the server first.",
+    "endpoint": "Your Shortcut must send to: {{url}}",
+    "runTitle": "Live test",
+    "before": "Have your iPhone ready, with the automation set to Run Immediately.",
+    "start": "Start",
+    "restart": "Start again",
+    "running": "Listening for {{seconds}} s",
+    "payNow": "Now pay with Apple Pay at a terminal (a small purchase is enough). Online and in-app Apple Pay do not run the Transaction automation.",
+    "resultTitle": "Result",
+    "state": {
+      "waiting": "Nothing has reached Kassa since you pressed Start.",
+      "fix": "Not working yet: {{problem}}",
+      "manualOnly": "Your Shortcut reached Kassa, but without a payment (it was run by hand). That proves the link and key, not the Apple Pay trigger. Now pay with Apple Pay.",
+      "notShortcuts": "A purchase arrived, but from “{{client}}”, not from the Shortcuts app. The automation on your iPhone is not proven.",
+      "confirm": "A purchase reached Kassa from your Shortcut and was logged. Two checks only you can make:",
+      "wrongAmount": "Logged, but with the wrong amount: in the automation, Amount must be Shortcut Input › Amount (not a number you typed).",
+      "noNotification": "Logging works, but your iPhone shows nothing. Add “Get Dictionary Value” (key nudge, from Contents of URL) and then “Show Notification” with the Dictionary Value.",
+      "noNotificationAction": "Logging works, but your iPhone shows nothing. In the “Log Payment in Kassa” action, turn Show Notification on.",
+      "passed": "Working: a real Apple Pay purchase went from your iPhone to Kassa, was logged with the right amount, and your iPhone showed Kassa's reply."
+    },
+    "askAmount": "Is this your purchase, with the right amount?",
+    "askNotification": "Did your iPhone show a notification “{{title}}”?",
+    "yes": "Yes",
+    "no": "No",
+    "purchase": "{{merchant}} · {{amount}} · {{time}}",
+    "tryAgain": "Fix it in the Shortcuts app, then pay again. This list updates by itself.",
+    "nothing": {
+      "title": "Still nothing. The usual reasons:",
+      "1": "The automation is set to “Run After Confirmation”: set it to Run Immediately.",
+      "2": "The card you paid with is not selected under Card in the automation.",
+      "3": "The payment was online or in an app: only taps at a terminal run the Transaction trigger.",
+      "4": "The Shortcut sends to another address: compare its URL with the one above.",
+      "5": "The key in the Shortcut has a typo: create a new key and paste the link again."
+    },
+    "logTitle": "Requests since Start ({{n}})",
+    "logFooter": "Read from the server. ✓ = the field arrived, ✗ = it did not.",
+    "attemptMeta": "{{time}} · from {{client}}",
+    "viaAction": "the KassaLite action",
+    "fields": "merchant {{merchant}} · amount {{amount}} · card {{card}} · place {{place}}",
+    "scriptClient": "This request came from a browser or a script, not from the Shortcuts app.",
+    "attempt": {
+      "logged": "Purchase logged",
+      "forwarded": "Bank message logged",
+      "manualRun": "Ran without a payment (by hand)",
+      "noAmount": "Arrived without an amount: set Amount to Shortcut Input › Amount",
+      "noMerchant": "Arrived without a merchant: set Merchant to Shortcut Input › Merchant",
+      "amountUnreadable": "Arrived, but Kassa could not read the amount",
+      "textUnreadable": "Message arrived, but Kassa could not read a payment in it",
+      "revokedKey": "Refused: the Shortcut uses a key you revoked. Put the new link in it.",
+      "badBody": "Refused: {{problem}}. Request Body must be JSON.",
+      "failed": "Arrived, but logging failed: {{problem}}"
+    }
+  },
+  "voice": {
+    "title": "Ask Kassa by voice",
+    "intro": "A Shortcut you start with “Hey Siri, Ask Kassa”: you speak, Kassa's AI hears the recording and answers aloud. Ask what you spent, what is due, or say “coffee 1,200 forints” to log a purchase.",
+    "footer": "Answers only: it never pays. To pay, open Kassa. The link holds your Shortcut key: paste it only into Shortcuts.",
+    "copyLink": "Copy voice link",
+    "copied": "Voice link copied",
+    "needToken": "Create a token above first: the voice link uses it.",
+    "steps": {
+      "1": "Shortcuts → + (new Shortcut). Name it “Ask Kassa”.",
+      "2": "Add “Record Audio”: Start Recording Immediately, Finish Recording On Tap.",
+      "3": "Add “Base64 Encode” with the Recorded Audio.",
+      "4": "Add “Get Contents of URL”: paste the voice link as the URL. Tap ›: Method POST, Request Body JSON, Text fields audio = Base64 Encoded and format = m4a.",
+      "5": "Add “Get Dictionary Value”: Value for key reply in Contents of URL.",
+      "6": "Add “Speak Text” (or “Show Result”) with the Dictionary Value. Then say “Hey Siri, Ask Kassa”."
+    }
   }
 }

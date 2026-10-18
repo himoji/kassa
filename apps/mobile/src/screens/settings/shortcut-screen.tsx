@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useState, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 
@@ -12,6 +13,7 @@ import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
 import { Segmented } from "@/components/kassa/segmented";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
+import { VoiceShortcutSteps } from "@/components/kassa/voice-shortcut-steps";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Text, toast } from "@/components/ui";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -104,6 +106,14 @@ export function ShortcutScreen() {
         </Text>
       </Box>
 
+      <RowGroup title={t("shortcut:test.title")} footer={t("shortcut:test.openHint")}>
+        <Box p={4}>
+          <Button variant="outline" onPress={() => router.push("/shortcut-test")}>
+            {t("shortcut:test.open")}
+          </Button>
+        </Box>
+      </RowGroup>
+
       <RowGroup title={t("shortcut:endpointTitle")} footer={t("shortcut:endpointFooter")}>
         <Box p={4} gap={3}>
           {endpoint ? (
@@ -151,6 +161,26 @@ export function ShortcutScreen() {
 
       {phone === "iphone" ? (
         <>
+          <RowGroup title={t("shortcut:voice.title")} footer={t("shortcut:voice.footer")}>
+            <Box p={4} gap={3}>
+              <Text variant="caption">{t("shortcut:voice.intro")}</Text>
+              {fresh && endpoint ? (
+                <Button
+                  variant="outline"
+                  onPress={() =>
+                    copy(
+                      `${endpoint.replace(/\/shortcut$/, "/voice")}?key=${encodeURIComponent(fresh.token)}`
+                    )
+                  }
+                >
+                  {t("shortcut:voice.copyLink")}
+                </Button>
+              ) : (
+                <Text variant="caption">{t("shortcut:voice.needToken")}</Text>
+              )}
+              <VoiceShortcutSteps />
+            </Box>
+          </RowGroup>
           <RowGroup title={t("shortcut:stepsTitle")}>
             <Box p={4} gap={3}>
               {STEPS.map((n) => (

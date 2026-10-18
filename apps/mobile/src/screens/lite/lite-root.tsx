@@ -130,6 +130,26 @@ function LiteNavigator() {
             options={{ ...largeTitleOptions, headerShown: true, title: t("wallet:linked.title") }}
           />
           <Stack.Screen
+            name="shortcut-test"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("shortcut:test.title") }}
+          />
+          <Stack.Screen
+            name="evidence"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("evidence:title") }}
+          />
+          <Stack.Screen
+            name="identity-check"
+            options={{ ...largeTitleOptions, headerShown: true, title: t("kyc:title") }}
+          />
+          <Stack.Screen
+            name="handoff/[paymentId]"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("handoff:title") }}
+          />
+          <Stack.Screen
+            name="pay/[billId]"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("shop:pay.title") }}
+          />
+          <Stack.Screen
             name="insights"
             options={{ ...largeTitleOptions, headerShown: true, title: t("insights:title") }}
           />
