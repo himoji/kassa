@@ -117,7 +117,7 @@ export function tapCheckPassed(check: TapCheck): boolean {
 }
 
 /**
- * Text to paste into an AI assistant (ChatGPT, Claude, Siri with Apple Intelligence…) so it walks the person through
+ * Text to paste into an AI assistant (ChatGPT, Siri with Apple Intelligence…) so it walks the person through
  * the automation. Never contains the key: the person pastes the copied link into Shortcuts themselves.
  */
 export function aiSetupPrompt(viaAction: boolean): string {

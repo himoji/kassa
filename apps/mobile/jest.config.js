@@ -23,8 +23,6 @@ module.exports = {
     "<rootDir>/examples/",
     // tools/* are standalone packages with their own test runner.
     "<rootDir>/tools/",
-    // .claude/ holds agent worktrees, which are full copies of this repo.
-    "<rootDir>/.claude/",
   ],
-  modulePathIgnorePatterns: ["<rootDir>/modules/", "<rootDir>/examples/", "<rootDir>/.claude/"],
+  modulePathIgnorePatterns: ["<rootDir>/modules/", "<rootDir>/examples/"],
 };

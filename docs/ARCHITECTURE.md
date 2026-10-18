@@ -292,9 +292,9 @@ Tables are defined in `apps/api/src/db/schema.ts` (spec §6, plus additions) and
 
 ### 7.1 Provider-agnostic model registry
 
-Models are addressed as `provider:model` in `PLANNER_MODEL` and `READER_MODEL`. The registry is built on the Vercel AI SDK (`ai`) provider registry (`apps/api/src/modules/ai/registry.ts`). Providers: `anthropic`, `openai`, `google`, and `local` (any OpenAI-compatible endpoint, for example Ollama or LM Studio). The registry splits on the first `:`, so `local:llama3.1:8b` is valid.
+Models are addressed as `provider:model` in `PLANNER_MODEL` and `READER_MODEL`. The registry is built on the Vercel AI SDK (`ai`) provider registry (`apps/api/src/modules/ai/registry.ts`). Providers: `openrouter`, `openai`, `google`, and `local` (any OpenAI-compatible endpoint, for example Ollama or LM Studio). The registry splits on the first `:`, so `local:llama3.1:8b` is valid.
 
-Providers that do not support tool calling or image input return an error code for the affected feature (for example `AI_VISION_UNSUPPORTED`). The spec named the Anthropic SDK directly; the AI SDK was chosen so that providers can change without code changes (`DECISIONS.md`, 2026-10-10).
+Providers that do not support tool calling or image input return an error code for the affected feature (for example `AI_VISION_UNSUPPORTED`). The spec named one vendor SDK directly; the AI SDK was chosen so that providers can change without code changes (`DECISIONS.md`, 2026-10-10).
 
 ### 7.2 Planner loop
 
@@ -360,7 +360,7 @@ The full list, with the reasoning, is in `DECISIONS.md` (standards-first rule, 2
 | Spec | Built | Reason | Log |
 | --- | --- | --- | --- |
 | pnpm | bun workspaces with Turborepo | The Expo boilerplate is bun-native | DECISIONS 2026-10-10 |
-| Anthropic SDK | Vercel AI SDK provider registry | Provider change without code changes, replay independent of vendor | DECISIONS 2026-10-10 |
+| Single-vendor LLM SDK | Vercel AI SDK provider registry | Provider change without code changes, replay independent of vendor | DECISIONS 2026-10-10 |
 | `agentMode` preset switch | `agentAutonomy` | Name clash with the demo `agentMode` | DECISIONS 2026-10-10 |
 | Native app from scratch | Expo app generated from ReadyNative Pro | Time before the feature freeze | DECISIONS 2026-10-10 (licence resolved 2026-10-12, see LICENSE) |
 | `PAYMENTS_DAILY_CAP_HOME_MINOR` 50,000,000 | 200,000,000 | The hero tuition would always be refused | DECISIONS 2026-10-11 |

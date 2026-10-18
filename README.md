@@ -19,7 +19,7 @@ Hero user: Dana, a Kazakh master's student in Budapest. Her money arrives in KZT
 Needs Bun 1.4 and, for the app, Node.js 22.18 or later.
 
 1. `bun install`
-2. `bun run env:setup` (writes gitignored `.env` files with generated dev keys). For live AI, put `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` in the root `.env`; without one the chat answers from replays: scripted model answers in `fixtures/agent-recordings/` (hand-written, labelled **Replay** in the chat).
+2. `bun run env:setup` (writes gitignored `.env` files with generated dev keys). For live AI, put `OPENROUTER_API_KEY` (or another provider's key) in the root `.env`; without one the chat answers from replays: scripted model answers in `fixtures/agent-recordings/` (hand-written, labelled **Replay** in the chat).
 3. `bun run db:migrate && bun run seed` (file-backed PGlite in `.data/`, seeds Dana)
 4. `bun run dev` (API on http://localhost:4000, mock world on http://localhost:4001)
 5. In a second terminal: `cd apps/mobile && bun run web`, then open http://localhost:8081
@@ -29,7 +29,7 @@ Details, phone testing and deployment are below.
 ## What it does
 
 - **An agent that acts within signed limits.** The planner reads balances, budgets, bills and documents and proposes orders. Rules decide: inside a passkey-signed mandate or small-auto limit the payment goes through on its own; otherwise the user approves the exact order with a passkey. The model itself has no payment tool ([SECURITY.md](docs/SECURITY.md)).
-- **AI runs LIVE by default** (`AGENT_MODE=LIVE`). It needs `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY` (or another provider, see "AI configuration"). Without a key, or if the model cannot be reached, the turn falls back to a recorded replay and the message is labelled **Replay** in the chat.
+- **AI runs LIVE by default** (`AGENT_MODE=LIVE`). It needs `OPENROUTER_API_KEY` (or another provider, see "AI configuration"). Without a key, or if the model cannot be reached, the turn falls back to a recorded replay and the message is labelled **Replay** in the chat.
 - **Learns your history from bank statements.** Upload PDF, CSV, Excel, OFX or JSON statements from every bank you use (Kaspi, Kazakh card banks, US banks and others; Russian, Kazakh, English). Kassa reads them in code (ruled tables, statement lines, column names in any language), finds money from home and how regular it really is (in how many months it came, its range, whether it stopped, a large transfer sent for one payment), each statement's period, one-off payments, spending trends and a move abroad, and leaves out transfers between your own accounts so nothing is counted twice. The agent reads this history later (`get_money_history`) and plans with averages, not the best month. The onboarding agent asks for statements first and prefills your draft; you still review and sign it. An AI fallback reads only redacted text, and every row it returns must be found in the statement ([docs/spec/IMPORT_PLAN.md](docs/spec/IMPORT_PLAN.md)).
 - **Spending in every currency.** Captures card taps, wallet notifications and Shortcut events, categorises them, and keeps budgets with a pace forecast.
 - **Fee x-ray and cheapest route.** Shows hidden card FX fees and compares funding routes for each bill.
@@ -154,12 +154,12 @@ bun run dev:all --no-tunnel    # localhost only, same as `turbo run dev`
 
 | Mode           | Setting                                            | Needs                                                                                                                                                                                                       |
 | -------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Live (default) | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider, for example `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`. Without a key, or if the model is unreachable, the turn is served from the matching recording and labelled Replay |
+| Live (default) | `AGENT_MODE=LIVE`, `PLANNER_MODEL`, `READER_MODEL` | One key for the chosen provider, for example `OPENROUTER_API_KEY`. Without a key, or if the model is unreachable, the turn is served from the matching recording and labelled Replay |
 | Replay         | `AGENT_MODE=REPLAY`                                | Nothing. Recorded tool calls from `fixtures/agent-recordings/` are served through the AI SDK mock model                                                                                                     |
 
-- Models are `provider:model` strings. Providers: `anthropic`, `openai`, `google`, `openrouter`, `local`. Bare ids are treated as Anthropic.
-- Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`, `READER_MODEL=anthropic:claude-haiku-5-5`.
-- Keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`.
+- Models are `provider:model` strings. Providers: `openrouter`, `openai`, `google`, `local`. Bare ids are treated as OpenRouter model ids.
+- Defaults: `PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`, `READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`.
+- Keys: `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `OPENROUTER_API_KEY`.
 - OpenRouter: `PLANNER_MODEL=openrouter:inclusionai/ling-3.1-flash` (any OpenRouter model id) with `OPENROUTER_API_KEY`; the base URL `https://openrouter.ai/api/v1` is built in.
 - Structured output works with any model: native structured output first; if the provider rejects it, one forced call of a schema-carrier tool that never executes; if tools are rejected too, JSON text. Every answer is validated with the same schema (one retry on invalid output). The working mode is detected once per model; `AI_STRUCTURED_MODE=native|tool|json` sets the first mode to try.
 - Rate limits: 429 and 5xx answers are retried `AI_MAX_RETRIES` times (default 5) with exponential backoff and jitter, honouring `Retry-After`.
@@ -179,7 +179,7 @@ bun run sim down         # stops everything it started and reports the ports
 
 Do not run `bun run dev` at the same time: both use ports 4000 and 4001. The runbook is in [docs/evidence/sim/RUNBOOK.md](docs/evidence/sim/RUNBOOK.md). It lists every command, the personas (average user, careful user, bad-actor user), and the security scenarios with the test files that cover them.
 
-Persona and attacker runs (a Haiku 5.5 model played both the user and the planner through the API; Kassa's own model calls were replayed, so these runs test the product's guards, not its live planner) have their reports in `docs/evidence/sim/`: `p1/` (average user), `p2/` (careful user), `p3/` (bad actor), `cn/` (Chinese-context demos and a compromised planner), and `security/` (scenario review). [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) has the results and the fix status of every finding.
+Persona and attacker runs (an LLM tester played both the user and the planner through the API; Kassa's own model calls were replayed, so these runs test the product's guards, not its live planner) have their reports in `docs/evidence/sim/`: `p1/` (average user), `p2/` (careful user), `p3/` (bad actor), `cn/` (Chinese-context demos and a compromised planner), and `security/` (scenario review). [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) has the results and the fix status of every finding.
 
 ## Tests and checks
 
@@ -192,7 +192,7 @@ bun run ledger:anchor:verify  # re-reads each anchor transaction from the testne
 ```
 
 - Counts from the latest run (2026-10-18, per workspace): API 1,042 tests in 134 files (one opt-in live-AI smoke test file skipped) (unit, invariant, attack, security and integration), mock world 361, shared 53, mobile Jest 893 in 82 suites (including the locale checks for zh, ru and kk). The test files and what they assert are catalogued in [docs/TESTS.md](docs/TESTS.md) (per-file counts from 2026-10-12, with later files noted) and [docs/SECURITY.md](docs/SECURITY.md).
-- Attack suite (`apps/api/test/attacks/`): A1 to A8 from the spec, A9 (swapped invoice bank details), and A10 to A17, which recreate real incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake memories, MCP tool poisoning and EchoLeak, the Chevrolet "$1 Tahoe" and Project Vend, salami splitting, "safe account" scams). The planner and Reader in them obey the attacker. `bun run evidence:attacks`: **guarded paid 0 of 16, naive paid 16 of 16** (`docs/evidence/attacks.json`; sources in [docs/SECURITY.md](docs/SECURITY.md) §6).
+- Attack suite (`apps/api/test/attacks/`): A1 to A8 from the spec, A9 (swapped invoice bank details), and A10 to A17, which recreate real incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake memories, MCP tool poisoning and EchoLeak, the Chevrolet "$1 Tahoe" and talked-into discounts, salami splitting, "safe account" scams). The planner and Reader in them obey the attacker. `bun run evidence:attacks`: **guarded paid 0 of 16, naive paid 16 of 16** (`docs/evidence/attacks.json`; sources in [docs/SECURITY.md](docs/SECURITY.md) §6).
 - `ledger:verify` writes its report to `docs/evidence/ledger-verify.json`.
 - Reader accuracy: `bun run eval:invoices` runs the live Reader (`READER_MODEL`, needs its key) on the 30 labelled invoices in `fixtures/invoices/` and writes the exact-match rate per field, wrong values the evidence check still verified, and latency to `docs/evidence/invoice-eval.json`.
 - CI: `.github/workflows/ci.yml` defines the same checks (typecheck, lint, tests in replay mode, migrate, seed, `ledger:verify`) for GitHub Actions. The counts above come from a local `bun run test`.
@@ -240,7 +240,7 @@ grep -v '^#' .env.vercel | while IFS= read -r line; do
 done
 printf '%s' true   | vercel env add DEMO_ENABLED production
 printf '%s' LIVE   | vercel env add AGENT_MODE production
-printf '%s' "$ANTHROPIC_API_KEY" | vercel env add ANTHROPIC_API_KEY production   # or OPENROUTER_API_KEY; without a key every turn is a labelled Replay
+printf '%s' "$OPENROUTER_API_KEY" | vercel env add OPENROUTER_API_KEY production   # without a key every turn is a labelled Replay
 printf '%s' fake   | vercel env add ISSUING_PROVIDER production
 
 vercel deploy --prod                          # migrations run in the build

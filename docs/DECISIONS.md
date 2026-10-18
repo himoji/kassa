@@ -25,12 +25,12 @@ Deviations from `docs/spec/TECH_SPEC.md` (spec §0: date, problem, choice). Newe
 
 ## 2026-10-10 — Provider-agnostic LLM via the Vercel AI SDK
 
-- **Problem:** spec §3/§9 pin the Anthropic TypeScript SDK; we want to swap providers (including a local
+- **Problem:** spec §3/§9 pin one vendor's TypeScript SDK; we want to swap providers (including a local
   model) without code changes, and replay must not depend on one vendor's wire format.
 - **Choice:** Vercel AI SDK (`ai`) with a provider registry. Models are chosen by env strings
-  `provider:model`, provider one of `anthropic`, `openai`, `google`, `local` (any OpenAI-compatible
-  endpoint at `LOCAL_BASE_URL`, e.g. Ollama). Defaults: `PLANNER_MODEL=anthropic:claude-sonnet-5-5`,
-  `READER_MODEL=anthropic:claude-haiku-5-5`. Replay (`AGENT_MODE=REPLAY`) serves recordings through the
+  `provider:model`, provider one of `openrouter`, `openai`, `google`, `local` (any OpenAI-compatible
+  endpoint at `LOCAL_BASE_URL`, e.g. Ollama). Defaults: `PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`,
+  `READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`. Replay (`AGENT_MODE=REPLAY`) serves recordings through the
   AI SDK mock model, so it is provider-independent. Providers without tool calling or vision return an
   error code for the affected feature.
 
@@ -766,7 +766,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 ## 2026-10-15 — Real-world incident attacks A10–A17; payee account ciphertext bound to its row
 
 - **Attacks.** `apps/api/test/attacks/A10..A17` recreate public incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake
-  memories, MCP tool poisoning / EchoLeak, Chevrolet "$1 Tahoe" / Project Vend, salami splitting, APP "safe account"
+  memories, MCP tool poisoning / EchoLeak, Chevrolet "$1 Tahoe" / talked-into discount, salami splitting, APP "safe account"
   scams) with a planner and Reader that obey the injection. Each also has a naive row (`test/naive/`). Sources and
   mappings: `docs/SECURITY.md` §6 "Real-world incidents recreated". Result: guarded 0 of 16 paid, naive 16 of 16.
 - **Fix found by A12.** A row writer could copy a cooling payee's `accountEnc` + `accountHash` into a verified payee

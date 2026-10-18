@@ -4,7 +4,7 @@
  *
  *  - POST /tool          the planner's 11 tools, built by the REAL agent/tools.ts with the REAL Redactor and the
  *                        placeholder map per conversation (I11), as agent/loop.ts does for one tool step. The
- *                        caller (a Haiku persona playing the planner) gets what the model would see.
+ *                        caller (an LLM persona playing the planner) gets what the model would see.
  *                        Only agent/ + rules.proposeOrder are reached; never payments/ or rails/ (I1).
  *  - POST /user-text     the user's chat message, redacted exactly as the planner would receive it.
  *  - POST /payment       one payment of the calling persona (incl. the one-time card id), read-only.
@@ -92,7 +92,7 @@ const must = (v: unknown, name: string): string => {
   return s;
 };
 
-/** A caller-supplied extraction played back as the Reader model's structured output (Haiku plays the Reader). */
+/** A caller-supplied extraction played back as the Reader model's structured output (the tester plays the Reader). */
 function callerReaderModel(extraction: unknown) {
   return new MockLanguageModelV4({
     provider: "sim",

@@ -79,7 +79,7 @@ describe("structured output strategy (any provider)", () => {
     expect(cachedStructuredMode(model)).toBe("json");
   });
 
-  it("a schema too large for constrained decoding (Anthropic's 'compiled grammar is too large') falls back like a missing capability", async () => {
+  it("a schema too large for constrained decoding ('compiled grammar is too large') falls back like a missing capability", async () => {
     const tooLarge = () =>
       new APICallError({ message: "Provider returned error", url: "https://x/chat/completions", requestBodyValues: {}, statusCode: 400, responseBody: '{"error":{"message":"Provider returned error","code":400,"metadata":{"raw":"{\\"type\\":\\"error\\",\\"error\\":{\\"type\\":\\"invalid_request_error\\",\\"message\\":\\"The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools.\\"}}"}}}' });
     const model = new MockLanguageModelV4({

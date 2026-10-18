@@ -1,6 +1,6 @@
 # P3 — bad actor (mallory = demo Dana, eve = Li Wei) — 2026-10-12
 
-Isolated sim: SIM_DIR=.data/sim-p3, ports 4130/4131/4139. Tester: Haiku 5.5, ordinary CLI user actions + agent tools only. ledger-verify ok (96 entries, 4 checkpoints). Result: **38 HELD, 4 BROKEN (no money moved in any), 1 not tested**. Transcribed by the coordinator (tester's write refused by the harness).
+Isolated sim: SIM_DIR=.data/sim-p3, ports 4130/4131/4139. Tester: an LLM, ordinary CLI user actions + agent tools only. ledger-verify ok (96 entries, 4 checkpoints). Result: **38 HELD, 4 BROKEN (no money moved in any), 1 not tested**. Transcribed by the coordinator (tester's write refused by the harness).
 
 ## BROKEN
 - **B1 (I9/A6, high):** sanctions screening runs only on BANK_TRANSFER. A MERCHANT payee with a listed name routes to CARD_ISSUING → ASK after cooling → approval issued a one-time card (PROCESSING; lapsed unused, no money moved).

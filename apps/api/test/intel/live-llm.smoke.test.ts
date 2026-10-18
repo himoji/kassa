@@ -1,6 +1,6 @@
 /*
- * Real-model smoke test (not run in CI): KASSA_LIVE_LLM_TEST=1 plus a planner key (ANTHROPIC_API_KEY, or
- * OPENROUTER_API_KEY with PLANNER_MODEL=openrouter:…). It checks that the configured planner answers live and calls
+ * Real-model smoke test (not run in CI): KASSA_LIVE_LLM_TEST=1 plus the planner's key (OPENROUTER_API_KEY for
+ * the default openrouter: models, or the configured provider's key). It checks that the configured planner answers live and calls
  * a tool through the same registry, retries and redaction the app uses, so "the AI is live" is something a judge
  * can run: `KASSA_LIVE_LLM_TEST=1 bunx vitest run test/intel/live-llm.smoke.test.ts`.
  */

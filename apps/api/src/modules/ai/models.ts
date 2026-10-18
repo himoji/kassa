@@ -5,8 +5,8 @@ import { aiMaxRetries, withRetries } from "./retry.ts";
 import { assertProviderKey, createRegistry, parseModelSpec, type Env, type KassaRegistry, type ModelSpec } from "./registry.ts";
 
 /** Spec §3 roles, defaults from docs/DECISIONS.md (provider-agnostic LLM). */
-export const DEFAULT_PLANNER_MODEL = "anthropic:claude-sonnet-5-5";
-export const DEFAULT_READER_MODEL = "anthropic:claude-haiku-5-5";
+export const DEFAULT_PLANNER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash";
+export const DEFAULT_READER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash";
 
 let cached: { env: Env; registry: KassaRegistry } | null = null;
 
@@ -15,11 +15,11 @@ function registryFor(env: Env): KassaRegistry {
   return cached.registry;
 }
 
-/** Model spec strings may be bare legacy ids from spec §20 (`claude-sonnet-5-5`): treat as anthropic. */
+/** A bare model id (no `provider:` prefix) is an OpenRouter model id. */
 function normalizeSpec(value: string | undefined, fallback: string): string {
   const v = value?.trim();
   if (!v) return fallback;
-  return v.includes(":") ? v : `anthropic:${v}`;
+  return v.includes(":") ? v : `openrouter:${v}`;
 }
 
 export function plannerSpec(env: Env = process.env): ModelSpec {

@@ -20,12 +20,12 @@ const t = useTestDb();
 const rec = JSON.parse(readFileSync(new URL("../../../../fixtures/agent-recordings/onboarding.json", import.meta.url), "utf8")) as {
   turns: Array<{ userText: string; steps: Array<{ text: string }> }>;
 };
-const savedEnv = { AGENT_MODE: process.env.AGENT_MODE, ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY };
+const savedEnv = { AGENT_MODE: process.env.AGENT_MODE, OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY };
 
 beforeAll(async () => {
   await ensureIntelTables(t.db());
   process.env.AGENT_MODE = "REPLAY";
-  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.OPENROUTER_API_KEY;
 });
 afterAll(() => {
   for (const [k, v] of Object.entries(savedEnv)) {

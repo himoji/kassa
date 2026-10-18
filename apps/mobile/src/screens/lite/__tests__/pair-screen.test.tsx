@@ -18,7 +18,7 @@ jest.mock("expo-router", () => ({
 }));
 
 const COMPLETE = {
-  user: { id: "11111111-1111-4111-8111-111111111111", displayName: "Zhanel" },
+  user: { id: "11111111-1111-4111-8111-111111111111", displayName: "Dana" },
   onboarded: true,
   tokens: {
     accessToken: "access-1",

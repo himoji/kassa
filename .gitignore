@@ -41,3 +41,5 @@ docs/demo/*.mp4
 apps/mobile/ios-lite/
 .vercel
 .env*
+AGENTS.md
+/.agents/

@@ -67,7 +67,7 @@
       "openShortcuts": "打开快捷指令",
       "copyLinkOpen": "复制链接并打开快捷指令",
       "copyAi": "复制步骤给 AI",
-      "copiedAi": "步骤已复制：请粘贴到 ChatGPT、Claude 或其他助手中",
+      "copiedAi": "步骤已复制：请粘贴到 ChatGPT 或其他助手中",
       "aiHint": "卡住了？复制步骤给 AI 助手，它会一步一步带您完成。密钥只会留在您的剪贴板中。",
       "showSteps": "显示步骤",
       "hideSteps": "隐藏步骤",

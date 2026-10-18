@@ -78,7 +78,7 @@ file (PDF | CSV | TSV | XLSX | XLS | JSON | TXT)
 | S4 | Line parser for statements without ruled tables (date-led lines, signed amounts, foreign amount line, continuation lines) | `dataport/lines.ts` | Done |
 | S5 | Row classification and own-transfer detection (holder name, operation words, pairs across files) | `dataport/classify.ts` | Done |
 | S6 | Redaction for statements | `dataport/redact.ts` | Done |
-| S7 | AI fallback extraction with evidence checks; batched merchant categories | `dataport/ai.ts` | Done (no live key in the build container: evaluated with a mock model in tests and Haiku stand-ins, see Evaluation) |
+| S7 | AI fallback extraction with evidence checks; batched merchant categories | `dataport/ai.ts` | Done (no live key in the build container: evaluated with a mock model in tests and small-model stand-ins, see Evaluation) |
 | S8 | History insights: incomes, recurring bills, budgets, cards, FX fees | `dataport/history.ts` | Done |
 | S9 | API: `POST /import/file` (multipart, several files), commit takes incomes and settled amounts (fee x-ray) | `dataport/routes.ts`, `service.ts` | Done (`POST /import/file`, up to 6 files, 10 MB each) |
 | S10 | App and KassaLite: file picker on web and native (guarded for builds without the module), preview with "What Kassa learned" | `apps/mobile/src/screens/settings/data-screen.tsx` | Done: web file input and expo-document-picker on native (guarded with `requireOptionalNativeModule`), chunked commits with progress; shared preview `import-preview.tsx` |
@@ -105,9 +105,9 @@ Time: about 2.7 s for all three files. Known gaps: about 45 % of merchants fall 
 call (the build container has no model key); the FX markup needs live rates (the container cannot reach the rate
 sources, so the static example table is used and the markup is withheld rather than guessed).
 
-### The AI fallback on the real statements (Haiku as the Reader model)
+### The AI fallback on the real statements (a small model as the Reader)
 
-The build container has no model key, so Claude Haiku stood in for the Reader model: it was given exactly what the app
+The build container has no model key, so a small hosted model stood in for the Reader model: it was given exactly what the app
 sends (the redacted chunk and `STATEMENT_INSTRUCTIONS`) and its rows were put through the app's `verifyRow`.
 
 | Chunk | Rows from the model | Passed the evidence check | Agree with the deterministic reader |
@@ -166,7 +166,7 @@ Done last:
 
 Open, in priority order:
 
-1. **Live check with a model key.** Set `ANTHROPIC_API_KEY`, import the three statements, then ask the agent "Will I
+1. **Live check with a model key.** Set `OPENROUTER_API_KEY`, import the three statements, then ask the agent "Will I
    have enough in December?" and confirm it calls `get_money_history` and plans with the averages. Categories: with a
    key, the batched Reader call should shrink "other" further (38 % without a key, after the keywords).
 2. **FX markup on history** needs live rates (the build container cannot reach them). On a machine with network, check

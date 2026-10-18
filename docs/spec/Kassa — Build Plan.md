@@ -23,7 +23,7 @@ Nine parts. The rule that holds them together: **the AI can only draft; plain co
 | Part | Job | Talks to | Built from / reused | Owner |
 | --- | --- | --- | --- | --- |
 | App (React PWA) | Chat, confirmation sheet, balances per currency, bills, settings presets, activity log, freeze | Agent, Rules service | New; passkeys via @simplewebauthn/browser | C |
-| Agent service (LLM with tools) | Understands requests, plans, compares prices and routes, drafts orders | Rules service (drafts only), mock world (read), FX sources | New; Claude API tool use. Only write tool: `propose_order` | B |
+| Agent service (LLM with tools) | Understands requests, plans, compares prices and routes, drafts orders | Rules service (drafts only), mock world (read), FX sources | New; LLM API tool use. Only write tool: `propose_order` | B |
 | Reader (quarantined LLM call) | Turns untrusted input (invoices, menus, emails, price lists, screenshots) into typed fields | Agent only | New; no tools, schema-validated output | B |
 | Rules service (plain code, no AI) | Hard rules, mandates, risk score, decides auto / ask / handoff / refuse; builds the canonical order; verifies passkeys; signs approvals | App, Agent, Payment service, Ledger | Policy logic ported from the Guardian prototype (caps, allowlist, pending with timelock, pause/revoke) | A |
 | Payment service | Executes only signed approvals; re-checks the user signature for asked payments; own daily cap; single-use nonces | Rules service, rails, Ledger | New | A |

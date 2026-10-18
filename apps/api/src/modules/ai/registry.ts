@@ -1,4 +1,3 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
@@ -12,12 +11,11 @@ import { AiConfigError } from "./errors.ts";
  * model ids such as `local:llama3.1:8b` work.
  */
 
-export const PROVIDER_IDS = ["anthropic", "openai", "google", "openrouter", "local", "ollama"] as const;
+export const PROVIDER_IDS = ["openai", "google", "openrouter", "local", "ollama"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /** Env var holding each provider's API key. `null` = no key needed (local endpoints). */
 export const PROVIDER_KEY_ENV: Record<ProviderId, string | null> = {
-  anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   google: "GOOGLE_GENERATIVE_AI_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
@@ -113,7 +111,6 @@ export function createRegistry(env: Env) {
     supportsStructuredOutputs: true,
   });
   return createProviderRegistry({
-    anthropic: createAnthropic({ apiKey: env.ANTHROPIC_API_KEY }),
     openai: createOpenAI({ apiKey: env.OPENAI_API_KEY }),
     google: createGoogleGenerativeAI({ apiKey: env.GOOGLE_GENERATIVE_AI_API_KEY }),
     openrouter,

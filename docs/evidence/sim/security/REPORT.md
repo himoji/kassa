@@ -1,6 +1,6 @@
 # Security review — compromised agent, services and triggers (2026-10-12)
 
-Reviewer: Haiku 5.5 (read-only; ran the Vitest suites and read the code). Scope: RUNBOOK §5 security scenarios C1–C6, S1–S9, T1–T3; invariants I1–I13; attack suite A1–A8. Transcribed by the coordinator (the reviewer's file write was refused by the harness). Findings F1–F9 were addressed in the follow-up fix pass.
+Reviewer: an LLM (read-only; ran the Vitest suites and read the code). Scope: RUNBOOK §5 security scenarios C1–C6, S1–S9, T1–T3; invariants I1–I13; attack suite A1–A8. Transcribed by the coordinator (the reviewer's file write was refused by the harness). Findings F1–F9 were addressed in the follow-up fix pass.
 
 ## 1. Runs
 | Command (apps/api) | Result |

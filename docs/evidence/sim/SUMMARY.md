@@ -1,6 +1,6 @@
 # Simulation summary — 2026-10-12
 
-Five Haiku 5.5 testers, each on an isolated local stack (offline example FX). The tester model played both the user and the planner through the API; Kassa's own model calls were replayed, so these runs test the product's guards, not its live planner. Reports in the sub-folders.
+Five LLM testers, each on an isolated local stack (offline example FX). The tester model played both the user and the planner through the API; Kassa's own model calls were replayed, so these runs test the product's guards, not its live planner. Reports in the sub-folders.
 
 | Run | Who | Result | Money moved wrongly? |
 |---|---|---|---|

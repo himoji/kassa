@@ -1,6 +1,6 @@
 # P1 — average user (Dana, SMART preset) — 2026-10-12
 
-Isolated sim: SIM_DIR=.data/sim-p1, ports 4110/4111/4119, offline example FX rates. Tester: Haiku 5.5 acting as user + planner (no real LLM).
+Isolated sim: SIM_DIR=.data/sim-p1, ports 4110/4111/4119, offline example FX rates. Tester: an LLM acting as user + planner (Kassa's own model calls replayed).
 Result: **19 PASS / 8 FAIL**; ledger-verify ok (39 entries). No security failures — all failures are UX/product issues.
 
 | # | Step | Result | Note |

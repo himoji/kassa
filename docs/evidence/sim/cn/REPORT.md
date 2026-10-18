@@ -1,6 +1,6 @@
 # CN demos + compromised planner — 2026-10-12
 
-Isolated sim: SIM_DIR=.data/sim-cn, ports 4140/4141/4149, offline example FX. Tester: Haiku 5.5 as user + (fooled) planner. ledger-verify ok (55 entries, 2 checkpoints). Evidence: dcn1.json, dcn2.json, dcn3.json in this folder.
+Isolated sim: SIM_DIR=.data/sim-cn, ports 4140/4141/4149, offline example FX. Tester: an LLM as user + (fooled) planner. ledger-verify ok (55 entries, 2 checkpoints). Evidence: dcn1.json, dcn2.json, dcn3.json in this folder.
 
 ## Part A — Chinese-context demos (expected = RUNBOOK §5)
 | Demo | Result | Notes |

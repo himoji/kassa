@@ -1,4 +1,5 @@
 {
+  "agentGuidance": false,
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalPassThroughEnv": [

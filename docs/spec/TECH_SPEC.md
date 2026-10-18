@@ -1,6 +1,6 @@
 # Kassa: Technical Spec and Decisions
 
-> The spec written before the build started (2026-10-10). The build follows it, with every deviation dated in [DECISIONS.md](../DECISIONS.md): bun instead of pnpm, the Vercel AI SDK instead of the Anthropic SDK, an Expo app. [ARCHITECTURE.md](../ARCHITECTURE.md) and [TESTS.md](../TESTS.md) describe what exists.
+> The spec written before the build started (2026-10-10). The build follows it, with every deviation dated in [DECISIONS.md](../DECISIONS.md): bun instead of pnpm, the Vercel AI SDK instead of a single vendor SDK, an Expo app. [ARCHITECTURE.md](../ARCHITECTURE.md) and [TESTS.md](../TESTS.md) describe what exists.
 
 Build spec for the FinTechathon 2026 entry (Topic C). Audience: an engineer or coding agent building the frontend and backend. This file is the source of truth for **how** to build. The product plan ([Kassa — Build Plan.md](Kassa%20—%20Build%20Plan.md)) is the source of truth for **what** and **why**.
 
@@ -62,7 +62,7 @@ Three presets: Ask me, Smart, Autopilot. Three money modes: pay in place, capped
 | Area | Decision | Why |
 | --- | --- | --- |
 | Monorepo | bun workspaces + Turborepo | Shared types between app and API; one `bun run dev` |
-| Language | TypeScript everywhere (strict) | Shared zod schemas; mature WebAuthn, Stripe and Anthropic SDKs |
+| Language | TypeScript everywhere (strict) | Shared zod schemas; mature WebAuthn, Stripe and LLM SDKs |
 | App | Expo (SDK current stable) + Expo Router, React Native, React Native Web | One codebase for phone and web |
 | Demo target | **Expo web build served over HTTPS** (works in phone browsers), plus native dev builds via EAS if time allows | Passkeys and Stripe work on web without native config; native passkeys need associated domains and a dev build |
 | App styling | NativeWind (Tailwind for RN) | Fast and consistent on web and native |
@@ -73,7 +73,7 @@ Three presets: Ask me, Smart, Autopilot. Three money modes: pay in place, capped
 | DB | PostgreSQL 16 + **Drizzle ORM** + drizzle-kit migrations | Typed SQL; simple migrations |
 | Passkeys (server) | `@simplewebauthn/server` | Standard, well maintained |
 | Signing | Node `crypto` Ed25519 (or `@noble/ed25519`); `canonicalize` (RFC 8785) for JCS | No custom crypto |
-| LLM | Anthropic TypeScript SDK. Planner: `claude-sonnet-5-5`. Reader: `claude-haiku-5-5` | Planner needs reasoning and tools; Reader needs speed and structure |
+| LLM | A vendor LLM SDK. Planner: a large tool-calling model. Reader: a small, fast model | Planner needs reasoning and tools; Reader needs speed and structure |
 | PDF text | `pdf-parse`; images go to the Reader as vision input | Reader sees the real document |
 | Fuzzy match | `fastest-levenshtein` or a Jaro-Winkler implementation, plus `transliteration` for Cyrillic to Latin | Sanctions screening (I9) |
 | Jobs | In-process scheduler (`setInterval` every 15 s) driven by `Clock` | No queue needed at this scale |
@@ -122,7 +122,7 @@ ESLint `no-restricted-imports` rules:
 
 ```
 App ──HTTPS──▶ API /api
-   agent (planner, Sonnet) ──tool──▶ propose_order ──▶ rules.decide()
+   agent (planner) ──tool──▶ propose_order ──▶ rules.decide()
                                           │ returns Decision {AUTO|ASK|HANDOFF|REFUSE}
    rules builds CanonicalOrder ─ orderHash ─ (ASK: WebAuthn challenge to app)
    app signs with passkey ─▶ POST /orders/:id/approve (assertion)
@@ -280,7 +280,7 @@ Demo (enabled by `DEMO_ENABLED=true`, admin token):
 
 ## 9. Agent (planner) design
 
-**Loop:** Anthropic Messages API with tools, max 8 tool rounds per user turn. Responses stream to the app.
+**Loop:** LLM API with tools, max 8 tool rounds per user turn. Responses stream to the app.
 
 **System prompt essentials** (in `agent/prompt.ts`):
 
@@ -313,7 +313,7 @@ Demo (enabled by `DEMO_ENABLED=true`, admin token):
 - The mapping lives in `placeholder_maps`.
 - `propose_order` resolves placeholders server-side.
 
-**Reader (I10):** a `claude-haiku-5-5` call with no tools and a forced structured output schema.
+**Reader (I10):** a Reader model call with no tools and a forced structured output schema.
 
 - Output per document type:
   - `invoice`: payeeName, accountNumber, reference, amount, currency, dueDate, plus per-field `evidence` (an exact substring).
@@ -595,9 +595,9 @@ RULES_PUBLIC_KEY=                       # given to payments
 LEDGER_CHECKPOINT_KEY=
 ACCOUNT_ENC_KEY=                        # AES-256-GCM for payee account details
 MOCK_HMAC_SECRET=
-ANTHROPIC_API_KEY=
-PLANNER_MODEL=claude-sonnet-5-5
-READER_MODEL=claude-haiku-5-5
+OPENROUTER_API_KEY=
+PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash
+READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash
 AGENT_MODE=LIVE                         # or REPLAY
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
@@ -615,7 +615,7 @@ MOCK_WORLD_URL=http://mock-world:4001
 
 | Day | A: rules, payments, ledger | B: agent, Reader, FX, capture | C: app, demo, docs |
 | --- | --- | --- | --- |
-| Oct 11 | Monorepo, Drizzle schema, Clock, ledger, canonical order + golden tests, keys; check Stripe Issuing access | Anthropic client, Reader with schema + evidence checks; start labelling 30 invoices | Expo app shell, auth screens, passkey register/login on web |
+| Oct 11 | Monorepo, Drizzle schema, Clock, ledger, canonical order + golden tests, keys; check Stripe Issuing access | LLM client, Reader with schema + evidence checks; start labelling 30 invoices | Expo app shell, auth screens, passkey register/login on web |
 | Oct 12 | Rules evaluation + risk + presets + unit tests | Planner loop, tools (read-only first), redaction | Home, chat with streaming, confirmation sheet from canonical order |
 | Oct 13 | Approvals (Ed25519), payments verification (I2–I5), FakeIssuing | FX rates, route optimizer, coverage forecast | Settings, presets, payees, freeze |
 | Oct 14 | Stripe Issuing rail + authorization webhook; mock bank rail; screening | `propose_order` end to end; tuition scenario live | Activity, cards/fee x-ray, notifications feed |

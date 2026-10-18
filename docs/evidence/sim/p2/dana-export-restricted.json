@@ -23,7 +23,7 @@
     ],
     "recipients": [
       {
-        "recipient": "planner model: anthropic",
+        "recipient": "planner model: external provider",
         "receives": [
           "chat messages (reduced)",
           "tool results: balances, budgets, obligations, payee facts (reduced)"
@@ -31,7 +31,7 @@
         "local": false
       },
       {
-        "recipient": "reader model: anthropic",
+        "recipient": "reader model: external provider",
         "receives": [
           "text or image of documents and messages you ask Kassa to read"
         ],

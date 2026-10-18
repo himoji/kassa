@@ -40,7 +40,7 @@ The Shortcut is the capture path: it must be set up once. The reference is [SHOR
 
 1. Checks the server and key from this iPhone: POST `/api/capture/shortcut` `{"test": true}` with the Shortcut's key (nothing logged or recorded). A revoked key or an unreachable server is reported here, before the person goes to Shortcuts.
 2. Readies the automation's only input. A build **with** the Kassa action: writes the action's Keychain copy, nothing to paste. Any other build: copies **one link**, `https://<server>/api/capture/shortcut?key=<token>` (the key in the URL, so no header; the server log redacts `key`).
-3. Opens Shortcuts. The card shows the few steps (Automation → Transaction → Run Immediately → the Kassa action, or Get Contents of URL with the link and the three JSON fields) and **Copy steps for AI**: a prompt for ChatGPT, Claude or another assistant that walks the person through it tap by tap. The prompt never contains the key.
+3. Opens Shortcuts. The card shows the few steps (Automation → Transaction → Run Immediately → the Kassa action, or Get Contents of URL with the link and the three JSON fields) and **Copy steps for AI**: a prompt for ChatGPT or another assistant that walks the person through it tap by tap. The prompt never contains the key.
 
 iOS does not let an app create a personal automation, so the Transaction automation itself is always made in Shortcuts by the person.
 

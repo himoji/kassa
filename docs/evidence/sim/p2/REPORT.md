@@ -1,6 +1,6 @@
 # P2 — careful user (Dana, ASK_ME preset) — 2026-10-12
 
-Isolated sim: SIM_DIR=.data/sim-p2, ports 4120/4121/4129. Tester: Haiku 5.5 as user + planner. ledger-verify ok (40 entries).
+Isolated sim: SIM_DIR=.data/sim-p2, ports 4120/4121/4129. Tester: an LLM as user + planner. ledger-verify ok (40 entries).
 
 | # | Step | Result | Note |
 |---|---|---|---|

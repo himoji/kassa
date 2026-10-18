@@ -11,7 +11,7 @@ Related: [SECURITY.md](SECURITY.md) (controls and residual risks), [COMPLIANCE.m
 | Role | Party | Note |
 | --- | --- | --- |
 | Controller (in this prototype) | Kassa operator | Stated in the export as "Kassa (competition prototype; no real money moves)". A production controller would be the licensed operator |
-| Processor | AI model provider for the planner (`PLANNER_MODEL`) | Anthropic, OpenAI, Google, or a local model (`local`) that runs on infrastructure the operator controls |
+| Processor | AI model provider for the planner (`PLANNER_MODEL`) | OpenRouter (and the model vendor it routes to), OpenAI, Google, or a local model (`local`) that runs on infrastructure the operator controls |
 | Processor | AI model provider for the Reader (`READER_MODEL`) | Same options. Can differ from the planner |
 | Processor | Stripe (test mode) | Card Issuing and PaymentIntents. Card data is entered in Stripe's own payment form |
 | Simulated recipient | Mock bank, QR wallet, pizza shop, supplier, landlord, university, insurer | Part of this repository. No real third party receives data |
@@ -164,7 +164,7 @@ The retention period for payment records is not configured in code. The code cit
 
 | Recipient | Possible location | Current state |
 | --- | --- | --- |
-| Anthropic, OpenAI, Google (AI providers) | Depends on the provider and the configured region. Typically outside the EEA | No data processing agreement or transfer mechanism is configured in this repository. Must be in place before any live use with real personal data |
+| OpenRouter, OpenAI, Google (AI providers) | Depends on the provider and the configured region. Typically outside the EEA | No data processing agreement or transfer mechanism is configured in this repository. Must be in place before any live use with real personal data |
 | Local model (`local`) | Infrastructure the operator controls (for example Ollama on the operator's server) | No transfer if hosted in the EEA. This is the option for data residency |
 | Stripe | Stripe's own terms set the processing entity and locations | No DPA is accepted or configured in this repository. The operator must accept Stripe's DPA before live use |
 | Mock world | Same process group as the API | None |

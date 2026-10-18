@@ -224,8 +224,8 @@ describe("agent loop", () => {
 
 describe("replay (AGENT_MODE=REPLAY) with the hand-written tuition recording", () => {
   it("runs the full tool loop with no API key and no injected model", async () => {
-    const saved = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
+    const saved = process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
     try {
       const { ports, log } = fakePorts();
       const emitted: UIMessageChunk[] = [];
@@ -240,7 +240,7 @@ describe("replay (AGENT_MODE=REPLAY) with the hand-written tuition recording", (
       expect(start && "messageMetadata" in start ? start.messageMetadata : null).toEqual({ replay: true });
       expect(textOf(chunks)).toContain("Budapest University of Technology");
     } finally {
-      if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
+      if (saved !== undefined) process.env.OPENROUTER_API_KEY = saved;
     }
   });
 });

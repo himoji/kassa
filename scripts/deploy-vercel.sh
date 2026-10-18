@@ -4,7 +4,7 @@
 #   bash scripts/deploy-vercel.sh --redeploy   # later: just deploy
 # No domain to type: the function uses the project's production domain (VERCEL_PROJECT_PRODUCTION_URL) for the
 # passkey origin and RP ID, and loads the demo data into an empty database on its first start.
-# Set AGENT_MODE=LIVE and ANTHROPIC_API_KEY in your shell to use a live model instead of the recorded replay.
+# Set AGENT_MODE=LIVE and OPENROUTER_API_KEY in your shell to use a live model instead of the recorded replay.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -31,7 +31,6 @@ if [[ "${1:-}" != "--redeploy" ]]; then
   put ISSUING_PROVIDER fake
   # LIVE by default: with no key or an unreachable model a turn falls back to its recording, labelled Replay.
   put AGENT_MODE "${AGENT_MODE:-LIVE}"
-  [[ -n "${ANTHROPIC_API_KEY:-}" ]] && put ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
   [[ -n "${OPENROUTER_API_KEY:-}" ]] && put OPENROUTER_API_KEY "$OPENROUTER_API_KEY"
   [[ -n "${PLANNER_MODEL:-}" ]] && put PLANNER_MODEL "$PLANNER_MODEL"
   [[ -n "${READER_MODEL:-}" ]] && put READER_MODEL "$READER_MODEL"
