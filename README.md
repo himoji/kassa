@@ -60,8 +60,8 @@ Details, phone testing and deployment are below.
 | Technical documentation  | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (architecture, core algorithms), [docs/SECURITY.md](docs/SECURITY.md) (security design) |
 | Source code              | This repository: README, deployment (below), tests ([docs/TESTS.md](docs/TESTS.md))                                                  |
 | Security self-assessment | [docs/SECURITY.md](docs/SECURITY.md): permission tiers T0 to T3 (§2), known risks (§7)                                               |
-| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations; testnet anchoring of signed ledger checkpoints is implemented and tested (`bun run ledger:anchor` writes the transaction hashes to `anchors.json`, see "On-chain anchoring"; no anchor is published in this repository yet); the attack results as a page at `/evidence` in the web app (no sign-in) |
-| Presentation deck        | [Kassa — FinTechathon 2026](https://claude.ai/artifact/Sdktm1BZ9157k6Lj1qa4Y7) (slide deck, about 10 minutes)                          |
+| Execution evidence       | Sandbox logs and reports in [docs/evidence/](docs/evidence/): attack results, ledger verification, story run, persona simulations, live Reader accuracy on 30 labelled invoices (`invoice-eval.json`); testnet anchoring of signed ledger checkpoints is implemented and tested (`bun run ledger:anchor` writes the transaction hashes to `anchors.json`, see "On-chain anchoring"; no anchor is published in this repository yet); the attack results as a page at `/evidence` in the web app (no sign-in) |
+| Presentation deck        | [Kassa — FinTechathon 2026](https://claude.ai/artifact/Sdktm1BZ9157k6Lj1qa4Y7) (slide deck, about 10 minutes); spoken script, timings and expected questions in [docs/PITCH.md](docs/PITCH.md)                          |
 | Demo video               | Recorded with `bun run demo:video` ([docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)); link to be added at submission                       |
 
 Dates in the evidence (late October and November 2026) are on the **demo clock**: the seed data is a story set on 2026-10-27 and the demo moves its clock forward (rent day, payouts). The app itself runs on real time by default; the Stage's **Demo time** switch turns the story clock on (DECISIONS.md, 2026-10-16).
@@ -76,6 +76,7 @@ Dates in the evidence (late October and November 2026) are on the **demo clock**
 | [docs/COMPLIANCE.md](docs/COMPLIANCE.md)                     | Requirement-by-requirement mapping with status (Implemented, Simulated, Planned)                         |
 | [docs/TESTS.md](docs/TESTS.md)                               | Test catalogue: file-by-file counts from the final `bun run test` run, and attack evidence               |
 | [docs/evidence/sim/SUMMARY.md](docs/evidence/sim/SUMMARY.md) | Persona and attacker simulation reports (p1, p2, p3, cn, security) and the fix status of each finding    |
+| [docs/PITCH.md](docs/PITCH.md)                               | The 10-minute pitch: script per slide, expected questions, submission checklist                          |
 | [docs/DECISIONS.md](docs/DECISIONS.md)                       | Dated log of every deviation from the technical spec                                                     |
 | [docs/SANDBOX_PAYMENTS.md](docs/SANDBOX_PAYMENTS.md)         | Sandbox payouts for EU, China and US; Add money (test money); sending to another Kassa user by Kassa ID  |
 | [docs/SHORTCUT_SETUP.md](docs/SHORTCUT_SETUP.md)             | Log real iPhone Apple Pay taps: iOS 17+ Shortcuts Transaction automation, device token, limits           |
