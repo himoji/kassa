@@ -14,6 +14,8 @@
  *  - rate-limit counter purge (R13): counters whose window has ended.
  *  - business.forecastTick (Business M4): stock short by the end of tomorrow → DRAFT purchase order + owner
  *    notification, once per (merchant, SKU, day); drafts only, never signs or pays (I6).
+ *  - ledgerAnchor (2026-10-19): with ANCHOR_PRIVATE_KEY, the newest signed checkpoint on a public testnet, at most once
+ *    per ANCHOR_INTERVAL_MINUTES for the deployment (ledger/autoAnchor.ts). Last: it waits for the transaction to mine.
  * Each job is isolated: one failing job never stops the others.
  */
 import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
@@ -24,6 +26,7 @@ import { purgeRateLimitCounters } from "../../http/rate-limit-store.ts";
 import { clock } from "../clock/index.ts";
 import { forecastTick } from "../business/scheduler.ts";
 import { purgeRevokedTokens } from "../auth/revocation.ts";
+import { autoAnchorTick } from "../ledger/autoAnchor.ts";
 import { ledger } from "../ledger/index.ts";
 import { activateDueMandates } from "../mandates/service.ts";
 import { settlementFor } from "../obligations/settlements.ts";
@@ -157,6 +160,7 @@ const JOBS: [string, () => Promise<unknown>][] = [
   ["revokedTokenPurge", () => purgeRevokedTokens()],
   ["rateLimitPurge", () => purgeRateLimitCounters()],
   ["business.forecastTick", () => forecastTick()],
+  ["ledgerAnchor", () => autoAnchorTick()],
 ];
 
 let running = false;

@@ -111,6 +111,15 @@ const EnvSchema = z.object({
   RATE_LIMIT_SENSITIVE_PER_MIN: z.coerce.number().int().positive().default(30),
   /** Judge build: persona copies / fresh users one client IP may create per hour via POST /auth/dev/login (auth/dev.ts). */
   RATE_LIMIT_JUDGE_COPIES_PER_HOUR: z.coerce.number().int().positive().default(30),
+  /**
+   * (2026-10-19) Scheduled ledger anchoring (ledger/autoAnchor.ts): a testnet-only account's key (0x + 64 hex) with a
+   * little test ETH. Unset = no anchoring. One transaction per ANCHOR_INTERVAL_MINUTES at most, for the newest checkpoint.
+   */
+  ANCHOR_PRIVATE_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{64}$/, "ANCHOR_PRIVATE_KEY must be 0x + 64 hex digits").optional()),
+  ANCHOR_CHAIN: z.enum(["sepolia", "holesky"]).default("sepolia"),
+  ANCHOR_RPC_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  ANCHOR_EXPLORER_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
+  ANCHOR_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(60),
   /** Retention (days) for the purge job (GDPR Art. 5(1)(e) storage limitation); 0 = keep. */
   RETENTION_DAYS_NOTIFICATIONS: z.coerce.number().int().min(0).default(90),
   RETENTION_DAYS_PLACEHOLDER_MAPS: z.coerce.number().int().min(0).default(30),

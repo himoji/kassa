@@ -41,6 +41,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "GET /api/public/verify/:id": "lender verification of a credit record by its 128-bit capability id",
   "GET /api/public/credit-record/:file": "credit record JSON/PDF by its 128-bit capability id",
   "GET /api/public/keys": "the public keys that verify credit records and ledger checkpoints (JWKS), no personal data",
+  "GET /api/public/anchors": "the ledger checkpoints anchored on a public testnet (hashes, transaction ids), no personal data",
   "GET /api/fx/rates": "published reference FX rates, no personal data (mock-world reads them)",
   "GET /api/privacy/ai-notice": "AI transparency notice shown before sign-up (EU AI Act Art. 50), no personal data",
   "POST /api/webhooks/mock/bank": "HMAC-SHA256 over timestamp.body, 5-min window (I13)",

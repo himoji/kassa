@@ -12,10 +12,10 @@ Workspace totals from the run of 2026-10-19 (see "Changelog" at the end). Per-fi
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 147 | 1,189 (+1 opt-in live smoke test, skipped) | all pass |
-| apps/mock-world | 12 | 375 | all pass |
-| packages/shared | 8 | 59 | all pass |
-| apps/mobile (jest) | 91 | 935 | all pass |
+| apps/api | 159 | 1,278 (+1 opt-in live smoke test, skipped) | all pass |
+| apps/mock-world | 12 | 393 | all pass |
+| packages/shared | 8 | 60 | all pass |
+| apps/mobile (jest) | 91 | 946 | all pass |
 
 Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incidents A10 to A17, regenerated 2026-10-19). Each case is REFUSED (code stopped it, nothing to approve), ASKED (a passkey prompt on the exact order; nothing moves unless the user approves) or PAID. Worst case per attack: **7 refused, 8 asked, 1 paid** (49 cases: 38 refused, 10 asked, 1 paid). The paid case is A5's handoff variant: a QR swapped inside the wallet after Kassa's check, detected (HANDOFF_PAID_MISMATCH) but not stopped. If the fooled user approves every prompt, the attacker's account is paid in **5 of 16** (A2, A5, A10, A16, A17). Baselines with the same intents: a **chatbot with a confirm tap** and no other checks pays the attacker's account in **11 of 16** when the fooled user taps (16 of 16 make an unwanted payment; with a user who declines, 1 of 16: A3, a forged confirmation); the **no-checks agent** pays **16 of 16** by construction. A9 is refused by its own test; it is not in the baselines.
 
@@ -89,7 +89,7 @@ Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incident
 | funding.test.ts | funding route bound into the signed order; INSUFFICIENT_FUNDS before signing | 5 passed | I2, I3 |
 | ledger.test.ts | hash chain, checkpoints, tamper, forgery, concurrency | 7 passed | I12 |
 | ledger-head.test.ts | signed ledger head: tail truncation, re-hashed tail, deleted head (X6) | 6 passed | I12 |
-| ledger-anchor.test.ts | testnet anchoring of checkpoints: memo format, anchor once, verify against chain and ledger, rewritten checkpoint, missing or foreign transaction, signed self-transaction | 5 passed | I12, R28 |
+| ledger-anchor.test.ts | testnet anchoring of checkpoints: memo format, anchor once, verify against chain and ledger, rewritten checkpoint, missing or foreign transaction, signed self-transaction; (2026-10-19) scheduled anchoring: newest checkpoint only, once, recorded in the ledger and listed publicly; a rewritten checkpoint stops it (ledgered once); off without a key, one anchor per interval | 8 passed | I12, R28 |
 | obligation-settlement.test.ts | no double payment per obligation period | 8 passed | idempotency |
 | order-expiry.test.ts | expired orders are re-issued, never re-signed; 410 ORDER_EXPIRED (X8) | 3 passed | I3, I4 |
 | orders-onboarding.test.ts | canonical order over HTTP; expiry; BOLA | 5 passed | I3 |
@@ -197,6 +197,7 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 
 ## Changelog
 - 2026-10-19 (later): attack evidence split into REFUSED / ASKED / PAID per case (an ASK is a passkey prompt, not a refusal), with a second baseline, chatbot + tap-to-confirm (`test/naive/tap-confirm.ts`); `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts` added. These files are not in the totals of the 2026-10-19 run above.
+- 2026-10-19 (later): totals re-run (api 159 files / 1,278 tests, 1 opt-in live smoke test skipped; mock-world 12 / 393; shared 8 / 60; mobile 91 / 946; 2,677 in all) after the judge round 3 fixes, the locked Stage and mock-world operator screens, and scheduled ledger anchoring. Attack evidence regenerated: unchanged (7 refused, 8 asked, 1 paid).
 - 2026-10-19: totals re-run (api 147 files / 1,189 tests, 1 opt-in live smoke test skipped; mock-world 12 / 375; shared 8 / 59; mobile 91 / 935; 2,558 in all) after the conversion orders, caps at approval, chat turn deadline, voice transcription, durable mock world and credit-record fixes. Same method as below.
 - 2026-10-18: totals re-run (api 139 files / 1,122 tests, 1 opt-in live smoke test skipped; mock-world 11 / 363; shared 7 / 53; mobile 84 / 908; 2,446 in all). There is no counting script: each figure is the summary line that `bun run test` prints per workspace (Vitest's "Test Files" and "Tests" lines for api, mock-world and shared, Jest's "Test Suites" and "Tests" lines for mobile), and the overall total is their sum. One workspace at a time: `bun run --cwd apps/api test` (likewise `apps/mock-world`, `packages/shared`, `apps/mobile`). Rows added for the 50 API test files that had none (business mode, judge build, R13/R14/R15 fixes, AI retries and fallbacks, and others), marked "added after 2026-10-12" without a per-file count. `security/mock-world-auth.test.ts` and `security/credit-record.test.ts` were added after this run and are not in these totals.
 - 2026-10-17: ledger-anchor.test.ts added (testnet anchoring of ledger checkpoints, 5 tests); api 134 files / 1,034 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.

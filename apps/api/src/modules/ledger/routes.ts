@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { userIdOf } from "../auth/session.ts";
 import { viewLedgerPayload } from "../privacy/keys.ts";
+import { publicAnchors } from "./autoAnchor.ts";
 import { ledger } from "./index.ts";
 
 /** GET /ledger?cursor — the caller's ledger entries, newest first (spec §8, Activity timeline). */
@@ -27,6 +28,12 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       };
     },
   );
+
+  // (2026-10-19) Public: the ledger's anchors on a testnet (ledger/autoAnchor.ts); checkpoint hashes only, no personal data.
+  app.get("/public/anchors", async (_req, reply) => {
+    reply.header("cache-control", "public, max-age=60");
+    return publicAnchors();
+  });
 };
 
 export default routes;

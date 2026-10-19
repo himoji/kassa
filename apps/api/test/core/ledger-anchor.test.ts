@@ -6,7 +6,7 @@ import { sepolia } from "viem/chains";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
-import { ledgerCheckpoints } from "../../src/db/schema.ts";
+import { ledgerCheckpoints, ledgerEntries } from "../../src/db/schema.ts";
 import {
   ANCHOR_DOMAIN,
   anchorCheckpoints,
@@ -16,6 +16,7 @@ import {
   verifyAnchors,
   type AnchorClient,
 } from "../../src/modules/ledger/anchor.ts";
+import { anchorNewestCheckpoint, anchorsInLedger, autoAnchorTick, publicAnchors } from "../../src/modules/ledger/autoAnchor.ts";
 import { ledger } from "../../src/modules/ledger/index.ts";
 import { useTestDb } from "../helpers/db.ts";
 
@@ -140,5 +141,45 @@ describe("ledger anchoring", () => {
     expect(tx.to?.toLowerCase()).toBe(account.address.toLowerCase());
     expect(tx.value ?? 0n).toBe(0n);
     expect(parseAnchorMemo(fromHex(tx.data!, "string"))).toEqual({ seq: 20, headHash: "h", keyId: "k" });
+  });
+
+  it("scheduled: anchors only the newest checkpoint, once, and records it in the ledger (2026-10-19)", async () => {
+    await appendEntries(45);
+    const chain = fakeChain();
+    const first = await anchorNewestCheckpoint(chain);
+    expect(first).toMatchObject({ kind: "anchored", anchor: { seq: 40, chainId: 11155111 } });
+    expect(chain.txs.size).toBe(1);
+    const recorded = await anchorsInLedger();
+    expect(recorded).toEqual([expect.objectContaining({ seq: 40, txHash: first.kind === "anchored" ? first.anchor.txHash : "" })]);
+    expect(await anchorNewestCheckpoint(chain)).toEqual({ kind: "up-to-date", seq: 40 });
+
+    // The recorded anchors verify against the chain and the ledger, and the public list shows them.
+    expect((await verifyAnchors(recorded, chain, await listCheckpoints(getDb()))).every((c) => c.ok)).toBe(true);
+    const pub = await publicAnchors();
+    expect(pub).toMatchObject({ network: "Sepolia", chainId: 11155111, scheduled: false, account: null, latestCheckpoint: { seq: 40 } });
+    expect(pub.anchors).toEqual([expect.objectContaining({ seq: 40, ledgerHeadHash: recorded[0]!.headHash })]);
+  });
+
+  it("scheduled: a checkpoint rewritten after anchoring stops it, ledgered once", async () => {
+    await appendEntries(25);
+    const chain = fakeChain();
+    await anchorNewestCheckpoint(chain);
+    await getDb().update(ledgerCheckpoints).set({ headHash: "forged" }).where(eq(ledgerCheckpoints.seq, 20));
+    await appendEntries(20);
+    expect(await anchorNewestCheckpoint(chain)).toEqual({ kind: "conflict", seqs: [20] });
+    expect(await anchorNewestCheckpoint(chain)).toEqual({ kind: "conflict", seqs: [20] });
+    expect(chain.txs.size).toBe(1);
+    const conflicts = await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "LEDGER_ANCHOR_CONFLICT"));
+    expect(conflicts).toHaveLength(1);
+  });
+
+  it("scheduled: off without a key; with one, at most one anchor per interval", async () => {
+    await appendEntries(45);
+    expect(await autoAnchorTick(null)).toBeNull();
+    const chain = fakeChain();
+    expect(await autoAnchorTick(chain)).toMatchObject({ kind: "anchored" });
+    await appendEntries(20);
+    expect(await autoAnchorTick(chain)).toBeNull();
+    expect(chain.txs.size).toBe(1);
   });
 });

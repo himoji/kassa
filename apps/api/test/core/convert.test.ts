@@ -122,7 +122,7 @@ describe("CONVERT orders: own balance → own balance", () => {
     expect(view.orderHash).toBe(orderHash(order));
     expect(view.payeeStatus).toBe("VERIFIED");
     expect(view.webauthnOptions?.challenge).toBe(view.orderHash);
-    expect(r.summary).toContain("convert from your KZT balance into EUR 2,100.00");
+    expect(r.summary).toMatch(/^Needs your passkey approval to convert from your KZT balance into EUR 2,100\.00/);
   });
 
   it("is never AUTO, even small, under SMART with passkey-signed base rules (no new auto-pay path)", async () => {

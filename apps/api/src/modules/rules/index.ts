@@ -9,7 +9,7 @@ import {
   formatMoney,
   isoMoney,
   isSupportedCurrency,
-  orderLineEn,
+  orderBodyEn,
   ownWalletAccountHash,
   OWN_WALLET_PAYEE_NAME,
   SupportedCurrency,
@@ -770,7 +770,7 @@ export async function proposeConversion(input: ProposeConversionInput): Promise<
 export const CONVERSION_CATEGORY = "conversion";
 
 function conversionSummary(decision: Decision, codes: ReasonCode[], order: CanonicalOrder | null, input: ProposeConversionInput): string {
-  if (order) return `Needs your passkey approval: ${orderLineEn(order)} ${reasonsSentenceEn(codes)}`;
+  if (order) return `Needs your passkey approval to ${orderBodyEn(order)} ${reasonsSentenceEn(codes)}`;
   let want: string;
   try {
     want = isoMoney(input.amountMinor, input.toCurrency);
