@@ -1,6 +1,7 @@
 import { router, Stack } from "expo-router";
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { useMoneyHistory } from "@/api/hooks/dataport";
 import type { AgentOutcome } from "@kassa/shared";
@@ -180,6 +181,52 @@ function HistoryCard() {
 /** Budgets listed before "Show all" (the ones that need attention come first). */
 const BUDGETS_COLLAPSED = 4;
 
+const ON_HERO = "#ffffff";
+const ON_HERO_MUTED = "rgba(255,255,255,0.72)";
+
+/** Round action under the balance: white disc, brand-green glyph, label below. */
+function HeroAction({
+  label,
+  sf,
+  md,
+  onPress,
+}: {
+  label: string;
+  sf: string;
+  md: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flex: 1,
+        alignItems: "center",
+        gap: 6,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: ON_HERO,
+        }}
+      >
+        <Icon name={sf} fallback={md} size={20} color="#056347" />
+      </View>
+      <Text weight="semibold" style={{ color: ON_HERO, fontSize: 13 }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 function BalanceCard() {
   const t = useKassaT();
   const f = useFormat();
@@ -187,83 +234,109 @@ function BalanceCard() {
   return (
     <QueryView query={balances} skeletonRows={2}>
       {(b) => (
-        <Card>
-          <Box gap={3}>
+        <View style={{ borderRadius: 24, overflow: "hidden", padding: 20, gap: 18 }}>
+          <Svg
+            style={StyleSheet.absoluteFill}
+            width="100%"
+            height="100%"
+            preserveAspectRatio="none"
+          >
+            <Defs>
+              <LinearGradient id="kassa-hero" x1="0" y1="0" x2="1" y2="1">
+                <Stop offset="0" stopColor="#0E9F73" />
+                <Stop offset="1" stopColor="#04503A" />
+              </LinearGradient>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#kassa-hero)" />
+          </Svg>
+          <Box gap={1}>
             <Box row justify="between" align="center">
-              <Text variant="caption">{t("home:totalLabel", { currency: b.homeCurrency })}</Text>
+              <Text style={{ color: ON_HERO_MUTED, fontSize: 14 }}>
+                {t("home:totalLabel", { currency: b.homeCurrency })}
+              </Text>
               {b.simulated ? <SimulatedBadge /> : null}
             </Box>
             <Text
               variant="title"
-              style={{ fontSize: 34, lineHeight: 40, fontVariant: ["tabular-nums"] }}
+              style={{
+                color: ON_HERO,
+                fontSize: 36,
+                lineHeight: 44,
+                letterSpacing: -0.8,
+                fontVariant: ["tabular-nums"],
+              }}
               accessibilityLabel={t("home:totalA11y", {
                 amount: f.money(b.homeTotalMinor, b.homeCurrency),
               })}
             >
               {f.money(b.homeTotalMinor, b.homeCurrency)}
             </Text>
-            <Box gap={2}>
-              {b.balances.map((row) => (
-                <Box
-                  key={row.currency}
-                  row
-                  justify="between"
-                  align="center"
-                  style={{ minHeight: 28 }}
-                >
-                  <Text>{row.currency}</Text>
-                  <Box style={{ alignItems: "flex-end" }}>
-                    <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
-                      {f.money(row.amountMinor, row.currency)}
-                    </Text>
-                    {row.currency !== b.homeCurrency ? (
-                      <Text variant="caption">
-                        {t("common:approxHome", {
-                          amount: f.money(row.homeAmountMinor, b.homeCurrency),
-                        })}
-                      </Text>
-                    ) : null}
-                  </Box>
-                </Box>
-              ))}
-            </Box>
-            {b.rateDate ? (
-              <Text variant="caption">{t("home:rateDate", { date: f.date(b.rateDate) })}</Text>
-            ) : null}
-            <Box row gap={2}>
-              <Button
-                style={{ flex: 1 }}
-                onPress={() => router.push("/add-money")}
-                leftIcon={<Icon name="plus" fallback="add" size={18} color="primaryForeground" />}
-              >
-                {t("home:addMoney")}
-              </Button>
-              <Button
-                style={{ flex: 1 }}
-                variant="secondary"
-                onPress={() => router.push("/send")}
-                leftIcon={<Icon name="paperplane" fallback="send" size={18} color="foreground" />}
-              >
-                {t("home:send")}
-              </Button>
-            </Box>
-            {/* Exchange between the user's own balances (a passkey-signed CONVERT order). */}
-            <Button
-              variant="outline"
-              onPress={() => router.push("/convert")}
-              leftIcon={
-                <Icon
-                  name="arrow.left.arrow.right"
-                  fallback="currency_exchange"
-                  size={18}
-                  color="foreground"
-                />
-              }
-            >
-              {t("home:convert")}
-            </Button>
           </Box>
-        </Card>
+          <View
+            style={{
+              borderRadius: 16,
+              paddingHorizontal: 14,
+              paddingVertical: 6,
+              backgroundColor: "rgba(255,255,255,0.10)",
+            }}
+          >
+            {b.balances.map((row, i) => (
+              <Box
+                key={row.currency}
+                row
+                justify="between"
+                align="center"
+                style={{
+                  minHeight: 40,
+                  borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth,
+                  borderTopColor: "rgba(255,255,255,0.18)",
+                }}
+              >
+                <Text weight="semibold" style={{ color: ON_HERO_MUTED, letterSpacing: 0.5 }}>
+                  {row.currency}
+                </Text>
+                <Box style={{ alignItems: "flex-end", paddingVertical: 4 }}>
+                  <Text weight="semibold" style={{ color: ON_HERO, fontVariant: ["tabular-nums"] }}>
+                    {f.money(row.amountMinor, row.currency)}
+                  </Text>
+                  {row.currency !== b.homeCurrency ? (
+                    <Text style={{ color: ON_HERO_MUTED, fontSize: 12 }}>
+                      {t("common:approxHome", {
+                        amount: f.money(row.homeAmountMinor, b.homeCurrency),
+                      })}
+                    </Text>
+                  ) : null}
+                </Box>
+              </Box>
+            ))}
+          </View>
+          <Box row>
+            <HeroAction
+              label={t("home:addMoney")}
+              sf="plus"
+              md="add"
+              onPress={() => router.push("/add-money")}
+            />
+            <HeroAction
+              label={t("home:send")}
+              sf="paperplane.fill"
+              md="send"
+              onPress={() => router.push("/send")}
+            />
+            {/* Exchange between the user's own balances (a passkey-signed CONVERT order). */}
+            <HeroAction
+              label={t("home:convert")}
+              sf="arrow.left.arrow.right"
+              md="currency_exchange"
+              onPress={() => router.push("/convert")}
+            />
+          </Box>
+          {b.rateDate ? (
+            <Text style={{ color: ON_HERO_MUTED, fontSize: 12, textAlign: "center" }}>
+              {t("home:rateDate", { date: f.date(b.rateDate) })}
+            </Text>
+          ) : null}
+        </View>
       )}
     </QueryView>
   );

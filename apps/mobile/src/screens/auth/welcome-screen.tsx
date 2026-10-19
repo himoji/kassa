@@ -1,12 +1,13 @@
 import type { AuthSessionResponse } from "@kassa/shared";
 import { type Href, router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KassaApiError } from "@/api/errors";
 import { useDemoAvailability, useDevLogin, useRegister } from "@/api/hooks/auth";
 import { errorText } from "@/components/kassa/error-text";
+import { Logo } from "@/components/kassa/logo";
 import { Box, Button, Icon, Text, useTheme } from "@/components/ui";
 import {
   demoClaimFor,
@@ -180,46 +181,114 @@ function DemoButton() {
 export function WelcomeScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const wide = width >= 900;
+
+  const hero = (
+    <Box gap={6} style={wide ? { flex: 1, maxWidth: 520 } : { paddingTop: 16 }}>
+      <Logo size={wide ? 40 : 34} />
+      <Text
+        variant="title"
+        style={{ fontSize: wide ? 56 : 38, lineHeight: wide ? 62 : 44, letterSpacing: -1 }}
+      >
+        {t("auth:welcome.title")}
+      </Text>
+      <Text variant="subtitle" style={{ fontSize: wide ? 19 : 17, lineHeight: wide ? 28 : 24 }}>
+        {t("auth:welcome.subtitle")}
+      </Text>
+      <View
+        style={{
+          gap: 14,
+          padding: 16,
+          borderRadius: 18,
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+        }}
+      >
+        {POINTS.map((p) => (
+          <Box key={p.key} row gap={3} align="center">
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: colors.accent,
+              }}
+            >
+              <Icon name={p.sf} fallback={p.md} size={20} color="brandAccent" />
+            </View>
+            <Text style={{ flex: 1 }}>{t(p.key)}</Text>
+          </Box>
+        ))}
+      </View>
+    </Box>
+  );
+
+  const actions = (
+    <Box
+      gap={3}
+      style={
+        wide
+          ? {
+              width: 420,
+              padding: 28,
+              borderRadius: 24,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }
+          : undefined
+      }
+    >
+      <Button size="lg" onPress={() => router.push("/register")}>
+        {t("auth:welcome.create")}
+      </Button>
+      <Button size="lg" variant="outline" onPress={() => router.push("/login")}>
+        {t("auth:welcome.signIn")}
+      </Button>
+      <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+      <DemoButton />
+      <DevModeButton />
+      <Text variant="caption" align="center">
+        {t("auth:welcome.demoNote")}
+      </Text>
+      <Button variant="ghost" onPress={() => router.push("/evidence")}>
+        {t("evidence:open")}
+      </Button>
+    </Box>
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          padding: 24,
-          gap: 24,
-          justifyContent: "space-between",
+          padding: wide ? 48 : 20,
+          gap: 28,
+          justifyContent: wide ? "center" : "space-between",
         }}
       >
-        <Box gap={6} style={{ paddingTop: 48 }}>
-          <Text variant="title" style={{ fontSize: 40, lineHeight: 46 }}>
-            {t("auth:welcome.title")}
-          </Text>
-          <Text variant="subtitle">{t("auth:welcome.subtitle")}</Text>
-          <Box gap={4}>
-            {POINTS.map((p) => (
-              <Box key={p.key} row gap={3} align="center">
-                <Icon name={p.sf} fallback={p.md} size={24} color="brandAccent" />
-                <Text style={{ flex: 1 }}>{t(p.key)}</Text>
-              </Box>
-            ))}
-          </Box>
-        </Box>
-        <Box gap={3}>
-          <Button size="lg" onPress={() => router.push("/register")}>
-            {t("auth:welcome.create")}
-          </Button>
-          <Button size="lg" variant="outline" onPress={() => router.push("/login")}>
-            {t("auth:welcome.signIn")}
-          </Button>
-          <DemoButton />
-          <DevModeButton />
-          <Text variant="caption" align="center">
-            {t("auth:welcome.demoNote")}
-          </Text>
-          <Button variant="ghost" onPress={() => router.push("/evidence")}>
-            {t("evidence:open")}
-          </Button>
-        </Box>
+        <View
+          style={
+            wide
+              ? {
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 64,
+                  width: "100%",
+                  maxWidth: 1080,
+                  alignSelf: "center",
+                }
+              : { flex: 1, justifyContent: "space-between", gap: 28 }
+          }
+        >
+          {hero}
+          {actions}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

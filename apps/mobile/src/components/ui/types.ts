@@ -278,7 +278,8 @@ export interface IconProps {
   /** Material icon name used where SF Symbols are unavailable (Android/web). */
   fallback?: string;
   size?: number;
-  color?: ColorToken;
+  /** A theme token, or a literal hex for surfaces with their own fixed colours (the balance hero). */
+  color?: ColorToken | `#${string}`;
 }
 
 export interface SkeletonProps {

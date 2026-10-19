@@ -28,7 +28,7 @@ export function Icon({ name, fallback, size = 24, color = "foreground" }: IconPr
     <SymbolView
       name={{ ios: name as SFSymbol, android: material, web: material }}
       size={size}
-      tintColor={colors[color]}
+      tintColor={color.startsWith("#") ? color : colors[color as keyof typeof colors]}
       style={[
         { width: size, height: size },
         isIOS && I18nManager.isRTL && DIRECTIONAL.test(name) ? MIRRORED : null,

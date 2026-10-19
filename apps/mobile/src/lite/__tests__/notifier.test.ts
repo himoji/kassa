@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 
 import { storage } from "@/lib/storage";
-import { capturesSince, clearNotifierState, LAST_SEEN_KEY, notificationRoute, notifyNewCaptures } from "../notifier";
+import {
+  capturesSince,
+  clearNotifierState,
+  LAST_SEEN_KEY,
+  notificationRoute,
+  notifyNewCaptures,
+} from "../notifier";
 
 const mockSchedule = jest.fn((_: unknown) => Promise.resolve("id"));
 let mockGranted = true;

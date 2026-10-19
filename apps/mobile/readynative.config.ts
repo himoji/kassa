@@ -17,7 +17,7 @@ export default {
     ios: { bundleId: "app.kassa.mobile" },
     android: { package: "app.kassa.mobile" },
   },
-  brand: { primary: "#171717", accent: "#2563eb", radius: 12, font: "Inter" },
+  brand: { primary: "#0e1116", accent: "#0a8a62", radius: 14, font: "Inter" },
   urls: { website: "", support: "mailto:", privacy: "", terms: "" },
   store: { appStoreId: "", playPackage: "" },
   links: { domain: "", appleTeamId: "", androidCertFingerprints: [] },

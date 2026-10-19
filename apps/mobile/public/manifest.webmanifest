@@ -1,13 +1,13 @@
 {
   "name": "Kassa",
   "short_name": "Kassa",
-  "description": "Kassa",
+  "description": "An agent for your money abroad",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#ffffff",
-  "theme_color": "#171717",
+  "background_color": "#f6f7f9",
+  "theme_color": "#0e1116",
   "icons": [
     {
       "src": "/icons/icon-192.png",

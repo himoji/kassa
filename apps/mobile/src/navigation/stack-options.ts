@@ -2,6 +2,8 @@ import type { ComponentProps } from "react";
 import type { Stack } from "expo-router";
 import { Platform } from "react-native";
 
+import { WebHeader } from "./web-header";
+
 type StackOptions = NonNullable<ComponentProps<typeof Stack>["screenOptions"]>;
 
 /**
@@ -29,6 +31,10 @@ export const largeTitleOptions: StackOptions = {
   headerTransparent: process.env.EXPO_OS === "ios",
   headerBlurEffect: iosHeaderBlur(),
   headerBackButtonDisplayMode: "minimal",
+  // Web: the header lines up with the centred content column (ScrollScreen) instead of the window edges.
+  ...(process.env.EXPO_OS === "web"
+    ? { header: WebHeader, contentStyle: { width: "100%", maxWidth: 792, alignSelf: "center" } }
+    : null),
 };
 
 export const inlineTitleOptions: StackOptions = {

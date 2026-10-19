@@ -88,7 +88,8 @@ async function readNotified(): Promise<Set<string>> {
   try {
     const raw = await storage.getItem(NOTIFIED_KEY);
     const ids: unknown = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(ids)) for (const id of ids) if (typeof id === "string") notifiedInSession.add(id);
+    if (Array.isArray(ids))
+      for (const id of ids) if (typeof id === "string") notifiedInSession.add(id);
   } catch {
     // Keep the in-memory set.
   }
