@@ -1,5 +1,6 @@
 {
   "cardMeta": "•••• {{last4}} · {{currency}} · {{kind}}",
+  "cardMetaNoDigits": "{{currency}} · {{kind}}",
   "dccChip": "汇率提醒",
   "dccExplainer": "有些商家会提出用您本国货币收费，这种转换通常更贵。请选择当地货币付款。",
   "dccOverMid": "比中间价高约 {{pct}}",
@@ -29,6 +30,7 @@
   },
   "remove": "移除",
   "removeConfirm": "移除尾号 {{last4}} 的卡？过去的消费记录会保留。",
+  "removeConfirmNoDigits": "移除这张卡？过去的消费记录会保留。",
   "pair": "{{from}} → {{to}}",
   "tab": "银行卡",
   "title": "银行卡",

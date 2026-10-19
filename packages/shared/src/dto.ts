@@ -247,7 +247,8 @@ export type ForecastResponse = z.infer<typeof ForecastResponse>;
 export const CardDto = z.object({
   id: Uuid,
   label: z.string(),
-  last4: z.string().regex(/^\d{4}$/),
+  /** Empty for a card learned from an Apple Pay tap whose hint had no digits ("Revolut"). */
+  last4: z.string().regex(/^(\d{4})?$/),
   billingCurrency: CurrencyCode,
   kind: CardKind,
 });

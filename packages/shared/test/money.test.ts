@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 
-import { currencyExponent, formatMoney, fromMinor, toMinor } from "../src/index.ts";
+import fxFixture from "../../../fixtures/fx-rates.json" with { type: "json" };
+import { currencyExponent, FEATURED_CURRENCIES, formatMoney, fromMinor, isKnownCurrency, toMinor, WALLET_CURRENCIES } from "../src/index.ts";
 
 describe("currency exponents", () => {
   it("uses ISO 4217 exponents", () => {
     for (const c of ["KZT", "HUF", "EUR", "USD", "CNY"]) expect(currencyExponent(c)).toBe(2);
     expect(() => currencyExponent("XXX")).toThrow(RangeError);
+  });
+});
+
+describe("wallet currencies", () => {
+  it("are exactly the currencies of the offline example rate table, all known ISO codes, demo currencies first", () => {
+    expect([...WALLET_CURRENCIES].sort()).toEqual(Object.keys(fxFixture.rates).sort());
+    expect(WALLET_CURRENCIES.length).toBeGreaterThan(100);
+    for (const c of WALLET_CURRENCIES) expect(isKnownCurrency(c)).toBe(true);
+    expect(WALLET_CURRENCIES.slice(0, FEATURED_CURRENCIES.length)).toEqual([...FEATURED_CURRENCIES]);
+    for (const c of ["CUP", "IRR", "KPW", "SYP"]) expect(WALLET_CURRENCIES).not.toContain(c);
   });
 });
 

@@ -1,4 +1,9 @@
-import { TestCard, type FundingSourceDto, type StartLinkResponse } from "@kassa/shared";
+import {
+  SupportedCurrency,
+  TestCard,
+  type FundingSourceDto,
+  type StartLinkResponse,
+} from "@kassa/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Linking, Pressable, View } from "react-native";
@@ -12,11 +17,13 @@ import {
 import { useWallet } from "@/api/hooks/wallet";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { errorText } from "@/components/kassa/error-text";
+import { SettingPicker } from "@/components/kassa/native-controls";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Card, Icon, Input, Row, Sheet, Text, toast, useTheme } from "@/components/ui";
 import { confirm } from "@/lib/confirm";
+import { currencyCodes, useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useKassaT } from "@/lib/i18n";
@@ -24,8 +31,11 @@ import { LITE_RETURN_URL, openWebAppStep } from "@/lite/approve";
 
 import { ChipRow } from "../payees/recipient-fields";
 
-const CURRENCIES = ["KZT", "EUR", "USD", "CNY", "HUF"] as const;
-type Currency = (typeof CURRENCIES)[number];
+/** Any currency the wallet holds, the demo's own first. */
+const CURRENCIES: readonly string[] = currencyCodes().filter((c) =>
+  (SupportedCurrency.options as readonly string[]).includes(c)
+);
+type Currency = string;
 const BANKS = ["Kaspi Gold", "Halyk Bank", "Freedom Bank", "Jusan Bank", "OTHER"] as const;
 
 export const sourceIcon = (s: Pick<FundingSourceDto, "kind">) =>
@@ -35,7 +45,7 @@ export const sourceIcon = (s: Pick<FundingSourceDto, "kind">) =>
 
 function useHomeCurrency(): Currency {
   const home = useWallet().data?.homeCurrency;
-  return (CURRENCIES as readonly string[]).includes(home ?? "") ? (home as Currency) : "KZT";
+  return home && CURRENCIES.includes(home) ? home : "KZT";
 }
 
 /** "Choose a test card" (Stripe's test PaymentMethods; production would show Stripe's card form). */
@@ -46,6 +56,11 @@ function LinkCardForm({ onDone }: { onDone: () => void }) {
   const confirmLink = useConfirmLink();
   const [card, setCard] = useState<TestCard>("VISA");
   const [currency, setCurrency] = useState<Currency>(useHomeCurrency());
+  const f = useFormat();
+  const currencyOptions = CURRENCIES.map((c) => ({
+    value: c,
+    label: `${c} · ${f.currencyName(c)}`,
+  }));
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
@@ -102,14 +117,13 @@ function LinkCardForm({ onDone }: { onDone: () => void }) {
           </Pressable>
         ))}
       </Box>
-      <Box gap={2}>
-        <Text variant="label">{t("wallet:linked.card.currency")}</Text>
-        <ChipRow
-          options={CURRENCIES.map((c) => ({ value: c, label: c }))}
-          value={currency}
-          onChange={setCurrency}
-        />
-      </Box>
+      <SettingPicker
+        label={t("wallet:linked.card.currency")}
+        value={currency}
+        options={currencyOptions}
+        onChange={setCurrency}
+        testID="link-card-currency"
+      />
       {error ? <Text color="destructive">{error}</Text> : null}
       <Button
         size="lg"
@@ -140,6 +154,11 @@ function LinkBankForm({ onDone, resume }: { onDone: () => void; resume: FundingS
   const [otherName, setOtherName] = useState("");
   const [account, setAccount] = useState("");
   const [currency, setCurrency] = useState<Currency>(useHomeCurrency());
+  const f = useFormat();
+  const currencyOptions = CURRENCIES.map((c) => ({
+    value: c,
+    label: `${c} · ${f.currencyName(c)}`,
+  }));
   const [pending, setPending] = useState<{
     source: FundingSourceDto;
     simulatedCode?: string | undefined;
@@ -260,14 +279,13 @@ function LinkBankForm({ onDone, resume }: { onDone: () => void; resume: FundingS
         placeholder="KZ12 722C 0000 1234 4417"
         testID="link-bank-account"
       />
-      <Box gap={2}>
-        <Text variant="label">{t("wallet:linked.bank.currency")}</Text>
-        <ChipRow
-          options={CURRENCIES.map((c) => ({ value: c, label: c }))}
-          value={currency}
-          onChange={setCurrency}
-        />
-      </Box>
+      <SettingPicker
+        label={t("wallet:linked.bank.currency")}
+        value={currency}
+        options={currencyOptions}
+        onChange={setCurrency}
+        testID="link-bank-currency"
+      />
       {error ? <Text color="destructive">{error}</Text> : null}
       <Button size="lg" onPress={() => void begin()} loading={start.isPending}>
         {t("wallet:linked.bank.continue")}

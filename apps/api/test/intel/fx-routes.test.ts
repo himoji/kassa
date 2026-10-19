@@ -1,3 +1,4 @@
+import { WALLET_CURRENCIES } from "@kassa/shared";
 import { describe, it, expect } from "vitest";
 
 import { loadRails, parseRailsJson } from "../../src/modules/fx/rails.ts";
@@ -8,10 +9,11 @@ import { applyBps } from "../../src/modules/fx/rational.ts";
 const svc = new RatesService({ offline: true });
 
 describe("rails loading", () => {
-  it("loadRails reads the 11 fixture routes", () => {
+  it("loadRails reads the 11 fixture routes plus a generic mock bank route for every other wallet currency", () => {
     const { rails, fromFixture } = loadRails();
     expect(fromFixture).toBe(true);
-    expect(rails).toHaveLength(11);
+    expect(rails).toHaveLength(11 + WALLET_CURRENCIES.length - 5);
+    expect(rails.find((r) => r.id === "gbp-mock-bank")).toMatchObject({ provider: "MOCK_BANK", fundingCurrencies: ["GBP"], feeFixedMinor: 0, markupBps: 50 });
     expect(rails.map((r) => r.id)).toContain("kzt-mock-bank");
     // D-CN3: CNY funding for a Chinese student (mock bank, home bank, CNY debit card).
     expect(rails.map((r) => r.id)).toEqual(expect.arrayContaining(["cny-mock-bank", "cny-home-bank", "cny-card"]));
@@ -36,7 +38,8 @@ describe("rails loading", () => {
         },
       ],
     });
-    expect(rails).toHaveLength(1);
+    // The given route first, then the generic mock bank route of every wallet currency (none had a MOCK_BANK one).
+    expect(rails).toHaveLength(1 + WALLET_CURRENCIES.length);
     expect(rails![0]!.id).toBe("r");
     expect(rails![0]!.fundingCurrencies).toEqual(["EUR"]);
   });

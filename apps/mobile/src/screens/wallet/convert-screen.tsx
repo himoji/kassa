@@ -1,20 +1,23 @@
-import { ReasonCode, SupportedCurrency } from "@kassa/shared";
+import { FEATURED_CURRENCIES, ReasonCode, SupportedCurrency } from "@kassa/shared";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useBalances } from "@/api/hooks/money";
 import { useConvert } from "@/api/hooks/wallet";
 import { errorText } from "@/components/kassa/error-text";
 import { MoneyInput } from "@/components/kassa/money-input";
+import { SettingPicker } from "@/components/kassa/native-controls";
 import { ReasonCodeList } from "@/components/kassa/reason-codes";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Box, Button, Card, Text } from "@/components/ui";
-import { useFormat } from "@/lib/format";
+import { currencyCodes, useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 
-/** Currencies the wallet holds (the server refuses any other with BAD_CURRENCY). */
-const CURRENCIES: readonly string[] = SupportedCurrency.options;
+/** Currencies the wallet holds (the server refuses any other with BAD_CURRENCY), the demo's own first. */
+const CURRENCIES: readonly string[] = currencyCodes().filter((c) =>
+  (SupportedCurrency.options as readonly string[]).includes(c)
+);
 
 function currencyParam(value: string | undefined): string | null {
   return value && CURRENCIES.includes(value) ? value : null;
@@ -90,6 +93,23 @@ export function ConvertScreen() {
   const [refused, setRefused] = useState<{ codes: ReasonCode[]; summary: string } | null>(null);
 
   const held = from ? balances.data?.balances.find((b) => b.currency === from) : undefined;
+  const toOptions = useMemo(
+    () => CURRENCIES.map((c) => ({ value: c, label: `${c} · ${f.currencyName(c)}` })),
+    [f]
+  );
+  // Funding chips: the demo's currencies and every currency with a balance (a long list of empty ones helps nobody).
+  const fromOptions = useMemo(() => {
+    const heldCodes = (balances.data?.balances ?? [])
+      .filter((b) => b.amountMinor > 0)
+      .map((b) => b.currency);
+    return CURRENCIES.filter(
+      (c) =>
+        c !== to &&
+        ((FEATURED_CURRENCIES as readonly string[]).includes(c) ||
+          heldCodes.includes(c) ||
+          c === from)
+    );
+  }, [balances.data, to, from]);
 
   const submit = async () => {
     setError(null);
@@ -133,21 +153,20 @@ export function ConvertScreen() {
         <Text variant="caption">{t("wallet:convert.intro")}</Text>
       </Card>
 
-      <Box gap={2}>
-        <Text variant="label">{t("wallet:convert.to")}</Text>
-        <CurrencyChoice
-          value={to}
-          options={CURRENCIES}
-          onChange={(c) => {
-            if (!c || c === to) return;
-            setTo(c);
-            if (from === c) setFrom(null);
-            // An amount typed in another currency means something else now.
-            setAmountMinor(null);
-            setRefused(null);
-          }}
-        />
-      </Box>
+      <SettingPicker
+        label={t("wallet:convert.to")}
+        value={to}
+        options={toOptions}
+        onChange={(c) => {
+          if (!c || c === to) return;
+          setTo(c);
+          if (from === c) setFrom(null);
+          // An amount typed in another currency means something else now.
+          setAmountMinor(null);
+          setRefused(null);
+        }}
+        testID="convert-to"
+      />
 
       <Box gap={2}>
         <Text variant="label">{t("wallet:convert.amount")}</Text>
@@ -164,7 +183,7 @@ export function ConvertScreen() {
         <Text variant="label">{t("wallet:convert.from")}</Text>
         <CurrencyChoice
           value={from}
-          options={CURRENCIES.filter((c) => c !== to)}
+          options={fromOptions}
           onChange={(c) => {
             setFrom(c);
             setRefused(null);

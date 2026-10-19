@@ -119,6 +119,14 @@ try {
     );
   }
 
+  // Expo's precompiled ExpoModulesCore / ExpoModulesJSI xcframeworks only load in the exact Swift compiler that
+  // built them; any other Xcode fails with "this SDK is not supported by the compiler". Build them from source.
+  const podProps = join(liteDir, "Podfile.properties.json");
+  writeFileSync(
+    podProps,
+    `${JSON.stringify({ ...JSON.parse(readFileSync(podProps, "utf8")), EXPO_USE_PRECOMPILED_MODULES: "false" }, null, 2)}\n`,
+  );
+
   if (isMac) run("pod", ["install"], liteDir);
   else
     console.log(

@@ -1,4 +1,4 @@
-import { isSupportedCurrency } from "@kassa/shared";
+import { isSupportedCurrency, withGenericMockBankRoutes } from "@kassa/shared";
 
 import fxFixture from "../../../../fixtures/fx-rates.json" with { type: "json" };
 import railsFixture from "../../../../fixtures/rails.json" with { type: "json" };
@@ -34,7 +34,8 @@ export interface RailRoute {
   settlementDays: number;
 }
 
-export const RAIL_ROUTES = railsFixture.routes as RailRoute[];
+/** The fixture's routes plus the generic mock bank transfer for every other wallet currency. */
+export const RAIL_ROUTES = withGenericMockBankRoutes(railsFixture.routes as RailRoute[]) as RailRoute[];
 
 export const FIXTURE_RATES: RateTable = {
   base: fxFixture.base,

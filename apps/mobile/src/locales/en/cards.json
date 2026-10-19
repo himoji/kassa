@@ -1,5 +1,6 @@
 {
   "cardMeta": "•••• {{last4}} · {{currency}} · {{kind}}",
+  "cardMetaNoDigits": "{{currency}} · {{kind}}",
   "dccChip": "Rate warning",
   "dccExplainer": "Some merchants offer to charge you in your home currency. That conversion is usually more expensive. Choose the local currency instead.",
   "dccOverMid": "About {{pct}} over the mid-market rate",
@@ -29,6 +30,7 @@
   },
   "remove": "Remove",
   "removeConfirm": "Remove the card ending {{last4}}? Past spending stays.",
+  "removeConfirmNoDigits": "Remove this card? Past spending stays.",
   "pair": "{{from}} to {{to}}",
   "tab": "Cards",
   "title": "Cards",

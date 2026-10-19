@@ -29,11 +29,29 @@ export const CURRENCIES: readonly CurrencyInfo[] = currencyCodes
 /** ISO 4217 minor-unit exponents of every currency Kassa knows. HUF is 2 in ISO 4217. */
 export const CURRENCY_EXPONENTS: Readonly<Record<string, number>> = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.digits]));
 
+/** The demo's own currencies (Dana's money): pickers list these first. */
+export const FEATURED_CURRENCIES = ["KZT", "HUF", "EUR", "USD", "CNY"] as const;
+
 /**
- * The demo's own currencies: the simulated wallet and bank rails hold balances in these, and the offline example
- * rate table covers them. Any other known currency works for records, bills, budgets and cards.
+ * Every currency the wallet can hold, convert and pay out in: each active ISO 4217 currency with a published mid
+ * rate (ECB via Frankfurter, NBK for KZT, open.er-api.com for the rest), which is exactly the key set of the offline
+ * example table fixtures/fx-rates.json (a test keeps the two equal). Currencies of comprehensively sanctioned
+ * jurisdictions are left out. Any other known currency still works for records, bills, budgets and cards.
  */
-export const SupportedCurrency = z.enum(["KZT", "HUF", "EUR", "USD", "CNY"]);
+export const WALLET_CURRENCIES = [
+  "KZT", "HUF", "EUR", "USD", "CNY", "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN", "BAM",
+  "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BRL", "BSD", "BTN", "BWP", "BYN", "BZD", "CAD", "CDF",
+  "CHF", "CLP", "COP", "CRC", "CVE", "CZK", "DJF", "DKK", "DOP", "DZD", "EGP", "ERN", "ETB", "FJD", "FKP", "GBP",
+  "GEL", "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD", "HKD", "HNL", "HTG", "IDR", "ILS", "INR", "IQD", "ISK", "JMD",
+  "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KRW", "KWD", "KYD", "LAK", "LBP", "LKR", "LRD", "LSL", "LYD", "MAD",
+  "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRU", "MUR", "MVR", "MWK", "MXN", "MYR", "MZN", "NAD", "NGN", "NIO",
+  "NOK", "NPR", "NZD", "OMR", "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG", "QAR", "RON", "RSD", "RUB", "RWF",
+  "SAR", "SBD", "SCR", "SDG", "SEK", "SGD", "SHP", "SLE", "SOS", "SRD", "SSP", "STN", "SZL", "THB", "TJS", "TMT",
+  "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX", "UYU", "UZS", "VES", "VND", "VUV", "WST", "XAF", "XCD",
+  "XOF", "XPF", "YER", "ZAR", "ZMW", "ZWG",
+] as const;
+
+export const SupportedCurrency = z.enum(WALLET_CURRENCIES);
 export type SupportedCurrency = z.infer<typeof SupportedCurrency>;
 
 export function isSupportedCurrency(code: string): code is SupportedCurrency {
@@ -110,3 +128,40 @@ export const Money = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/),
 });
 export type Money = z.infer<typeof Money>;
+
+/** A funding route row as in fixtures/rails.json. */
+export interface RailsFixtureRoute {
+  routeId: string;
+  label: string;
+  fundingCurrency: string;
+  rail: string;
+  provider?: string;
+  cardKind?: string | null;
+  feeFixedMinor: number;
+  feeCurrency: string;
+  markupBps: number;
+  settlementDays: number;
+}
+
+/**
+ * fixtures/rails.json prices the demo currencies one by one. Every other wallet currency gets the mock bank's
+ * generic transfer (`<code>-mock-bank`, no fixed fee, 0.50 % over mid, next day), so a balance in any of them can
+ * fund a payment or a conversion. The API's route optimizer and the mock bank both build their lists with this, so
+ * a route id one of them proposes is one the other can execute. Example values, labelled as such like the fixture.
+ */
+export function withGenericMockBankRoutes<T extends RailsFixtureRoute>(routes: readonly T[]): Array<T | RailsFixtureRoute> {
+  const covered = new Set(routes.filter((r) => r.provider === "MOCK_BANK").map((r) => r.fundingCurrency));
+  const generic: RailsFixtureRoute[] = WALLET_CURRENCIES.filter((c) => !covered.has(c)).map((c) => ({
+    routeId: `${c.toLowerCase()}-mock-bank`,
+    label: "Mock bank transfer (Wise-like)",
+    fundingCurrency: c,
+    rail: "BANK_TRANSFER",
+    provider: "MOCK_BANK",
+    cardKind: null,
+    feeFixedMinor: 0,
+    feeCurrency: c,
+    markupBps: 50,
+    settlementDays: 1,
+  }));
+  return [...routes, ...generic];
+}

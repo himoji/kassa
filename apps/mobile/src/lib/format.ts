@@ -3,7 +3,7 @@
  * no money maths in the client beyond formatting); dates take ISO 8601 / RFC 3339 strings in and
  * come out localised through Intl with the active BCP 47 locale tag.
  */
-import { CURRENCIES, formatMoney, isKnownCurrency, SupportedCurrency } from "@kassa/shared";
+import { CURRENCIES, FEATURED_CURRENCIES, formatMoney, isKnownCurrency } from "@kassa/shared";
 import { useMemo } from "react";
 
 import { useLocaleTag } from "@/lib/i18n";
@@ -91,7 +91,7 @@ export function formatPercent(ratio: number, locale: string): string {
 /** Localised ISO 4217 currency name ("Kazakhstani Tenge"); falls back to the code. */
 /** Every ISO 4217 currency for a picker: the demo's own currencies first, then the rest by code. */
 export function currencyCodes(): string[] {
-  const featured: readonly string[] = SupportedCurrency.options;
+  const featured: readonly string[] = FEATURED_CURRENCIES;
   return [...featured, ...CURRENCIES.map((c) => c.code).filter((c) => !featured.includes(c))];
 }
 

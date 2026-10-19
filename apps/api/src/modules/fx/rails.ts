@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { Rail } from "@kassa/shared";
+import { Rail, withGenericMockBankRoutes } from "@kassa/shared";
 
 /*
  * Funding rails for the route optimizer (spec §12) from `fixtures/rails.json` (owned by Track D):
@@ -73,7 +73,7 @@ export function parseRailsJson(raw: unknown): RailProfile[] | null {
   const obj = raw as { routes?: unknown; rails?: unknown };
   if (obj && !Array.isArray(raw) && Array.isArray(obj.routes)) {
     const p = z.array(FixtureRoute).safeParse(obj.routes);
-    return p.success && p.data.length > 0 ? p.data.map(fromFixtureRoute) : null;
+    return p.success && p.data.length > 0 ? withGenericMockBankRoutes(p.data).map((r) => fromFixtureRoute(FixtureRoute.parse(r))) : null;
   }
   const list = Array.isArray(raw) ? raw : obj?.rails;
   const p = z.array(RailProfile).safeParse(list);

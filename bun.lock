@@ -182,6 +182,7 @@
     },
   },
   "patchedDependencies": {
+    "expo-modules-jsi@57.1.1": "apps/mobile/patches/expo-modules-jsi@57.1.1.patch",
     "react-native-screens@4.26.2": "apps/mobile/patches/react-native-screens@4.26.2.patch",
   },
   "packages": {

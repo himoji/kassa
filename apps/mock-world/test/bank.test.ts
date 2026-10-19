@@ -354,6 +354,13 @@ describe("(2026-10-19) one-time card charges paid from the wallet (POST /bank/ca
     expect(await balance("KZT")).toBe(90_000_000);
   });
 
+  it("quotes beyond the demo currencies with the generic route (GBP into JPY and KWD: 0 and 3 decimals)", async () => {
+    const jpy = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "GBP", targetCurrency: "JPY", targetAmountMinor: 10_000 });
+    expect(jpy.sourceAmountMinor).toBe(convertMinor(10_000, "JPY", "GBP", crossRate(FIXTURE_RATES.rates, "JPY", "GBP", 12), { markupBps: 50, rounding: "CEIL" }));
+    const kwd = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "KWD", targetAmountMinor: 12_345 });
+    expect(kwd.sourceAmountMinor).toBeGreaterThan(0);
+  });
+
   it("no balance in the card currency: the cheapest covering balance pays at the bank's own conversion price", async () => {
     // HUF 5,980.00: no HUF balance. EUR and KZT both cover it; EUR is cheaper at the mid rate.
     const q = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "HUF", targetAmountMinor: 598_000 });

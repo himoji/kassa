@@ -49,6 +49,7 @@
   },
   "//patchedDependencies": "Moved from apps/mobile/package.json: bun applies patches from the workspace root only. Pinned exactly: a patch applies to one version.",
   "patchedDependencies": {
+    "expo-modules-jsi@57.1.1": "apps/mobile/patches/expo-modules-jsi@57.1.1.patch",
     "react-native-screens@4.26.2": "apps/mobile/patches/react-native-screens@4.26.2.patch"
   },
   "dependencies": {

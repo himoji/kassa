@@ -4,6 +4,8 @@
  * Integer maths only: rates are decimal strings scaled to 10^8 and applied with BigInt, rounding half
  * away from zero to the target currency's minor unit (ISO 4217 exponents from @kassa/shared).
  */
+import { readFileSync } from "node:fs";
+
 import { currencyExponent, isSupportedCurrency } from "@kassa/shared";
 
 import { isoDate } from "../clock/index.ts";
@@ -59,9 +61,38 @@ export function convertMinor(amountMinor: number, from: string, to: string, rate
   return v;
 }
 
+/**
+ * KZT per unit for the other wallet currencies, derived from the example table fixtures/fx-rates.json (EUR base:
+ * KZT per X = rate(KZT) / rate(X)). The five demo currencies keep their own values above.
+ */
+let derivedKztPerUnit: Record<string, string> | null = null;
+function kztPerUnit(currency: string): string | undefined {
+  if (FALLBACK_KZT_PER_UNIT[currency]) return FALLBACK_KZT_PER_UNIT[currency];
+  if (!derivedKztPerUnit) {
+    derivedKztPerUnit = {};
+    try {
+      const raw = JSON.parse(readFileSync(new URL("../../../../../fixtures/fx-rates.json", import.meta.url), "utf8")) as { base?: string; rates?: Record<string, string> };
+      const kzt = raw.base === "EUR" ? raw.rates?.KZT : undefined;
+      if (kzt) {
+        for (const [c, v] of Object.entries(raw.rates ?? {})) {
+          try {
+            const per = parseRate(v);
+            if (per > 0n) derivedKztPerUnit[c] = formatRate((parseRate(kzt) * SCALE) / per);
+          } catch {
+            // a row this parser cannot read has no fallback
+          }
+        }
+      }
+    } catch {
+      // no table: only the five demo currencies have a fallback
+    }
+  }
+  return derivedKztPerUnit[currency];
+}
+
 export function fallbackRate(from: string, to: string): string {
-  const a = FALLBACK_KZT_PER_UNIT[from];
-  const b = FALLBACK_KZT_PER_UNIT[to];
+  const a = kztPerUnit(from);
+  const b = kztPerUnit(to);
   if (!a || !b) throw new RangeError(`no fallback rate ${from}->${to}`);
   // (KZT per from) / (KZT per to), 8 dp.
   return formatRate((parseRate(a) * SCALE) / parseRate(b));

@@ -33,6 +33,14 @@ describe("cards added by hand", () => {
     expect((await add(userId, { label: "Fake", last4: "1234", billingCurrency: "ABC", kind: "MULTI" })).statusCode).toBe(400);
   });
 
+  it("lists a card learned from an Apple Pay tap without digits (empty last4) instead of failing with 500", async () => {
+    const { userId } = await createUserWithPasskey();
+    await getDb().insert(cards).values({ userId, label: "Revolut", last4: "", billingCurrency: "EUR", kind: "MULTI" });
+    const list = await app().inject({ method: "GET", url: "/api/cards", headers: await bearer(userId) });
+    expect(list.statusCode).toBe(200);
+    expect(list.json().cards).toEqual([expect.objectContaining({ label: "Revolut", last4: "" })]);
+  });
+
   it("removes only the owner's card and keeps past spending without it", async () => {
     const { userId } = await createUserWithPasskey();
     const other = await createUserWithPasskey();

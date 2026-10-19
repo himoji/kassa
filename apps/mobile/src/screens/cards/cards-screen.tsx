@@ -113,7 +113,11 @@ function RemoveCardButton({ card }: { card: CardDto }) {
   }
   return (
     <Box row gap={2} align="center" style={{ flexWrap: "wrap" }}>
-      <Text variant="caption">{t("cards:removeConfirm", { last4: card.last4 })}</Text>
+      <Text variant="caption">
+        {card.last4
+          ? t("cards:removeConfirm", { last4: card.last4 })
+          : t("cards:removeConfirmNoDigits")}
+      </Text>
       <Button
         variant="destructive"
         size="sm"
@@ -187,7 +191,7 @@ export function CardsScreen() {
                         <Box flex={1}>
                           <Text weight="semibold">{card.label}</Text>
                           <Text variant="caption">
-                            {t("cards:cardMeta", {
+                            {t(card.last4 ? "cards:cardMeta" : "cards:cardMetaNoDigits", {
                               last4: card.last4,
                               currency: card.billingCurrency,
                               kind: t(`cards:kind.${card.kind}`),
