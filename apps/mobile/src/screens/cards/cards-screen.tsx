@@ -1,4 +1,5 @@
 import { CardKind, type CardDto } from "@kassa/shared";
+import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 
 import { useMe } from "@/api/hooks/me";
@@ -139,17 +140,13 @@ export function CardsScreen() {
   const f = useFormat();
   const cards = useCards();
   const fees = useCardFees();
-  const [adding, setAdding] = useState(false);
+  // `?add=1` (KassaLite Home's Add card) opens the add sheet straight away.
+  const { add } = useLocalSearchParams<{ add?: string }>();
+  const [adding, setAdding] = useState(add === "1");
 
   return (
     <>
-      <ScrollScreen
-        onRefresh={() => {
-          void cards.refetch();
-          void fees.refetch();
-        }}
-        refreshing={cards.isRefetching || fees.isRefetching}
-      >
+      <ScrollScreen onRefresh={() => Promise.all([cards.refetch(), fees.refetch()])}>
         <QueryView query={fees} skeletonRows={1}>
           {(x) => (
             <Card>

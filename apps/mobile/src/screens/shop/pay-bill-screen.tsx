@@ -43,7 +43,7 @@ export function PayBillScreen() {
   };
 
   return (
-    <ScrollScreen onRefresh={() => void bill.refetch()} refreshing={bill.isRefetching}>
+    <ScrollScreen onRefresh={() => bill.refetch()}>
       <QueryView query={bill} skeletonRows={4}>
         {(b) => (
           <Box gap={5}>

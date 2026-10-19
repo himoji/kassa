@@ -25,7 +25,7 @@ export function OrdersScreen() {
   const [open, setOpen] = useState<string | null>(null);
 
   return (
-    <ScrollScreen onRefresh={() => void orders.refetch()} refreshing={orders.isRefetching}>
+    <ScrollScreen onRefresh={() => orders.refetch()}>
       <QueryView
         query={orders}
         isEmpty={(o) => o.items.length === 0}

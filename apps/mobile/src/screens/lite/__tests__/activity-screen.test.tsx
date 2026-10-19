@@ -6,7 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react-native";
 import { ThemeProvider } from "@/components/ui";
 import { dataModeStore, setDataMode } from "@/lite/data-mode";
 import { useSessionStore } from "@/stores/session";
-import { ActivityScreen, sortCaptures } from "../activity-screen";
+import { ActivityBody, ActivityScreen, sortCaptures } from "../activity-screen";
 
 const mockNotify = jest.fn((_: unknown) => Promise.resolve(0));
 jest.mock("@/lite/notifier", () => ({ notifyNewCaptures: (r: unknown) => mockNotify(r) }));
@@ -70,7 +70,7 @@ describe("ActivityScreen", () => {
       );
   });
 
-  it("lists captures newest first with the nudges, and hands the response to the notifier", async () => {
+  it("lists captures newest first without the nudges, and hands the response to the notifier", async () => {
     await render(
       <QueryClientProvider
         client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}
@@ -82,7 +82,8 @@ describe("ActivityScreen", () => {
     );
     expect(await screen.findByText("Newest Cafe")).toBeTruthy();
     expect(screen.getByText("Older Bakery")).toBeTruthy();
-    expect(screen.getByText("Eating out is 80% used")).toBeTruthy();
+    // Nudges are left to notifications: Activity lists purchases.
+    expect(screen.queryByText("Eating out is 80% used")).toBeNull();
     // The likely place replaces the statement text; where it happened joins the caption.
     expect(screen.getByText("Blue Bottle Coffee")).toBeTruthy();
     expect(screen.queryByText("SQ *BB 0412")).toBeNull();
@@ -136,6 +137,27 @@ describe("ActivityScreen", () => {
     expect(screen.getByText("Seeded Market")).toBeTruthy();
     expect(screen.queryByTestId("simulated-hidden")).toBeNull();
     dataModeStore.reset();
+  });
+
+  it("?card=<id> shows only that card's purchases, under a pill that clears it", async () => {
+    const card = "00000000-0000-4000-8000-0000000000c1";
+    const data: RecentCapturesResponse = {
+      ...DATA,
+      captures: DATA.captures.map((c, i) => ({ ...c, cardId: i === 0 ? card : null })),
+    };
+    await render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}
+      >
+        <ThemeProvider>
+          <ActivityBody data={data} cardId={card} />
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+    expect(screen.getByText("Older Bakery")).toBeTruthy();
+    expect(screen.queryByText("Newest Cafe")).toBeNull();
+    expect(screen.getByTestId("activity-card-filter")).toBeTruthy();
+    expect(screen.queryByTestId("activity-month")).toBeNull();
   });
 
   it("sorts by occurredAt, newest first", () => {

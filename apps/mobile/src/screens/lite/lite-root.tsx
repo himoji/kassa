@@ -151,6 +151,18 @@ function LiteNavigator() {
             options={{ ...inlineTitleOptions, headerShown: true, title: t("shortcut:test.title") }}
           />
           <Stack.Screen
+            name="shortcut"
+            options={{
+              ...inlineTitleOptions,
+              headerShown: true,
+              title: t("lite:settings.siriTitle"),
+            }}
+          />
+          <Stack.Screen
+            name="demo"
+            options={{ ...inlineTitleOptions, headerShown: true, title: t("evidence:links.title") }}
+          />
+          <Stack.Screen
             name="evidence"
             options={{ ...inlineTitleOptions, headerShown: true, title: t("evidence:title") }}
           />

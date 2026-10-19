@@ -10,10 +10,10 @@ import { readyVoiceShortcutLink, voiceUrlWithKey } from "@/lite/shortcut-check";
 import { loadShortcutToken } from "@/lite/shortcut-token";
 
 /**
- * KassaLite → Settings → "Ask Kassa by voice": copies the voice Shortcut's one link (the paired Shortcut key in it,
- * only on this tap) and shows the steps; with the published Shortcut's iCloud link in the bundle, "Add" copies the
- * same link and opens the Shortcut instead, whose import question takes it. The answer is read-only: payments still
- * need the app (capture/routes.ts).
+ * KassaLite → Settings → "Apple Pay & Siri" → "Ask Kassa by voice": copies the voice Shortcut's one link (the
+ * paired Shortcut key in it, only on this tap) and shows the steps; with the published Shortcut's iCloud link in the
+ * bundle, "Add" copies the same link and opens the Shortcut instead, whose import question takes it. The answer is
+ * read-only: payments still need the app (capture/routes.ts).
  */
 export function VoiceShortcut() {
   const t = useKassaT();

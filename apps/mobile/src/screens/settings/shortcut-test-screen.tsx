@@ -64,7 +64,7 @@ export function ShortcutTestScreen() {
   const endpoint = shortcutEndpoint();
 
   return (
-    <ScrollScreen onRefresh={() => void devices.refetch()} refreshing={devices.isRefetching}>
+    <ScrollScreen onRefresh={() => devices.refetch()}>
       <Text variant="caption">{t("shortcut:test.intro")}</Text>
 
       <QueryView query={devices} skeletonRows={1}>

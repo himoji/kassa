@@ -18,13 +18,7 @@ export function TodayScreen() {
   const forecast = useBusinessForecast();
 
   return (
-    <ScrollScreen
-      onRefresh={() => {
-        void sales.refetch();
-        void forecast.refetch();
-      }}
-      refreshing={sales.isRefetching || forecast.isRefetching}
-    >
+    <ScrollScreen onRefresh={() => Promise.all([sales.refetch(), forecast.refetch()])}>
       <QueryView query={sales} skeletonRows={2}>
         {(s) => (
           <Card>

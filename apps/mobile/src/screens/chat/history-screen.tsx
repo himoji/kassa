@@ -240,7 +240,7 @@ export function ChatHistoryScreen() {
           },
         ]}
       />
-      <ScrollScreen onRefresh={() => void list.refetch()} refreshing={list.isRefetching}>
+      <ScrollScreen onRefresh={() => list.refetch()}>
         {Platform.OS === "web" ? (
           <Input
             value={query}

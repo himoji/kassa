@@ -14,6 +14,7 @@ import { useShopOrders } from "@/api/hooks/shop";
 import { useSpendingInsights } from "@/api/hooks/insights";
 import { useTransactions } from "@/api/hooks/money";
 import { errorText } from "@/components/kassa/error-text";
+import { usePullRefresh } from "@/components/kassa/scroll-screen";
 import { ReasonCodeList } from "@/components/kassa/reason-codes";
 import { Segmented } from "@/components/kassa/segmented";
 import { StatusChip } from "@/components/kassa/status-chip";
@@ -217,6 +218,17 @@ export function ActivityScreen() {
   const insights = useSpendingInsights();
   // (M2/M3) Polls every 2 s while an order is open (see useShopOrders); only while this segment is shown.
   const shop = useShopOrders({ enabled: segment === "orders" });
+  // Spinner only for a user pull, not for background refetches/polls.
+  const pull = usePullRefresh(() =>
+    (segment === "timeline"
+      ? ledger
+      : segment === "spending"
+        ? txs
+        : segment === "orders"
+          ? shop
+          : notes
+    ).refetch()
+  );
 
   const header = (
     <Box gap={4} pb={2}>
@@ -256,8 +268,8 @@ export function ActivityScreen() {
         onEndReached={() =>
           ledger.hasNextPage && !ledger.isFetchingNextPage && void ledger.fetchNextPage()
         }
-        refreshing={ledger.isRefetching}
-        onRefresh={() => void ledger.refetch()}
+        refreshing={pull.refreshing}
+        onRefresh={pull.onRefresh}
         ListEmptyComponent={
           ledger.isPending || ledger.error ? (
             <ListState
@@ -283,8 +295,8 @@ export function ActivityScreen() {
         keyExtractor={(x) => x.id}
         renderItem={({ item }) => <TransactionRow tx={item} />}
         onEndReached={() => txs.hasNextPage && !txs.isFetchingNextPage && void txs.fetchNextPage()}
-        refreshing={txs.isRefetching}
-        onRefresh={() => void txs.refetch()}
+        refreshing={pull.refreshing}
+        onRefresh={pull.onRefresh}
         ListEmptyComponent={
           txs.isPending || txs.error ? (
             <ListState pending={txs.isPending} error={txs.error} retry={() => void txs.refetch()} />
@@ -318,8 +330,8 @@ export function ActivityScreen() {
             </View>
           )
         }
-        refreshing={shop.isRefetching}
-        onRefresh={() => void shop.refetch()}
+        refreshing={pull.refreshing}
+        onRefresh={pull.onRefresh}
         ListEmptyComponent={
           shop.isPending || shop.error ? (
             <ListState
@@ -341,8 +353,8 @@ export function ActivityScreen() {
       data={list}
       keyExtractor={(n) => n.id}
       renderItem={({ item }) => <NotificationRow n={item} />}
-      refreshing={notes.isRefetching}
-      onRefresh={() => void notes.refetch()}
+      refreshing={pull.refreshing}
+      onRefresh={pull.onRefresh}
       ListEmptyComponent={
         notes.isPending || notes.error ? (
           <ListState

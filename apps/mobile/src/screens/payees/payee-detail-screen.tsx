@@ -324,7 +324,7 @@ export function PayeeDetailScreen() {
   const payees = usePayees();
 
   return (
-    <ScrollScreen onRefresh={() => void payees.refetch()} refreshing={payees.isRefetching}>
+    <ScrollScreen onRefresh={() => payees.refetch()}>
       <QueryView query={payees} skeletonRows={3}>
         {(data) => {
           const payee = data.payees.find((p) => p.id === id);

@@ -298,7 +298,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.get(
     "/capture/recent",
-    { preHandler: requireUser, schema: { querystring: z.object({ since: z.iso.datetime().optional(), limit: z.coerce.number().int().min(1).max(100).default(50) }), response: { 200: RecentCapturesResponse } } },
+    { preHandler: requireUser, schema: { querystring: z.object({ since: z.iso.datetime().optional(), limit: z.coerce.number().int().min(1).max(100).default(100) }), response: { 200: RecentCapturesResponse } } },
     async (req) => {
       const userId = userIdOf(req);
       const { since, limit } = req.query;
@@ -337,6 +337,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           category: t.category,
           occurredAt: t.occurredAt.toISOString(),
           createdAt: t.createdAt.toISOString(),
+          cardId: t.cardId,
           ...(t.place ? { place: recentPlace(t.place) } : {}),
         })),
         nudges: nudges.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),

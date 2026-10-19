@@ -19,13 +19,7 @@ export function BillsScreen() {
   const homeCurrency = me.data?.homeCurrency ?? "KZT";
 
   return (
-    <ScrollScreen
-      onRefresh={() => {
-        void obligations.refetch();
-        void forecast.refetch();
-      }}
-      refreshing={obligations.isRefetching || forecast.isRefetching}
-    >
+    <ScrollScreen onRefresh={() => Promise.all([obligations.refetch(), forecast.refetch()])}>
       <QueryView
         query={obligations}
         isEmpty={(o) => o.obligations.length === 0}

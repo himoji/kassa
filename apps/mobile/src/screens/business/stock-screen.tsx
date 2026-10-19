@@ -17,7 +17,7 @@ export function StockScreen() {
   const q = (n: number, unit: string) => qtyText(n, unit, t, f.locale);
 
   return (
-    <ScrollScreen onRefresh={() => void inventory.refetch()} refreshing={inventory.isRefetching}>
+    <ScrollScreen onRefresh={() => inventory.refetch()}>
       <QueryView
         query={inventory}
         isEmpty={(i) => i.items.length === 0}

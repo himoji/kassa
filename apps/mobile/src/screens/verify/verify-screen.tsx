@@ -21,7 +21,7 @@ export function VerifyScreen() {
   const [name, setName] = useState("");
 
   return (
-    <ScrollScreen onRefresh={() => void record.refetch()} refreshing={record.isRefetching}>
+    <ScrollScreen onRefresh={() => record.refetch()}>
       <QueryView query={record} skeletonRows={3}>
         {(data) => (
           <>

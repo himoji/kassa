@@ -109,7 +109,7 @@ export function PayeesScreen() {
           ),
         }}
       />
-      <ScrollScreen onRefresh={() => void payees.refetch()} refreshing={payees.isRefetching}>
+      <ScrollScreen onRefresh={() => payees.refetch()}>
         <Card>
           <Box row gap={3}>
             <Icon name="shield.lefthalf.filled" fallback="shield" size={22} color="brandAccent" />

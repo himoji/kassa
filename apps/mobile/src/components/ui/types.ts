@@ -254,8 +254,9 @@ export interface ListProps<T> {
   footer?: ReactNode;
   /** Rendered in place of the rows when `data` is empty. Default: nothing. */
   empty?: ReactNode;
+  /** Optional override; by default the spinner shows only for a user pull until `onRefresh` settles. */
   refreshing?: boolean;
-  onRefresh?: () => void;
+  onRefresh?: () => unknown;
   /**
    * Row-height hint. Adapters backed by a measuring list (`FlatList`) ignore it;
    * it exists so a stack can swap in an estimating list without a contract change.

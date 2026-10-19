@@ -1,18 +1,19 @@
-import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
-import { router } from "expo-router";
-import { Pressable, View } from "react-native";
+import type { CardDto, RecentCapture, RecentCapturesResponse } from "@kassa/shared";
+import { router, useLocalSearchParams } from "expo-router";
+import { Pressable } from "react-native";
 
 import { useSpendingInsights } from "@/api/hooks/insights";
+import { useCards } from "@/api/hooks/money";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { CategoryAvatar, categoryLabel } from "@/components/kassa/spend-charts";
 import { RowGroup } from "@/components/row-group";
-import { Box, Icon, Text } from "@/components/ui";
+import { Box, Icon, Row, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 import { useDataMode, visibleCaptures } from "@/lite/data-mode";
 import { useRecentCaptures } from "@/lite/use-recent-captures";
-import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
+import { openInsights } from "@/screens/insights/insights-screen";
 import { purchaseHref } from "@/screens/transaction/transaction-detail-screen";
 
 /** Newest purchase first (the server order is not relied on). */
@@ -41,7 +42,19 @@ export function groupByDay(
   return groups;
 }
 
-function CaptureRow({ capture }: { capture: RecentCapture }) {
+/** "Visa ••4242" (the digits left out when the card has none). */
+export function cardName(card: Pick<CardDto, "label" | "last4">): string {
+  return card.last4 ? `${card.label} ••${card.last4}` : card.label;
+}
+
+/** One purchase: category avatar, place or merchant, amount; `dated` adds the day (lists that span days). */
+export function CaptureRow({
+  capture,
+  dated = false,
+}: {
+  capture: RecentCapture;
+  dated?: boolean;
+}) {
   const t = useKassaT();
   const f = useFormat();
   const insights = useSpendingInsights();
@@ -73,7 +86,11 @@ function CaptureRow({ capture }: { capture: RecentCapture }) {
           </Box>
           <Box row align="center" gap={3}>
             <Text variant="caption" numberOfLines={1} style={{ flex: 1 }}>
-              {[f.time(capture.occurredAt), category, capture.place?.where]
+              {[
+                dated ? f.dateTime(capture.occurredAt) : f.time(capture.occurredAt),
+                category,
+                capture.place?.where,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </Text>
@@ -108,44 +125,95 @@ function dayTitle(day: string, t: ReturnType<typeof useKassaT>, f: ReturnType<ty
   return f.weekdayDay(day);
 }
 
-export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
+/** This month's spending as one row; opens Insights. Hidden until it loads. */
+function MonthRow() {
+  const t = useKassaT();
+  const f = useFormat();
+  const insights = useSpendingInsights();
+  const d = insights.data;
+  if (!d) return null;
+  return (
+    <RowGroup>
+      <Row
+        title={t("lite:activity.spentIn", { month: f.monthName(d.month.start) })}
+        trailing={
+          <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
+            {f.money(d.totalMinor, d.homeCurrency)}
+          </Text>
+        }
+        chevron
+        onPress={openInsights}
+        testID="activity-month"
+      />
+    </RowGroup>
+  );
+}
+
+/** The card the list is narrowed to, with ✕ to show every card again. */
+function CardFilterPill({ cardId }: { cardId: string }) {
+  const t = useKassaT();
+  const { colors } = useTheme();
+  const card = useCards().data?.cards.find((c) => c.id === cardId);
+  return (
+    <Box row>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("lite:activity.clearCard")}
+        onPress={() => router.setParams({ card: undefined })}
+        hitSlop={8}
+        testID="activity-card-filter"
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 999,
+          backgroundColor: colors.brandAccent,
+        }}
+      >
+        <Icon name="creditcard.fill" fallback="credit_card" size={16} color="primaryForeground" />
+        <Text weight="semibold" numberOfLines={1} style={{ color: colors.primaryForeground }}>
+          {card ? cardName(card) : t("lite:activity.oneCard")}
+        </Text>
+        <Icon name="xmark" fallback="close" size={14} color="primaryForeground" />
+      </Pressable>
+    </Box>
+  );
+}
+
+export function ActivityBody({
+  data,
+  cardId,
+}: {
+  data: RecentCapturesResponse;
+  /** Only this card's purchases (`?card=<id>`, from a Home card page). */
+  cardId?: string;
+}) {
   const t = useKassaT();
   const f = useFormat();
   const insights = useSpendingInsights();
   const mode = useDataMode();
-  const shown = visibleCaptures(data.captures, mode);
-  const hidden = data.captures.length - shown.length;
+  const visible = visibleCaptures(data.captures, mode);
+  const shown = cardId ? visible.filter((c) => c.cardId === cardId) : visible;
+  const hidden = data.captures.length - visible.length;
   const groups = groupByDay(shown);
   const home = insights.data?.homeCurrency;
   return (
     <>
-      {insights.data ? <MonthSummaryCard data={insights.data} onPress={openInsights} /> : null}
-      {data.nudges.length > 0 ? (
-        <RowGroup title={t("lite:activity.nudgesTitle")}>
-          {/* The latest one: older nudges repeat what the purchases below already show. */}
-          {data.nudges.slice(0, 1).map((n) => (
-            <Box key={n.id} p={4} row gap={3}>
-              <View style={{ paddingTop: 2 }}>
-                <Icon name="sparkles" fallback="auto_awesome" size={18} color="brandAccent" />
-              </View>
-              <Box gap={1} style={{ flex: 1 }}>
-                <Text weight="semibold">{n.title}</Text>
-                <Text variant="caption">{n.body}</Text>
-              </Box>
-            </Box>
-          ))}
-        </RowGroup>
-      ) : null}
+      {cardId ? <CardFilterPill cardId={cardId} /> : <MonthRow />}
       {groups.length === 0 ? (
         <RowGroup title={t("lite:activity.capturesTitle")}>
           <Box p={6} gap={2} align="center">
             <Icon name="wave.3.right" fallback="contactless" size={32} color="mutedForeground" />
             <Text weight="semibold" align="center">
-              {t("lite:activity.empty")}
+              {cardId ? t("lite:activity.cardEmpty") : t("lite:activity.empty")}
             </Text>
-            <Text variant="caption" align="center">
-              {t("lite:activity.emptyBody")}
-            </Text>
+            {cardId ? null : (
+              <Text variant="caption" align="center">
+                {t("lite:activity.emptyBody")}
+              </Text>
+            )}
           </Box>
         </RowGroup>
       ) : null}
@@ -183,21 +251,20 @@ export function ActivityBody({ data }: { data: RecentCapturesResponse }) {
 
 /**
  * Activity tab: purchases the Apple Pay Shortcut captured (GET /capture/recent), polled while visible. Real mode
- * (Settings → Data shown, the default) leaves out simulated and demo-seed purchases.
+ * (Settings → Data shown, the default) leaves out simulated and demo-seed purchases. `?card=<id>` narrows the list to
+ * one card.
  */
 export function ActivityScreen() {
+  const { card } = useLocalSearchParams<{ card?: string }>();
   const recent = useRecentCaptures();
   const insights = useSpendingInsights();
+  const cards = useCards();
   return (
     <ScrollScreen
-      onRefresh={() => {
-        void recent.refetch();
-        void insights.refetch();
-      }}
-      refreshing={recent.isRefetching}
+      onRefresh={() => Promise.all([recent.refetch(), insights.refetch(), cards.refetch()])}
     >
       <QueryView query={recent} skeletonRows={4}>
-        {(data) => <ActivityBody data={data} />}
+        {(data) => <ActivityBody data={data} cardId={card || undefined} />}
       </QueryView>
     </ScrollScreen>
   );

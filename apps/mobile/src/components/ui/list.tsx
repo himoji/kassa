@@ -1,4 +1,4 @@
-import { createContext, useContext, type Context } from "react";
+import { createContext, useContext, useState, type Context } from "react";
 import { FlatList, ScrollView, View, type ListRenderItemInfo } from "react-native";
 
 import { isIOS } from "@/lib/utils";
@@ -51,6 +51,14 @@ export function List<T>({
 }: ListProps<T>) {
   const { colors } = useTheme();
   const nested = useContext(ScrollViewContext) !== null;
+  // Spinner only for a user pull; an explicit `refreshing` prop still wins (backward compat).
+  const [pulling, setPulling] = useState(false);
+  const handleRefresh = onRefresh
+    ? () => {
+        setPulling(true);
+        void Promise.resolve(onRefresh()).finally(() => setPulling(false));
+      }
+    : undefined;
 
   const renderSeparator =
     separator === false
@@ -73,8 +81,8 @@ export function List<T>({
       ListHeaderComponent={header != null ? <>{header}</> : null}
       ListFooterComponent={footer != null ? <>{footer}</> : null}
       ListEmptyComponent={empty != null ? <>{empty}</> : null}
-      refreshing={onRefresh ? (refreshing ?? false) : undefined}
-      onRefresh={onRefresh}
+      refreshing={onRefresh ? (refreshing ?? pulling) : undefined}
+      onRefresh={handleRefresh}
       scrollEnabled={!nested}
       contentInsetAdjustmentBehavior={isIOS ? "automatic" : undefined}
       keyboardShouldPersistTaps="handled"

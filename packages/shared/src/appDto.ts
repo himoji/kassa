@@ -755,6 +755,8 @@ export const RecentCapture = z.object({
   category: z.string().nullable(),
   occurredAt: IsoDateTime,
   createdAt: IsoDateTime,
+  /** The card Kassa matched the tap to (GET /cards), when known. */
+  cardId: Uuid.nullable().optional(),
   /** The likely place ("Blue Bottle Coffee", "café") and where the tap happened ("Váci utca 10, Budapest"), when known. */
   place: z.object({ name: z.string().optional(), kind: z.string().optional(), where: z.string().optional() }).optional(),
 });

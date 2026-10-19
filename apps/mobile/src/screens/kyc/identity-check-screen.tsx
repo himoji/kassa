@@ -145,11 +145,7 @@ export function IdentityCheckScreen() {
   };
 
   return (
-    <ScrollScreen
-      onRefresh={() => void kyc.refetch()}
-      refreshing={kyc.isRefetching}
-      testID="identity-check"
-    >
+    <ScrollScreen onRefresh={() => kyc.refetch()} testID="identity-check">
       <QueryView query={kyc} skeletonRows={3}>
         {(data) => (
           <>

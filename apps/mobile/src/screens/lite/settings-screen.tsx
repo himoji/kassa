@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Segmented } from "@/components/kassa/segmented";
-import { DemoProofSection } from "@/components/demo-proof-section";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Icon, Input, Row, Text, toast, useTheme } from "@/components/ui";
 import { confirm } from "@/lib/confirm";
@@ -19,15 +18,18 @@ import {
 } from "@/lite/server-url";
 import { liteSignOut } from "@/lite/sign-out";
 
-import { serverHost, ShortcutSetup } from "./shortcut-setup";
-import { VoiceShortcut } from "./voice-shortcut";
+import { serverHost, useShortcutStatus, type ShortcutStatus } from "./shortcut-setup";
 import { UpdatesSection } from "./updates-section";
 
-/** KassaLite settings: pairing state, Shortcut install, data shown, server URL, sign out. */
+/**
+ * KassaLite settings: a short list, details one tap away (Apple Pay & Siri → /shortcut, Demo & proof → /demo);
+ * pairing state, data shown, server URL and sign out stay inline.
+ */
 export function LiteSettingsScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
   const dataMode = useDataMode();
+  const shortcut = useShortcutStatus();
   const [name, setName] = useState<string | null>(null);
   const [server, setServer] = useState("");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -81,6 +83,23 @@ export function LiteSettingsScreen() {
         />
       </RowGroup>
 
+      <RowGroup title={t("lite:settings.siriTitle")} icons>
+        <Row
+          leading={<Icon name="wave.3.right" fallback="contactless" size={20} color="foreground" />}
+          title={t("lite:settings.shortcutTitle")}
+          trailing={<ShortcutStatusText status={shortcut.status} />}
+          chevron
+          onPress={() => router.push("/shortcut")}
+          testID="lite-shortcut-row"
+        />
+        <Row
+          leading={<Icon name="waveform" fallback="graphic_eq" size={20} color="foreground" />}
+          title={t("shortcut:voice.title")}
+          onPress={() => router.push("/shortcut")}
+          testID="lite-voice-row"
+        />
+      </RowGroup>
+
       <RowGroup title={t("settings:moreTitle")} icons>
         <Row
           leading={<Icon name="person.2" fallback="group" size={20} color="foreground" />}
@@ -126,9 +145,17 @@ export function LiteSettingsScreen() {
         />
       </RowGroup>
 
-      <ShortcutSetup />
-      <VoiceShortcut />
-      <DemoProofSection />
+      <RowGroup icons>
+        <Row
+          leading={
+            <Icon name="checkmark.shield" fallback="verified_user" size={20} color="foreground" />
+          }
+          title={t("evidence:links.title")}
+          subtitle={t("lite:settings.demoHint")}
+          onPress={() => router.push("/demo")}
+          testID="lite-demo-row"
+        />
+      </RowGroup>
 
       <RowGroup
         title={t("lite:settings.dataMode.title")}
@@ -200,5 +227,26 @@ export function LiteSettingsScreen() {
         />
       </RowGroup>
     </ScrollScreen>
+  );
+}
+
+/** "Working" with a check in the success color; the other states in muted text. */
+function ShortcutStatusText({ status }: { status: ShortcutStatus }) {
+  const t = useKassaT();
+  const label = t(`lite:settings.shortcutStatus.${status}`);
+  if (status !== "working") {
+    return (
+      <Text variant="caption" color="mutedForeground" testID={`shortcut-status-${status}`}>
+        {label}
+      </Text>
+    );
+  }
+  return (
+    <Box row gap={1} align="center" testID="shortcut-status-working">
+      <Icon name="checkmark.circle.fill" fallback="check_circle" size={16} color="success" />
+      <Text variant="caption" color="success">
+        {label}
+      </Text>
+    </Box>
   );
 }

@@ -1,5 +1,5 @@
-import { HomeScreen } from "@/screens/home/home-screen";
+import { LiteHomeScreen } from "@/screens/lite/home-screen";
 
 export default function Route() {
-  return <HomeScreen />;
+  return <LiteHomeScreen />;
 }

@@ -10,9 +10,10 @@ import { errorText } from "./error-text";
 
 /**
  * Header freeze button (spec §16 Home). Freezing is instant (I8 tightening); every payment is
- * refused with REFUSE_FROZEN afterwards. Confirmed first because it stops autopay too.
+ * refused with REFUSE_FROZEN afterwards. Confirmed first because it stops autopay too. `iconOnly` drops the label
+ * (KassaLite Home); the accessibility label stays.
  */
-export function FreezeButton() {
+export function FreezeButton({ iconOnly = false }: { iconOnly?: boolean } = {}) {
   const t = useKassaT();
   const { data: me } = useMe();
   const freeze = useFreeze();
@@ -65,9 +66,11 @@ export function FreezeButton() {
         size={20}
         color={frozen ? "destructive" : "foreground"}
       />
-      <Text weight="semibold" color={frozen ? "destructive" : "foreground"}>
-        {frozen ? t("home:freeze.frozen") : t("home:freeze.button")}
-      </Text>
+      {iconOnly ? null : (
+        <Text weight="semibold" color={frozen ? "destructive" : "foreground"}>
+          {frozen ? t("home:freeze.frozen") : t("home:freeze.button")}
+        </Text>
+      )}
     </Pressable>
   );
 }

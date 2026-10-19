@@ -100,7 +100,7 @@ export function ShortcutScreen() {
   };
 
   return (
-    <ScrollScreen onRefresh={() => void devices.refetch()} refreshing={devices.isRefetching}>
+    <ScrollScreen onRefresh={() => devices.refetch()}>
       <Box gap={3}>
         <Text variant="caption">{t("shortcut:intro")}</Text>
         <Segmented

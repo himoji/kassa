@@ -40,40 +40,17 @@ export function serverHost(url: string): string {
 }
 
 type Mode = "start" | "waiting" | "report" | "legacy";
-/**
- * How this iPhone gets its automation: "action", the build's "Log Payment in Kassa" action (nothing to paste);
- * "ready", the published ready-made Shortcut (its import question takes the copied link); "link", a hand-built
- * Shortcut with the copied link in Get Contents of URL.
- */
-type Path = "action" | "ready" | "link";
+/** The Settings row's one word: a checked tap logged (or an older capture), a wait for the first tap, or work left. */
+export type ShortcutStatus = "working" | "notSeen" | "needsSetup";
 
 /**
- * KassaLite Settings → "Apple Pay Shortcut": one button, then proof.
- *
- * "Set up" checks the server and key from this iPhone (`{test: true}`, nothing logged), readies the automation's
- * one input (builds with the "Log Payment in Kassa" action: its Keychain copy; other builds: the endpoint link with
- * the key, copied, only on this tap) and opens the ready-made Shortcut when one is published, Shortcuts otherwise.
- * One line then says what is left (paste when asked, and the Transaction automation, which iOS lets no app create);
- * the hand-built steps sit behind "Manual setup". The card waits for a real Apple Pay tap and reports, line by
- * line, what the automation sent and whether Kassa logged it (GET /devices `lastCheck`), with the fix for each
- * wrong line.
+ * Where this iPhone's Apple Pay automation stands, from GET /devices `lastCheck` and the stored "setup started" flag.
+ * The Settings row and the full card read it so they agree; only the card polls (`poll`) while it waits for a tap.
  */
-export function ShortcutSetup() {
-  const t = useKassaT();
-  const f = useFormat();
-  const [hasAction, setHasAction] = useState(false);
+export function useShortcutStatus(poll = false) {
   const [started, setStarted] = useState(false);
-  const [server, setServer] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<Exclude<ConnectionCheck, "ok"> | null>(null);
-  const [showSteps, setShowSteps] = useState(false);
-  const readyLink = readyShortcutLink();
-  const path: Path = hasAction ? "action" : readyLink ? "ready" : "link";
-
   useEffect(() => {
-    void hasLogPaymentAction().then(setHasAction);
     void loadSetupStarted().then(setStarted);
-    void loadServerUrl().then(setServer);
   }, []);
 
   const [pollMs, setPollMs] = useState<number | false>(false);
@@ -88,8 +65,47 @@ export function ShortcutSetup() {
       : started || check
         ? "waiting"
         : "start";
-  const wantPoll = mode === "waiting" || (mode === "report" && !passed) ? POLL_MS : false;
+  const wantPoll = poll && (mode === "waiting" || (mode === "report" && !passed)) ? POLL_MS : false;
   if (wantPoll !== pollMs) setPollMs(wantPoll);
+  const status: ShortcutStatus =
+    mode === "legacy" || passed ? "working" : mode === "waiting" ? "notSeen" : "needsSetup";
+  return { devices, check, real, passed, mode, status, markStarted: () => setStarted(true) };
+}
+/**
+ * How this iPhone gets its automation: "action", the build's "Log Payment in Kassa" action (nothing to paste);
+ * "ready", the published ready-made Shortcut (its import question takes the copied link); "link", a hand-built
+ * Shortcut with the copied link in Get Contents of URL.
+ */
+type Path = "action" | "ready" | "link";
+
+/**
+ * KassaLite Settings → "Apple Pay & Siri" → "Apple Pay Shortcut": one button, then proof.
+ *
+ * "Set up" checks the server and key from this iPhone (`{test: true}`, nothing logged), readies the automation's
+ * one input (builds with the "Log Payment in Kassa" action: its Keychain copy; other builds: the endpoint link with
+ * the key, copied, only on this tap) and opens the ready-made Shortcut when one is published, Shortcuts otherwise.
+ * One line then says what is left (paste when asked, and the Transaction automation, which iOS lets no app create);
+ * the hand-built steps sit behind "Manual setup". The card waits for a real Apple Pay tap and reports, line by
+ * line, what the automation sent and whether Kassa logged it (GET /devices `lastCheck`), with the fix for each
+ * wrong line.
+ */
+export function ShortcutSetup() {
+  const t = useKassaT();
+  const f = useFormat();
+  const [hasAction, setHasAction] = useState(false);
+  const [server, setServer] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Exclude<ConnectionCheck, "ok"> | null>(null);
+  const [showSteps, setShowSteps] = useState(false);
+  const readyLink = readyShortcutLink();
+  const path: Path = hasAction ? "action" : readyLink ? "ready" : "link";
+
+  useEffect(() => {
+    void hasLogPaymentAction().then(setHasAction);
+    void loadServerUrl().then(setServer);
+  }, []);
+
+  const { devices, check, real, passed, mode, markStarted } = useShortcutStatus(true);
 
   // The purchase the last tap logged, for its merchant and amount (the device keeps no such values).
   const recent = useQuery({
@@ -156,7 +172,7 @@ export function ShortcutSetup() {
       }
     }
     await saveSetupStarted();
-    setStarted(true);
+    markStarted();
     // Fixing an automation opens Shortcuts itself: adding the ready-made Shortcut again would make a second copy.
     const target = path === "ready" && mode !== "report" && readyLink ? readyLink : "shortcuts://";
     try {

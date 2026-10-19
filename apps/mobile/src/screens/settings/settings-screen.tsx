@@ -374,7 +374,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
 export function SettingsScreen() {
   const me = useMe();
   return (
-    <ScrollScreen onRefresh={() => void me.refetch()} refreshing={me.isRefetching}>
+    <ScrollScreen onRefresh={() => me.refetch()}>
       <QueryView query={me} skeletonRows={6}>
         {(data) => <SettingsBody me={data} />}
       </QueryView>

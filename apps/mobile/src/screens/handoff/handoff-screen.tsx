@@ -25,7 +25,7 @@ export function HandoffScreen() {
   const handoff = useHandoff(paymentId);
 
   return (
-    <ScrollScreen onRefresh={() => void handoff.refetch()} refreshing={handoff.isRefetching}>
+    <ScrollScreen onRefresh={() => handoff.refetch()}>
       <QueryView query={handoff} skeletonRows={4}>
         {(h) => {
           const mismatch = h.check === "QR_PAYEE_MISMATCH";

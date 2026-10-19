@@ -355,7 +355,7 @@ export function InsightsBody({ data }: { data: SpendingInsightsResponse }) {
 export function InsightsScreen() {
   const insights = useSpendingInsights();
   return (
-    <ScrollScreen onRefresh={() => void insights.refetch()} refreshing={insights.isRefetching}>
+    <ScrollScreen onRefresh={() => insights.refetch()}>
       <QueryView query={insights} skeletonRows={5}>
         {(data) => <InsightsBody data={data} />}
       </QueryView>

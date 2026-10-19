@@ -377,7 +377,7 @@ export function TransactionDetailScreen() {
           ]}
         />
       ) : null}
-      <ScrollScreen onRefresh={() => void detail.refetch()} refreshing={detail.isRefetching}>
+      <ScrollScreen onRefresh={() => detail.refetch()}>
         <QueryView query={detail} skeletonRows={6}>
           {(data) => <TransactionDetailBody d={data} />}
         </QueryView>

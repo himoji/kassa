@@ -464,22 +464,22 @@ export function HomeScreen() {
   const balances = useBalances();
   const [showAllBudgets, setShowAllBudgets] = useState(false);
   useRequireBackupCodes();
-  const refreshing = me.isRefetching || balances.isRefetching || budgets.isRefetching;
 
-  const refresh = () => {
-    void me.refetch();
-    void balances.refetch();
-    void budgets.refetch();
-    void obligations.refetch();
-    void pending.refetch();
-  };
+  const refresh = () =>
+    Promise.all([
+      me.refetch(),
+      balances.refetch(),
+      budgets.refetch(),
+      obligations.refetch(),
+      pending.refetch(),
+    ]);
 
   const homeCurrency = me.data?.homeCurrency ?? balances.data?.homeCurrency ?? "KZT";
 
   return (
     <>
       <Stack.Screen options={{ headerRight: () => <FreezeButton /> }} />
-      <ScrollScreen onRefresh={refresh} refreshing={refreshing} testID="home-screen">
+      <ScrollScreen onRefresh={refresh} testID="home-screen">
         {me.data?.frozenAt ? (
           <Card>
             <Box row gap={3} align="center">
