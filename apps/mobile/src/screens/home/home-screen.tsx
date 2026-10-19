@@ -220,7 +220,7 @@ function HeroAction({
       >
         <Icon name={sf} fallback={md} size={20} color="#056347" />
       </View>
-      <Text weight="semibold" style={{ color: ON_HERO, fontSize: 13 }}>
+      <Text weight="semibold" numberOfLines={1} style={{ color: ON_HERO, fontSize: 13 }}>
         {label}
       </Text>
     </Pressable>
@@ -231,24 +231,39 @@ function BalanceCard() {
   const t = useKassaT();
   const f = useFormat();
   const balances = useBalances();
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   return (
     <QueryView query={balances} skeletonRows={2}>
       {(b) => (
-        <View style={{ borderRadius: 24, overflow: "hidden", padding: 20, gap: 18 }}>
-          <Svg
-            style={StyleSheet.absoluteFill}
-            width="100%"
-            height="100%"
-            preserveAspectRatio="none"
-          >
-            <Defs>
-              <LinearGradient id="kassa-hero" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor="#0E9F73" />
-                <Stop offset="1" stopColor="#04503A" />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#kassa-hero)" />
-          </Svg>
+        <View
+          onLayout={(e) => setSize(e.nativeEvent.layout)}
+          style={{
+            alignSelf: "stretch",
+            width: "100%",
+            borderRadius: 24,
+            overflow: "hidden",
+            padding: 20,
+            gap: 18,
+            // Shown until the gradient has measured the card.
+            backgroundColor: "#0A7A58",
+          }}
+        >
+          {size ? (
+            // Pixel-sized: percentage sizes inside an absolutely positioned Svg collapse on iOS.
+            <Svg
+              style={{ position: "absolute", top: 0, left: 0 }}
+              width={size.width}
+              height={size.height}
+            >
+              <Defs>
+                <LinearGradient id="kassa-hero" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor="#0E9F73" />
+                  <Stop offset="1" stopColor="#04503A" />
+                </LinearGradient>
+              </Defs>
+              <Rect width={size.width} height={size.height} fill="url(#kassa-hero)" />
+            </Svg>
+          ) : null}
           <Box gap={1}>
             <Box row justify="between" align="center">
               <Text style={{ color: ON_HERO_MUTED, fontSize: 14 }}>
@@ -272,45 +287,50 @@ function BalanceCard() {
               {f.money(b.homeTotalMinor, b.homeCurrency)}
             </Text>
           </Box>
-          <View
-            style={{
-              borderRadius: 16,
-              paddingHorizontal: 14,
-              paddingVertical: 6,
-              backgroundColor: "rgba(255,255,255,0.10)",
-            }}
-          >
-            {b.balances.map((row, i) => (
-              <Box
-                key={row.currency}
-                row
-                justify="between"
-                align="center"
-                style={{
-                  minHeight: 40,
-                  borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth,
-                  borderTopColor: "rgba(255,255,255,0.18)",
-                }}
-              >
-                <Text weight="semibold" style={{ color: ON_HERO_MUTED, letterSpacing: 0.5 }}>
-                  {row.currency}
-                </Text>
-                <Box style={{ alignItems: "flex-end", paddingVertical: 4 }}>
-                  <Text weight="semibold" style={{ color: ON_HERO, fontVariant: ["tabular-nums"] }}>
-                    {f.money(row.amountMinor, row.currency)}
+          {b.balances.length > 0 ? (
+            <View
+              style={{
+                borderRadius: 16,
+                paddingHorizontal: 14,
+                paddingVertical: 6,
+                backgroundColor: "rgba(255,255,255,0.10)",
+              }}
+            >
+              {b.balances.map((row, i) => (
+                <Box
+                  key={row.currency}
+                  row
+                  justify="between"
+                  align="center"
+                  style={{
+                    minHeight: 40,
+                    borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth,
+                    borderTopColor: "rgba(255,255,255,0.18)",
+                  }}
+                >
+                  <Text weight="semibold" style={{ color: ON_HERO_MUTED, letterSpacing: 0.5 }}>
+                    {row.currency}
                   </Text>
-                  {row.currency !== b.homeCurrency ? (
-                    <Text style={{ color: ON_HERO_MUTED, fontSize: 12 }}>
-                      {t("common:approxHome", {
-                        amount: f.money(row.homeAmountMinor, b.homeCurrency),
-                      })}
+                  <Box style={{ alignItems: "flex-end", paddingVertical: 4 }}>
+                    <Text
+                      weight="semibold"
+                      style={{ color: ON_HERO, fontVariant: ["tabular-nums"] }}
+                    >
+                      {f.money(row.amountMinor, row.currency)}
                     </Text>
-                  ) : null}
+                    {row.currency !== b.homeCurrency ? (
+                      <Text style={{ color: ON_HERO_MUTED, fontSize: 12 }}>
+                        {t("common:approxHome", {
+                          amount: f.money(row.homeAmountMinor, b.homeCurrency),
+                        })}
+                      </Text>
+                    ) : null}
+                  </Box>
                 </Box>
-              </Box>
-            ))}
-          </View>
-          <Box row>
+              ))}
+            </View>
+          ) : null}
+          <Box row style={{ alignSelf: "stretch" }}>
             <HeroAction
               label={t("home:addMoney")}
               sf="plus"
