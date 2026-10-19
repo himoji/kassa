@@ -5,6 +5,7 @@
   "dccExplainer": "Some merchants offer to charge you in your home currency. That conversion is usually more expensive. Choose the local currency instead.",
   "dccOverMid": "About {{pct}} over the mid-market rate",
   "dccTitle": "Card conversion warnings",
+  "detailsHint": "Shows or hides the card's fees and Remove",
   "exampleValues": "Example values, not your real data.",
   "feesLostHint": "Fees you paid this month on card conversions.",
   "feesLostLabel": "Fees lost this month",
@@ -16,6 +17,7 @@
   },
   "markup": "{{markup}} median markup from {{samples}} transactions",
   "noCards": "No cards yet. Add one so Kassa can match your spending to it.",
+  "noMarkups": "No currency conversions on this card yet.",
   "add": {
     "title": "Add a card",
     "why": "Only the last 4 digits: they tell your cards apart, match bank notifications and Apple Pay taps to the right card, and show each card's hidden conversion fees. Kassa never needs the full number, expiry date or CVV.",
@@ -31,6 +33,7 @@
   "remove": "Remove",
   "removeConfirm": "Remove the card ending {{last4}}? Past spending stays.",
   "removeConfirmNoDigits": "Remove this card? Past spending stays.",
+  "rowMeta": "•• {{last4}} · {{currency}}",
   "pair": "{{from}} to {{to}}",
   "tab": "Cards",
   "title": "Cards",

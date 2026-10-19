@@ -22,7 +22,7 @@ Expo Go cannot be targeted: flows assume the app's own id.
 
 ## Flows
 
-- `flows/theme-switch.yaml` - **Settings** → **Dark**, asserts "Currently Dark", restores **Light** / **System**. Skips onboarding if shown.
+- `flows/theme-switch.yaml` - **Settings** → **Appearance** → **Dark**, asserts "Currently Dark", restores **Light** / **System**. Skips onboarding if shown.
 
 ## Notes
 

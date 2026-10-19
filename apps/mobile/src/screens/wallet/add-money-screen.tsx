@@ -311,7 +311,7 @@ export function AddMoneyScreen() {
             <Card>
               <Box gap={3}>
                 <Text>{t("wallet:needsWallet")}</Text>
-                <Button variant="secondary" onPress={() => router.push("/settings")}>
+                <Button variant="secondary" onPress={() => router.push("/settings/preset")}>
                   {t("wallet:openSettings")}
                 </Button>
               </Box>

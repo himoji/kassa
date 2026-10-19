@@ -1,4 +1,4 @@
-# Settings tab: pick "Dark", check the resolved-mode readout, then go back to "Light".
+# Settings tab → Appearance & language: pick "Dark", check the resolved-mode readout, then go back to "Light".
 # Skips onboarding if it is still showing, so the flow also runs standalone.
 appId: ${APP_ID}
 ---
@@ -10,6 +10,7 @@ appId: ${APP_ID}
       - tapOn: "Skip"
 - tapOn: "Settings"
 - assertVisible: "Appearance"
+- tapOn: "Appearance"
 - tapOn: "Dark"
 - assertVisible: "Currently Dark"
 - tapOn: "Light"

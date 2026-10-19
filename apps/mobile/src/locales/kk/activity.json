@@ -1,10 +1,12 @@
 {
+  "detailsHint": "Толығырақ ақпаратты көрсетеді немесе жасырады",
   "emptyInbox": "Әзірге хабарландыру жоқ",
   "emptySpending": "Әзірге шығын жоқ",
   "emptyTimeline": "Әзірге ештеңе болған жоқ",
   "entryMeta": "{{time}} · оқиға {{seq}} · {{hash}}",
   "hiddenFee": "{{amount}} комиссия кіреді",
   "new": "Жаңа",
+  "openHandoff": "Беруді ашу",
   "notify": {
     "amountWithHome": "{{amount}} (шамамен {{home}})",
     "underMandate": " сіз қол қойған мандат бойынша",
@@ -30,6 +32,7 @@
   },
   "segment": {
     "inbox": "Кіріс",
+    "log": "Журнал",
     "spending": "Шығындар",
     "timeline": "Хронология"
   },
@@ -47,6 +50,7 @@
   "timelineHint": "Әр шешім мен өзгеріс ретімен. Жазбаларды өзгерту мүмкін емес.",
   "title": "Әрекеттер",
   "txMeta": "{{time}} · {{category}} · көзі: {{source}}",
+  "txMetaShort": "{{time}} · {{category}}",
   "txStatus": {
     "PENDING": "Өңделуде",
     "SETTLED": "Өткізілді"

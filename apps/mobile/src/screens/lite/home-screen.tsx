@@ -1,4 +1,4 @@
-import type { AgentOutcome, CardDto, RecentCapture } from "@kassa/shared";
+import type { AgentOutcome, CardDto, RecentCapture, TransactionDto } from "@kassa/shared";
 import { router, Stack, type Href } from "expo-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -19,6 +19,7 @@ import {
   useBudgets,
   useCardFees,
   useCards,
+  useTransactions,
   useObligations,
   usePendingProposals,
 } from "@/api/hooks/money";
@@ -35,6 +36,7 @@ import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { useDataMode, visibleCaptures } from "@/lite/data-mode";
+import { isLiteBuild } from "@/lite/variant";
 import { useRecentCaptures } from "@/lite/use-recent-captures";
 import { PayTo } from "@/screens/home/home-screen";
 import { CaptureRow, cardName, sortCaptures } from "@/screens/lite/activity-screen";
@@ -46,6 +48,8 @@ const EDGE = 16;
 /** The deck card is this much narrower than the screen, so the next one peeks in. */
 const PEEK = 48;
 const CARD_HEIGHT = 200;
+/** Widest a deck card gets (a wide web window). */
+const CARD_MAX = 400;
 /** ScrollScreen's web column (scroll-screen.tsx): the deck measures itself, this is only the first guess. */
 const WEB_MAX = 760;
 /** Rows a section shows before "See all". */
@@ -821,6 +825,24 @@ function shortLabel(card: CardDto): string {
   return cardName({ label, last4: card.last4 });
 }
 
+/** Transactions in the shape Home's purchase rows take (merged duplicates left out). */
+export function asCaptures(items: readonly TransactionDto[]): RecentCapture[] {
+  return items
+    .filter((t) => t.mergedIntoId === null)
+    .map((t) => ({
+      id: t.id,
+      source: t.source,
+      merchant: t.merchantRaw,
+      amountMinor: t.amountMinor,
+      currency: t.currency,
+      homeAmountMinor: t.homeAmountMinor,
+      category: t.category,
+      occurredAt: t.occurredAt,
+      createdAt: t.occurredAt,
+      cardId: t.cardId,
+    }));
+}
+
 /**
  * KassaLite Home: a swipeable deck (everything, each card, what Kassa did, add a card) with a chip strip, and under it
  * only the few things the active page needs; the details are one tap away (Activity, Insights, Bills). The full app's
@@ -832,6 +854,7 @@ export function LiteHomeScreen() {
   const me = useMe();
   const insights = useSpendingInsights();
   const recent = useRecentCaptures();
+  const transactions = useTransactions();
   const cards = useCards();
   const budgets = useBudgets();
   const activity = useAgentActivity();
@@ -842,7 +865,8 @@ export function LiteHomeScreen() {
   const [deckWidth, setDeckWidth] = useState(
     Platform.OS === "web" ? Math.min(window.width, WEB_MAX) : window.width
   );
-  const cardWidth = Math.max(200, deckWidth - PEEK);
+  // A wide window keeps a card's proportions and shows the next ones beside it.
+  const cardWidth = Math.min(CARD_MAX, Math.max(200, deckWidth - PEEK));
   const interval = cardWidth + GAP;
 
   const cardList = useMemo(() => cards.data?.cards ?? [], [cards.data]);
@@ -859,12 +883,18 @@ export function LiteHomeScreen() {
   const index = Math.min(active, pages.length - 1);
   const page = pages[index]!;
 
+  // KassaLite lists what the Apple Pay Shortcut logged; the full app and the website list every transaction
+  // (bank history included), so Home agrees with the month total above it.
+  const lite = isLiteBuild();
   const captures = useMemo(
-    () => visibleCaptures(recent.data?.captures ?? [], mode),
-    [recent.data, mode]
+    () =>
+      lite
+        ? visibleCaptures(recent.data?.captures ?? [], mode)
+        : asCaptures(transactions.data?.pages[0]?.items ?? []),
+    [lite, recent.data, transactions.data, mode]
   );
   // An older server sends no card on any purchase: card totals are unknown rather than zero.
-  const matched = (recent.data?.captures ?? []).some((c) => "cardId" in c);
+  const matched = !lite || (recent.data?.captures ?? []).some((c) => "cardId" in c);
   const homeCurrency = insights.data?.homeCurrency ?? me.data?.homeCurrency;
 
   const deck = useRef<ScrollView>(null);
@@ -915,6 +945,7 @@ export function LiteHomeScreen() {
             me.refetch(),
             insights.refetch(),
             recent.refetch(),
+            transactions.refetch(),
             cards.refetch(),
             budgets.refetch(),
             activity.refetch(),

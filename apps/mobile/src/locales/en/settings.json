@@ -244,5 +244,22 @@
     "confirm": "Delete account",
     "done": "Your account was deleted.",
     "failed": "Your account was not deleted: {{message}}"
+  },
+  "root": {
+    "accountTitle": "Account",
+    "howKassaPaysTitle": "How Kassa pays",
+    "presetCustomised": "{{preset}}, customised",
+    "limitsValue": "{{amount}} per payment",
+    "mandatesActive_one": "{{count}} active",
+    "mandatesActive_other": "{{count}} active",
+    "budgetsCount_one": "{{count}} budget",
+    "budgetsCount_other": "{{count}} budgets",
+    "none": "None",
+    "securityTitle": "Security",
+    "backupLeft": "{{remaining}} of {{total}} left",
+    "backupNone": "Not set up",
+    "appTitle": "App",
+    "appearanceLanguageTitle": "Appearance & language",
+    "demoProofHint": "Evidence room, attacks, demo controls"
   }
 }

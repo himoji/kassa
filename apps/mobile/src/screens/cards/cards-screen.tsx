@@ -1,17 +1,17 @@
-import { CardKind, type CardDto } from "@kassa/shared";
+import { CardKind, type CardDto, type CardFeesResponse } from "@kassa/shared";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
+import { Pressable, View } from "react-native";
 
 import { useMe } from "@/api/hooks/me";
 import { useCardFees, useCards, useCreateCard, useDeleteCard } from "@/api/hooks/money";
 import { RowGroup } from "@/components/row-group";
-import { SimulatedBadge } from "@/components/kassa/badges";
 import { errorText } from "@/components/kassa/error-text";
 import { SettingPicker } from "@/components/kassa/native-controls";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { StatusChip } from "@/components/kassa/status-chip";
-import { Box, Button, Card, Divider, Icon, Input, Sheet, Text, toast } from "@/components/ui";
+import { Box, Button, Card, Icon, Input, Sheet, Text, toast } from "@/components/ui";
 import { currencyCodes, useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
@@ -134,6 +134,98 @@ function RemoveCardButton({ card }: { card: CardDto }) {
   );
 }
 
+/**
+ * One card, calm by default: icon, name, "•• 4242 · KZT" and what it is best for. Tapping it shows its kind, the
+ * conversion markups seen per currency pair and Remove (with its confirm step).
+ */
+export function CardRow({
+  card,
+  profiles,
+  bestFor,
+}: {
+  card: CardDto;
+  profiles: readonly CardFeesResponse["profiles"][number][];
+  bestFor: readonly CardFeesResponse["bestCardByCurrency"][number][];
+}) {
+  const t = useKassaT();
+  const f = useFormat();
+  const [open, setOpen] = useState(false);
+  return (
+    <View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityHint={t("cards:detailsHint")}
+        onPress={() => setOpen((o) => !o)}
+        testID={`card-${card.id}`}
+        style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+      >
+        <Box px={4} py={3} row align="center" gap={3} style={{ minHeight: 44 }}>
+          <Icon name="creditcard.fill" fallback="credit_card" size={22} />
+          <Box gap={1} style={{ flex: 1, minWidth: 0 }}>
+            <Text weight="semibold" numberOfLines={1}>
+              {card.label}
+            </Text>
+            <Text variant="caption" numberOfLines={1}>
+              {card.last4
+                ? t("cards:rowMeta", { last4: card.last4, currency: card.billingCurrency })
+                : card.billingCurrency}
+            </Text>
+          </Box>
+          {bestFor.length > 0 ? (
+            <Box
+              row
+              gap={1}
+              justify="end"
+              style={{ flexWrap: "wrap", flexShrink: 1, maxWidth: "50%" }}
+            >
+              {bestFor.map((b) => (
+                <StatusChip
+                  key={b.currency}
+                  tone="positive"
+                  label={t("cards:useFor", { currency: b.currency })}
+                  icon={{ sf: "hand.thumbsup.fill", md: "thumb_up" }}
+                />
+              ))}
+            </Box>
+          ) : null}
+          <Icon
+            name={open ? "chevron.up" : "chevron.down"}
+            fallback={open ? "expand_less" : "expand_more"}
+            size={16}
+            color="mutedForeground"
+          />
+        </Box>
+      </Pressable>
+      {open ? (
+        <Box px={4} pb={4} gap={3} testID={`card-details-${card.id}`}>
+          <Text variant="caption">{t(`cards:kind.${card.kind}`)}</Text>
+          {profiles.length > 0 ? (
+            <Box gap={2}>
+              {profiles.map((p) => (
+                <Box key={`${p.fromCurrency}-${p.toCurrency}`} row justify="between" gap={3}>
+                  <Text variant="caption">
+                    {t("cards:pair", { from: p.fromCurrency, to: p.toCurrency })}
+                  </Text>
+                  <Text style={{ fontVariant: ["tabular-nums"], flexShrink: 1 }} align="right">
+                    {t("cards:markup", {
+                      markup: f.bps(p.medianMarkupBps),
+                      samples: p.samples,
+                    })}
+                  </Text>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Text variant="caption">{t("cards:noMarkups")}</Text>
+          )}
+          <RemoveCardButton card={card} />
+        </Box>
+      ) : null}
+    </View>
+  );
+}
+
 /** Cards and fee x-ray (spec §12 fee x-ray, §16). */
 export function CardsScreen() {
   const t = useKassaT();
@@ -150,24 +242,20 @@ export function CardsScreen() {
         <QueryView query={fees} skeletonRows={1}>
           {(x) => (
             <Card>
-              <Box gap={2}>
-                <Box row justify="between" align="center">
-                  <Text variant="caption">{t("cards:feesLostLabel")}</Text>
-                  {x.exampleValues ? <SimulatedBadge /> : null}
+              <Box row align="center" gap={3}>
+                <Box gap={1} style={{ flex: 1, minWidth: 0 }}>
+                  <Text weight="semibold">{t("cards:feesLostLabel")}</Text>
+                  <Text variant="caption">
+                    {x.exampleValues ? t("cards:exampleValues") : t("cards:feesLostHint")}
+                  </Text>
                 </Box>
-                <Text variant="title" style={{ fontVariant: ["tabular-nums"] }}>
+                <Text variant="heading" style={{ fontVariant: ["tabular-nums"] }}>
                   {f.money(x.monthlyFeesLostHomeMinor, x.homeCurrency)}
                 </Text>
-                <Text variant="caption">{t("cards:feesLostHint")}</Text>
-                {x.exampleValues ? <Text variant="caption">{t("cards:exampleValues")}</Text> : null}
               </Box>
             </Card>
           )}
         </QueryView>
-
-        <Button variant="outline" onPress={() => setAdding(true)}>
-          {t("cards:add.title")}
-        </Button>
 
         <QueryView
           query={cards}
@@ -175,70 +263,22 @@ export function CardsScreen() {
           empty={<Text variant="caption">{t("cards:noCards")}</Text>}
         >
           {(c) => (
-            <Box gap={4}>
-              {c.cards.map((card) => {
-                const profiles = fees.data?.profiles.filter((p) => p.cardId === card.id) ?? [];
-                const bestFor =
-                  fees.data?.bestCardByCurrency.filter((b) => b.cardId === card.id) ?? [];
-                return (
-                  <Card key={card.id}>
-                    <Box gap={3}>
-                      <Box row gap={3} align="center">
-                        <Icon name="creditcard.fill" fallback="credit_card" size={24} />
-                        <Box flex={1}>
-                          <Text weight="semibold">{card.label}</Text>
-                          <Text variant="caption">
-                            {t(card.last4 ? "cards:cardMeta" : "cards:cardMetaNoDigits", {
-                              last4: card.last4,
-                              currency: card.billingCurrency,
-                              kind: t(`cards:kind.${card.kind}`),
-                            })}
-                          </Text>
-                        </Box>
-                      </Box>
-                      {bestFor.length > 0 ? (
-                        <Box row gap={2} style={{ flexWrap: "wrap" }}>
-                          {bestFor.map((b) => (
-                            <StatusChip
-                              key={b.currency}
-                              tone="positive"
-                              label={t("cards:useFor", { currency: b.currency })}
-                              icon={{ sf: "hand.thumbsup.fill", md: "thumb_up" }}
-                            />
-                          ))}
-                        </Box>
-                      ) : null}
-                      <RemoveCardButton card={card} />
-                      {profiles.length > 0 ? (
-                        <Box gap={2}>
-                          <Divider spacing={0} />
-                          {profiles.map((p) => (
-                            <Box
-                              key={`${p.fromCurrency}-${p.toCurrency}`}
-                              row
-                              justify="between"
-                              gap={3}
-                            >
-                              <Text variant="caption">
-                                {t("cards:pair", { from: p.fromCurrency, to: p.toCurrency })}
-                              </Text>
-                              <Text style={{ fontVariant: ["tabular-nums"] }}>
-                                {t("cards:markup", {
-                                  markup: f.bps(p.medianMarkupBps),
-                                  samples: p.samples,
-                                })}
-                              </Text>
-                            </Box>
-                          ))}
-                        </Box>
-                      ) : null}
-                    </Box>
-                  </Card>
-                );
-              })}
-            </Box>
+            <RowGroup icons>
+              {c.cards.map((card) => (
+                <CardRow
+                  key={card.id}
+                  card={card}
+                  profiles={fees.data?.profiles.filter((p) => p.cardId === card.id) ?? []}
+                  bestFor={fees.data?.bestCardByCurrency.filter((b) => b.cardId === card.id) ?? []}
+                />
+              ))}
+            </RowGroup>
           )}
         </QueryView>
+
+        <Button variant="outline" onPress={() => setAdding(true)}>
+          {t("cards:add.title")}
+        </Button>
 
         {fees.data && fees.data.dccWarnings.length > 0 ? (
           <RowGroup title={t("cards:dccTitle")} footer={t("cards:dccExplainer")}>

@@ -1,225 +1,247 @@
-import {
-  AgentAutonomy,
-  MoneyMode,
-  NotificationMode,
-  PaymentPolicy,
-  PRESET_DEFAULTS,
-  Region,
-  type MeResponse,
-  type SettingsOverrides,
-} from "@kassa/shared";
 import { router } from "expo-router";
-import { useState } from "react";
 
-import { useDemoAvailability } from "@/api/hooks/auth";
+import { useRecoveryCodesStatus } from "@/api/hooks/auth";
 import { useMe } from "@/api/hooks/me";
-import { useEraseAccount } from "@/api/hooks/settings";
-import { DemoProofSection } from "@/components/demo-proof-section";
+import { useBudgets } from "@/api/hooks/money";
+import { useMandates } from "@/api/hooks/payees";
+import { useCaps, useEraseAccount, usePendingRuleChanges } from "@/api/hooks/settings";
+import { useWallet } from "@/api/hooks/wallet";
 import { RowGroup } from "@/components/row-group";
-import { SettingPicker, SettingSwitch } from "@/components/kassa/native-controls";
-import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
-import {
-  Box,
-  Icon,
-  Row,
-  Text,
-  setThemeMode,
-  toast,
-  useThemeMode,
-  type ThemeMode,
-} from "@/components/ui";
+import { Box, Icon, Row, Text, toast, useThemeMode } from "@/components/ui";
 import { auth } from "@/lib/auth";
+import { copyToClipboard } from "@/lib/clipboard";
 import { confirm } from "@/lib/confirm";
-import { env } from "@/lib/env";
-import { currencyCodes, useFormat } from "@/lib/format";
-import {
-  LANGUAGES,
-  LANGUAGE_LABELS,
-  setLanguagePreference,
-  useKassaT,
-  useLanguagePreference,
-  type LanguagePreference,
-} from "@/lib/i18n";
-import { KassaIdCard } from "@/screens/wallet/send-screen";
+import { useFormat } from "@/lib/format";
+import { LANGUAGE_LABELS, useKassaT, useLanguagePreference } from "@/lib/i18n";
 
-import { BackupCodesSection } from "./backup-codes-section";
-import { BudgetsSection } from "./budgets-section";
-import { CapsSection } from "./caps-section";
-import { MandatesSection } from "./mandates-section";
 import { PendingChanges } from "./pending-changes";
-import { PresetCards, useDerivedChangesText } from "./preset-cards";
-import { useApplySettings } from "./use-settings-update";
 
-/** "Follow preset" is a null override (spec §10: switches derive from the preset unless overridden). */
-const FOLLOW = "PRESET";
-
-function overrideOptions<T extends string>(
-  values: readonly T[],
-  label: (v: T) => string,
-  presetLabel: string
-) {
-  return [
-    { value: FOLLOW, label: presetLabel },
-    ...values.map((v) => ({ value: v as string, label: label(v) })),
-  ];
+/** A row's short trailing value ("Smart", "1 active"), muted like the Settings app. */
+function Value({ children, testID }: { children?: string; testID?: string }) {
+  if (!children) return null;
+  return (
+    <Text
+      variant="caption"
+      color="mutedForeground"
+      numberOfLines={1}
+      testID={testID}
+      style={{ fontVariant: ["tabular-nums"], flexShrink: 1, textAlign: "right" }}
+    >
+      {children}
+    </Text>
+  );
 }
 
-function SettingsBody({ me }: { me: MeResponse }) {
+/**
+ * Settings: a short grouped list, each row with its current value; the details (preset cards, limits, mandates,
+ * budgets, backup codes, appearance, demo) open one tap away in app/(tabs)/settings/*.
+ */
+export function SettingsScreen() {
   const t = useKassaT();
   const f = useFormat();
-  const { apply, pending } = useApplySettings();
-  const derivedText = useDerivedChangesText();
-  const s = me.settings;
-  const defaults = PRESET_DEFAULTS[s.preset];
-  const customised = Object.values(s.overrides).some((v) => v !== null);
-  const [advanced, setAdvanced] = useState(customised);
+  const me = useMe();
+  const wallet = useWallet();
+  const caps = useCaps();
+  const mandates = useMandates();
+  const budgets = useBudgets();
+  const codes = useRecoveryCodesStatus();
+  const pendingChanges = usePendingRuleChanges();
   const themeMode = useThemeMode();
   const language = useLanguagePreference();
-  // The judge build has no admin token: its Demo panel holds the reviewer's own actions (money from home).
-  const judgeBuild = useDemoAvailability().data?.judgeMode === true;
   const erase = useEraseAccount();
 
-  const setOverride = <K extends keyof SettingsOverrides>(key: K, value: string) =>
-    void apply({
-      overrides: { [key]: value === FOLLOW ? null : value } as Partial<SettingsOverrides>,
+  const kassaId = wallet.data?.kassaId;
+  const settings = me.data?.settings;
+  const customised = settings ? Object.values(settings.overrides).some((v) => v !== null) : false;
+  const presetName = settings ? t(`settings:preset.${settings.preset}.title`) : undefined;
+  const presetValue =
+    presetName && customised
+      ? t("settings:root.presetCustomised", { preset: presetName })
+      : presetName;
+  const c = caps.data?.caps;
+  const limitsValue = c
+    ? t("settings:root.limitsValue", { amount: f.money(c.perPaymentMinor, c.currency) })
+    : undefined;
+  const activeMandates = mandates.data?.mandates.filter((m) => m.status === "ACTIVE").length;
+  const mandatesValue =
+    activeMandates === undefined
+      ? undefined
+      : activeMandates === 0
+        ? t("settings:root.none")
+        : t("settings:root.mandatesActive", { count: activeMandates });
+  const budgetCount = budgets.data?.budgets.length;
+  const budgetsValue =
+    budgetCount === undefined
+      ? undefined
+      : budgetCount === 0
+        ? t("settings:root.none")
+        : t("settings:root.budgetsCount", { count: budgetCount });
+  const s = codes.data;
+  const codesValue = s
+    ? s.total > 0
+      ? t("settings:root.backupLeft", { remaining: s.remaining, total: s.total })
+      : t("settings:root.backupNone")
+    : undefined;
+  const languageValue =
+    language === "system" ? t("settings:languageSystem") : LANGUAGE_LABELS[language];
+
+  const refresh = () =>
+    Promise.all([
+      me.refetch(),
+      wallet.refetch(),
+      caps.refetch(),
+      mandates.refetch(),
+      budgets.refetch(),
+      codes.refetch(),
+      pendingChanges.refetch(),
+    ]);
+
+  const signOut = async () => {
+    const ok = await confirm({
+      title: t("settings:signOutTitle"),
+      confirmLabel: t("settings:signOut"),
+      cancelLabel: t("common:cancel"),
     });
+    if (ok) await auth.signOut();
+  };
+
+  const deleteAccount = async () => {
+    const ok = await confirm({
+      title: t("settings:deleteAccount.title"),
+      message: t("settings:deleteAccount.message"),
+      confirmLabel: t("settings:deleteAccount.confirm"),
+      cancelLabel: t("common:cancel"),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await erase.mutateAsync();
+    } catch (e) {
+      toast.show({
+        title: t("settings:deleteAccount.failed", {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+      });
+      return;
+    }
+    toast.show({ title: t("settings:deleteAccount.done"), kind: "success" });
+    await auth.signOut();
+  };
 
   return (
-    <>
-      <KassaIdCard />
-      <Box gap={3}>
-        <Text variant="heading">{t("settings:presetTitle")}</Text>
-        <PresetCards
-          value={s.preset}
-          disabled={pending}
-          overrides={s.overrides}
-          onChange={(preset) => void apply({ preset }, derivedText(s.preset, preset, s.overrides))}
+    <ScrollScreen onRefresh={refresh} testID="settings-screen">
+      <RowGroup title={t("settings:root.accountTitle")} icons>
+        <Row
+          leading={
+            <Icon
+              name="person.crop.circle.fill"
+              fallback="account_circle"
+              size={22}
+              color="brandAccent"
+            />
+          }
+          title={t("wallet:kassaId")}
+          trailing={
+            kassaId ? (
+              <Box row gap={2} align="center" style={{ flexShrink: 1 }}>
+                <Text
+                  weight="semibold"
+                  selectable
+                  numberOfLines={1}
+                  testID="kassa-id"
+                  style={{ fontVariant: ["tabular-nums"], letterSpacing: 1 }}
+                >
+                  {kassaId}
+                </Text>
+                <Icon name="doc.on.doc" fallback="content_copy" size={16} color="mutedForeground" />
+              </Box>
+            ) : undefined
+          }
+          chevron={false}
+          onPress={
+            kassaId
+              ? () => void copyToClipboard(kassaId, { toast: t("wallet:kassaIdCopied") })
+              : undefined
+          }
+          testID="settings-kassa-id"
         />
-      </Box>
-
-      <RowGroup title={t("settings:paymentsTitle")} footer={t("settings:paymentsFooter")}>
-        <SettingPicker
-          label={t("settings:moneyModeLabel")}
-          value={s.overrides.moneyMode ?? FOLLOW}
-          options={overrideOptions(
-            MoneyMode.options,
-            (v) => t(`settings:moneyMode.${v}`),
-            t("settings:followPreset", { value: t(`settings:moneyMode.${defaults.moneyMode}`) })
-          )}
-          onChange={(v) => setOverride("moneyMode", v)}
-          disabled={pending}
-        />
-        <SettingPicker
-          label={t("settings:regionLabel")}
-          value={s.region}
-          options={Region.options.map((r) => ({ value: r, label: t(`settings:region.${r}`) }))}
-          onChange={(region) => void apply({ region })}
-          disabled={pending}
-        />
-        <SettingPicker
-          label={t("settings:homeCurrencyLabel")}
-          value={s.homeCurrency}
-          options={currencyCodes().map((c) => ({
-            value: c,
-            label: t("settings:currencyOption", { code: c, name: f.currencyName(c) }),
-          }))}
-          onChange={(homeCurrency) => void apply({ homeCurrency })}
-          disabled={pending}
-        />
-        <SettingPicker
-          label={t("settings:notificationModeLabel")}
-          value={s.notificationMode}
-          options={NotificationMode.options.map((m) => ({
-            value: m,
-            label: t(`settings:notificationMode.${m}`),
-          }))}
-          onChange={(notificationMode) => void apply({ notificationMode })}
-          disabled={pending}
-        />
-      </RowGroup>
-
-      <RowGroup title={t("settings:advancedTitle")} footer={t("settings:advancedFooter")}>
-        <SettingSwitch
-          label={t("settings:customise")}
-          description={t("settings:customiseHint")}
-          value={advanced}
-          onChange={(on) => {
-            setAdvanced(on);
-            if (!on && customised) {
-              void apply({
-                overrides: { agentAutonomy: null, paymentPolicy: null, moneyMode: null },
-              });
-            }
-          }}
-        />
-        {advanced ? (
-          <SettingPicker
-            label={t("settings:agentAutonomyLabel")}
-            value={s.overrides.agentAutonomy ?? FOLLOW}
-            options={overrideOptions(
-              AgentAutonomy.options,
-              (v) => t(`settings:agentAutonomy.${v}`),
-              t("settings:followPreset", {
-                value: t(`settings:agentAutonomy.${defaults.agentAutonomy}`),
-              })
-            )}
-            onChange={(v) => setOverride("agentAutonomy", v)}
-            disabled={pending}
-          />
-        ) : null}
-        {advanced ? (
-          <SettingPicker
-            label={t("settings:paymentPolicyLabel")}
-            value={s.overrides.paymentPolicy ?? FOLLOW}
-            options={overrideOptions(
-              PaymentPolicy.options,
-              (v) => t(`settings:paymentPolicy.${v}`),
-              t("settings:followPreset", {
-                value: t(`settings:paymentPolicy.${defaults.paymentPolicy}`),
-              })
-            )}
-            onChange={(v) => setOverride("paymentPolicy", v)}
-            disabled={pending}
-          />
-        ) : null}
-        <Box p={4}>
-          <Text variant="caption">
-            {t("settings:effectiveNow", {
-              agent: t(`settings:agentAutonomy.${me.effective.agentAutonomy}`),
-              payments: t(`settings:paymentPolicy.${me.effective.paymentPolicy}`),
-              mode: t(`settings:moneyMode.${me.effective.moneyMode}`),
-            })}
-          </Text>
-        </Box>
       </RowGroup>
 
       <PendingChanges />
-      <BudgetsSection />
-      <CapsSection />
-      <MandatesSection />
-      <BackupCodesSection />
 
-      <RowGroup title={t("settings:appearanceTitle")}>
-        <SettingPicker<ThemeMode>
-          label={t("settings:themeLabel")}
-          value={themeMode}
-          options={(["system", "light", "dark"] as const).map((m) => ({
-            value: m,
-            label: t(`settings:theme.${m}`),
-          }))}
-          onChange={setThemeMode}
+      <RowGroup title={t("settings:root.howKassaPaysTitle")} icons>
+        <Row
+          leading={<Icon name="sparkles" fallback="auto_awesome" size={20} color="foreground" />}
+          title={t("settings:presetTitle")}
+          trailing={<Value testID="settings-preset-value">{presetValue}</Value>}
+          chevron
+          onPress={() => router.push("/settings/preset")}
+          testID="settings-preset"
         />
-        <SettingPicker<LanguagePreference>
-          label={t("settings:languageLabel")}
-          value={language}
-          options={[
-            { value: "system", label: t("settings:languageSystem") },
-            // Native names, never translated, so a reader can find their own language.
-            ...LANGUAGES.map((l) => ({ value: l, label: LANGUAGE_LABELS[l] })),
-          ]}
-          onChange={(value) => void setLanguagePreference(value)}
-          testID="settings-language"
+        <Row
+          leading={<Icon name="gauge.with.needle" fallback="speed" size={20} color="foreground" />}
+          title={t("settings:capsTitle")}
+          trailing={<Value>{limitsValue}</Value>}
+          chevron
+          onPress={() => router.push("/settings/limits")}
+          testID="settings-limits"
+        />
+        <Row
+          leading={<Icon name="signature" fallback="draw" size={20} color="foreground" />}
+          title={t("settings:mandates.title")}
+          trailing={<Value>{mandatesValue}</Value>}
+          chevron
+          onPress={() => router.push("/settings/mandates")}
+          testID="settings-mandates"
+        />
+        <Row
+          leading={<Icon name="chart.pie" fallback="pie_chart" size={20} color="foreground" />}
+          title={t("settings:budgets.title")}
+          trailing={<Value>{budgetsValue}</Value>}
+          chevron
+          onPress={() => router.push("/settings/budgets")}
+          testID="settings-budgets"
+        />
+      </RowGroup>
+
+      <RowGroup title={t("settings:root.securityTitle")} icons>
+        <Row
+          leading={<Icon name="key" fallback="key" size={20} color="foreground" />}
+          title={t("settings:backupCodes.title")}
+          trailing={<Value>{codesValue}</Value>}
+          chevron
+          onPress={() => router.push("/settings/security")}
+          testID="settings-backup-codes"
+        />
+        <Row
+          leading={
+            <Icon name="person.text.rectangle" fallback="badge" size={20} color="foreground" />
+          }
+          title={t("kyc:title")}
+          onPress={() => router.push("/identity-check")}
+          testID="settings-identity-check"
+        />
+      </RowGroup>
+
+      <RowGroup title={t("settings:root.appTitle")} icons>
+        <Row
+          leading={
+            <Icon name="circle.lefthalf.filled" fallback="contrast" size={20} color="foreground" />
+          }
+          title={t("settings:appearanceTitle")}
+          trailing={<Value>{t(`settings:theme.${themeMode}`)}</Value>}
+          chevron
+          onPress={() => router.push("/settings/appearance")}
+          testID="settings-appearance"
+        />
+        <Row
+          leading={<Icon name="globe" fallback="language" size={20} color="foreground" />}
+          title={t("settings:languageLabel")}
+          trailing={<Value>{languageValue}</Value>}
+          chevron
+          onPress={() => router.push("/settings/appearance")}
+          testID="settings-language-row"
         />
       </RowGroup>
 
@@ -237,18 +259,8 @@ function SettingsBody({ me }: { me: MeResponse }) {
         <Row
           leading={<Icon name="creditcard" fallback="credit_card" size={20} color="foreground" />}
           title={t("wallet:linked.title")}
-          subtitle={t("wallet:linked.rowHint")}
           onPress={() => router.push("/linked-accounts")}
           testID="settings-linked-accounts"
-        />
-        <Row
-          leading={
-            <Icon name="person.text.rectangle" fallback="badge" size={20} color="foreground" />
-          }
-          title={t("kyc:title")}
-          subtitle={t("kyc:rowHint")}
-          onPress={() => router.push("/identity-check")}
-          testID="settings-identity-check"
         />
         <Row
           leading={
@@ -260,13 +272,11 @@ function SettingsBody({ me }: { me: MeResponse }) {
             />
           }
           title={t("settings:data.title")}
-          subtitle={t("settings:data.rowHint")}
           onPress={() => router.push("/data")}
         />
         <Row
           leading={<Icon name="wave.3.right" fallback="contactless" size={20} color="foreground" />}
           title={t("shortcut:title")}
-          subtitle={t("shortcut:settingsHint")}
           onPress={() => router.push("/shortcut")}
         />
         <Row
@@ -279,7 +289,6 @@ function SettingsBody({ me }: { me: MeResponse }) {
             />
           }
           title={t("lite:pairDevice.rowTitle")}
-          subtitle={t("lite:pairDevice.rowHint")}
           onPress={() => router.push("/pair-lite")}
         />
         <Row
@@ -294,28 +303,21 @@ function SettingsBody({ me }: { me: MeResponse }) {
           title={t("credit:title")}
           onPress={() => router.push("/credit-record")}
         />
+      </RowGroup>
+
+      <RowGroup icons>
         <Row
           leading={
             <Icon name="checkmark.shield" fallback="verified_user" size={20} color="foreground" />
           }
-          title={t("evidence:title")}
-          subtitle={t("evidence:settingsHint")}
-          onPress={() => router.push("/evidence")}
+          title={t("evidence:links.title")}
+          subtitle={t("settings:root.demoProofHint")}
+          onPress={() => router.push("/settings/demo-proof")}
+          testID="settings-demo-proof"
         />
-        {env.DEMO_ADMIN_TOKEN || __DEV__ || judgeBuild ? (
-          <Row
-            leading={<Icon name="wand.and.stars" fallback="science" size={20} color="foreground" />}
-            title={t("demo:title")}
-            subtitle={
-              me.demo
-                ? me.demo.clockMode === "DEMO"
-                  ? t("demo:settingsDemoTime", { time: f.dateTime(me.demo.now) })
-                  : t("demo:settingsRealTime")
-                : t("demo:settingsHint")
-            }
-            onPress={() => router.push("/demo")}
-          />
-        ) : null}
+      </RowGroup>
+
+      <RowGroup icons>
         <Row
           leading={
             <Icon
@@ -327,57 +329,20 @@ function SettingsBody({ me }: { me: MeResponse }) {
           }
           title={t("settings:signOut")}
           destructive
-          onPress={async () => {
-            const ok = await confirm({
-              title: t("settings:signOutTitle"),
-              confirmLabel: t("settings:signOut"),
-              cancelLabel: t("common:cancel"),
-            });
-            if (ok) await auth.signOut();
-          }}
+          chevron={false}
+          onPress={signOut}
+          testID="settings-sign-out"
         />
         <Row
           leading={<Icon name="trash" fallback="delete" size={20} color="destructive" />}
           title={t("settings:deleteAccount.row")}
           subtitle={t("settings:deleteAccount.rowHint")}
           destructive
+          chevron={false}
           testID="settings-delete-account"
-          onPress={async () => {
-            const ok = await confirm({
-              title: t("settings:deleteAccount.title"),
-              message: t("settings:deleteAccount.message"),
-              confirmLabel: t("settings:deleteAccount.confirm"),
-              cancelLabel: t("common:cancel"),
-              destructive: true,
-            });
-            if (!ok) return;
-            try {
-              await erase.mutateAsync();
-            } catch (e) {
-              toast.show({
-                title: t("settings:deleteAccount.failed", {
-                  message: e instanceof Error ? e.message : String(e),
-                }),
-              });
-              return;
-            }
-            toast.show({ title: t("settings:deleteAccount.done"), kind: "success" });
-            await auth.signOut();
-          }}
+          onPress={deleteAccount}
         />
       </RowGroup>
-      <DemoProofSection />
-    </>
-  );
-}
-
-export function SettingsScreen() {
-  const me = useMe();
-  return (
-    <ScrollScreen onRefresh={() => me.refetch()}>
-      <QueryView query={me} skeletonRows={6}>
-        {(data) => <SettingsBody me={data} />}
-      </QueryView>
     </ScrollScreen>
   );
 }

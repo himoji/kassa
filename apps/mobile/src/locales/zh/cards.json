@@ -5,6 +5,7 @@
   "dccExplainer": "有些商家会提出用您本国货币收费，这种转换通常更贵。请选择当地货币付款。",
   "dccOverMid": "比中间价高约 {{pct}}",
   "dccTitle": "银行卡货币转换提醒",
+  "detailsHint": "显示或隐藏这张卡的费用和移除选项",
   "exampleValues": "示例数值，并非您的真实数据。",
   "feesLostHint": "本月您在银行卡货币转换上支付的费用。",
   "feesLostLabel": "本月损失的费用",
@@ -16,6 +17,7 @@
   },
   "markup": "根据 {{samples}} 笔交易，加价中位数为 {{markup}}",
   "noCards": "暂无银行卡。添加一张，Kassa 就能把消费与它对应起来。",
+  "noMarkups": "这张卡还没有货币转换记录。",
   "add": {
     "title": "添加银行卡",
     "why": "只需卡号后 4 位：用于区分您的卡，把银行通知和 Apple Pay 付款对应到正确的卡，并显示每张卡隐藏的货币转换费。Kassa 从不需要完整卡号、有效期或 CVV。",
@@ -31,6 +33,7 @@
   "remove": "移除",
   "removeConfirm": "移除尾号 {{last4}} 的卡？过去的消费记录会保留。",
   "removeConfirmNoDigits": "移除这张卡？过去的消费记录会保留。",
+  "rowMeta": "•• {{last4}} · {{currency}}",
   "pair": "{{from}} → {{to}}",
   "tab": "银行卡",
   "title": "银行卡",

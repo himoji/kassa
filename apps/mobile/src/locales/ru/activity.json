@@ -1,10 +1,12 @@
 {
+  "detailsHint": "Показывает или скрывает подробности",
   "emptyInbox": "Уведомлений пока нет",
   "emptySpending": "Расходов пока нет",
   "emptyTimeline": "Пока ничего не произошло",
   "entryMeta": "{{time}} · событие {{seq}} · {{hash}}",
   "hiddenFee": "Включает комиссию {{amount}}",
   "new": "Новое",
+  "openHandoff": "Открыть передачу",
   "notify": {
     "amountWithHome": "{{amount}} (около {{home}})",
     "underMandate": " по подписанному вами мандату",
@@ -30,6 +32,7 @@
   },
   "segment": {
     "inbox": "Входящие",
+    "log": "Журнал",
     "spending": "Расходы",
     "timeline": "Хронология"
   },
@@ -47,6 +50,7 @@
   "timelineHint": "Все решения и изменения по порядку. Записи нельзя изменить.",
   "title": "Активность",
   "txMeta": "{{time}} · {{category}} · источник: {{source}}",
+  "txMetaShort": "{{time}} · {{category}}",
   "txStatus": {
     "PENDING": "В обработке",
     "SETTLED": "Проведено"

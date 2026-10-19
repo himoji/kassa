@@ -1,10 +1,12 @@
 {
+  "detailsHint": "Shows or hides the details",
   "emptyInbox": "No notifications yet",
   "emptySpending": "No spending yet",
   "emptyTimeline": "Nothing has happened yet",
   "entryMeta": "{{time}} · event {{seq}} · {{hash}}",
   "hiddenFee": "Includes a {{amount}} fee",
   "new": "New",
+  "openHandoff": "Open handoff",
   "notify": {
     "amountWithHome": "{{amount}} (about {{home}})",
     "underMandate": " under your signed mandate",
@@ -30,6 +32,7 @@
   },
   "segment": {
     "inbox": "Inbox",
+    "log": "Log",
     "spending": "Spending",
     "timeline": "Timeline"
   },
@@ -47,6 +50,7 @@
   "timelineHint": "Every decision and change, in order. Entries cannot be edited.",
   "title": "Activity",
   "txMeta": "{{time}} · {{category}} · from {{source}}",
+  "txMetaShort": "{{time}} · {{category}}",
   "txStatus": {
     "PENDING": "Pending",
     "SETTLED": "Settled"

@@ -244,5 +244,22 @@
     "confirm": "Аккаунтты жою",
     "done": "Аккаунтыңыз жойылды.",
     "failed": "Аккаунт жойылмады: {{message}}"
+  },
+  "root": {
+    "accountTitle": "Аккаунт",
+    "howKassaPaysTitle": "Kassa қалай төлейді",
+    "presetCustomised": "{{preset}}, бапталған",
+    "limitsValue": "Бір төлемге {{amount}}",
+    "mandatesActive_one": "{{count}} белсенді",
+    "mandatesActive_other": "{{count}} белсенді",
+    "budgetsCount_one": "{{count}} бюджет",
+    "budgetsCount_other": "{{count}} бюджет",
+    "none": "Жоқ",
+    "securityTitle": "Қауіпсіздік",
+    "backupLeft": "{{total}} кодтың {{remaining}} қалды",
+    "backupNone": "Жасалмаған",
+    "appTitle": "Қолданба",
+    "appearanceLanguageTitle": "Сыртқы түрі және тіл",
+    "demoProofHint": "Дәлелдер бөлмесі, шабуылдар, демо басқаруы"
   }
 }

@@ -1,10 +1,12 @@
 {
+  "detailsHint": "显示或隐藏详情",
   "emptyInbox": "暂无通知",
   "emptySpending": "暂无消费",
   "emptyTimeline": "暂无记录",
   "entryMeta": "{{time}} · 事件 {{seq}} · {{hash}}",
   "hiddenFee": "含 {{amount}} 手续费",
   "new": "新",
+  "openHandoff": "打开钱包转交",
   "notify": {
     "amountWithHome": "{{amount}}（约 {{home}}）",
     "underMandate": "，依据您签署的授权",
@@ -30,6 +32,7 @@
   },
   "segment": {
     "inbox": "通知",
+    "log": "日志",
     "spending": "消费",
     "timeline": "时间线"
   },
@@ -47,6 +50,7 @@
   "timelineHint": "所有决定和更改按时间顺序记录，记录无法修改。",
   "title": "动态",
   "txMeta": "{{time}} · {{category}} · 来自{{source}}",
+  "txMetaShort": "{{time}} · {{category}}",
   "txStatus": {
     "PENDING": "处理中",
     "SETTLED": "已结算"

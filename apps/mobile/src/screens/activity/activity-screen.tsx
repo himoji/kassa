@@ -4,22 +4,24 @@ import {
   type NotificationDto,
   type TransactionDto,
 } from "@kassa/shared";
-import { router } from "expo-router";
-import { useState } from "react";
-import { FlatList, Pressable, View } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
+import { FlatList, Platform, Pressable, View } from "react-native";
 
 import { useLedger, useMarkNotificationRead, useNotifications } from "@/api/hooks/activity";
 import { useMe } from "@/api/hooks/me";
 import { useShopOrders } from "@/api/hooks/shop";
 import { useSpendingInsights } from "@/api/hooks/insights";
-import { useTransactions } from "@/api/hooks/money";
+import { useCards, useTransactions } from "@/api/hooks/money";
 import { errorText } from "@/components/kassa/error-text";
 import { usePullRefresh } from "@/components/kassa/scroll-screen";
 import { ReasonCodeList } from "@/components/kassa/reason-codes";
 import { Segmented } from "@/components/kassa/segmented";
+import { CategoryAvatar } from "@/components/kassa/spend-charts";
 import { StatusChip } from "@/components/kassa/status-chip";
 import {
   Box,
+  Button,
   Divider,
   EmptyState,
   ErrorState,
@@ -32,112 +34,176 @@ import {
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 import { MonthSummaryCard, openInsights } from "@/screens/insights/insights-screen";
+import { cardName } from "@/screens/lite/activity-screen";
 import { purchaseHref } from "@/screens/transaction/transaction-detail-screen";
 
 import { ShopOrderTimeline } from "../shop/shop-order-timeline";
 import { ledgerDisplay } from "./ledger-entry";
 import { notificationReasonCodes, notificationText } from "./notification-text";
 
-type Segment = "timeline" | "spending" | "orders" | "inbox";
+type Segment = "spending" | "orders" | "inbox" | "log";
 
-function LedgerRow({ entry }: { entry: LedgerEntryDto }) {
+/**
+ * One audit-log entry, calm by default: title and amount, then the time. Refused or blocked entries carry one
+ * small chip. Tapping the row shows the rest inline: who it was with, the decision, the reasons in plain language and
+ * the event number and hash.
+ */
+export function LedgerRow({ entry }: { entry: LedgerEntryDto }) {
   const t = useKassaT();
   const f = useFormat();
+  const [open, setOpen] = useState(false);
   const d = ledgerDisplay(entry);
   const title = t(`activity:type.${entry.type}`, { defaultValue: t("activity:type.OTHER") });
-  const open = d.paymentId && entry.type.startsWith("HANDOFF") ? `/handoff/${d.paymentId}` : null;
-  const body = (
-    <View style={{ paddingVertical: 12, gap: 6, minHeight: 44 }}>
-      <Box row justify="between" gap={3}>
-        <Box row gap={2} align="center" style={{ flexShrink: 1 }}>
-          <Icon
-            name={d.refused ? "xmark.octagon" : "checkmark.circle"}
-            fallback={d.refused ? "block" : "check_circle"}
-            size={18}
-            color={d.refused ? "destructive" : "mutedForeground"}
-          />
-          <Text weight="semibold" numberOfLines={2} style={{ flexShrink: 1 }}>
+  const handoff = d.paymentId && entry.type.startsWith("HANDOFF") ? d.paymentId : null;
+  return (
+    <View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityHint={t("activity:detailsHint")}
+        onPress={() => setOpen((o) => !o)}
+        testID={`ledger-${entry.seq}`}
+        style={({ pressed }) => ({
+          paddingVertical: 12,
+          gap: 4,
+          minHeight: 44,
+          opacity: pressed ? 0.6 : 1,
+        })}
+      >
+        <Box row justify="between" align="center" gap={3}>
+          <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
             {title}
           </Text>
+          {d.amount ? (
+            <Text style={{ fontVariant: ["tabular-nums"] }}>
+              {f.money(d.amount.amountMinor, d.amount.currency)}
+            </Text>
+          ) : null}
         </Box>
-        {d.amount ? (
-          <Text style={{ fontVariant: ["tabular-nums"] }}>
-            {f.money(d.amount.amountMinor, d.amount.currency)}
+        <Box row align="center" gap={2}>
+          <Text variant="caption">{f.dateTime(entry.ts)}</Text>
+          {d.refused ? (
+            <StatusChip
+              tone="critical"
+              label={t("common:decision.REFUSE")}
+              testID={`ledger-refused-${entry.seq}`}
+            />
+          ) : null}
+        </Box>
+      </Pressable>
+      {open ? (
+        <Box gap={2} pb={3} testID={`ledger-details-${entry.seq}`}>
+          {d.counterparty ? <Text variant="caption">{d.counterparty}</Text> : null}
+          {d.decision ? (
+            <StatusChip
+              tone={
+                d.decision === "REFUSE" ? "critical" : d.decision === "AUTO" ? "positive" : "info"
+              }
+              label={t(`common:decision.${d.decision}`)}
+            />
+          ) : null}
+          <ReasonCodeList codes={d.reasonCodes} />
+          <Text variant="caption" selectable>
+            {t("activity:entryMeta", {
+              time: f.dateTime(entry.ts),
+              seq: entry.seq,
+              hash: entry.hash.slice(0, 8),
+            })}
           </Text>
-        ) : null}
-      </Box>
-      {d.counterparty ? <Text variant="caption">{d.counterparty}</Text> : null}
-      {d.decision ? (
-        <StatusChip
-          tone={d.decision === "REFUSE" ? "critical" : d.decision === "AUTO" ? "positive" : "info"}
-          label={t(`common:decision.${d.decision}`)}
-        />
+          {handoff ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              style={{ alignSelf: "flex-start" }}
+              onPress={() => router.push(`/handoff/${handoff}`)}
+            >
+              {t("activity:openHandoff")}
+            </Button>
+          ) : null}
+        </Box>
       ) : null}
-      <ReasonCodeList codes={d.reasonCodes} />
-      <Text variant="caption" selectable>
-        {t("activity:entryMeta", {
-          time: f.dateTime(entry.ts),
-          seq: entry.seq,
-          hash: entry.hash.slice(0, 8),
-        })}
-      </Text>
     </View>
-  );
-  return open ? (
-    <Pressable accessibilityRole="link" onPress={() => router.push(open as `/handoff/${string}`)}>
-      {body}
-    </Pressable>
-  ) : (
-    body
   );
 }
 
+/** One purchase: category, merchant and amount; status and source are on the purchase screen. */
 function TransactionRow({ tx }: { tx: TransactionDto }) {
   const t = useKassaT();
   const f = useFormat();
   const homeCurrency = useMe().data?.homeCurrency;
+  const meta = t("activity:txMetaShort", {
+    time: f.dateTime(tx.occurredAt),
+    category: tx.category
+      ? t(`common:category.${tx.category}`, { defaultValue: tx.category })
+      : t("activity:uncategorised"),
+  });
   return (
     <Pressable
       accessibilityRole="link"
       onPress={() => router.push(purchaseHref(tx.id))}
       style={({ pressed }) => ({
         paddingVertical: 12,
-        gap: 4,
         minHeight: 44,
         opacity: pressed ? 0.6 : 1,
       })}
       testID={`tx-${tx.id}`}
     >
-      <Box row justify="between" gap={3}>
-        <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
-          {tx.merchantRaw}
-        </Text>
-        <Text style={{ fontVariant: ["tabular-nums"] }}>
-          {f.money(tx.amountMinor, tx.currency)}
-        </Text>
-      </Box>
-      <Text variant="caption">
-        {t("activity:txMeta", {
-          time: f.dateTime(tx.occurredAt),
-          category: tx.category
-            ? t(`common:category.${tx.category}`, { defaultValue: tx.category })
-            : t("activity:uncategorised"),
-          source: t(`activity:source.${tx.source}`),
-        })}
-      </Text>
-      <Box row gap={2} style={{ flexWrap: "wrap" }}>
-        <StatusChip
-          tone={tx.status === "SETTLED" ? "positive" : "neutral"}
-          label={t(`activity:txStatus.${tx.status}`)}
-        />
-        {tx.feeHomeMinor && tx.feeHomeMinor > 0 && homeCurrency ? (
-          <StatusChip
-            tone="warning"
-            label={t("activity:hiddenFee", { amount: f.money(tx.feeHomeMinor, homeCurrency) })}
-          />
-        ) : null}
+      <Box row align="center" gap={3}>
+        <CategoryAvatar category={tx.category} size={36} />
+        <Box gap={1} style={{ flex: 1, minWidth: 0 }}>
+          <Box row justify="between" gap={3}>
+            <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
+              {tx.merchantRaw}
+            </Text>
+            <Text style={{ fontVariant: ["tabular-nums"] }}>
+              {f.money(tx.amountMinor, tx.currency)}
+            </Text>
+          </Box>
+          <Text variant="caption" numberOfLines={1}>
+            {tx.status === "PENDING" ? `${meta} · ${t("activity:txStatus.PENDING")}` : meta}
+          </Text>
+          {tx.feeHomeMinor && tx.feeHomeMinor > 0 && homeCurrency ? (
+            <StatusChip
+              tone="warning"
+              label={t("activity:hiddenFee", { amount: f.money(tx.feeHomeMinor, homeCurrency) })}
+            />
+          ) : null}
+        </Box>
       </Box>
     </Pressable>
+  );
+}
+
+/** The card Spending is narrowed to (`?card=<id>`), with ✕ to show every card again. */
+function CardFilterPill({ cardId }: { cardId: string }) {
+  const t = useKassaT();
+  const { colors } = useTheme();
+  const card = useCards().data?.cards.find((c) => c.id === cardId);
+  return (
+    <Box row>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={t("lite:activity.clearCard")}
+        onPress={() => router.setParams({ card: undefined })}
+        hitSlop={8}
+        testID="activity-card-filter"
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 14,
+          paddingVertical: 8,
+          borderRadius: 999,
+          backgroundColor: colors.brandAccent,
+        }}
+      >
+        <Icon name="creditcard.fill" fallback="credit_card" size={16} color="primaryForeground" />
+        <Text weight="semibold" numberOfLines={1} style={{ color: colors.primaryForeground }}>
+          {card ? cardName(card) : t("lite:activity.oneCard")}
+        </Text>
+        <Icon name="xmark" fallback="close" size={14} color="primaryForeground" />
+      </Pressable>
+    </Box>
   );
 }
 
@@ -208,10 +274,28 @@ function ListState({
   return null;
 }
 
+/** Web on a wide window: the list keeps ScrollScreen's readable column. */
+const WEB_COLUMN =
+  Platform.OS === "web"
+    ? ({ width: "100%", maxWidth: 760, alignSelf: "center", paddingTop: 24 } as const)
+    : null;
+
+/**
+ * Activity: purchases first (Spending), then shop orders, the inbox and, last, the audit log. `?card=<id>` (a Home
+ * card page) opens Spending narrowed to that card.
+ */
 export function ActivityScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
-  const [segment, setSegment] = useState<Segment>("timeline");
+  const { card: cardParam } = useLocalSearchParams<{ card?: string }>();
+  const cardId = cardParam || undefined;
+  const [segment, setSegment] = useState<Segment>("spending");
+  // The tab stays mounted: a card link arriving later still lands on Spending (adjusted during render).
+  const [seenCard, setSeenCard] = useState(cardId);
+  if (cardId !== seenCard) {
+    setSeenCard(cardId);
+    if (cardId) setSegment("spending");
+  }
   const ledger = useLedger();
   const txs = useTransactions();
   const notes = useNotifications();
@@ -220,7 +304,7 @@ export function ActivityScreen() {
   const shop = useShopOrders({ enabled: segment === "orders" });
   // Spinner only for a user pull, not for background refetches/polls.
   const pull = usePullRefresh(() =>
-    (segment === "timeline"
+    (segment === "log"
       ? ledger
       : segment === "spending"
         ? txs
@@ -230,20 +314,36 @@ export function ActivityScreen() {
     ).refetch()
   );
 
+  const spending =
+    txs.data?.pages
+      .flatMap((p) => p.items)
+      .filter((x) => x.mergedIntoId === null && (!cardId || x.cardId === cardId)) ?? [];
+  // The server has no card filter: while a card shows nothing yet, keep loading older pages.
+  const needMore =
+    segment === "spending" &&
+    cardId !== undefined &&
+    spending.length === 0 &&
+    txs.hasNextPage &&
+    !txs.isFetchingNextPage;
+  useEffect(() => {
+    if (needMore) void txs.fetchNextPage();
+  }, [needMore, txs]);
+
   const header = (
     <Box gap={4} pb={2}>
       <Segmented<Segment>
         value={segment}
         onChange={setSegment}
         options={[
-          { value: "timeline", label: t("activity:segment.timeline") },
           { value: "spending", label: t("activity:segment.spending") },
           { value: "orders", label: t("shop:segment") },
           { value: "inbox", label: t("activity:segment.inbox") },
+          { value: "log", label: t("activity:segment.log") },
         ]}
       />
-      {segment === "timeline" ? <Text variant="caption">{t("activity:timelineHint")}</Text> : null}
-      {segment === "spending" && insights.data ? (
+      {segment === "log" ? <Text variant="caption">{t("activity:timelineHint")}</Text> : null}
+      {segment === "spending" && cardId ? <CardFilterPill cardId={cardId} /> : null}
+      {segment === "spending" && !cardId && insights.data ? (
         <MonthSummaryCard data={insights.data} onPress={openInsights} />
       ) : null}
     </Box>
@@ -252,12 +352,12 @@ export function ActivityScreen() {
   const common = {
     contentInsetAdjustmentBehavior: "automatic" as const,
     style: { flex: 1, backgroundColor: colors.background },
-    contentContainerStyle: { padding: 16, paddingBottom: 48 },
+    contentContainerStyle: [{ padding: 16, paddingBottom: 48 }, WEB_COLUMN],
     ItemSeparatorComponent: () => <Divider spacing={0} />,
     ListHeaderComponent: header,
   };
 
-  if (segment === "timeline") {
+  if (segment === "log") {
     const items = ledger.data?.pages.flatMap((p) => p.items) ?? [];
     return (
       <FlatList
@@ -286,12 +386,10 @@ export function ActivityScreen() {
     );
   }
   if (segment === "spending") {
-    const items =
-      txs.data?.pages.flatMap((p) => p.items).filter((x) => x.mergedIntoId === null) ?? [];
     return (
       <FlatList
         {...common}
-        data={items}
+        data={spending}
         keyExtractor={(x) => x.id}
         renderItem={({ item }) => <TransactionRow tx={item} />}
         onEndReached={() => txs.hasNextPage && !txs.isFetchingNextPage && void txs.fetchNextPage()}
@@ -300,8 +398,10 @@ export function ActivityScreen() {
         ListEmptyComponent={
           txs.isPending || txs.error ? (
             <ListState pending={txs.isPending} error={txs.error} retry={() => void txs.refetch()} />
-          ) : (
-            <EmptyState title={t("activity:emptySpending")} />
+          ) : needMore || txs.isFetchingNextPage ? null : (
+            <EmptyState
+              title={cardId ? t("lite:activity.cardEmpty") : t("activity:emptySpending")}
+            />
           )
         }
         ListFooterComponent={txs.isFetchingNextPage ? <Spinner /> : null}

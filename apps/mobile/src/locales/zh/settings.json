@@ -244,5 +244,20 @@
     "confirm": "删除账户",
     "done": "你的账户已删除。",
     "failed": "账户未删除：{{message}}"
+  },
+  "root": {
+    "accountTitle": "账户",
+    "howKassaPaysTitle": "Kassa 如何付款",
+    "presetCustomised": "{{preset}}（已自定义）",
+    "limitsValue": "每笔 {{amount}}",
+    "mandatesActive_other": "{{count}} 个生效中",
+    "budgetsCount_other": "{{count}} 个预算",
+    "none": "无",
+    "securityTitle": "安全",
+    "backupLeft": "剩余 {{remaining}}/{{total}}",
+    "backupNone": "未设置",
+    "appTitle": "应用",
+    "appearanceLanguageTitle": "外观和语言",
+    "demoProofHint": "证据室、攻击、演示控制"
   }
 }

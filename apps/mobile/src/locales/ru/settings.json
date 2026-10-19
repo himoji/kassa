@@ -244,5 +244,26 @@
     "confirm": "Удалить аккаунт",
     "done": "Ваш аккаунт удалён.",
     "failed": "Аккаунт не удалён: {{message}}"
+  },
+  "root": {
+    "accountTitle": "Аккаунт",
+    "howKassaPaysTitle": "Как платит Kassa",
+    "presetCustomised": "{{preset}}, с настройками",
+    "limitsValue": "{{amount}} за платёж",
+    "mandatesActive_one": "Активных: {{count}}",
+    "mandatesActive_few": "Активных: {{count}}",
+    "mandatesActive_many": "Активных: {{count}}",
+    "mandatesActive_other": "Активных: {{count}}",
+    "budgetsCount_one": "{{count}} бюджет",
+    "budgetsCount_few": "{{count}} бюджета",
+    "budgetsCount_many": "{{count}} бюджетов",
+    "budgetsCount_other": "{{count}} бюджета",
+    "none": "Нет",
+    "securityTitle": "Безопасность",
+    "backupLeft": "Осталось {{remaining}} из {{total}}",
+    "backupNone": "Не созданы",
+    "appTitle": "Приложение",
+    "appearanceLanguageTitle": "Оформление и язык",
+    "demoProofHint": "Комната доказательств, атаки, управление демо"
   }
 }

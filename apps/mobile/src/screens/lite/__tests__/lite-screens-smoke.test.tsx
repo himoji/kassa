@@ -74,6 +74,7 @@ jest.mock("@/api/hooks/money", () => ({
     mockQ({ homeCurrency: "KZT", profiles: [], monthlyFeesLostHomeMinor: 0, bestCardByCurrency: [], dccWarnings: [] }),
   usePendingProposals: () => mockQ({ proposals: [] }),
   useAgentActivity: () => mockQ({ since: mockNow, counts: { PAID_AUTO: 1, WAITING: 0, HELD: 2 }, items: [] }),
+  useTransactions: () => mockQ({ pages: [{ items: [], nextCursor: null }] }),
   useCreateCard: () => ({ mutate: jest.fn(), mutateAsync: jest.fn(), isPending: false }),
 }));
 jest.mock("@/lite/use-recent-captures", () => ({

@@ -516,7 +516,7 @@ export function HomeScreen() {
             <Text variant="heading">{t("home:budgets")}</Text>
             {/* Budgets are rules, changed with a passkey: KassaLite shows them but has no editor. */}
             {isLiteBuild() ? null : (
-              <Button size="sm" variant="ghost" onPress={() => router.push("/settings")}>
+              <Button size="sm" variant="ghost" onPress={() => router.push("/settings/budgets")}>
                 {t("home:editBudgets")}
               </Button>
             )}
@@ -529,7 +529,7 @@ export function HomeScreen() {
                 <Box gap={3}>
                   <Text variant="caption">{t("home:noBudgets")}</Text>
                   {isLiteBuild() ? null : (
-                    <Button variant="outline" onPress={() => router.push("/settings")}>
+                    <Button variant="outline" onPress={() => router.push("/settings/budgets")}>
                       {t("home:addBudget.open")}
                     </Button>
                   )}
