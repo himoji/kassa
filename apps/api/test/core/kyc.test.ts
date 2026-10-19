@@ -16,6 +16,7 @@ import { executeApproval } from "../../src/modules/payments/index.ts";
 import { eraseUser, exportUserData } from "../../src/modules/privacy/service.ts";
 import { decide, type DecideFacts } from "../../src/modules/rules/decide.ts";
 import { approveOrder, getOrderView, proposeOrder, registerExecutor } from "../../src/modules/rules/index.ts";
+import { setMockWorldTransportForTests } from "../../src/modules/rails/http.ts";
 import { setSanctionsListForTests } from "../../src/modules/screening/index.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
@@ -104,10 +105,16 @@ describe("identity check (KYC), sandbox", () => {
     expect((await start(userId, doc({ country: "Kazakhstan" }))).statusCode).toBe(400);
     await mw!.close();
     mw = null;
+    // Simulate the outage in-process: with no transport the client would call MOCK_WORLD_URL for real, which answers
+    // whenever a dev mock world runs on :4001 (bun run dev), and the check would then succeed.
+    setMockWorldTransportForTests(async () => {
+      throw new TypeError("fetch failed: connect ECONNREFUSED (identity checker down)");
+    });
     const down = await start(userId, doc());
     expect(down.statusCode).toBe(503);
     expect(down.json()).toMatchObject({ code: "KYC_UNAVAILABLE" });
     expect(await getDb().select().from(kycChecks)).toHaveLength(0);
+    setMockWorldTransportForTests(null);
   });
 
   it("rules: above the threshold without VERIFIED → REFUSE KYC_REQUIRED; below it, or once verified, as before", async () => {
