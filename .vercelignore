@@ -12,5 +12,6 @@ docs/demo/
 .env*
 !.env.example
 docs/node_modules/
-docs/.vitepress/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 .anchor-key

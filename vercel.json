@@ -26,6 +26,14 @@
       "destination": "/api"
     },
     {
+      "source": "/docs",
+      "destination": "/docs/index.html"
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "/docs/404.html"
+    },
+    {
       "source": "/:path*",
       "destination": "/index.html"
     }
