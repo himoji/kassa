@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from "@jest/globals";
 import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 
 import { storage } from "@/lib/storage";
-import { capturesSince, LAST_SEEN_KEY, notificationRoute, notifyNewCaptures } from "../notifier";
+import { capturesSince, clearNotifierState, LAST_SEEN_KEY, notificationRoute, notifyNewCaptures } from "../notifier";
 
 const mockSchedule = jest.fn((_: unknown) => Promise.resolve("id"));
 let mockGranted = true;
@@ -36,7 +36,7 @@ describe("notifyNewCaptures", () => {
   beforeEach(async () => {
     mockSchedule.mockClear();
     mockGranted = true;
-    await storage.removeItem(LAST_SEEN_KEY);
+    await clearNotifierState();
   });
 
   it("first run only records the watermark: old purchases never notify", async () => {
@@ -75,6 +75,15 @@ describe("notifyNewCaptures", () => {
     const same = response("2026-10-27T10:05:00.000Z", [capture("2026-10-27T10:02:00.000Z")]);
     await notifyNewCaptures(same);
     await notifyNewCaptures({ ...same, serverTime: "2026-10-27T10:06:00.000Z" });
+    expect(mockSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("never repeats a purchase when the server clock lags its createdAt (demo offset)", async () => {
+    await storage.setItem(LAST_SEEN_KEY, "2026-10-27T10:00:00.000Z");
+    const ahead = capture("2026-10-27T12:00:00.000Z");
+    await notifyNewCaptures(response("2026-10-27T10:01:00.000Z", [ahead]));
+    await notifyNewCaptures(response("2026-10-27T10:02:00.000Z", [ahead]));
+    await notifyNewCaptures(response("2026-10-27T10:03:00.000Z", [ahead]));
     expect(mockSchedule).toHaveBeenCalledTimes(1);
   });
 

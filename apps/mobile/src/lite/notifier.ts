@@ -16,6 +16,9 @@ import { i18next } from "@/lib/i18n";
 import { storage } from "@/lib/storage";
 
 export const LAST_SEEN_KEY = "kassalite:lastSeenServerTime";
+/** IDs already notified: the server's clock can move (demo offset per instance), the IDs cannot. */
+export const NOTIFIED_KEY = "kassalite:notifiedIds";
+const MAX_REMEMBERED = 300;
 /** More than this many new purchases collapse into one summary notification. */
 export const MAX_INDIVIDUAL_NOTIFICATIONS = 3;
 
@@ -78,13 +81,41 @@ export function notifyNewCaptures(response: RecentCapturesResponse): Promise<num
   return chain;
 }
 
+/** Survives a storage failure for the rest of the session. */
+const notifiedInSession = new Set<string>();
+
+async function readNotified(): Promise<Set<string>> {
+  try {
+    const raw = await storage.getItem(NOTIFIED_KEY);
+    const ids: unknown = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(ids)) for (const id of ids) if (typeof id === "string") notifiedInSession.add(id);
+  } catch {
+    // Keep the in-memory set.
+  }
+  return notifiedInSession;
+}
+
+async function rememberNotified(ids: readonly string[]): Promise<void> {
+  for (const id of ids) notifiedInSession.add(id);
+  const all = [...notifiedInSession].slice(-MAX_REMEMBERED);
+  try {
+    await storage.setItem(NOTIFIED_KEY, JSON.stringify(all));
+  } catch {
+    // In-memory only.
+  }
+}
+
 async function run(response: RecentCapturesResponse): Promise<number> {
   const lastSeen = await storage.getItem(LAST_SEEN_KEY);
+  const notified = await readNotified();
   if (!lastSeen) {
     await storage.setItem(LAST_SEEN_KEY, response.serverTime);
+    await rememberNotified(response.captures.map((c) => c.id));
     return 0;
   }
-  const fresh = capturesSince(response.captures, lastSeen);
+  const fresh = capturesSince(response.captures, lastSeen).filter((c) => !notified.has(c.id));
+  // Mark before showing: a failed or slow show must never repeat the same purchase on the next poll.
+  if (fresh.length > 0) await rememberNotified(fresh.map((c) => c.id));
   if (fresh.length > 0 && (await canNotify())) {
     if (fresh.length > MAX_INDIVIDUAL_NOTIFICATIONS) {
       await show(
@@ -113,7 +144,9 @@ async function run(response: RecentCapturesResponse): Promise<number> {
 }
 
 export async function clearNotifierState(): Promise<void> {
+  notifiedInSession.clear();
   await storage.removeItem(LAST_SEEN_KEY);
+  await storage.removeItem(NOTIFIED_KEY);
 }
 
 /** Only app routes are followed (a notification's data is ours, but never trust it to leave the app). */
