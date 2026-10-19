@@ -1,8 +1,6 @@
 # Payment taps → Kassa (iOS Shortcut, Android forwarder)
 
-Each Apple Pay tap on your iPhone can be logged in Kassa by itself. An iOS Shortcuts **Personal Automation** with the
-**Transaction** trigger sends the merchant and amount (and, if you add it, where you are) to Kassa. Kassa logs the
-spend and replies with a short notification, for example:
+An iOS Shortcuts **Personal Automation** with the **Transaction** trigger sends each Apple Pay tap's merchant, amount and (optionally) location to Kassa, which logs it and replies with a notification:
 
 > **Logged HUF 2,100.00 at Blue Bottle**
 > Today 10:59 · Váci utca 10, Budapest · 2nd visit this month · paid via Square
@@ -10,83 +8,42 @@ spend and replies with a short notification, for example:
 > Eating out 62% left this month (HUF 6,200.00), about HUF 295 a day
 > Tip: About HUF 295 a day keeps eating out on track.
 
-What each line means:
-
-- **When and where**: the time of the tap, the street and city (when the Shortcut sends them), how often you went
-  there this month, and the payment processor printed on the statement (`SQ *`, `SUMUP *`, `ZETTLE_*`...), which Kassa
-  moves aside so the shop's own name shows.
-- **Likely place**: with your AI consent, a small model reads the statement text (and the city) and names the place
-  and what kind of place it is. A guess it is unsure of is not shown. The guess is kept on the purchase.
-- **Budget**: for a category with a budget, what is left and about how much a day keeps you inside. For a category
-  **without** a budget, the month so far in that category against a usual month, how much went to categories without
-  a budget, and all spending against your monthly income:
-
-  > Shopping: no budget · HUF 12,000.00 this month (1 purchase), usually HUF 9,000.00
-  > Outside budgets HUF 12,000.00 · all spending 7% of income · 21 days left
-
-- **Warnings**: a card markup or DCC (dynamic currency conversion) Kassa already knows about.
-- **New card**: the first time a card you have not added pays, Kassa adds it from the `card` field (name and last 4
-  digits) and says "New card saved: Visa ••4821 (billed in HUF)". It assumes your home currency as the billing
-  currency (the spend's currency for Revolut, Wise and other multi-currency accounts); if that is wrong, remove the
-  card in Cards and add it again with the right currency.
-- **Tip**: with your AI consent, one sentence of advice about this spend. It may only quote numbers Kassa computed;
-  a tip with any other number is dropped. Turn tips and place guesses off for the whole server with
-  `AI_PAYMENT_NOTES=false`. If the model is slow (over `PAYMENT_NOTE_TIMEOUT_MS`, 4 s by default) or fails, the
-  notification comes without them.
+The lines: time, place, visits this month and processor prefix (`SQ *`, `SUMUP *`, `ZETTLE_*`...); a model's guess of the place (AI consent, hidden when unsure); the budget left, or for an unbudgeted category the month against a usual month and spending against income; known card markup or DCC warnings; "New card saved: Visa ••4821 (billed in HUF)" for an unknown `card` (billing currency assumed to be home currency; re-add it in Cards if wrong); and a tip (AI consent) that may only quote Kassa-computed numbers. `AI_PAYMENT_NOTES=false` turns guesses and tips off; they are skipped if the model exceeds `PAYMENT_NOTE_TIMEOUT_MS` (4 s default) or fails.
 
 Capture **only logs**. It never approves, creates or blocks a payment (invariant I6).
 
 ## What you need
 
-- An iPhone with **iOS 17 or later**. The Transaction trigger was added in iOS 17.
-- A card in **Apple Wallet**.
-- A Kassa server the iPhone can reach over HTTPS: a deployed server, or `bun run phone` (tunnel) for a demo.
+- iPhone with **iOS 17 or later**, a card in **Apple Wallet**.
+- A Kassa server reachable over HTTPS: a deployed one, or `bun run phone` (tunnel).
 
 ## Fastest: add the ready-made Shortcut
 
-When your Kassa build carries the published Shortcut's iCloud link (see [The ready-made Shortcuts](#the-ready-made-shortcuts)
-below), setup is three taps and one paste:
+If your build carries the iCloud link ([The ready-made Shortcuts](#the-ready-made-shortcuts)):
 
-1. **Settings → Payment taps → Kassa** → **Create token** → **Add the “Log to Kassa” Shortcut**. Kassa copies your
-   link (endpoint with the key) and opens the Shortcut in Shortcuts.
-2. Tap **Add Shortcut** and paste the link when Shortcuts asks for it.
-3. **Automation** → **+** → **Transaction** → pick your Wallet cards → **Run Immediately** → **Next** → choose
-   **Log to Kassa** from the list. iOS lets no app create this automation, so this step is always yours.
+1. **Settings → Payment taps → Kassa** → **Create token** → **Add the “Log to Kassa” Shortcut** (copies your link and opens the Shortcut).
+2. **Add Shortcut**, paste the link when asked.
+3. **Automation** → **+** → **Transaction** → your Wallet cards → **Run Immediately** → **Next** → **Log to Kassa**. (No app can create this automation for you.)
 
-Then pay once and use **Test it live**. Without the link in the build, the button is not shown: build it by hand
-(sections 1 to 3).
+Then pay once and use **Test it live**. Without the link the button is hidden: follow sections 1 to 3.
 
 ## 1. Create a device token in Kassa
 
-1. In the Kassa app, open **Settings → Payment taps → Kassa**.
-2. Tap **Create token**.
-3. Tap **Copy "Bearer …" header value**.
-   - Kassa shows the token **once**. The server stores only its SHA-256 hash, so it cannot show the token again.
-   - If you lose the token, revoke the old one and create a new one.
-4. Note the **Endpoint** shown on the same screen. It looks like `https://<your-kassa-host>/api/capture/shortcut`.
+1. **Settings → Payment taps → Kassa** → **Create token**.
+2. **Copy "Bearer …" header value**. Shown **once** (only its SHA-256 hash is stored); if lost, revoke and create another.
+3. Note the **Endpoint**: `https://<your-kassa-host>/api/capture/shortcut`.
 
 ## 2. Create the automation on the iPhone
 
-1. Open **Shortcuts** → **Automation** tab → **+** (top right).
-2. Choose **Transaction**.
-3. Under **Card**, select the Wallet cards that should report to Kassa. Leave the categories and merchants as **Any**.
-4. Choose **Run Immediately**.
-   - Optional: turn off **Notify When Run**, so iOS does not show its own "running your automation" banner.
-5. Tap **Next** → **New Blank Automation**.
+1. **Shortcuts** → **Automation** → **+** → **Transaction**.
+2. **Card**: the Wallet cards to report; categories and merchants **Any**.
+3. **Run Immediately** (optionally turn off **Notify When Run**) → **Next** → **New Blank Automation**.
 
 ## 3. Add the actions
 
-Add the actions below in this order.
-
 ### Action 1: Get Contents of URL
 
-1. Set **URL** to the endpoint from step 1.4.
-2. Tap the **›** arrow to show more options:
-   - **Method**: `POST`
-   - **Headers**: add one header:
-     - Key: `Authorization`
-     - Value: `Bearer <token>` (paste the value you copied in step 1.3)
-   - **Request Body**: `JSON`. Add three **Text** fields:
+**URL**: the endpoint. Under **›**: **Method** `POST`; **Headers** `Authorization` = `Bearer <token>`; **Request Body** `JSON` with three **Text** fields:
 
 | Key | Value: tap the field, choose **Shortcut Input**, then tap it again and pick |
 | --- | --- |
@@ -94,15 +51,9 @@ Add the actions below in this order.
 | `amount` | **Amount** |
 | `card` | **Card or Pass** (the label may differ by iOS version) |
 
-**Optional** `date` field:
-- Add a **Text** field `date` with the value **Current Date**.
-- Tap the variable, set **Date Format** to **ISO 8601** and turn on **Include Time**.
-- If the date is not ISO 8601 with a time zone, Kassa ignores it and uses the time the request arrives. With Run
-  Immediately, that time is the moment of the tap.
+**Optional** `date`: **Current Date**, **Date Format** **ISO 8601**, **Include Time** on. Otherwise Kassa uses the arrival time (the tap, with Run Immediately).
 
-**Optional** location fields (where you paid):
-1. **Before** Get Contents of URL, add **Get Current Location**.
-2. Add **Text** fields to the JSON body. For each, choose the **Current Location** variable, tap it and pick the detail:
+**Optional** location: add **Get Current Location** **before** this action, then **Text** fields from the **Current Location** variable:
 
 | Key | Detail |
 | --- | --- |
@@ -112,62 +63,35 @@ Add the actions below in this order.
 | `latitude` | **Latitude** (optional) |
 | `longitude` | **Longitude** (optional) |
 
-- The first run asks for location access. Run the automation once by hand and choose **Allow While Using App** (or
-  set **Settings → Privacy & Security → Location Services → Shortcuts**), or the automation stops at this step.
-- The location is where the phone is, which is usually the shop. Kassa keeps the street, city and country, and the
-  coordinates rounded to about 100 m; the street and coordinates are removed with the raw merchant text after 90 days
-  (`RETENTION_DAYS_CAPTURED_TEXT`). Leave the fields out and everything else works the same.
+Run it once by hand and choose **Allow While Using App** (or **Settings → Privacy & Security → Location Services → Shortcuts**), or it stops here. Coordinates are rounded to about 100 m; street and coordinates are deleted after 90 days (`RETENTION_DAYS_CAPTURED_TEXT`).
 
 ### Action 2: Get Dictionary Value
 
-1. Set it to **Get Value for** `nudge` **in** **Contents of URL**.
+**Get Value for** `nudge` **in** **Contents of URL**.
 
 ### Action 3: Show Notification
 
-1. Set the body to **Dictionary Value**.
-
-Optional, for a bold first line: get `nudgeTitle` and `nudgeBody` instead (two **Get Dictionary Value** actions) and
-set **Show Notification**'s title to the first and its body to the second.
-
-Tap **Done**.
+Body: **Dictionary Value**. For a bold first line, use `nudgeTitle` and `nudgeBody` (two **Get Dictionary Value** actions) as title and body. Tap **Done**.
 
 ## 4. Try it
 
-1. Pay with Apple Pay. A coffee is enough.
-2. A moment later the Kassa line appears as a notification.
-3. The spend is in **Activity**.
-4. In **Settings → Payment taps → Kassa**, the device list shows "Last tap received …".
+Pay with Apple Pay: the notification appears, the spend is in **Activity**, and **Settings → Payment taps → Kassa** shows "Last tap received …".
 
 ## What Kassa accepts
 
-`amount` is the amount iOS shows in your locale. Kassa reads all of these forms:
+`amount` as iOS shows it: `1 290 Ft`, `Ft 1,290`, `HUF 1,290.00`, `1.290 Ft`, `1 290,00 HUF`, `€4.50`, `4,50 €`, `₸2 500`, `2 500 тг`, `¥38.00`, `CN¥38.00`, `38.00 元`, `$4.50`, or a JSON number (home currency unless `"currency": "EUR"` is sent).
 
-- `1 290 Ft`, `Ft 1,290`, `HUF 1,290.00`, `1.290 Ft`, `1 290,00 HUF`
-- `€4.50`, `4,50 €`, `₸2 500`, `2 500 тг`, `¥38.00`, `CN¥38.00`, `38.00 元`, `$4.50`
-- A plain JSON number. Kassa then uses your home currency, unless you also send `"currency": "EUR"`.
-
-Other rules:
-
-- A negative amount, such as `-€4.50`, is a refund. It is noted, not counted as spending.
-- Kassa supports KZT, HUF, EUR, USD and CNY. An amount in any other currency, such as `£4.50`, is **not logged**: Kassa
-  does not guess. The notification then says Kassa could not read the payment.
-- `¥` is read as CNY. Add `"currency": "CNY"` (or another code) to the body to make the currency explicit.
-- The same tap sent twice, or the same spend also captured from a bank notification, is merged into one entry. The
-  second reply says "Already logged".
+- Negative (`-€4.50`): a refund, not spending.
+- Only KZT, HUF, EUR, USD, CNY. Others (`£4.50`) are **not logged**. `¥` is CNY; `"currency"` makes it explicit.
+- Duplicates (same tap, or the same spend from a bank notification) merge: "Already logged".
 
 ### Response
-
-The response is the usual capture result plus:
 
 | Field | Content |
 | --- | --- |
 | `nudge` | The whole notification in English, one line per part (title first) |
 | `nudgeTitle` | The first line: amount and place |
 | `nudgeBody` | The other lines |
-
-The app shows the localised version of the same message in Activity.
-
-`status` has one of four values:
 
 | `status` | Meaning |
 | --- | --- |
@@ -180,28 +104,19 @@ The app shows the localised version of the same message in Activity.
 
 ### Test run and incomplete taps
 
-A body without an amount is never logged:
+No amount, never logged:
 
-- `{"test": true}`: KassaLite checking the server and key itself. Reply `status: "TEST"`, “Kassa is connected”; the
-  device is not marked as used.
-- `merchant` empty too (the Shortcut run by hand: iOS sends the fields empty): `status: "TEST"`, recorded on the
-  device (`lastUsedAt`, `lastCheck.kind = "TEST"`).
-- a merchant but no amount (an automation whose Amount is not wired): `status: "INCOMPLETE"`, with a notification
-  that says to set Amount to Shortcut Input › Amount; recorded as `lastCheck.kind = "INCOMPLETE"`.
+- `{"test": true}` (KassaLite's check): `TEST`, “Kassa is connected”; device not marked used.
+- `merchant` also empty (run by hand): `TEST`, recorded (`lastUsedAt`, `lastCheck.kind = "TEST"`).
+- merchant, no amount: `INCOMPLETE`, notification says to set Amount to Shortcut Input › Amount; `lastCheck.kind = "INCOMPLETE"`.
 
 ### The key in the URL
 
-Instead of the `Authorization` header, the key can be the `key` query parameter:
-`https://<host>/api/capture/shortcut?key=<token>`. KassaLite copies this one link so a hand-built Shortcut needs a
-single paste. The server log redacts `key`.
+Instead of the header: `https://<host>/api/capture/shortcut?key=<token>` (one paste; the server log redacts `key`).
 
 ### The ready-made Shortcuts
 
-Kassa (Settings → Payment taps) and KassaLite can open a published Shortcut instead of making the person build one:
-**Log to Kassa** for Apple Pay taps and **Ask Kassa** for voice. Nothing in the repository contains these Shortcuts,
-because a `.shortcut` file must be signed by Apple: someone publishes each once from an iPhone or Mac and its iCloud
-link goes into the app bundle. Until then the buttons copy the link for a hand-built Shortcut (above), and nothing
-else changes.
+Kassa (Settings → Payment taps) and KassaLite can open a published Shortcut: **Log to Kassa** (taps) and **Ask Kassa** (voice). They are not in the repository because a `.shortcut` file must be Apple-signed: someone publishes each once and its iCloud link goes into the bundle. Until then the buttons copy the link for a hand-built Shortcut.
 
 | Shortcut | Bundle variable | Its import question takes |
 | --- | --- | --- |
@@ -210,55 +125,22 @@ else changes.
 
 Publish **Log to Kassa**:
 
-1. In Shortcuts, make a new shortcut named **Log to Kassa** (the name KassaLite tells people to pick).
-2. Add the actions of section 3 (Get Contents of URL with `POST`, JSON body `merchant`, `amount`, `card` from
-   Shortcut Input; Get Dictionary Value `nudge`; Show Notification). Put **no header**: the URL carries the key. If
-   the editor does not offer Merchant, Amount and Card or Pass on Shortcut Input outside an automation, stop here:
-   that iOS version cannot run this route, keep the hand-built one.
-3. Open the shortcut's details (**ⓘ**) → **Setup** → **Add Question**, choose the URL field of Get Contents of URL and
-   use the question "Paste the link KassaLite copied". An import question's answer is not shared, so your own key is
-   not in the published copy; check that the URL field is empty in the copy you share anyway, and revoke your token
-   if it was not.
-4. **Share** → **Copy iCloud Link**.
-5. Set `EXPO_PUBLIC_KASSALITE_SHORTCUT_URL=https://www.icloud.com/shortcuts/<id>` in `apps/mobile/.env` (or the EAS
-   environment) and ship it with `bun run ota lite "…"`. KassaLite ignores a value that is not an
-   `https://www.icloud.com/shortcuts/…` link.
-6. Test it on a second iPhone before shipping: set up from KassaLite, pay once, and read the tap check. The shortcut
-   must get the Transaction as its Shortcut Input from the automation that runs it; if the Merchant or Amount line
-   says "empty", it does not on that iOS version, and the link must not be shipped.
+1. New shortcut named **Log to Kassa**.
+2. Add the section 3 actions with **no header** (the URL carries the key). If Shortcut Input offers no Merchant, Amount and Card or Pass outside an automation, stop: that iOS version cannot run this route.
+3. **ⓘ** → **Setup** → **Add Question** on the URL field: "Paste the link KassaLite copied". Check the URL field is empty in the shared copy; revoke your token if not.
+4. **Share** → **Copy iCloud Link** (Mac, macOS 13+: **File → Share → Copy iCloud Link**). Links are public; a changed Shortcut needs a new link.
+5. Set `EXPO_PUBLIC_KASSALITE_SHORTCUT_URL=https://www.icloud.com/shortcuts/<id>` in `apps/mobile/.env` (or the EAS environment) and ship with `bun run ota lite "…"`. Other values are ignored.
+6. Test on a second iPhone first: set up from KassaLite, pay once, read the tap check. If Merchant or Amount is "empty", do not ship the link.
 
-Publish **Ask Kassa** the same way: build the voice Shortcut of [Voice](#voice-hey-siri-ask-kassa) with the URL field
-empty, add the import question "Paste the voice link Kassa copied" on that URL field, **Copy iCloud Link**, set
-`EXPO_PUBLIC_KASSA_VOICE_SHORTCUT_URL`, and ship. It has no automation, so after **Add Shortcut** and the paste,
-"Hey Siri, Ask Kassa" works.
-
-The same steps on a Mac (macOS 13 or later, signed in to the same iCloud account): Shortcuts app → build the shortcut →
-**File → Share → Copy iCloud Link**. A link is public to anyone who has it, which is why the key never goes in it.
-Publishing a change makes a new link: share again and update the variable.
-
-The flow with the link set (KassaLite): the button checks the server and key, copies `https://<host>/api/capture/shortcut?key=<token>`
-(the key is only on the clipboard, never in a URL KassaLite opens) and opens the iCloud link. The person taps **Add
-Shortcut**, pastes when asked, then makes the automation, which iOS lets no app create: **Automation → + →
-Transaction → Run Immediately → Log to Kassa**.
+**Ask Kassa**: the same with the [Voice](#voice-hey-siri-ask-kassa) Shortcut, question "Paste the voice link Kassa copied", variable `EXPO_PUBLIC_KASSA_VOICE_SHORTCUT_URL`. No automation needed.
 
 ### Tap check (GET /api/devices)
 
-Every request from a Shortcut (or the KassaLite action, `X-Kassa-Client: log-payment-action`) records on its device
-`lastUsedAt` and `lastCheck`: when, which kind (`TEST`, `PAYMENT`, `FORWARDED`, `INCOMPLETE`), which fields arrived
-(`merchant`, `amount`, `card`, `place`: presence only, no values), the capture `status` and the transaction id.
-GET `/api/devices` returns the newest device's `lastCheck`; KassaLite's Settings reads it to tell the person whether
-their last Apple Pay tap arrived complete.
+Each request (Shortcut or KassaLite action, `X-Kassa-Client: log-payment-action`) records on its device `lastUsedAt` and `lastCheck`: time, kind (`TEST`, `PAYMENT`, `FORWARDED`, `INCOMPLETE`), which of `merchant`, `amount`, `card`, `place` arrived (presence only), `status` and transaction id. GET `/api/devices` returns the newest device's `lastCheck`.
 
 ### Live test (GET /api/devices `recentChecks`)
 
-Each token also keeps its newest 20 requests (`devices.recent_checks`), refused ones too: a **revoked** token still in
-a Shortcut (`REVOKED_KEY`), a body that is not JSON or has the wrong shape (`BAD_BODY`, with the problem but no
-values), a failure while logging (`FAILED`), besides the kinds above. Each records the caller's User-Agent product
-(`BackgroundShortcutRunner` for an automation; a browser or `curl` does not count as the Shortcut). Only accepted
-requests move `lastUsedAt`. GET `/api/devices` returns them for all of the user's tokens with the logged merchant and
-amount, and `serverTime`. **Settings → Payment taps → Test it live** (web app and KassaLite) shows them from the moment
-you press Start and passes only on a logged purchase from the Shortcut that you confirm (amount, notification). A
-request with an unknown token names no user and cannot be shown.
+Each token keeps its newest 20 requests (`devices.recent_checks`), refused ones too: `REVOKED_KEY`, `BAD_BODY` (problem, no values), `FAILED`. Each records the caller's User-Agent product (`BackgroundShortcutRunner` for an automation; a browser or `curl` does not count). Only accepted requests move `lastUsedAt`. **Settings → Payment taps → Test it live** (web and KassaLite) shows them from Start and passes only on a logged Shortcut purchase you confirm (amount, notification). Unknown tokens cannot be shown.
 
 ### Errors
 
@@ -266,92 +148,54 @@ request with an unknown token names no user and cannot be shown.
 | --- | --- | --- |
 | 401 | `DEVICE_TOKEN_REQUIRED` | The `Authorization` header is missing |
 | 401 | `DEVICE_TOKEN_INVALID` | The token is wrong or has been revoked |
-| 400 | — | The body is malformed, for example `amount` is missing |
+| 400 | — | Malformed body, e.g. `amount` missing |
 | 429 | — | Rate limit: the sensitive tier, 30 per minute per IP |
 
 ## Voice: “Hey Siri, Ask Kassa”
 
-A second Shortcut lets you talk to Kassa's agent. It records you, sends the recording, and speaks the answer.
-
-1. Shortcuts → **+** (a new Shortcut, not an automation). Name it **Ask Kassa**.
-2. **Record Audio**: Start Recording **Immediately**, Finish Recording **On Tap**.
+1. Shortcuts → **+** (a Shortcut, not an automation), named **Ask Kassa**.
+2. **Record Audio**: Start **Immediately**, Finish **On Tap**.
 3. **Base64 Encode** the Recorded Audio.
-4. **Get Contents of URL**: URL `https://<your-kassa-host>/api/capture/voice?key=<token>` (Settings → Payment taps
-   → **Copy voice link**, or KassaLite → Settings → **Ask Kassa by voice**). Method POST, Request Body JSON:
-   `audio` = Base64 Encoded, `format` = `m4a`.
-5. **Get Dictionary Value**: `reply` in Contents of URL.
-6. **Speak Text** (or **Show Result**) with the Dictionary Value.
+4. **Get Contents of URL**: `https://<your-kassa-host>/api/capture/voice?key=<token>` (Settings → Payment taps → **Copy voice link**, or KassaLite → Settings → **Ask Kassa by voice**). POST, JSON: `audio` = Base64 Encoded, `format` = `m4a`.
+5. **Get Dictionary Value**: `reply`.
+6. **Speak Text** (or **Show Result**).
 
-The server sends the audio to `VOICE_MODEL` (default `openrouter:qwen/qwen3.8-omni-flash`, a Qwen omni model used for speech recognition, which takes
-audio) as an OpenRouter `input_audio` part, base64 with its format (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`,
-`flac`; OpenRouter takes no audio URLs). If the provider refuses m4a, add **Encode Media** (Audio Only, AIFF) after
-Record Audio and send `format` = `aiff`. A recording is at most 3 MB. Instead of audio, `text` (from **Dictate Text**)
-skips the voice model.
-
-The transcript then goes to the agent as a chat message (it appears in Chat), in a **read-only** turn: no
-`propose_order`, no purchase-order draft and no pickers. The token's power stays what it is for taps, logging
-spending (`log_expense`); a request to pay gets an answer and "open Kassa to pay it". AI consent is required as for
-the chat. Every answer, failures included, is a 200 with `{ok, transcript, reply, conversationId}`, because a Shortcut
-shows a body, not a status code.
+Audio goes to `VOICE_MODEL` (default `openrouter:qwen/qwen3.8-omni-flash`) as an OpenRouter `input_audio` part (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`, `flac`). If m4a is refused, add **Encode Media** (Audio Only, AIFF) and send `format` = `aiff`. Max 3 MB. `text` (from **Dictate Text**) skips the voice model. The transcript runs as a **read-only** agent turn (no `propose_order`, purchase-order draft or pickers; the token can only `log_expense`), needs AI consent, and always returns 200 `{ok, transcript, reply, conversationId}`.
 
 ## Limits
 
-- **Wallet cards only.** The trigger fires for Apple Pay with cards in Apple Wallet. It does not fire for a physical
-  card, a card number typed on a website, or a bank app's own wallet.
-- **The amount may be a pre-authorisation.** Some merchants authorise one amount and charge another, such as hotels,
-  fuel or tips. Kassa logs the amount iOS reports. A later bank statement line settles it (`/capture/settlement`) and
-  shows the real fee.
-- **Logs only, never blocks.** iOS runs the automation after the payment. Kassa cannot stop or change it, and capture
-  never creates a payment (I6).
-- **No retry when offline.** If the iPhone has no connection at the moment of the tap, the request fails and Shortcuts
-  does not send it again. Add the spend in the app, or let a bank notification or statement capture it.
-- **DCC and fee warnings come from what Kassa already knows:**
-  - DCC: a DCC flag from an earlier settlement at the same merchant, or a charge in your home currency right after
-    spending in a foreign currency.
-  - Fee: the card's measured markup for that currency pair.
-
-  The real fee is known only when the charge settles.
+- **Wallet cards only**: not physical cards, typed card numbers or bank-app wallets.
+- **The amount may be a pre-authorisation** (hotels, fuel, tips); a later statement line settles it (`/capture/settlement`).
+- **Logs only, never blocks** (I6).
+- **No retry when offline**: add the spend in the app, or let a notification or statement capture it.
+- **DCC and fee warnings** use only known data (an earlier DCC settlement at the merchant, a home-currency charge right after foreign spending, the card's measured markup). The real fee is known at settlement.
 
 ## Online and in-app Apple Pay (iPhone)
 
-The **Transaction** trigger only runs when you hold the iPhone to a payment terminal. Apple Pay in Safari or inside
-an app goes through a different path (the merchant's payment sheet), and iOS runs no automation for it. No public iOS
-API reports those payments to another app either, so the Shortcut above cannot catch them.
+Online and in-app Apple Pay trigger no automation. Forward the bank's payment **SMS** instead:
 
-What does arrive for almost every card payment, online or not, is the bank's **SMS**. A second automation forwards
-those to the same endpoint:
+1. **Shortcuts** → **Automation** → **+** → **Message**; **Message Contains** a word in every payment SMS (or the bank as **Sender**); **Run Immediately**.
+2. **Get Contents of URL**, same URL, method and header; JSON `text` = **Shortcut Input › Content**, `app` = **Shortcut Input › Sender**.
+3. **Get Dictionary Value** (`nudge`) and **Show Notification**.
 
-1. **Shortcuts** → **Automation** → **+** → **Message**. Under **Message Contains**, enter a word every payment SMS
-   from your bank has (or choose the bank as **Sender**). Choose **Run Immediately**.
-2. Add **Get Contents of URL** with the same URL, method and `Authorization` header. **Request Body**: JSON with
-   `text` = **Shortcut Input › Content** and `app` = **Shortcut Input › Sender**.
-3. Add **Get Dictionary Value** (`nudge`) and **Show Notification**, as above.
-
-Kassa runs the text through its notification parsers (Kazakh banks, Alipay / UnionPay bank SMS, WeChat Pay, Revolut,
-Wise) and, with your AI consent, the Reader. A text that is not a payment is answered with `UNPARSED` and not logged.
-A tap in a shop that also sends an SMS is merged into one entry (`MERGED`).
+Kassa's parsers cover Kazakh banks, Alipay / UnionPay bank SMS, WeChat Pay, Revolut and Wise, plus the Reader with AI consent. Non-payments get `UNPARSED`; a tap plus SMS merges (`MERGED`).
 
 ## Android: Google Wallet, Samsung Wallet, Alipay, WeChat Pay
 
-Android lets an app with notification access read other apps' notifications, so one automation covers every wallet,
-in shops and online. Use the same token and endpoint.
+One notification-forwarding automation covers every wallet, same token and endpoint.
 
-1. Install an automation app, for example **MacroDroid** or **Tasker**.
-2. New macro → trigger **Notification received** → apps: Google Wallet, Samsung Wallet, Alipay, WeChat, your bank's
-   app. Grant notification access when Android asks.
-3. Action **HTTP request**: `POST` the endpoint, header `Authorization: Bearer <token>`, content type
-   `application/json`, body:
+1. Install **MacroDroid** or **Tasker**.
+2. Trigger **Notification received** for Google Wallet, Samsung Wallet, Alipay, WeChat and your bank's app; grant notification access.
+3. **HTTP request**: `POST` the endpoint, `Authorization: Bearer <token>`, `application/json`:
 
    ```json
    {"app":"[notification_app_package]","title":"[notification_title]","text":"[notification]"}
    ```
 
-   (MacroDroid magic text; in Tasker use `%anapp`, `%antitle`, `%antext`.) To say where you paid, add `"latitude"`
-   and `"longitude"` (MacroDroid `[last_loc_lat]`, `[last_loc_long]`; Tasker `%LOCN`) and, if your app has them,
-   `"city"` and `"country"`.
-4. Optional: save the response and show its `nudgeTitle` and `nudgeBody` as a notification.
+   (Tasker: `%anapp`, `%antitle`, `%antext`.) Optional `"latitude"`, `"longitude"` (MacroDroid `[last_loc_lat]`, `[last_loc_long]`; Tasker `%LOCN`), `"city"`, `"country"`.
+4. Optional: show `nudgeTitle` and `nudgeBody`.
 
-Formats Kassa reads (`apps/api/src/modules/capture/parsers/wallet.ts`):
+Formats (`apps/api/src/modules/capture/parsers/wallet.ts`); other apps go to the SMS parsers:
 
 | App | Example notification |
 | --- | --- |
@@ -360,16 +204,11 @@ Formats Kassa reads (`apps/api/src/modules/capture/parsers/wallet.ts`):
 | Alipay | `你在 便利店 消费 ¥32.50` |
 | WeChat Pay | `支付成功 ¥45.00 收款方：面馆` |
 
-Any other app's text goes to the same parsers as a bank SMS (above).
-
 ## Revoking a token
 
-Open **Settings → Payment taps → Kassa** and tap **Revoke** next to the device. The change is immediate: the next request
-with that token gets `401 DEVICE_TOKEN_INVALID`. Revoking is a tightening, so it needs no passkey (I8).
+**Settings → Payment taps → Kassa** → **Revoke**. Immediate (`401 DEVICE_TOKEN_INVALID`); no passkey, as it tightens (I8).
 
-The API calls behind the screen need a user session:
-
-| Call | What it does |
+| Call (user session) | What it does |
 | --- | --- |
 | `POST /api/devices/shortcut` | Creates a token |
 | `GET /api/devices` | Lists the active Shortcut devices and the time of the last Shortcut capture |

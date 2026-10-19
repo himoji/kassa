@@ -1,10 +1,10 @@
 # An agent turn
 
-A chat turn is one `POST /api/agent/message`. The answer streams back as server-sent events in the [AI SDK UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) format: text, every tool call the planner makes, every tool result, and the proposal card when it proposes a payment.
+One `POST /api/agent/message` per turn. The reply streams as server-sent events in the [AI SDK UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) format: text, tool calls, tool results and any proposal card.
 
 ## Send a message
 
-The user must have given AI consent first (once per account).
+AI consent is needed once per account; without it the API answers 403 `AI_CONSENT_REQUIRED`. `auth` is from [Call the API](./api-basics.md).
 
 ```bash
 curl -s "${auth[@]}" -H 'content-type: application/json' -H 'origin: http://localhost:8081' \
@@ -16,11 +16,9 @@ curl -sN "${auth[@]}" -H 'content-type: application/json' -H 'origin: http://loc
   localhost:4000/api/agent/message
 ```
 
-`auth` holds the bearer token from [Call the API](./api-basics.md). Without consent the API answers 403 `AI_CONSENT_REQUIRED`.
-
 ## Read the stream
 
-The first events of the replayed tuition turn (shortened):
+Replayed tuition turn (shortened):
 
 ```text
 data: {"type":"start","messageMetadata":{"replay":true},"messageId":"0TRpB4WWko1NC6Xf"}
@@ -37,24 +35,22 @@ data: {"type":"finish","messageMetadata":{"replay":true}}
 data: [DONE]
 ```
 
-What to notice:
-
-- `messageMetadata.replay` is `true` because this stack runs `AGENT_MODE=REPLAY`. The app shows a **Replay** badge on such answers; a live answer has no badge.
-- The planner sees `payee_1`, never the university's name or account. The server maps placeholders back for the user.
-- Every tool runs for real, also in replay: only the model's words and tool choices are recorded.
+- `replay: true` comes from `AGENT_MODE=REPLAY`; the app shows a **Replay** badge. Live answers have none.
+- The planner sees `payee_1`, never the payee's name or account. The server maps placeholders back.
+- Tools run for real in replay too; only the model's words and tool choices are recorded.
 
 ## The decision is made by code
 
-When the planner calls `propose_order`, the rules engine (`apps/api/src/modules/rules/decide.ts`) decides, and the tool result carries the decision. The model can only report it.
+On `propose_order`, the rules engine (`apps/api/src/modules/rules/decide.ts`) decides and the tool result carries the decision. The model can only report it.
 
 | Decision | Meaning | Example reason codes |
 | --- | --- | --- |
 | `AUTO` | Paid now, inside a signed mandate or the small-payment limit | `SMALL_AUTO`, `MANDATE_MATCH` |
-| `ASK` | An exact order waits for the user's passkey | `ABOVE_SMALL_AUTO_LIMIT`, `SMALL_AUTO_BUDGET_EXHAUSTED` |
-| `HANDOFF` | Region CN: prepared, then handed to the user's QR wallet after the payee name check | `HANDOFF_REGION` |
+| `ASK` | Exact order waits for the passkey | `ABOVE_SMALL_AUTO_LIMIT`, `SMALL_AUTO_BUDGET_EXHAUSTED` |
+| `HANDOFF` | Region CN: handed to the user's QR wallet after the payee name check | `HANDOFF_REGION` |
 | `REFUSE` | Nothing to approve | `INSUFFICIENT_FUNDS`, `REFUSE_UNVERIFIED_PAYEE`, `PAYEE_COOLING` |
 
-After a `REFUSE` or a payee in cooling, the turn gets no more tools: the model can only explain.
+After a `REFUSE` or a cooling payee, the turn gets no more tools.
 
 ## The same turns, live
 
@@ -70,10 +66,13 @@ The live tuition answer:
 
 > I've prepared the tuition payment — it needs your passkey. **Tuition: EUR 2,400.00 (≈ KZT 1,221,480.00)**, due 31 Oct, to your university (University in Budapest). Cheapest route is the Wise-like bank transfer, arriving 20 Oct: cost **KZT 7,708.14** incl. the KZT 990.00 fee, **KZT 41,151.06** cheaper than paying by card… It's above your auto-pay limit, so it waits for your passkey rather than being paid automatically.
 
-The rent turn shows the rules catching a planner mistake: the model proposed a second rent payment for a period the mandate had already paid, and `DUPLICATE_OBLIGATION_PAYMENT` refused it. Its reply text in that run was raw tool-call markup from the model, recorded as is.
+In the rent turn the model proposed a second payment for an already paid period and `DUPLICATE_OBLIGATION_PAYMENT` refused it. Its reply text was raw tool-call markup, recorded as is.
 
-Reproduce it against the judge build with `bun run evidence:live` (it signs in to fresh copies and writes `docs/evidence/live-agent.md` and `.json`).
+Reproduce: `bun run evidence:live` (signs in to fresh copies, writes `docs/evidence/live-agent.md` and `.json`).
 
 ## Approve an order
 
-An `ASK` proposal is approved in two calls. `GET /api/orders/:proposalId` returns the exact order with the server's budget impact and payee status, and `webauthnOptions` whose challenge is the canonical order's hash (`orderHash`, RFC 8785 JCS). The app signs that challenge with the passkey and posts the assertion to `POST /api/orders/:proposalId/approve`. On a dev sign-in, `POST /api/auth/dev/assert` signs the challenge with the server-held test key instead. Payments then verifies the rules' Ed25519 signature over the same order before any rail is called, so a signed order cannot be edited on the way.
+1. `GET /api/orders/:proposalId` returns the exact order, budget impact, payee status and `webauthnOptions`; the challenge is the canonical order's hash (`orderHash`, RFC 8785 JCS).
+2. The app signs it with the passkey and posts the assertion to `POST /api/orders/:proposalId/approve`. On a dev sign-in, `POST /api/auth/dev/assert` signs with the server-held test key.
+
+Payments verifies the rules' Ed25519 signature over the same order before any rail is called, so a signed order cannot be edited on the way.

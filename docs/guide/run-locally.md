@@ -1,13 +1,13 @@
 # Run locally
 
-This is the primary path. The database is file-backed PGlite in `.data/`, so no database server is needed.
+The database is file-backed PGlite in `.data/`; no database server needed.
 
 ## Prerequisites
 
 | Tool | Version |
 | --- | --- |
-| Bun | 1.4.0 (`packageManager` in the root `package.json`). The root `bunfig.toml` sets the hoisted linker, which Expo needs |
-| Node.js | 22.18 or later (`engines` of `apps/mobile`). Only needed for the mobile app |
+| Bun | 1.4.0 (`packageManager` in root `package.json`; root `bunfig.toml` sets the hoisted linker Expo needs) |
+| Node.js | 22.18 or later (`engines` of `apps/mobile`), only for the mobile app |
 
 ## Start the API and the mock world
 
@@ -25,13 +25,11 @@ bun run dev            # API on http://localhost:4000, mock world on http://loca
 seeded user c83d27e3-4e03-570f-8fea-87db32399c12 (Dana) + 4 persona(s); demo clock = 2026-10-27T09:00:00.000Z
 ```
 
-Things worth knowing:
-
-- Without a `.env`, the API still starts: it generates development secrets once into `.data/dev-secrets.json`. Production refuses to start without real keys.
-- `AGENT_MODE` defaults to `LIVE`. With no AI key, or when the model is unreachable, each turn falls back to a recorded replay labelled **Replay**. Set `AGENT_MODE=REPLAY` to always use the recordings.
-- PGlite allows one process per data directory. Stop the API before `bun run seed`, or use `POST /api/demo/reset` while it runs with `DEMO_ENABLED=true`.
-- The demo routes are only registered when `DEMO_ENABLED=true`.
-- Health checks: `curl localhost:4000/api/health` and `curl localhost:4001/mock/health`.
+- Without a `.env` the API generates dev secrets once into `.data/dev-secrets.json`. Production refuses to start without real keys.
+- `AGENT_MODE` defaults to `LIVE`, falling back to a labelled **Replay** with no key or an unreachable model. `AGENT_MODE=REPLAY` always uses recordings.
+- PGlite allows one process per data directory: stop the API before `bun run seed`, or use `POST /api/demo/reset` while it runs.
+- Demo routes exist only with `DEMO_ENABLED=true`.
+- Health: `curl localhost:4000/api/health` and `curl localhost:4001/mock/health`.
 
 ## The app
 
@@ -41,11 +39,11 @@ bun run web            # Expo web on http://localhost:8081 (the default PUBLIC_O
 bun run dev            # Expo dev-client build for native devices
 ```
 
-`env:setup` writes `apps/mobile/.env` with `EXPO_PUBLIC_API_URL=http://localhost:4000`. Passkeys need a secure context, and `localhost` counts as one.
+`env:setup` writes `apps/mobile/.env` with `EXPO_PUBLIC_API_URL=http://localhost:4000`. Passkeys need a secure context; `localhost` is one.
 
 ### Sign in without a passkey device
 
-Set `DEV_LOGIN=true` (with `DEMO_ENABLED=true`) to get `POST /api/auth/dev/login` and a "Continue as dev user" button. Approvals are then signed by a server-held test passkey (`POST /api/auth/dev/assert`). It is never available with `NODE_ENV=production`, and on a public tunnel only when you set it yourself. [Call the API](../examples/api-basics.md) uses it.
+Set `DEV_LOGIN=true` (with `DEMO_ENABLED=true`) for `POST /api/auth/dev/login` and a "Continue as dev user" button; approvals are signed by a server-held test passkey (`POST /api/auth/dev/assert`). Never available with `NODE_ENV=production`, and on a public tunnel only if you set it. Used by [Call the API](../examples/api-basics.md).
 
 ## On a phone
 
@@ -54,11 +52,11 @@ bun run dev:all                # tunnel + one HTTPS origin + api, mock world and
 bun run dev:all --no-tunnel    # localhost only
 ```
 
-`dev:all` needs `cloudflared`. It starts the tunnel, then a proxy on `:8080` so the phone gets one HTTPS origin (web app, `/api` and `/mock`), writes the gitignored `.env.dev-runtime` and runs the services with that env. Scan the QR code with the phone camera; Ctrl-C stops everything.
+Needs `cloudflared`. It starts the tunnel and a proxy on `:8080` (one HTTPS origin for the web app, `/api` and `/mock`), writes the gitignored `.env.dev-runtime` and runs the services. Scan the QR code with the phone camera; Ctrl-C stops everything.
 
-- **Named tunnel (recommended):** set `CLOUDFLARED_TUNNEL=<name>` and `PHONE_HOST=<hostname>`. `RP_ID` stays the same across restarts, so passkeys keep working.
-- **Quick tunnel (default):** a random `trycloudflare.com` host per run; passkeys made on it stop working after a restart.
-- **KassaLite** needs the named tunnel: see [KassaLite](./kassalite.md).
+- **Named tunnel (recommended):** set `CLOUDFLARED_TUNNEL=<name>` and `PHONE_HOST=<hostname>`. `RP_ID` stays stable, so passkeys keep working.
+- **Quick tunnel (default):** random `trycloudflare.com` host per run; passkeys break after a restart.
+- **KassaLite** needs the named tunnel ([KassaLite](./kassalite.md)).
 
 ## Checks
 

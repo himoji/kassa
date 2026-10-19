@@ -1,10 +1,10 @@
 # Issue and verify a credit record
 
-A student with no local credit history can show a landlord or bank that they pay on time. Kassa issues a summary of the chosen period and items, signs it with Ed25519, records it in the ledger, and publishes a verify page, a JSON file and a PDF. Only the selected items are shared.
+Proof of on-time payments for a student with no local credit history. Kassa signs a summary of the chosen period and items with Ed25519, records it in the ledger, and publishes a verify page, JSON and PDF. Only selected items are shared.
 
 ## Issue one
 
-In the app: **Settings → Credit record**, pick a period and what to include. Through the API:
+App: **Settings → Credit record**. API:
 
 ```bash
 curl -s "${auth[@]}" -H 'content-type: application/json' -H 'origin: http://localhost:8081' \
@@ -23,11 +23,11 @@ curl -s "${auth[@]}" -H 'content-type: application/json' -H 'origin: http://loca
 }
 ```
 
-`items` can be any of `INCOME`, `BILLS`, `BUDGETS` and `PAYMENTS`.
+`items`: any of `INCOME`, `BILLS`, `BUDGETS`, `PAYMENTS`.
 
 ## What the reader sees
 
-The verify page, or its API, needs no sign-in:
+No sign-in needed:
 
 ```bash
 curl -s localhost:4000/api/public/verify/T2ZdYzfqDQrZNbujnWqknw
@@ -50,11 +50,9 @@ curl -s localhost:4000/api/public/verify/T2ZdYzfqDQrZNbujnWqknw
 }
 ```
 
-The record binds the holder's full name as a keyed hash: the page shows only an initial, and checks a name the reader was told (match or no match) without revealing it. `simulated: true` marks history that came from seed data rather than real payments.
+The holder's full name is bound as a keyed hash: the page shows an initial and answers match/no match for a name the reader enters. `simulated: true` marks seed history, not real payments.
 
 ## Check it offline
-
-A landlord does not have to trust Kassa's server. Save the record and the issuer's public keys, then verify locally:
 
 ```bash
 curl -s localhost:4000/api/public/credit-record/T2ZdYzfqDQrZNbujnWqknw.json -o record.json
@@ -73,8 +71,8 @@ bun run credit:verify record.json --key jwks.json
 }
 ```
 
-`credit:verify` recomputes the RFC 8785 (JCS) SHA-256 of the bundle and checks the Ed25519 signature: version 3 signs `"kassa:credit-record:v3:" + sha256` with the credit record key; older records sign the bare hash with the ledger key. `--key` also accepts a URL, for example `--key https://kassa-judge.vercel.app/api/public/keys`.
+`credit:verify` recomputes the RFC 8785 (JCS) SHA-256 and checks the Ed25519 signature: v3 signs `"kassa:credit-record:v3:" + sha256` with the credit record key; older records sign the bare hash with the ledger key. `--key` also takes a URL, e.g. `--key https://kassa-judge.vercel.app/api/public/keys`.
 
-Change one figure in the bundle (for example `summary.billsTotal`) and run it again: `hashMatches` and `ok` turn `false` and the command exits 1.
+Edit one figure (e.g. `summary.billsTotal`) and rerun: `hashMatches` and `ok` turn `false`, exit code 1.
 
 Code: `apps/api/src/modules/credit-record/`, `apps/api/scripts/credit-verify.ts`; app screen: `apps/mobile/src/app/credit-record.tsx`.

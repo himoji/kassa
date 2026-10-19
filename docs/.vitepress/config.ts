@@ -79,7 +79,6 @@ export default withMermaid(
           { text: "Technical specification", link: "/architecture/tech-spec" },
           { text: "Statement import design", link: "/architecture/statement-import" },
           { text: "Decision log", link: "/architecture/decisions" },
-          { text: "Build plan", link: "/architecture/build-plan" },
         ],
       },
       {

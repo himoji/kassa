@@ -1,10 +1,10 @@
 # Verify the ledger and anchors
 
-Every security-relevant event (logins, payees, proposals, approvals, payments, webhooks, refusals) is a ledger entry. Entries are hash-chained over their RFC 8785 (JCS) canonical form, every 20 entries a checkpoint is signed with Ed25519, a signed head anchor catches a truncated tail, and checkpoints are anchored on Sepolia. Three commands check all of it.
+Every security-relevant event (logins, payees, proposals, approvals, payments, webhooks, refusals) is a ledger entry, hash-chained over its RFC 8785 (JCS) form. Every 20 entries a checkpoint is signed with Ed25519, a signed head anchor catches a truncated tail, and checkpoints are anchored on Sepolia.
 
 ## 1. The hash chain and checkpoints
 
-Run against the local database (stop `bun run dev` first: PGlite allows one process):
+Stop `bun run dev` first (PGlite allows one process):
 
 ```bash
 bun run ledger:verify
@@ -22,7 +22,7 @@ bun run ledger:verify
 }
 ```
 
-That is a fresh seed with a few logins, so there is no checkpoint yet. The committed report for the simulated story run says:
+A fresh seed has no checkpoint yet. The committed report for the simulated story run:
 
 ```bash
 jq '{ok, entries, checkpoints: (.checkpoints | length), problems}' docs/evidence/ledger-verify.json
@@ -33,14 +33,12 @@ jq '{ok, entries, checkpoints: (.checkpoints | length), problems}' docs/evidence
 ```
 
 ::: warning
-`ledger:verify` writes its report to `docs/evidence/ledger-verify.json`. Run `git checkout docs/evidence/ledger-verify.json` afterwards if you do not mean to replace the committed evidence.
+`ledger:verify` overwrites `docs/evidence/ledger-verify.json`. Run `git checkout docs/evidence/ledger-verify.json` afterwards to keep the committed evidence.
 :::
 
-The command exits 1 on any mismatch: an edited payload, a removed entry, a checkpoint whose signature does not verify, or a head that does not match the signed head anchor.
+Exits 1 on an edited payload, a removed entry, a bad checkpoint signature, or a head that does not match the signed head anchor.
 
 ## 2. The anchors on Sepolia, without a database
-
-A reviewer can check the committed anchors against the chain with nothing but the repository:
 
 ```bash
 bun run ledger:anchor:verify --no-db
@@ -59,10 +57,10 @@ bun run ledger:anchor:verify --no-db
 }
 ```
 
-It reads each transaction and compares its memo, `kassa:ledger-anchor:v1:<seq>:<headHash>:<keyId>`, with `docs/evidence/anchors.json`. You can also open the transactions on [Etherscan](https://sepolia.etherscan.io/tx/0x83b2b7b9adaec23116b02ee00663d5437d8e5220977a0a70716ef364a36fba13) and read the memo as text.
+Compares each transaction's memo, `kassa:ledger-anchor:v1:<seq>:<headHash>:<keyId>`, with `docs/evidence/anchors.json`. The memo is readable on [Etherscan](https://sepolia.etherscan.io/tx/0x83b2b7b9adaec23116b02ee00663d5437d8e5220977a0a70716ef364a36fba13).
 
 ::: tip If it hangs
-The default public Sepolia RPC can be slow or blocked behind some proxies. Point it at another one:
+The default public Sepolia RPC can be slow or blocked behind proxies:
 
 ```bash
 ANCHOR_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com bun run ledger:anchor:verify --no-db
@@ -76,10 +74,10 @@ curl -s https://kassa-judge.vercel.app/api/public/anchors | jq '{network, schedu
 bun run ledger:anchor:verify --url https://kassa-judge.vercel.app
 ```
 
-`"scheduled": false` means the deployment has no `ANCHOR_PRIVATE_KEY` and anchors nothing on its own; see [On-chain anchoring](../guide/on-chain-anchoring.md).
+`"scheduled": false`: no `ANCHOR_PRIVATE_KEY`, so it anchors nothing itself; see [On-chain anchoring](../guide/on-chain-anchoring.md).
 
 ## Try to break it
 
-The [evidence room](https://kassa-sand.vercel.app/showcase) has an illustrative ledger you can tamper with in the browser. To try it on the real one, change one payload in the local database (for example with `psql` on a Postgres setup) and run `bun run ledger:verify` again: `ok` turns `false`, `problems` lists what no longer matches, and the command exits 1.
+The [evidence room](https://kassa-sand.vercel.app/showcase) has an illustrative ledger to tamper with in the browser. On the real one, change a payload in the local database (e.g. `psql` on Postgres) and rerun `bun run ledger:verify`: `ok` turns `false`, `problems` lists the mismatches, exit code 1.
 
 Code: `apps/api/src/modules/ledger/` (`internal.ts` writes entries and checkpoints, `anchor.ts` and `autoAnchor.ts` anchor them), `apps/api/scripts/ledger-verify.ts`.

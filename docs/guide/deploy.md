@@ -1,17 +1,17 @@
 # Deploy
 
-Kassa deploys to Vercel as one project that serves everything from one origin (WebAuthn needs that). Docker Compose is an alternative path.
+One Vercel project serving everything from one origin (WebAuthn needs that). Docker Compose is an alternative.
 
 ## Vercel
 
 | Path | Served by |
 | --- | --- |
 | `/` | Static web export of `apps/mobile` (`apps/mobile/dist`) |
-| `/api/*`, `/mock/*` | One Vercel Function, `api/index.ts` (Bun runtime). It starts the API and the mock world on loopback inside the instance and proxies each request to the right one |
+| `/api/*`, `/mock/*` | One Vercel Function, `api/index.ts` (Bun runtime), which starts the API and mock world on loopback and proxies to them |
 
 Files: `vercel.json`, `api/index.ts`, `scripts/vercel-build.ts` (migrations on production builds, then `expo export`), `.vercelignore`.
 
-A Postgres database is required (PGlite needs a writable disk, which a function does not have). Any `postgres://` URL in `DATABASE_URL` works, for example Neon from the Vercel Marketplace.
+Needs Postgres (a function has no writable disk for PGlite): any `postgres://` URL in `DATABASE_URL`, e.g. Neon from the Vercel Marketplace.
 
 `bash scripts/deploy-vercel.sh` runs every step below (later deploys: `--redeploy`).
 
@@ -34,44 +34,40 @@ printf '%s' fake   | vercel env add ISSUING_PROVIDER production
 vercel deploy --prod                          # migrations run in the build
 ```
 
-No domain to configure: the function takes the project's production domain (`VERCEL_PROJECT_PRODUCTION_URL`) as the passkey origin and RP ID, and as the base of mock-world links. `PUBLIC_ORIGIN`, `RP_ID`, `MOCK_PUBLIC_URL` and `KASSA_APP_URL` still override it. With `DEMO_ENABLED=true` the first start loads the demo data into an empty database. If the server cannot start, every `/api` call answers 500 `STARTUP_FAILED` with the reason.
-
-Notes:
-
-- Passkeys are bound to the production domain: open the app there, not on a per-deployment URL. Turn Deployment Protection off for a public demo.
-- Migrations run only on production builds. Set `MIGRATE_ON_BUILD=true` for a preview environment with its own database.
-- The mock world keeps its state in the same Postgres database (`mock_world_*` tables), so every instance and cold start sees the same world. `GET /mock/health` reports `"persistence": "postgres"`.
-- Function timers only run while an instance is awake, so the 15 s scheduler and the mock bank tick also run after incoming requests.
-- `DEV_LOGIN` does not work on Vercel (production mode); sign in with a passkey.
+- No domain setup: the production domain (`VERCEL_PROJECT_PRODUCTION_URL`) becomes the passkey origin, RP ID and mock-world link base. `PUBLIC_ORIGIN`, `RP_ID`, `MOCK_PUBLIC_URL` and `KASSA_APP_URL` override it.
+- With `DEMO_ENABLED=true` the first start loads demo data into an empty database. If startup fails, every `/api` call answers 500 `STARTUP_FAILED` with the reason.
+- Passkeys are bound to the production domain: use it, not a per-deployment URL. Turn Deployment Protection off for a public demo.
+- Migrations run only on production builds; `MIGRATE_ON_BUILD=true` for a preview with its own database.
+- Mock-world state lives in the same Postgres (`mock_world_*` tables), shared across instances; `GET /mock/health` reports `"persistence": "postgres"`.
+- Timers run only while an instance is awake, so the 15 s scheduler and mock bank tick also run after requests.
+- `DEV_LOGIN` does not work on Vercel (production mode); use a passkey.
 
 ## Judge build
 
-A second Vercel project (here `kassa-judge`) with `JUDGE_MODE=true`, `DEMO_ENABLED=true`, its own Neon database and its own signing keys.
+A second Vercel project (`kassa-judge`) with `JUDGE_MODE=true`, `DEMO_ENABLED=true`, its own Neon database and signing keys.
 
-- Dev sign-in is on. Each sign-in gets its own copy of the chosen persona, seeded through the normal code paths, with onboarding and the rent mandate signed by that copy's own server-held test passkey (`judgeModeActive` in `apps/api/src/modules/auth/dev.ts`).
-- A copy starts with the seeded balances plus this month's money from home (KZT 1,000,000) and a simulated 6-month history (`simulated: true`) that the credit record and the agent read.
-- Its rent, covered by the signed mandate, falls due within the scheduler's 3-day window: the scheduler pays it on the next tick, or at once with Settings → Demo → "Run today's scheduled payments" (`POST /api/demo/run-due-payments`).
+- Each dev sign-in gets its own persona copy, with onboarding and rent mandate signed by its server-held test passkey (`judgeModeActive` in `apps/api/src/modules/auth/dev.ts`).
+- A copy starts with seeded balances, this month's money from home (KZT 1,000,000) and a simulated 6-month history (`simulated: true`).
+- Mandated rent falls due within the scheduler's 3-day window: paid on the next tick, or via Settings → Demo → "Run today's scheduled payments" (`POST /api/demo/run-due-payments`).
 - Settings → Demo → "Parents send money" (`POST /api/demo/money-from-home`) adds KZT 1,000,000, 3 times a day per copy.
-- Optional: `ANCHOR_PRIVATE_KEY` anchors the judge ledger on Sepolia on a schedule. `bun run ledger:anchor:keygen` makes the key, then `vercel env add ANCHOR_PRIVATE_KEY production < .anchor-key` and a redeploy ([On-chain anchoring](./on-chain-anchoring.md#turn-it-on-for-a-deployment)).
+- Optional Sepolia anchoring: `bun run ledger:anchor:keygen`, then `vercel env add ANCHOR_PRIVATE_KEY production < .anchor-key` and redeploy ([On-chain anchoring](./on-chain-anchoring.md#turn-it-on-for-a-deployment)).
 
 ## Docker Compose
 
-`docker-compose.yml` defines Postgres 16, the API, the mock world and Caddy. Caddy serves the static web build at `/`, proxies `/api` and `/mock`, and provides HTTPS for WebAuthn.
+`docker-compose.yml`: Postgres 16, the API, the mock world and Caddy (serves the web build at `/`, proxies `/api` and `/mock`, provides HTTPS for WebAuthn).
 
 ```bash
 cd apps/mobile && bun run build && cd ../..
 docker compose up
 ```
 
-This path is not used for local development, and the repository does not contain a verified Docker run as part of the submission evidence.
+Not used for local development; no verified Docker run is part of the submission evidence.
 
 ## The docs site
 
-The documentation is a static [VitePress](https://vitepress.dev) site in `docs/`:
+A static [VitePress](https://vitepress.dev) site in `docs/`, deployable to any static host (GitHub Pages, Vercel, Netlify):
 
 ```bash
 bun run docs:build                     # docs/.vitepress/dist
 DOCS_BASE=/docs/ bun run docs:build    # to serve it under a sub-path
 ```
-
-It deploys anywhere that serves static files (GitHub Pages, Vercel, Netlify).

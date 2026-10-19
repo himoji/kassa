@@ -1,10 +1,10 @@
 # Call the API
 
-The app talks to a Fastify API under `/api`. This example signs in as Dana with the development sign-in and reads her money. The full route list is in the [HTTP API reference](../reference/http-api.md).
+Sign in as Dana with the dev sign-in and read her money. All routes: [HTTP API reference](../reference/http-api.md).
 
 ## 1. Sign in
 
-`POST /api/auth/dev/login` exists only with `DEMO_ENABLED=true` and `DEV_LOGIN=true` (or on the judge build). `demoClaim: true` signs in as the seeded hero, Dana; `client: "native"` returns bearer tokens instead of cookies.
+`POST /api/auth/dev/login` exists only with `DEMO_ENABLED=true` and `DEV_LOGIN=true` (or on the judge build). `demoClaim: true` signs in as Dana; `client: "native"` returns bearer tokens instead of cookies.
 
 ```bash
 curl -s localhost:4000/api/auth/dev/login \
@@ -24,8 +24,6 @@ curl -s localhost:4000/api/auth/dev/login \
 }
 ```
 
-Keep the access token for the next calls:
-
 ```bash
 TOKEN=$(curl -s localhost:4000/api/auth/dev/login -H 'content-type: application/json' \
   -H 'origin: http://localhost:8081' -d '{"demoClaim":true,"client":"native"}' | jq -r .tokens.accessToken)
@@ -33,7 +31,7 @@ auth=(-H "authorization: Bearer $TOKEN")
 ```
 
 ::: tip Errors are RFC 9457 problem details
-Every error has `type`, `title`, `status`, `detail` and a machine-readable `code`. Leaving out `client` above gives:
+`type`, `title`, `status`, `detail` and a machine-readable `code`. Without `client`:
 
 ```json
 { "type": "/problems/VALIDATION_FAILED", "status": 400, "code": "VALIDATION_FAILED",
@@ -44,7 +42,7 @@ Every error has `type`, `title`, `status`, `detail` and a machine-readable `code
 
 ## 2. Balances in every currency
 
-Money is always integer minor units (`amountMinor`), with a home-currency equivalent.
+Integer minor units (`amountMinor`) plus a home-currency equivalent.
 
 ```bash
 curl -s "${auth[@]}" localhost:4000/api/balances
@@ -74,24 +72,19 @@ curl -s "${auth[@]}" localhost:4000/api/obligations | jq '.obligations[0]'
 ```json
 {
   "payeeName": "University in Budapest",
-  "payeeStatus": "VERIFIED",
   "amountMinor": 240000,
   "currency": "EUR",
-  "homeAmountMinor": 122106115,
   "dueDate": "2026-10-31",
-  "recurrence": "TERM",
-  "reference": "RF39RUB2026F04217",
-  "category": "tuition",
   "coverage": "CONVERTIBLE",
   "conversions": [
     { "fromCurrency": "KZT", "toCurrency": "EUR", "amountMinor": 175734, "estimatedDebitMinor": 89999900, "routeId": "kzt-mock-bank" },
     { "fromCurrency": "USD", "toCurrency": "EUR", "amountMinor": 34316, "estimatedDebitMinor": 38843, "routeId": "usd-mock-bank" }
   ],
-  "status": "DUE"
+  …
 }
 ```
 
-`coverage: "CONVERTIBLE"` means no single balance covers the EUR 2,400 tuition, but converting KZT and USD into EUR first would. Rent shows `"coverage": "COVERED"` with its cheapest route.
+`CONVERTIBLE`: no single balance covers EUR 2,400, but converting KZT and USD into EUR would. Rent shows `COVERED` with its cheapest route.
 
 ## 4. The limits the rules enforce
 
@@ -104,11 +97,9 @@ curl -s "${auth[@]}" localhost:4000/api/caps
             "perMonthMinor": 300000000, "smallAutoMinor": 1000000, "reserveMinor": 5000000 } }
 ```
 
-Below `smallAutoMinor` (KZT 10,000) a payment to a verified payee can go through on its own; anything above needs a passkey or a signed mandate, and nothing can exceed the caps. Raising a cap needs the passkey; loosening other rules waits 24 hours ([self-assessment](../security/self-assessment.md), invariant I8).
+Below `smallAutoMinor` (KZT 10,000) a payment to a verified payee can go through alone; above it needs a passkey or signed mandate; nothing exceeds the caps. Raising a cap needs the passkey; loosening other rules waits 24 hours ([self-assessment](../security/self-assessment.md), invariant I8).
 
 ## 5. The ledger
-
-Every security-relevant event is a hash-chained entry.
 
 ```bash
 curl -s "${auth[@]}" 'localhost:4000/api/ledger?limit=1'
@@ -127,7 +118,7 @@ curl -s "${auth[@]}" 'localhost:4000/api/ledger?limit=1'
 }
 ```
 
-Each `hash` covers the entry and the previous `hash`, so changing any entry breaks every later one. See [Verify the ledger and anchors](./verify-ledger.md).
+Each `hash` covers the entry and the previous `hash`, so editing one entry breaks all later ones. See [Verify the ledger and anchors](./verify-ledger.md).
 
 ## Public endpoints (no sign-in)
 
@@ -135,6 +126,6 @@ Each `hash` covers the entry and the previous `hash`, so changing any entry brea
 | --- | --- |
 | `GET /api/health` | Service and migration status |
 | `GET /api/fx/rates` | Today's reference rates (ECB via Frankfurter and the National Bank of Kazakhstan, or `fixtures/fx-rates.json` with `FX_OFFLINE=1`) |
-| `GET /api/public/keys` | The issuer's Ed25519 public keys as a JWKS |
-| `GET /api/public/anchors` | Ledger anchors on Sepolia, with explorer links |
+| `GET /api/public/keys` | Issuer's Ed25519 public keys (JWKS) |
+| `GET /api/public/anchors` | Sepolia ledger anchors, with explorer links |
 | `GET /api/public/verify/:id` | A credit record's verification result |

@@ -1,248 +1,242 @@
 # Privacy (GDPR and related rules)
 
-This document describes how Kassa handles personal data in the submitted build: the record of processing (GDPR Art. 30), the data map, data minimisation, data subject rights and how erasure works, retention, the AI transparency notice (EU AI Act Art. 50), a DPIA summary (Art. 35), a note on the Chinese region (PIPL), and PCI DSS scope reduction.
+**Status.** Sandbox build: no real money moves, no licensed payment partner. Describes the code in this repository; what it does not do is marked. Not legal advice; not reviewed by counsel.
 
-**Status of this build.** Kassa runs in sandbox mode. No real money moves and no licensed payment partner is involved. The text describes the design and the behaviour of the code in this repository. Items the code does not do are marked as such. This document is not legal advice and has not been reviewed by counsel.
-
-Related: [security/self-assessment.md](./self-assessment.md) (controls and residual risks), [security/compliance.md](./compliance.md) (standards mapping). The processing-information endpoint `GET /api/privacy/export` returns a machine-readable version of the purposes and recipients (`processingInfo()` in `apps/api/src/modules/privacy/service.ts`).
+Related: [security/self-assessment.md](./self-assessment.md), [security/compliance.md](./compliance.md). `GET /api/privacy/export` returns the purposes and recipients in machine-readable form (`processingInfo()` in `apps/api/src/modules/privacy/service.ts`).
 
 ## 1. Roles
 
 | Role | Party | Note |
 | --- | --- | --- |
-| Controller (in this prototype) | Kassa operator | Stated in the export as "Kassa (competition prototype; no real money moves)". A production controller would be the licensed operator |
-| Processor | AI model provider for the planner (`PLANNER_MODEL`) | OpenRouter (and the model vendor it routes to), OpenAI, Google, or a local model (`local`) that runs on infrastructure the operator controls |
-| Processor | AI model provider for the Reader (`READER_MODEL`) | Same options. Can differ from the planner |
-| Processor | Stripe (test mode) | Card Issuing and PaymentIntents. Card data is entered in Stripe's own payment form |
-| Simulated recipient | Mock bank, QR wallet, pizza shop, supplier, landlord, university, insurer | Part of this repository. No real third party receives data |
+| Controller (prototype) | Kassa operator | Export says "Kassa (competition prototype; no real money moves)". In production: the licensed operator |
+| Processor | Planner model provider (`PLANNER_MODEL`) | OpenRouter (and its routed vendor), OpenAI, Google, or `local` on operator infrastructure |
+| Processor | Reader model provider (`READER_MODEL`) | Same options; can differ from the planner |
+| Processor | Stripe (test mode) | Card Issuing and PaymentIntents. Card data entered in Stripe's form |
+| Simulated recipient | Mock bank, QR wallet, pizza shop, supplier, landlord, university, insurer | In this repository; no real third party |
 
-No analytics, crash reporting or advertising SDK is configured in the mobile app (the ReadyNative setup flags are `--analytics none --crash none --consent none`, `architecture/decisions.md` 2026-10-10).
+No analytics, crash reporting or advertising SDK in the mobile app (`--analytics none --crash none --consent none`, `architecture/decisions.md` 2026-10-10).
 
 ## 2. Record of processing (Art. 30(1))
 
-| Purpose | Lawful basis | Data categories | Recipients | Transfers | Retention |
-| --- | --- | --- | --- | --- | --- |
-| Account and sign-in with passkeys | Art. 6(1)(b) contract | Display name; passkey credential ID, public key and counter; sessions (tokens are not stored in the database); device push token and platform (if registered) | None outside Kassa | None | Until erasure. Tokens expire (access 15 min, refresh 30 days, cookie 7 days) |
-| Budgets, bills, balances, forecast | Art. 6(1)(b) contract | Incomes, obligations, budgets, cards (label, last 4 digits, billing currency), balances, transactions (merchant, amount, category) | None outside Kassa | None | Until erasure. Raw merchant text minimised after 90 days |
-| Payments (approved orders) | Art. 6(1)(b) contract; Art. 6(1)(c) legal obligation for payment records | Payee name and encrypted account, amount, currency, purpose, order and approval records, payment status | Stripe (card issuing, PaymentIntents, test mode); simulated rails | If Stripe processes outside the EEA, see transfers in section 9 | Payment records kept after erasure (Art. 17(3)(b)); names, accounts and purposes overwritten |
-| AI chat (planner) | Art. 6(1)(a) consent, withdrawable; Art. 6(1)(b) for the service requested | Redacted chat text; redacted tool results (balances, budgets, obligations, payee facts) | Planner model provider (processor) | Depends on provider; see section 9 | Conversations and placeholder maps: 30 days after last message |
-| Document reading (invoices, notifications, emails, screenshots) | Art. 6(1)(a) consent, withdrawable | Raw text or image of the document the user uploaded or asked Kassa to read; extracted fields and evidence | Reader model provider (processor) | Depends on provider; see section 9 | Uploaded documents: 30 days. Extracted fields are kept in the cached Reader result for the same period |
-| Expense capture from notifications, Shortcut or text | Art. 6(1)(b) contract | Merchant, amount, currency, card hint, time, device token hash | None outside Kassa (local parsers first, Reader as fallback) | As for the Reader if the fallback runs | Raw merchant text: 90 days, then minimised to the normalised merchant. Notifications: 90 days |
-| Identity check (KYC), simulated (2026-10-16) | Art. 6(1)(c) legal obligation (customer due diligence under AML law, once a licensed partner runs it); in the sandbox Art. 6(1)(b) | Entered and sent once to the checker: document type, number, country, full name, date of birth, expiry, liveness result. Stored: outcome, reason codes, document type and country, timestamps, last 4 characters of the number (sealed) | Simulated identity checker (mock-world, part of this repository); in production a licensed KYC partner | None | Outcome rows kept after erasure (Art. 17(3)(b), AMLD Art. 40); the sealed last 4 become unreadable |
-| Sanctions screening and fraud prevention | Art. 6(1)(c) legal obligation (sanctions and AML screening); Art. 6(1)(f) legitimate interest (fraud prevention, abuse prevention) | Payee name, transliterated name, screening result | None outside Kassa | None | Screening result kept as part of the payment record |
-| Security logging and audit ledger | Art. 6(1)(f) legitimate interest; Art. 6(1)(c) for payment record-keeping | Authentication and authorisation decisions with user ID; hashed order and approval records | None | None | Ledger entries are kept. Personal fields are sealed and become unreadable on erasure (section 6) |
-| Rate limiting | Art. 6(1)(f) legitimate interest | Client IP address | None | None | Counters are in memory and reset on restart. IP addresses may appear in server logs; no log retention policy is configured in this repository |
-| Credit record export (user-initiated sharing) | Art. 6(1)(a) consent (the user chooses to export and share) | Selected payment history items; the bundle is signed with the ledger checkpoint key | The person the user gives the link to | None | The bundle is stored as a ledger entry. No expiry or revoke route exists in this build (risk R22 in security/self-assessment.md) |
-| Demo controls (demo clock, reset) | Not personal data (sandbox state only) | Demo clock offset, agent mode | Operator | None | Reset clears data |
+| Purpose | Lawful basis | Data | Recipients | Retention |
+| --- | --- | --- | --- | --- |
+| Account, passkey sign-in | Art. 6(1)(b) | Display name; passkey ID, public key, counter; sessions (tokens not stored); push token and platform | None | Until erasure. Access 15 min, refresh 30 days, cookie 7 days |
+| Budgets, bills, balances, forecast | Art. 6(1)(b) | Incomes, obligations, budgets, cards (label, last 4, currency), balances, transactions | None | Until erasure. Raw merchant text minimised after 90 days |
+| Payments | Art. 6(1)(b); Art. 6(1)(c) for records | Payee name, encrypted account, amount, currency, purpose, order, approval, status | Stripe (test mode); simulated rails | Kept after erasure (Art. 17(3)(b)); names, accounts, purposes overwritten |
+| AI chat (planner) | Art. 6(1)(a), withdrawable; Art. 6(1)(b) | Redacted chat and tool results | Planner provider | 30 days after last message |
+| Document reading | Art. 6(1)(a), withdrawable | Raw text or image; extracted fields and evidence | Reader provider | 30 days, incl. cached Reader result |
+| Expense capture (notifications, Shortcut, text) | Art. 6(1)(b) | Merchant, amount, currency, card hint, time, device token hash | None (local parsers; Reader fallback) | Raw merchant text 90 days, then normalised. Notifications 90 days |
+| Identity check (KYC), simulated (2026-10-16) | Art. 6(1)(c) (AML due diligence, once a licensed partner runs it); sandbox Art. 6(1)(b) | Sent once: document type, number, country, full name, date of birth, expiry, liveness. Stored: outcome, reason codes, document type and country, timestamps, last 4 of the number (sealed) | Simulated checker (mock-world); production: licensed KYC partner | Outcomes kept after erasure (Art. 17(3)(b), AMLD Art. 40); sealed last 4 unreadable |
+| Sanctions screening, fraud prevention | Art. 6(1)(c); Art. 6(1)(f) | Payee name, transliteration, result | None | With the payment record |
+| Security logging, audit ledger | Art. 6(1)(f); Art. 6(1)(c) | Auth decisions with user ID; hashed orders and approvals | None | Kept; personal fields sealed, unreadable after erasure (section 6) |
+| Rate limiting | Art. 6(1)(f) | Client IP | None | In-memory counters, reset on restart. IPs may be in server logs; no log retention configured |
+| Credit record export | Art. 6(1)(a) | Selected payment items; signed with the ledger checkpoint key | Whoever gets the link | Stored as a ledger entry. No expiry or revoke (R22, security/self-assessment.md) |
+| Demo controls | Not personal data | Clock offset, agent mode | Operator | Reset clears |
+
+Transfers outside the EEA: only to the AI providers (chat, documents, capture's Reader fallback) and Stripe, see section 9.
 
 ## 3. Data map (per table)
 
-Source: `apps/api/drizzle/0000_init.sql`, `0001_security_privacy.sql` and `apps/api/src/db/schema*.ts`.
+Source: `apps/api/drizzle/0000_init.sql`, `0001_security_privacy.sql`, `apps/api/src/db/schema*.ts`.
 
 | Table | Personal data | Protection | On erasure |
 | --- | --- | --- | --- |
-| `users` | Display name, home currency, consent time, restriction time, erasure time | Name is sealed in the ledger on rectification | Name replaced by `[erased]`. Row kept as a tombstone (`erased_at`); every session refused |
-| `user_keys` | Wrapped per-user data key | AES-256-GCM under `USER_KEK`, AAD binds the user ID | Wrapped key set to null (tombstone row kept) |
-| `webauthn_credentials_rules`, `webauthn_credentials_payments` | Credential ID and public key (pseudonymous) | Public keys only; no secrets | Deleted |
-| `devices` | Push token, platform, Shortcut device token hash | Shortcut token stored as SHA-256 digest only | Deleted |
-| `profiles` | Incomes, reserve rules, caps, signed base rules, bank profile and Stripe cardholder IDs | Plain JSON and IDs | Incomes and reserve rules emptied; bank profile and Stripe cardholder IDs cleared. Caps and signed base rules are kept (they are not in the erasure categories) |
-| `payees` | Payee name, account (encrypted), account hash | AES-256-GCM with `ACCOUNT_ENC_KEY`, AAD binds the user ID and (v2, since 2026-10-15) the payee ID | Deleted |
-| `obligations`, `budgets`, `cards`, `card_fee_profiles` | Bill purposes and references, budget limits, card label and last 4 digits | Plain | Deleted |
-| `transactions` | Raw merchant text (until minimised), normalised merchant, amount, card, and where the tap happened when the Shortcut sends it (`place`: street, city, country, coordinates rounded to about 100 m, the likely place) | Raw text, street and coordinates minimised after 90 days; city, country and place name kept for spending history | Deleted |
-| `merchant_category_memory` | Merchant to category corrections | Plain | Deleted |
-| `mandates` | Payee IDs, caps, signed mandate assertion | Assertion verified on every use | Revoked and kept without names (Art. 17(3)(e)) |
-| `rule_changes` | Before and after values, assertion | Plain | Kept without names (Art. 17(3)(e)) |
-| `proposals` | Draft, canonical order (payee name, purpose, amounts), decision, reason codes | Canonical order is hashed and signed | Unexecuted proposals deleted. Executed proposals keep the hash and signature; names overwritten |
-| `approvals`, `used_nonces` | Order hash, approval signature, nonce, user assertion | Signed | Kept (payment record) |
-| `payments` | Amount, rail, status, rail reference, details, reason codes | `details` keeps only the allowlist in `PAYMENT_DETAIL_KEYS_KEPT` (no names) | Kept with names, accounts and purposes overwritten |
-| `issued_cards` | Stripe card ID, last 4 digits, expected merchant (normalised) | No full PAN stored | Rows kept as payment records. Expected merchant replaced by `[erased]` |
-| `kyc_checks` | Identity check outcome, checker reason codes, document type and country, timestamps; last 4 characters of the document number in `pii`. Never the full number, name, date of birth or an image | `pii` sealed with AES-256-GCM under the per-user key (`sealPii`) | Kept (customer due diligence record); `pii` unreadable (key destroyed) |
-| `ledger_entries` | Event payloads. Personal fields are sealed in a `pii` member | AES-256-GCM under the per-user key. Hash chain covers the ciphertext | Ciphertext becomes unreadable (key destroyed). Entries and hashes kept |
-| `ledger_checkpoints` | Signed head hashes | Ed25519 signature | Kept |
-| `notifications` | Title, body, structured data | Plain | Deleted (also after 90 days) |
-| `agent_messages` | Redacted planner history (no raw personal data) | Redacted before storage | Deleted |
-| `placeholder_maps` | Real values behind placeholders: person names, normalised IBANs (in clear), card references (keyed digest and last 4) | Server only, never sent to a model. **Names and IBANs are stored in clear** (see section 10) | Deleted |
-| `agent_documents` | Uploaded document reference and cached Reader result | Plain | Deleted |
-| `onboarding_drafts` | Onboarding profile draft | Plain | Deleted |
-| `demo_state` | Clock offset, agent mode | No personal data | Not applicable |
+| `users` | Name, home currency, consent, restriction and erasure times | Name sealed in ledger on rectification | Name `[erased]`; tombstone row (`erased_at`); all sessions refused |
+| `user_keys` | Wrapped data key | AES-256-GCM under `USER_KEK`, AAD = user ID | Wrapped key nulled, tombstone kept |
+| `webauthn_credentials_rules`, `webauthn_credentials_payments` | Credential ID, public key | Public only | Deleted |
+| `devices` | Push token, platform, Shortcut token hash | Shortcut token as SHA-256 | Deleted |
+| `profiles` | Incomes, reserve rules, caps, signed base rules, bank profile and Stripe cardholder IDs | Plain | Incomes, reserve rules, bank and Stripe IDs cleared. Caps and base rules kept (not in erasure categories) |
+| `payees` | Name, account (encrypted), account hash | AES-256-GCM, `ACCOUNT_ENC_KEY`, AAD = user ID and (v2, since 2026-10-15) payee ID | Deleted |
+| `obligations`, `budgets`, `cards`, `card_fee_profiles` | Bill purposes, references, limits, card label, last 4 | Plain | Deleted |
+| `transactions` | Raw and normalised merchant, amount, card, `place` from the Shortcut (street, city, country, coordinates rounded to about 100 m, likely place) | Raw text, street, coordinates minimised after 90 days; city, country, place kept | Deleted |
+| `merchant_category_memory` | Category corrections | Plain | Deleted |
+| `mandates` | Payee IDs, caps, signed assertion | Verified on every use | Revoked, kept without names (Art. 17(3)(e)) |
+| `rule_changes` | Before/after values, assertion | Plain | Kept without names (Art. 17(3)(e)) |
+| `proposals` | Draft, canonical order, decision, reason codes | Order hashed and signed | Unexecuted deleted; executed keep hash and signature, names overwritten |
+| `approvals`, `used_nonces` | Order hash, signature, nonce, assertion | Signed | Kept (payment record) |
+| `payments` | Amount, rail, status, reference, details, reason codes | `details` limited to `PAYMENT_DETAIL_KEYS_KEPT` | Kept; names, accounts, purposes overwritten |
+| `issued_cards` | Stripe card ID, last 4, expected merchant | No full PAN | Kept; expected merchant `[erased]` |
+| `kyc_checks` | Outcome, reason codes, document type and country, timestamps; last 4 of document number in `pii`. Never full number, name, birth date or image | `pii` sealed per-user (`sealPii`) | Kept (due diligence); `pii` unreadable |
+| `ledger_entries` | Event payloads; personal fields in sealed `pii` | AES-256-GCM per-user key; hash chain covers ciphertext | Ciphertext unreadable; entries and hashes kept |
+| `ledger_checkpoints` | Signed head hashes | Ed25519 | Kept |
+| `notifications` | Title, body, data | Plain | Deleted (also after 90 days) |
+| `agent_messages` | Redacted planner history | Redacted before storage | Deleted |
+| `placeholder_maps` | Real values behind placeholders: names, normalised IBANs (in clear), card references (keyed digest, last 4) | Server only, never sent to a model. **Names and IBANs in clear** (section 10) | Deleted |
+| `agent_documents` | Document reference, cached Reader result | Plain | Deleted |
+| `onboarding_drafts` | Profile draft | Plain | Deleted |
+| `demo_state` | None | n/a | n/a |
 
-Notes:
-
-- Placeholder maps are the only place where a model-facing placeholder can be resolved back to a real value. They are never sent to a model.
-- The ledger never holds a full card number. Card references use an HMAC-SHA256 digest (section 8).
+The ledger never holds a full card number; card references use an HMAC-SHA256 digest (section 14).
 
 ## 4. Data minimisation
 
-| Measure | What it does | Where | Test |
-| --- | --- | --- | --- |
-| Redaction before every planner call (I11) | Replaces IBANs, card numbers (Luhn-checked), emails, phone numbers and personal names with stable placeholders per conversation | `apps/api/src/modules/agent/redact.ts`, `agent/middleware.ts` | `apps/api/test/intel/redact.test.ts` (11 tests); `apps/api/test/security/llm-redaction.test.ts` (no personal data in the planner prompt for a seeded conversation, including a document's Reader output) |
-| Enum fields are never redacted | Keeps status, kind and currency fields readable for the model | `agent/redact.ts` (`ENUM_KEYS`) | `apps/api/test/intel/redact.test.ts` |
-| Planner never sees real payee IDs | Planner uses `payee_N` references; `propose_order` resolves them on the server | `agent/tools.ts` | `apps/api/test/intel/agent-loop.test.ts` |
-| Reader is quarantined | No tools, no memory, schema output, evidence checked (I10) | `reader/` | `apps/api/test/intel/reader.test.ts` |
-| Reader receives raw document text (exception) | Needed to read the amount and account. Documented in section 5 | `reader/reader.ts` | Documented; `architecture/decisions.md` 2026-10-11 |
-| No PAN storage | Keyed digest and last 4 digits only | `agent/redact.ts` (`panRef`) | `apps/api/test/security/llm-redaction.test.ts` ("no column in any migration can hold a full card number") |
-| Capture keeps last 4 digits | Card numbers in notification text are cut to the last 4 digits | `capture/` | `apps/api/test/security/llm-redaction.test.ts` ("capture keeps at most the last 4 digits") |
-| Minimised export of processing details | Only purposes, recipients and retention in the processing info | `privacy/service.ts` | `apps/api/test/security/privacy.test.ts` |
-| Payment details allowlist | Only non-personal keys kept on payment rows after erasure | `privacy/service.ts` (`PAYMENT_DETAIL_KEYS_KEPT`) | Erasure test in `apps/api/test/security/privacy.test.ts` |
+| Measure | Where | Test |
+| --- | --- | --- |
+| Redaction before every planner call (I11): IBANs, Luhn-checked card numbers, emails, phones, names to stable per-conversation placeholders | `apps/api/src/modules/agent/redact.ts`, `agent/middleware.ts` | `apps/api/test/intel/redact.test.ts` (11 tests); `apps/api/test/security/llm-redaction.test.ts` (seeded conversation incl. Reader output) |
+| Enum fields (status, kind, currency) never redacted | `agent/redact.ts` (`ENUM_KEYS`) | `apps/api/test/intel/redact.test.ts` |
+| Planner sees `payee_N`, never real payee IDs; `propose_order` resolves on the server | `agent/tools.ts` | `apps/api/test/intel/agent-loop.test.ts` |
+| Reader quarantined: no tools, no memory, schema output, evidence checked (I10) | `reader/` | `apps/api/test/intel/reader.test.ts` |
+| Processing info lists only purposes, recipients, retention | `privacy/service.ts` | `apps/api/test/security/privacy.test.ts` |
+| Payment details allowlist after erasure | `privacy/service.ts` (`PAYMENT_DETAIL_KEYS_KEPT`) | Erasure test, `apps/api/test/security/privacy.test.ts` |
 
 ## 5. What the Reader and the planner receive
 
 | Recipient | Receives | Does not receive |
 | --- | --- | --- |
-| Planner model | The user's chat text after redaction. Tool results after redaction: balances, budgets, obligations, payee facts, route options, forecast | Real names, IBANs, card numbers, emails, phone numbers, real payee IDs, raw documents, the database |
-| Reader model | The raw text (or image) of a document or message the user asked Kassa to read, and the extraction instructions | Tools, other users' data, the ledger, keys. The output is checked against the source by the server |
-| Reader model, payment note (`advice/enrich.ts`, AI consent only) | After a Shortcut or wallet tap: the merchant text as printed (quoted as data), the city, street and country if sent, the amount, category, and the budget and spending figures the server computed | Names, card numbers, coordinates, other purchases' merchants, tools. A place guess the model is unsure of is dropped; a tip that quotes a number not in the figures is dropped |
-| Reader model, bank statement fallback (`dataport/ai.ts`, AI consent only, only when the deterministic readers cannot follow a layout) | The statement text after statement redaction (`dataport/redact.ts`): dates, amounts, merchants and the names of other people as printed | The holder's name and its forms, IBANs, card and account numbers, national ids, reference codes, addresses in the header. Rows it returns that are not in the statement are dropped |
-| Reader model, statement categories (AI consent only) | Merchant names the dictionary does not know, redacted, in one batch | Amounts, dates, people's names known to Kassa, accounts |
-| Onboarding planner, after a statement import | Aggregates computed in code (monthly spending per category, money in per source with people as person_N, fees) | Transactions, statement text, accounts, merchants |
+| Planner | Redacted chat; redacted tool results (balances, budgets, obligations, payee facts, routes, forecast) | Names, IBANs, card numbers, emails, phones, real payee IDs, raw documents, the database |
+| Reader (`reader/reader.ts`; exception to redaction, `architecture/decisions.md` 2026-10-11) | Raw text or image of a document the user asked it to read, to read amount and account; extraction instructions | Tools, other users' data, ledger, keys. Output checked against the source |
+| Reader, payment note (`advice/enrich.ts`, AI consent only) | After a Shortcut or wallet tap: merchant text (quoted as data), city, street, country if sent, amount, category, server-computed budget figures | Names, card numbers, coordinates, other merchants, tools. Unsure place guesses and tips quoting numbers not in the figures are dropped |
+| Reader, statement fallback (`dataport/ai.ts`, AI consent only, when deterministic readers fail) | Statement text after `dataport/redact.ts`: dates, amounts, merchants, other people's names as printed | Holder's name and its forms, IBANs, card and account numbers, national ids, reference codes, header addresses. Rows not in the statement are dropped |
+| Reader, statement categories (AI consent only) | Unknown merchant names, redacted, one batch | Amounts, dates, known people's names, accounts |
+| Onboarding planner, after import | Code-computed aggregates (monthly spending per category, money in per source with people as person_N, fees) | Transactions, statement text, accounts, merchants |
 
-Bank statements uploaded for import are not stored: the server reads them in memory for the preview, and only the rows the user imports are kept (as spending, through capture). What the statements showed (the aggregates in `profiles.money_history`: periods, monthly totals, money in per sender as printed, one-off payments) is kept with the profile for the agent, replaced by the next import, and erased with the account. The agent reads it with `get_money_history`; senders' names reach the planner as person_N.
+Uploaded statements are not stored: read in memory for the preview; only imported rows are kept (as spending, via capture). The aggregates (`profiles.money_history`: periods, monthly totals, money in per sender as printed, one-off payments) are kept for the agent, replaced on the next import and erased with the account. The agent reads them with `get_money_history`; senders reach the planner as person_N.
 
-The planner's prompt and tool results are the subject of the I11 test (`apps/api/test/security/llm-redaction.test.ts`). The test runs a multi-tool turn on the seeded user, including a document's Reader output, and checks the planner prompt for personal data.
+I11 test (`apps/api/test/security/llm-redaction.test.ts`): a multi-tool turn on the seeded user, incl. Reader output, checks the planner prompt for personal data.
 
 ## 6. Data subject rights
 
-| Right | Article | How it works | Endpoint | Behaviour |
-| --- | --- | --- | --- | --- |
-| Access | Art. 15 | Export of all personal data the user owns, decrypted, with processing information | `GET /api/privacy/export` (JSON attachment, `Cache-Control: no-store`) | Includes sealed ledger fields, decrypted. Covered by `test/security/privacy.test.ts` |
-| Rectification | Art. 16 | Display name can be changed | `PATCH /api/me` with `displayName` | The change is ledgered (`PROFILE_RECTIFIED`) with the value sealed. Other profile fields are changed through settings and the caps flow |
-| Erasure | Art. 17 | Crypto-shredding, see below | `POST /api/privacy/erase` with `{ confirm: "ERASE" }`, after a passkey assertion (428 round trip) | Irreversible. Every later request with the old session answers 401 `ACCOUNT_ERASED` |
-| Restriction | Art. 18 | Freezes the account and stops AI processing | `POST /api/privacy/restrict` | AI routes answer 403 `PROCESSING_RESTRICTED`. Lifted only through the passkey unfreeze with its 24 h delay (`POST /api/unfreeze`) |
-| Portability | Art. 20 | Same export as Art. 15, in JSON | `GET /api/privacy/export` | Machine-readable JSON |
-| Withdraw consent | Art. 7(3) | Withdraws AI consent | `POST /api/privacy/ai-consent` with `{ consent: false }` | AI chat, document upload and onboarding then answer 403 `AI_CONSENT_REQUIRED` |
-| Object | Art. 21 | No separate objection endpoint in this build. Processing under Art. 6(1)(f) is limited to security logging, rate limiting and fraud and sanctions checks | Not implemented | Consent withdrawal (above) covers the AI processing |
-| Information | Art. 13 and 14 | AI processing notice shown before sign-up and on the profile. A full general privacy notice is not written in this repository | `GET /api/privacy/ai-notice` (public), `GET /api/me` (`aiNotice`) | The AI notice names the planner and Reader provider and model, and what each receives |
-| Automated decisions | Art. 22 | `decide()` is automated. It can refuse, ask, or auto-pay only inside a mandate the user signed with a passkey, or under a base-rules limit the user signed | Every refusal and ask is shown with reason codes | No payment is made without the user's signature except under a mandate or limit the user signed earlier. The user can always freeze |
+| Right | Article | Endpoint | Behaviour |
+| --- | --- | --- | --- |
+| Access | Art. 15 | `GET /api/privacy/export` (JSON attachment, `Cache-Control: no-store`) | All personal data, decrypted (incl. sealed ledger fields), with processing info. `test/security/privacy.test.ts` |
+| Rectification | Art. 16 | `PATCH /api/me` with `displayName` | Ledgered as `PROFILE_RECTIFIED`, value sealed. Other fields via settings and the caps flow |
+| Erasure | Art. 17 | `POST /api/privacy/erase` with `{ confirm: "ERASE" }`, after a passkey assertion (428 round trip) | Crypto-shredding (6.1). Irreversible; old sessions get 401 `ACCOUNT_ERASED` |
+| Restriction | Art. 18 | `POST /api/privacy/restrict` | Freezes account; AI routes 403 `PROCESSING_RESTRICTED`. Lifted only by passkey unfreeze with 24 h delay (`POST /api/unfreeze`) |
+| Portability | Art. 20 | `GET /api/privacy/export` | Same JSON as Art. 15 |
+| Withdraw consent | Art. 7(3) | `POST /api/privacy/ai-consent` with `{ consent: false }` | Chat, document upload, onboarding: 403 `AI_CONSENT_REQUIRED` |
+| Object | Art. 21 | Not implemented | Art. 6(1)(f) use is limited to security logging, rate limiting, fraud and sanctions checks. Consent withdrawal covers AI |
+| Information | Art. 13 and 14 | `GET /api/privacy/ai-notice` (public), `GET /api/me` (`aiNotice`) | AI notice before sign-up and on the profile, naming provider, model and what each receives. No full general privacy notice |
+| Automated decisions | Art. 22 | n/a | `decide()` refuses, asks, or auto-pays only inside a passkey-signed mandate or base-rules limit. Reason codes shown; user can always freeze |
 
 ### 6.1 How erasure works (crypto-shredding)
 
-1. Each user has a 256-bit data key (DEK). It is stored wrapped with AES-256-GCM under the key-encryption key `USER_KEK` (environment variable). The AAD binds the wrapped key to the user ID.
-2. Personal fields in ledger payloads (capture merchant, card-authorization merchant, order-reject reason, QR payee name, remittance sender, payee account hash, credit-record bundle, rectified name) are sealed with the DEK into a `pii` member, `v1.<iv>.<ciphertext>.<tag>`.
-3. Erasure removes data in tables (section 3) and nulls the wrapped DEK, keeping a tombstone row so no new key is created for that user.
-4. Sealed ledger fields become unreadable. Ledger entries, their payload structure and their hashes stay. `bun run ledger:verify` still passes after an erasure (tested).
-5. Retained payment records stay under the user's UUID. Names, accounts and purposes are overwritten. The order hash and approval signature still commit to the original order (section 7).
+1. Each user has a 256-bit data key (DEK), wrapped with AES-256-GCM under `USER_KEK` (env var), AAD = user ID.
+2. Personal ledger fields (capture merchant, card-authorization merchant, order-reject reason, QR payee name, remittance sender, payee account hash, credit-record bundle, rectified name) are sealed with the DEK into `pii`, `v1.<iv>.<ciphertext>.<tag>`.
+3. Erasure deletes table data (section 3) and nulls the wrapped DEK, keeping a tombstone so no new key is created.
+4. Sealed fields become unreadable; entries, structure and hashes stay. `bun run ledger:verify` still passes (tested).
+5. Retained payment records stay under the user's UUID with names, accounts and purposes overwritten; the order hash and signature still commit to the original (section 7).
 
-What is deleted, per the code (`ERASED` in `privacy/service.ts`): profile, name, incomes, reserve rules and AI consent; passkeys in both stores, devices and push tokens; payees and their encrypted accounts, obligations, budgets, cards and card fee profiles; captured transactions and category memory; notifications, conversations, placeholder maps, uploaded documents and onboarding drafts; unexecuted proposals; personal fields in the ledger.
+Deleted (`ERASED` in `privacy/service.ts`): profile, name, incomes, reserve rules, AI consent; passkeys in both stores, devices, push tokens; payees and encrypted accounts, obligations, budgets, cards, card fee profiles; transactions, category memory; notifications, conversations, placeholder maps, documents, onboarding drafts; unexecuted proposals; personal ledger fields.
 
 Erasure needs a fresh passkey assertion over a server-built single-use challenge (`apps/api/src/modules/privacy/routes.ts`). Tests: `apps/api/test/security/privacy.test.ts` ("Art. 17: erase needs a fresh passkey assertion over a server challenge", "after erasure: no personal value survives in any table, in clear").
 
 ### 6.2 Limits of erasure
 
-- **Backups.** A database backup taken before an erasure still holds the wrapped key. If `USER_KEK` is still available, a restored backup can decrypt the erased personal fields. Backups must expire within the period in which a restore is plausible. No backup procedure is configured in this repository (security/self-assessment.md R16).
-- **Processors.** Kassa does not erase data at Stripe (cardholder and transaction records), in the AI provider's logs, or in the mock bank's own records. These are processors' systems. Erasure requests to them are a manual step (security/self-assessment.md R18).
-- **Key compromise.** `USER_KEK` is an environment variable. No KMS, HSM or rotation script exists in this build (security/self-assessment.md R15).
+- **Backups.** A pre-erasure backup holds the wrapped key; with `USER_KEK` it can decrypt erased fields. Backups must expire within the plausible restore window. No backup procedure configured (R16).
+- **Processors.** Stripe, AI provider logs and the mock bank are not erased by Kassa; requests to them are manual (R18).
+- **Key compromise.** `USER_KEK` is an env var; no KMS, HSM or rotation (R15).
+
+(R numbers: security/self-assessment.md.)
 
 ## 7. Erasure residue: retained data (Art. 17(3))
 
-| Retained category | Basis | What remains readable |
+| Retained | Basis | Still readable |
 | --- | --- | --- |
-| Payment records: amount, currency, rail, status, dates, order hash, approval signature, card ID and last 4 | Art. 17(3)(b): legal record-keeping for payment services (AMLD Art. 40 is cited in the code) | Amounts and dates, under the user's UUID. Names, accounts and purposes overwritten |
-| Signed mandates and rule changes (no names), revoked | Art. 17(3)(e): evidence that each automatic payment was authorised | Caps, payee IDs (as references), dates |
-| Identity check outcomes (`kyc_checks`) | Art. 17(3)(b): customer due diligence records (AMLD Art. 40) | Outcome, reason codes, document type and country, dates. The last 4 characters are ciphertext without the destroyed key |
-| Ledger entries with sealed personal fields | Integrity of the append-only audit ledger (I12) | Hashes, event types, timestamps. Personal fields are ciphertext without the destroyed key |
-| User row tombstone | Keeps foreign keys for the retained records | Erasure time |
+| Payment records: amount, currency, rail, status, dates, order hash, signature, card ID, last 4 | Art. 17(3)(b) (AMLD Art. 40 cited in code) | Amounts and dates under the UUID; names, accounts, purposes overwritten |
+| Signed mandates and rule changes, revoked, no names | Art. 17(3)(e): proof each automatic payment was authorised | Caps, payee ID references, dates |
+| `kyc_checks` outcomes | Art. 17(3)(b) (AMLD Art. 40) | Outcome, reason codes, document type and country, dates; last 4 is ciphertext |
+| Ledger entries | Append-only ledger integrity (I12) | Hashes, event types, timestamps; personal fields ciphertext |
+| User tombstone | Foreign keys for retained records | Erasure time |
 
-The order hash and approval signature commit to the original payee and amount. Because payee names are overwritten, the hash cannot be turned back into a name by Kassa, but anyone who already holds the original order can match it. This is a known residue (security/self-assessment.md R17).
+The order hash and signature commit to the original payee and amount. Kassa cannot reverse it to a name, but anyone holding the original order can match it (R17).
 
-The retention period for payment records is not configured in code. The code cites five years (AMLD Art. 40); this value needs confirmation with counsel.
+Payment record retention is not configured in code. The code cites five years (AMLD Art. 40); needs counsel confirmation.
 
 ## 8. Retention
 
-| Config key (`env.ts`) | Default | Data | Action | Job |
-| --- | --- | --- | --- | --- |
-| `RETENTION_DAYS_NOTIFICATIONS` | 90 | Notifications | Deleted | Scheduler, at most once per demo-clock hour |
-| `RETENTION_DAYS_PLACEHOLDER_MAPS` | 30 | Agent conversations (redacted history) and placeholder maps, after the last message | Deleted | Same |
-| `RETENTION_DAYS_DOCUMENTS` | 30 | Uploaded documents and Reader results | Deleted | Same |
-| `RETENTION_DAYS_CAPTURED_TEXT` | 90 | Raw merchant text on transactions | Replaced by the normalised merchant (budgets need the merchant, not the raw text) | Same |
+| Config key (`env.ts`) | Default | Data | Action |
+| --- | --- | --- | --- |
+| `RETENTION_DAYS_NOTIFICATIONS` | 90 | Notifications | Deleted |
+| `RETENTION_DAYS_PLACEHOLDER_MAPS` | 30 | Conversations and placeholder maps, after last message | Deleted |
+| `RETENTION_DAYS_DOCUMENTS` | 30 | Documents and Reader results | Deleted |
+| `RETENTION_DAYS_CAPTURED_TEXT` | 90 | Raw merchant text | Replaced by normalised merchant |
 
-- `0` keeps the data (no purge for that category).
-- The job is `purgeExpired` in `apps/api/src/modules/privacy/service.ts`, run from the scheduler job `retention` (`scheduler/index.ts`). Each run that changes something writes a `RETENTION_PURGED` ledger entry with counts.
+- `0` = keep.
+- `purgeExpired` in `apps/api/src/modules/privacy/service.ts`, run by scheduler job `retention` (`scheduler/index.ts`) at most once per demo-clock hour. Runs that change something write `RETENTION_PURGED` with counts.
 - Tests: `apps/api/test/security/unfreeze-retention.test.ts` ("deletes or minimises data past its retention period and keeps recent data", "runs from the scheduler on the demo clock, at most hourly; 0 days = keep").
-- **Not covered by the purge:** ledger entries (no time-based purge, by design for I12), payment records (retained under Art. 17(3)(b)), user tombstones, in-memory counters, server logs.
+- **Not purged:** ledger entries (by design, I12), payment records (Art. 17(3)(b)), tombstones, in-memory counters, server logs.
 
 ## 9. Transfers outside the EEA
 
-| Recipient | Possible location | Current state |
+| Recipient | Location | State |
 | --- | --- | --- |
-| OpenRouter, OpenAI, Google (AI providers) | Depends on the provider and the configured region. Typically outside the EEA | No data processing agreement or transfer mechanism is configured in this repository. Must be in place before any live use with real personal data |
-| Local model (`local`) | Infrastructure the operator controls (for example Ollama on the operator's server) | No transfer if hosted in the EEA. This is the option for data residency |
-| Stripe | Stripe's own terms set the processing entity and locations | No DPA is accepted or configured in this repository. The operator must accept Stripe's DPA before live use |
+| OpenRouter, OpenAI, Google | Provider and region dependent; typically outside the EEA | No DPA or transfer mechanism configured. Required before live use |
+| `local` model | Operator infrastructure (e.g. Ollama) | No transfer if hosted in the EEA; the data residency option |
+| Stripe | Per Stripe's terms | No DPA accepted. Required before live use |
 | Mock world | Same process group as the API | None |
 
 ## 10. Known gaps in personal-data protection
 
 | Gap | Effect | Status |
 | --- | --- | --- |
-| `placeholder_maps` stores person names and normalised IBANs in clear | A database leak exposes names and IBANs for 30 days | Open. Encrypting these values with the user's data key is the fix |
-| No general privacy notice | Art. 13 information beyond AI processing is not provided | Open. Planned, not written |
-| No objection endpoint (Art. 21) | Users can withdraw consent, not object to other processing | Open |
-| Retention for ledger entries and payment records not configured | Long retention of audit data | By design; cited basis to confirm with counsel |
-| Credit-record links cannot be revoked | A shared link stays valid until the record is deleted | Open (security/self-assessment.md R22) |
-| Logs may contain IP addresses; no log retention configured | Personal data in server logs | Open |
+| `placeholder_maps` holds names and IBANs in clear | A database leak exposes them for 30 days | Open. Fix: encrypt with the user's data key |
+| No general privacy notice | Art. 13 beyond AI not provided | Open, planned |
+| No Art. 21 objection endpoint | Only consent withdrawal | Open |
+| Ledger and payment record retention not configured | Long audit retention | By design; basis to confirm with counsel |
+| Credit-record links not revocable | Valid until the record is deleted | Open (R22) |
+| IPs may be in logs; no log retention | Personal data in server logs | Open |
 
 ## 11. AI transparency notice (EU AI Act Art. 50) and consent
 
-**Notice.** `GET /api/privacy/ai-notice` (public, shown before sign-up) and `GET /api/me` (`aiNotice`). Content, from `apps/api/src/modules/privacy/notice.ts`:
+**Notice.** `GET /api/privacy/ai-notice` (public, before sign-up) and `GET /api/me` (`aiNotice`), from `apps/api/src/modules/privacy/notice.ts`:
 
 - "You are talking to an AI assistant, not a person." (Art. 50(1))
-- Which model processes the chat and the documents, and whether it is local or an external provider.
-- What is redacted before the chat model sees it: names, account and card numbers, emails and phone numbers.
-- That the AI can only propose payments; every payment is checked by fixed rules and needs the user's passkey or a mandate.
+- Which model handles chat and documents; local or external.
+- What is redacted before the chat model: names, account and card numbers, emails, phones.
+- The AI only proposes; every payment is checked by fixed rules and needs a passkey or mandate.
 - How to withdraw consent.
 
-**Consent gate.** Chat, document upload and onboarding chat answer 403 `AI_CONSENT_REQUIRED` without consent. Consent is given at registration (`aiConsent: true` on `POST /api/auth/register/verify`) or with `POST /api/privacy/ai-consent`. Consent is recorded with a time (`users.ai_consent_at`). The seed has no implicit consent: seeded users, including the demo personas, have neither AI consent nor PIPL consent until the person gives it (`apps/api/src/modules/demo/seed.ts`; tests opt in with `{ aiConsent: true }`). The sim CLI does not give consent on a 403; the persona decides.
+**Consent gate.** Without consent, chat, document upload and onboarding chat answer 403 `AI_CONSENT_REQUIRED`. Given at registration (`aiConsent: true` on `POST /api/auth/register/verify`) or via `POST /api/privacy/ai-consent`; recorded in `users.ai_consent_at`. Seeded users, incl. demo personas, have neither AI nor PIPL consent (`apps/api/src/modules/demo/seed.ts`; tests opt in with `{ aiConsent: true }`). The sim CLI does not consent on a 403; the persona decides.
 
-**Restriction.** A restricted account (Art. 18) answers 403 `PROCESSING_RESTRICTED` on AI routes.
+**Restriction.** Restricted accounts (Art. 18) get 403 `PROCESSING_RESTRICTED` on AI routes.
 
-**Classification.** Kassa's AI use has not been formally classified under the AI Act. The notice is provided as a transparency measure. A risk assessment under the Act has not been done.
+**Classification.** Not formally classified under the AI Act; no risk assessment done. The notice is a transparency measure.
 
 Tests: `apps/api/test/security/privacy.test.ts` ("AI routes need consent; consent can be given and withdrawn; registration can capture it", "GET /me and the public GET /privacy/ai-notice tell the user it is an AI and which provider processes the data").
 
 ## 12. DPIA summary (GDPR Art. 35)
 
-**Description.** A student finance assistant. It reads the user's documents and bank notifications, drafts payments, and moves money only when the user signs. It processes financial and identity data, and an AI model processes chat and documents.
+**Description.** Student finance assistant: reads documents and bank notifications, drafts payments, moves money only when the user signs. Processes financial and identity data; an AI model processes chat and documents.
 
-**Necessity and proportionality.** Processing is needed to deliver budgeting and payments the user asks for. It is limited by redaction, retention and the purpose-specific tables in section 2. Less intrusive alternatives (no AI, manual entry) remain available: the user can use the app without the chat, and every payment can be approved manually (Ask me preset).
+**Necessity and proportionality.** Needed for the budgeting and payments the user asks for; limited by redaction, retention and purpose-specific tables (section 2). The app works without the chat, and every payment can be approved manually (Ask me preset).
 
-| Risk to the person | Likelihood | Severity | Mitigation | Residual |
+| Risk | Likelihood | Severity | Mitigation | Residual |
 | --- | --- | --- | --- | --- |
-| Personal data disclosed to an AI provider outside the EEA | Medium | High | Redaction (I11) for chat. Consent gate. Local model option. Notice | Medium. Reader still gets raw documents. No DPA configured |
-| Database leak exposing names and IBANs | Low (sandbox) | High | Accounts encrypted. Names and IBANs in placeholder maps are in clear (section 10) | Medium until placeholder encryption is added |
-| Incomplete erasure (backups, processors, residue) | Medium | Medium | Crypto-shredding of ledger fields. Retained records stripped of names. Backup guidance needed | Medium (security/self-assessment.md R16 to R18) |
-| Unauthorised payment or access to another user's data | Low | High | Passkey over exact order, I2 to I8, object-level 404, rate limits | Low |
-| Profiling and automated decisions | Low | Medium | Decisions are refusals, asks or mandate-bounded payments. Reason codes shown. Freeze and unfreeze | Low |
-| Over-retention | Low | Low | Purge job for notifications, conversations, documents and raw merchant text | Low. Ledger kept by design |
-| Data sent in error to the wrong payee | Low | High | Verified payee register, cooling period for changes (I7), handoff name check | Low |
+| Disclosure to an AI provider outside the EEA | Medium | High | Redaction (I11), consent gate, local model, notice | Medium. Reader gets raw documents; no DPA |
+| Database leak of names and IBANs | Low (sandbox) | High | Accounts encrypted; placeholder maps in clear (section 10) | Medium until fixed |
+| Incomplete erasure | Medium | Medium | Crypto-shredding; retained records stripped of names; backup guidance needed | Medium (R16 to R18) |
+| Unauthorised payment or cross-user access | Low | High | Passkey over exact order, I2 to I8, object-level 404, rate limits | Low |
+| Profiling, automated decisions | Low | Medium | Refuse, ask or mandate-bounded pay; reason codes; freeze | Low |
+| Over-retention | Low | Low | Purge job | Low. Ledger kept by design |
+| Payment to the wrong payee | Low | High | Verified payees, change cooling period (I7), handoff name check | Low |
 
-**Conclusion.** The residual risks that remain are the external AI provider and the processors. These need contracts and a configuration decision before any live use. In sandbox mode with fictitious data, the risk to people is low.
+**Conclusion.** Remaining risks are the external AI provider and processors; they need contracts and a configuration decision before live use. With fictitious sandbox data, risk to people is low.
 
 ## 13. Chinese region (PIPL)
 
-The region switch to `CN` makes all payments HANDOFF (`rules/decide.ts`, step 6). Kassa does not charge or move money in that mode, and the user pays in their own app.
+Region `CN` makes all payments HANDOFF (`rules/decide.ts`, step 6): Kassa moves no money; the user pays in their own app.
 
-PIPL (Personal Information Protection Law of the People's Republic of China) is partly implemented in this build:
+- **Separate cross-border consent (implemented).** For CN, when the planner or Reader runs outside Kassa's server, AI needs a separate consent (PIPL Art. 38–39) on top of section 11. `POST /privacy/pipl-consent {consent}` gives or withdraws it (Art. 15), audited. Without it AI routes answer 403 `PIPL_CONSENT_REQUIRED` with the notice. Stored in `users.pipl_consent_at` (migration 0005); exported and cleared on erasure. Test: `apps/api/test/security/pipl-consent.test.ts`.
+- Not implemented: data localisation in China, cross-border security assessment.
+- Sending personal information out of China (e.g. to an external AI provider) needs counsel's assessment under PIPL Chapter III.
+- The local model option is the available technical measure.
 
-- **Separate cross-border consent (implemented).** For region CN, when the planner or the Reader runs outside Kassa's server, AI processing needs a separate consent for the cross-border transfer (PIPL Art. 38–39), on top of the AI consent in section 11. `POST /privacy/pipl-consent {consent}` gives or withdraws it (withdrawal under Art. 15), and each change is audited. Without it the AI routes answer 403 `PIPL_CONSENT_REQUIRED` with the notice. The timestamp is `users.pipl_consent_at` (migration 0005). The consent is in the export and cleared by erasure. Test: `apps/api/test/security/pipl-consent.test.ts`.
-- No data localisation in China and no security assessment for cross-border transfer are implemented.
-- If a China-facing deployment sends personal information out of China (for example to an external AI provider), PIPL Chapter III (transfer conditions, separate consent, and the localisation rules for large operators) needs a legal assessment by counsel.
-- The local model option keeps the planner and Reader on infrastructure the operator chooses. This is the technical measure available in the build.
-
-Status: **Partly implemented**: the separate cross-border consent is built and tested. Localisation and the cross-border assessment are not (see [security/compliance.md](./compliance.md)).
+Status: **Partly implemented** (see [security/compliance.md](./compliance.md)).
 
 ## 14. PCI DSS scope reduction
 
-- Kassa does not store a full card number (PAN) anywhere. The test `test/security/llm-redaction.test.ts` checks that no column in any migration can hold a full card number, and that a full database dump after capturing a PAN does not contain it.
-- Card references in `placeholder_maps` are `pan:<HMAC-SHA256 digest>:<last 4>`. The key is derived from `USER_KEK` with HKDF (RFC 5869) under the label `kassa:pan-ref:v1` (PCI DSS v4.0 requirement 3.5.1). Migration `0001_security_privacy.sql` rewrote earlier legacy rows to `pan:legacy:<last4>`.
-- Stripe Issuing cards are stored as the Stripe card ID and last 4 digits. Payment entry for pay in place happens in Stripe's form (Payment Element on web, PaymentSheet on native), not in Kassa.
-- Scope reduction is a design intent. No PCI DSS assessment has been performed, and the submission does not claim a self-assessment questionnaire level.
+- No full PAN stored anywhere; references are a keyed digest and last 4 (`agent/redact.ts`, `panRef`); capture cuts card numbers to the last 4 (`capture/`). `apps/api/test/security/llm-redaction.test.ts` checks "no column in any migration can hold a full card number", that a full database dump after capturing a PAN does not contain it, and "capture keeps at most the last 4 digits".
+- `placeholder_maps` card references are `pan:<HMAC-SHA256 digest>:<last 4>`, key derived from `USER_KEK` with HKDF (RFC 5869), label `kassa:pan-ref:v1` (PCI DSS v4.0 req. 3.5.1). Migration `0001_security_privacy.sql` rewrote legacy rows to `pan:legacy:<last4>`.
+- Stripe Issuing cards: Stripe card ID and last 4. Pay-in-place card entry is in Stripe's form (Payment Element on web, PaymentSheet on native).
+- Design intent only: no PCI DSS assessment, no SAQ level claimed.
 
 ## 15. Open items for a production launch
 
-1. Data processing agreements and transfer mechanisms with the AI providers and Stripe.
+1. DPAs and transfer mechanisms with AI providers and Stripe.
 2. Encrypt names and IBANs in `placeholder_maps`.
-3. A general privacy notice (Art. 13 and 14) and an objection route (Art. 21).
-4. Backup retention and restore procedure that respects erasure (security/self-assessment.md R16).
-5. KMS or HSM for `USER_KEK`, and a rotation procedure (security/self-assessment.md R15).
-6. Counsel review of retention periods for payment records and ledger entries.
-7. Log retention policy for IP addresses and request logs.
+3. General privacy notice (Art. 13 and 14) and Art. 21 objection route.
+4. Backup retention and restore that respects erasure (R16).
+5. KMS or HSM for `USER_KEK`, with rotation (R15).
+6. Counsel review of payment record and ledger retention.
+7. Log retention policy for IPs and request logs.
 8. PIPL assessment for the China-facing region.

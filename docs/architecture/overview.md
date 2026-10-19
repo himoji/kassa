@@ -1,27 +1,25 @@
 # Architecture
 
-Kassa separates three things that most finance agents mix together: **drafting** (the AI), **deciding** (plain code), and **moving money** (signed approvals only). This document describes the parts, how a request travels through them, the three core algorithms, the data model, and the AI layer. Security controls are in [security/self-assessment.md](../security/self-assessment.md); privacy in [security/privacy.md](../security/privacy.md).
-
-Source of truth: [docs/architecture/tech-spec.md](./tech-spec.md) (how). Deviations are logged with dates in [architecture/decisions.md](./decisions.md).
+Kassa separates **drafting** (the AI), **deciding** (plain code) and **moving money** (signed approvals only). Security: [security/self-assessment.md](../security/self-assessment.md). Privacy: [security/privacy.md](../security/privacy.md). Pre-build spec: [tech-spec.md](./tech-spec.md); dated deviations: [decisions.md](./decisions.md).
 
 ## 1. System parts
 
 | Part | Job | Code | Talks to |
 | --- | --- | --- | --- |
-| App (Expo, web and native) | Chat, confirmation sheet, balances per currency, bills, presets, activity, freeze, passkey prompts | `apps/mobile/src/app/` | API over HTTPS, `@simplewebauthn/browser` on web, `react-native-passkeys` on native |
-| Planner (AI agent) | Understands the request, reads tool outputs, compares routes, drafts orders | `apps/api/src/modules/agent/` (loop, tools, redaction, replay) | AI SDK model; rules via `proposeOrder` only |
-| Reader (quarantined AI call) | Turns untrusted documents, notifications and emails into typed fields with evidence | `apps/api/src/modules/reader/` | Its own model call; no tools, no memory |
-| Rules | Evaluates the hard rules, computes the risk score, builds the canonical order, verifies rules passkeys, signs approvals (Ed25519), runs mandates and rule changes | `apps/api/src/modules/rules/`, `users/`, `mandates/`, `payees/` | Payments (through a registered executor, see 3.2), ledger |
-| Payments | Executes only approvals it can verify on its own; own passkey store, own daily cap, single-use nonces, screening for bank transfers | `apps/api/src/modules/payments/` | Rails, ledger, `rules/publicKey` only |
-| Rails | Stripe Issuing one-time cards (or `fake`), Stripe PaymentIntents for pay in place, mock bank transfers, QR handoff | `apps/api/src/modules/rails/` | Stripe (sandbox), mock world over signed HTTP |
-| Ledger | Append-only, hash-chained record of every proposal, approval, refusal, payment and auth decision; signed checkpoints every 20 entries | `apps/api/src/modules/ledger/` | Everything writes; nothing edits |
-| Capture, budget, FX | Parses notifications and Shortcut payloads, deduplicates, categorises, budgets and pace, rates, route optimizer, coverage forecast, fee x-ray | `capture/`, `budget/`, `fx/` | Reader (fallback), ledger |
-| Scheduler | 15 s in-process tick on the demo clock: due bills, rule-change and mandate activation, card expiry, bank polling, digests, retention | `apps/api/src/modules/scheduler/` | Rules, payments, rails, privacy |
-| Business (pizzerias, Shanghai and Budapest) | Inventory and stock movements, recipes, sales, the stock forecast, purchase orders (draft, passkey signing over `poHash`, send to supplier), supplier webhooks and the invoice three-way match | `apps/api/src/modules/business/` | Rules (`proposeOrder` for a matched invoice), payments re-check, mock world over signed HTTP, ledger |
-| Commerce | Shop orders (delivery) and till bills a customer pays through Kassa; status mirrored from signed `shop` webhooks; the merchant's sale recorded once paid | `apps/api/src/modules/commerce/` | Rules, business (`recordSale`), notifications, ledger |
-| Mock world | Simulated companies, QR wallet, bank, POS, remittance, pizza shop order book (delivery, kitchen screen, counter till), supplier portals (A to D, D the lookalike), Demo Stage; every outgoing webhook is HMAC-signed | `apps/mock-world/src/` | API webhooks |
+| App (Expo, web and native) | Chat, confirmation sheet, balances, bills, presets, activity, freeze, passkeys | `apps/mobile/src/app/` | API over HTTPS, `@simplewebauthn/browser` on web, `react-native-passkeys` on native |
+| Planner (AI agent) | Reads tool outputs, compares routes, drafts orders | `apps/api/src/modules/agent/` (loop, tools, redaction, replay) | AI SDK model; rules via `proposeOrder` only |
+| Reader (quarantined AI call) | Untrusted documents, notifications, emails → typed fields with evidence | `apps/api/src/modules/reader/` | Its own model call; no tools, no memory |
+| Rules | Hard rules, risk score, canonical order, rules passkey check, Ed25519 approvals, mandates, rule changes | `apps/api/src/modules/rules/`, `users/`, `mandates/`, `payees/` | Payments (through a registered executor, see 3.2), ledger |
+| Payments | Executes only approvals it verifies itself; own passkey store, own daily cap, single-use nonces, screening | `apps/api/src/modules/payments/` | Rails, ledger, `rules/publicKey` only |
+| Rails | Stripe Issuing one-time cards (or `fake`), PaymentIntents (pay in place), mock bank transfers, QR handoff | `apps/api/src/modules/rails/` | Stripe (sandbox), mock world over signed HTTP |
+| Ledger | Append-only hash chain of every proposal, approval, refusal, payment and auth decision; signed checkpoint every 20 entries | `apps/api/src/modules/ledger/` | Everything writes; nothing edits |
+| Capture, budget, FX | Parse, dedupe, categorise; budgets and pace; rates, route optimizer, coverage forecast, fee x-ray | `capture/`, `budget/`, `fx/` | Reader (fallback), ledger |
+| Scheduler | 15 s tick on the demo clock: due bills, rule-change and mandate activation, card expiry, bank polling, digests, retention | `apps/api/src/modules/scheduler/` | Rules, payments, rails, privacy |
+| Business (pizzerias, Shanghai and Budapest) | Inventory, recipes, sales, stock forecast, purchase orders (draft, passkey over `poHash`, send), supplier webhooks, invoice three-way match | `apps/api/src/modules/business/` | Rules (`proposeOrder` for a matched invoice), payments re-check, mock world over signed HTTP, ledger |
+| Commerce | Shop orders (delivery) and till bills paid through Kassa; status from signed `shop` webhooks; merchant sale recorded once paid | `apps/api/src/modules/commerce/` | Rules, business (`recordSale`), notifications, ledger |
+| Mock world | Simulated companies, QR wallet, bank, POS, remittance, pizza shop (delivery, kitchen, till), supplier portals (A to D, D the lookalike), Demo Stage; all webhooks HMAC-signed | `apps/mock-world/src/` | API webhooks |
 
-Shared contracts live in `packages/shared/src/`: zod schemas, `CanonicalOrder`, `orderHash`, `mandateHash`, reason codes, money formatting, IBAN checks, and the mock webhook signer and verifier.
+Shared contracts (`packages/shared/src/`): zod schemas, `CanonicalOrder`, `orderHash`, `mandateHash`, reason codes, money formatting, IBAN checks, and the mock webhook signer and verifier.
 
 ## 2. Process boundaries
 
@@ -73,9 +71,9 @@ flowchart LR
   API --> DB
 ```
 
-Two processes. The API process holds the database, and the AI agent, rules, payments and rails all run in it. The mock world is a separate process with its own HMAC secret and no database.
+Two processes. The API process holds the database, agent, rules, payments and rails. The mock world has its own HMAC secret and no database.
 
-**Honest limit (spec §2):** in this build the rules and payments modules run in one process with separate keys and separate credential stores. That protects against logic bugs and against a single stolen key. It does not protect against full compromise of the API process. A production deployment would run rules and payments as separate services with separate hosts.
+**Honest limit (spec §2):** rules and payments share one process, with separate keys and credential stores. This stops logic bugs and a single stolen key, not full compromise of the API process. Production would run them as separate services on separate hosts.
 
 ## 3. Request flows
 
@@ -115,39 +113,39 @@ sequenceDiagram
   B-->>P: webhook: processing, funds converted, sent (HMAC)
 ```
 
-Refusals stop at the first failing step. The result is a ledger entry (`PAYMENT_REFUSED` or a refused decision) and a reason code. No money moves.
+Refusals stop at the first failing step with a ledger entry (`PAYMENT_REFUSED` or a refused decision) and a reason code. No money moves.
 
 ### 3.2 How rules hands an approved order to payments
 
-`rules/index.ts` imports nothing from `payments/` (invariant I1 and the import graph). Instead, `orders/wiring.ts` registers an executor at startup with `registerExecutor()`. Rules calls the executor for AUTO orders and for approvals. The payments module imports only `rules/publicKey` from rules, as enforced by `eslint.config.mjs`.
+`rules/index.ts` imports nothing from `payments/` (I1). `orders/wiring.ts` registers an executor at startup (`registerExecutor()`), which rules calls for AUTO orders and approvals. Payments imports only `rules/publicKey` from rules (`eslint.config.mjs`).
 
 ### 3.3 Other flows
 
 | Flow | Path |
 | --- | --- |
-| Rent on autopay (tier T1) | Scheduler finds an obligation due within 3 days, calls `proposeOrder` with `createdBy=SCHEDULER`. The active mandate matches (decide step 7), so the decision is AUTO. Payments checks the mandate scope and the stored mandate assertion |
-| Pizza, one-time card | Planner proposes a `CARD_ISSUING` order. Approval creates a single-use Stripe Issuing card (or the `fake` issuer). The shop checkout calls the issuer's authorization path. The issuer approves only one charge that matches merchant, amount, currency and time |
-| Handoff (Shanghai region) | `region = CN` gives decision HANDOFF. The mock QR wallet returns a payee name. The API compares it with the verified payee (similarity at least 0.92). On mismatch the app shows no pay button and no QR |
-| Money from home | Mock remittance webhook credits the wallet and creates a notification. The forecast and route optimizer then propose a conversion |
-| Capture | Notification, Shortcut or text input goes to a deterministic parser first, then to the Reader. Capture only logs and budgets. It never creates an approval (I6) |
-| Shop order and till bill | The app proposes a shop order or a till bill; the amount comes from the shop's server-side price, not the client. After approval the shop charges the one-time card (or the region CN QR handoff is paid). The shop's signed `shop` webhooks (kind `shop`) move the order forward only (RECEIVED, ACCEPTED, COOKING, OUT_FOR_DELIVERY, DELIVERED; till: PAID); the merchant's sale lowers stock by recipe once |
-| Restock (purchase order) | The forecast tick (scheduler job `business.forecastTick`) or the business agent drafts a PO from a VERIFIED supplier (I6: a draft, nothing payable). The owner signs it with the payments passkey: challenge = `poHash` of the core the server rebuilds from the stored draft. Kassa sends it to the supplier HMAC-signed; the supplier's signed `supplier` webhooks report confirmed, delivered (stock receipt) and invoiced |
-| Invoice three-way match | `business/invoices.ts`: invoice supplier = PO supplier, invoice account hash = the signed core's `supplierAccountHash` = the verified payee's current hash, amount ≤ signed total. A miss is `INVOICE_ACCOUNT_MISMATCH` or `INVOICE_ABOVE_PO` (ledger `INVOICE_REFUSED`, owner notified, no proposal). A match creates one obligation and proposes its payment (always ASK T2, or HANDOFF in region CN; `PO_NOT_DELIVERED` if goods have not arrived) |
-| Payments re-check for a PO | **Invariant:** payments never trusts the business module. For an order carrying `purchaseOrderId` it recomputes `poHash` from the stored core, re-verifies the owner's stored passkey assertion over it, and checks payee = the PO's supplier and signed account, amount ≤ signed total, PO not already paid (`payments/index.ts` `verifyPurchaseOrder`; `BAD_SIGNATURE`, `INVOICE_ACCOUNT_MISMATCH`, `INVOICE_ABOVE_PO`) |
+| Rent on autopay (tier T1) | Scheduler finds a bill due within 3 days, calls `proposeOrder` (`createdBy=SCHEDULER`). The mandate matches (step 7): AUTO. Payments checks mandate scope and the stored mandate assertion |
+| Pizza, one-time card | Planner proposes a `CARD_ISSUING` order. Approval creates a single-use Stripe Issuing (or `fake`) card. The issuer approves only one charge matching merchant, amount, currency and time |
+| Handoff (Shanghai region) | `region = CN` → HANDOFF. The QR wallet's payee name must match the verified payee (similarity ≥ 0.92); on mismatch, no pay button and no QR |
+| Money from home | Remittance webhook credits the wallet and notifies; forecast and route optimizer propose a conversion |
+| Capture | Notification, Shortcut or text → deterministic parser, then Reader. Only logs and budgets; never an approval (I6) |
+| Shop order and till bill | Amount from the shop's server-side price, not the client. After approval the shop charges the one-time card (or the CN QR handoff is paid). Signed `shop` webhooks only move the order forward (RECEIVED, ACCEPTED, COOKING, OUT_FOR_DELIVERY, DELIVERED; till: PAID); the sale lowers stock by recipe once |
+| Restock (purchase order) | `business.forecastTick` or the business agent drafts a PO from a VERIFIED supplier (I6: nothing payable). The owner signs with the payments passkey: challenge = `poHash` of the core rebuilt from the stored draft. Sent HMAC-signed; signed `supplier` webhooks report confirmed, delivered (stock receipt), invoiced |
+| Invoice three-way match | `business/invoices.ts`: invoice supplier = PO supplier, invoice account hash = the signed core's `supplierAccountHash` = the verified payee's current hash, amount ≤ signed total. A miss is `INVOICE_ACCOUNT_MISMATCH` or `INVOICE_ABOVE_PO` (ledger `INVOICE_REFUSED`, owner notified, no proposal). A match creates one obligation and proposes payment (ASK T2, or HANDOFF in CN; `PO_NOT_DELIVERED` if goods have not arrived) |
+| Payments re-check for a PO | **Invariant:** payments never trusts the business module. For a `purchaseOrderId` order it recomputes `poHash`, re-verifies the owner's assertion, and checks payee = PO supplier and signed account, amount ≤ signed total, PO not already paid (`payments/index.ts` `verifyPurchaseOrder`; `BAD_SIGNATURE`, `INVOICE_ACCOUNT_MISMATCH`, `INVOICE_ABOVE_PO`) |
 
 ## 4. Core algorithms
 
-Each algorithm has the formula, pseudocode, code location and the tests that exercise it. Money is in integer minor units with an ISO 4217 code; rates are decimal strings converted to rationals (`fx/rational.ts`), with one HALF_UP rounding to minor units.
+Money is integer minor units with an ISO 4217 code; rates are decimal strings turned into rationals (`fx/rational.ts`), with one HALF_UP rounding to minor units.
 
 ### 4.1 Route and FX optimizer: cheapest way to fund a bill
 
-For a bill of amount A in currency `to`, due on date d, and funding balances per currency, each candidate route is a pair (funding currency f, rail r) from `fixtures/rails.json`.
+Bill A in currency `to`, due date d. Each route is a pair (funding currency f, rail r) from `fixtures/rails.json`.
 
 $$
 \text{cost}_{r,f} = \text{toHome}\big(\text{fee}_r\big) + \text{toHome}\big(A_f \cdot \tfrac{\text{markupBps}_r}{10\,000}\big), \qquad A_f = A \cdot \text{rate}(\text{to} \to f)
 $$
 
-A route is kept only if it arrives by the due date, the funding balance covers the total debit (amount, markup and fee), and the rail cap holds. Same-currency routes have no markup term.
+Kept only if it arrives by the due date, the balance covers amount + markup + fee, and the rail cap holds. Same-currency routes have no markup.
 
 ```text
 routes = []
@@ -166,7 +164,7 @@ sort routes by cost, then arrival, then routeId (deterministic)
 return top 3, each with savingsVsWorst = worstCost - cost
 ```
 
-**Deviation from the build plan:** the build plan's formula adds a term `P(late) × penalty`. The implementation does not model late-arrival probability. Routes that arrive after the due date are discarded instead. The savings figure is shown in the home currency.
+**Deviation:** the planned formula had a `P(late) × penalty` term. Instead, late routes are discarded. Savings are shown in the home currency.
 
 Code: `apps/api/src/modules/fx/routes.ts` (`getRoutes`), `fx/rails.ts` (rail profiles), `fx/rates.ts` (rate sources), `fx/rational.ts`.
 Tests: `apps/api/test/intel/fx-routes.test.ts` (9 tests: rail loading, tuition example, same-currency and empty balances), `apps/api/test/intel/fx-rates.test.ts` (18 tests: rational arithmetic, dates, offline fixture table, stubbed online sources, NBK XML parsing).
@@ -181,7 +179,7 @@ $$
 B_k(t) = B_k(0) + \sum_{\text{income}_k \le t} x - \sum_{\text{bill}_k \le t} x - \text{burn}_k \cdot t
 $$
 
-`burn_k` is the median daily spend in k over the last 30 days, with days without spend counted as zero. The first day with `B_k(t) < reserve_k` is a shortfall. The suggestion is the cheapest conversion from a currency with surplus, found with 4.1.
+`burn_k` = median daily spend in k over 30 days (zero days included). The first day with `B_k(t) < reserve_k` is a shortfall; the suggestion is the cheapest conversion from a surplus currency (4.1).
 
 ```text
 for each currency k in balances, incomes, obligations:
@@ -199,20 +197,20 @@ Tests: `apps/api/test/intel/forecast-fees.test.ts` (18 tests across forecast hel
 
 ### 4.3 Fee x-ray (card markup)
 
-On settlement of a foreign charge, the fee is the settled home amount minus the mid-market home amount:
+On settlement of a foreign charge:
 
 $$
 \text{feeHome} = \text{settledHome} - A_{\text{orig}} \cdot \text{mid}(d), \qquad \text{markupBps} = \frac{\text{feeHome}}{A_{\text{orig}} \cdot \text{mid}(d)} \cdot 10\,000
 $$
 
-Per card, a rolling median over the last 20 settled samples is kept. The best card for a purchase minimises `markupBps × amount / 10 000 + fixedFee`. A dynamic-currency-conversion flag is raised when a foreign purchase is charged in the home currency and the charge is more than 200 bps above mid.
+Per card: rolling median of the last 20 settled samples. Best card minimises `markupBps × amount / 10 000 + fixedFee`. DCC flag: foreign purchase charged in the home currency at more than 200 bps above mid.
 
 Code: `apps/api/src/modules/fx/fees.ts` (`settlementFee`, `rollingMedianBps`, `bestCard`, `dccFlag`).
 Tests: `apps/api/test/intel/forecast-fees.test.ts` (`settlementFee`, `rollingMedianBps`, `bestCard`, `dccFlag`), `apps/api/test/intel/integration.test.ts` (capture, dedupe, budget notification and settlement fee x-ray end to end).
 
 ### 4.4 Risk score: when to ask the human
 
-The score is plain code. The AI's own confidence never lowers it. The AI can add a question (`agentRequestedConfirm`), never remove one.
+Plain code. The AI can add a question (`agentRequestedConfirm`), never remove one or lower the score.
 
 $$
 R = \sum_i w_i \, f_i, \qquad f_i \in [0,1], \qquad \sum_i w_i = 1
@@ -228,7 +226,7 @@ $$
 | `readerUnverifiedNonCritical` | 1 if a non-critical Reader field is unverified | 0.10 |
 | `unusualHour` | 1 if local time is 00:00 to 06:00 | 0.05 |
 
-The result is rounded to 4 decimal places. Thresholds depend on the preset: Ask me always asks, Smart asks at R ≥ 0.5, Autopilot asks outside a mandate.
+Rounded to 4 decimals. Ask me always asks; Smart asks at R ≥ 0.5; Autopilot asks outside a mandate.
 
 ```text
 features = riskFeatures(order, history, budgets, localHour, origin, readerFlags)
@@ -240,7 +238,7 @@ Tests: `apps/api/test/rules/risk.test.ts` (16 tests: median, weights sum, featur
 
 ### 4.5 Decision order (rules engine)
 
-`decide()` is pure. All facts are gathered first (`rules/facts.ts`). First match wins:
+`decide()` is pure; facts are gathered first (`rules/facts.ts`). First match wins:
 
 | Step | Condition | Result |
 | --- | --- | --- |
@@ -248,13 +246,13 @@ Tests: `apps/api/test/rules/risk.test.ts` (16 tests: median, weights sum, featur
 | 2 | Payee missing, blocked, or cooling before `coolingUntil` | REFUSE (`REFUSE_UNVERIFIED_PAYEE`). Cooling after the window is usable only with a passkey (ASK, `PAYEE_COOLING`) |
 | 3 | Reader marks amount or account unverified | REFUSE (`REFUSE_SOURCE_MISMATCH`) |
 | 4 | Screening hit, on every rail (bank transfer, card, wallet, QR) | REFUSE (`REFUSE_SANCTIONS`) |
-| 5 | Per-payment, daily or monthly cap, or reserve breached | REFUSE (`REFUSE_CAP`) under every preset, never an ASK (the "within 2× the cap" ask was removed on 2026-10-14, architecture/decisions.md). To pay more, the user first raises the cap with the passkey |
+| 5 | Per-payment, daily or monthly cap, or reserve breached | REFUSE (`REFUSE_CAP`) under every preset, never ASK ("within 2× the cap" ask removed 2026-10-14, decisions.md). To pay more, raise the cap with the passkey |
 | 6 | Region CN, or money mode HANDOFF | HANDOFF |
 | 7 | Active, effective mandate covers the order, and preset is not Ask me | AUTO (T1) |
 | 8 | Ask me; Autopilot without mandate; Smart with R ≥ 0.5 | ASK (T2) |
 | 9 | Smart, verified payee, capped wallet, rail card or bank transfer, passkey-signed base rules, amount within small-auto limit | AUTO (T1, `SMALL_AUTO`). Otherwise ASK |
 
-Informational flags are appended to non-refusals: `MANDATE_OUT_OF_SCOPE`, `TRIGGER_ORIGIN`, `READER_FIELD_UNVERIFIED`.
+Flags added to non-refusals: `MANDATE_OUT_OF_SCOPE`, `TRIGGER_ORIGIN`, `READER_FIELD_UNVERIFIED`.
 
 ## 5. Canonical order and approvals
 
@@ -266,58 +264,56 @@ orderHash = base64url(sha256(utf8(JCS(order))))              // RFC 8785 JCS, RF
 ```
 
 - The WebAuthn challenge for a T2 approval **is** the `orderHash` (I3).
-- The rules module verifies the assertion, then signs an approval `{orderHash, tier, issuedAt, expiresAt = +5 min, keyId}` with Ed25519 (`RULES_SIGNING_KEY`, RFC 8032) over `JCS(approval)` (`rules/signing.ts`).
-- The payments module recomputes `orderHash` from the stored canonical order and checks the approval signature with `RULES_PUBLIC_KEY` (`payments/index.ts`).
-- Expired pending orders are re-issued with a new nonce, expiry and hash. The old hash can never be approved.
-- The app recomputes the hash before any passkey prompt and refuses to sign on a mismatch (defence in depth, `architecture/decisions.md` 2026-10-11).
+- Rules verifies the assertion, then signs `{orderHash, tier, issuedAt, expiresAt = +5 min, keyId}` with Ed25519 (`RULES_SIGNING_KEY`, RFC 8032) over `JCS(approval)` (`rules/signing.ts`).
+- Payments recomputes `orderHash` from the stored order and checks the signature with `RULES_PUBLIC_KEY` (`payments/index.ts`).
+- Expired pending orders are re-issued with a new nonce, expiry and hash; the old hash can never be approved.
+- The app recomputes the hash before the passkey prompt and refuses on mismatch (`architecture/decisions.md` 2026-10-11).
 
-Golden vectors for `orderHash` and `mandateHash` are committed in `packages/shared/test/order.test.ts` and `packages/shared/test/mandate.test.ts`.
+Golden vectors: `packages/shared/test/order.test.ts` and `packages/shared/test/mandate.test.ts`.
 
 ## 6. Data model
 
-Tables are defined in `apps/api/src/db/schema.ts` (spec §6, plus additions) and `apps/api/src/db/schema.intel.ts` (agent and capture tables). Migrations: `apps/api/drizzle/0000_init.sql` (the base schema), `0001_security_privacy.sql` (consent, restriction, erasure columns, PAN reference rewrite), and any later numbered files in that folder.
+Tables: `apps/api/src/db/schema.ts` (spec §6 plus additions) and `apps/api/src/db/schema.intel.ts` (agent, capture). Migrations: `apps/api/drizzle/0000_init.sql` (base), `0001_security_privacy.sql` (consent, restriction, erasure, PAN reference rewrite), then later numbered files.
 
 | Group | Tables | Notes |
 | --- | --- | --- |
-| Identity and keys | `users`, `user_keys`, `webauthn_credentials_rules`, `webauthn_credentials_payments`, `devices` | Two credential tables, written separately. `user_keys` holds a per-user data key wrapped with `USER_KEK` |
-| Profile and rules | `profiles`, `rule_changes`, `mandates`, `budgets`, `obligations`, `payees` | Caps and base rules live in `profiles`. Payee account details are AES-256-GCM encrypted (`accountEnc`), with `accountHash` for comparison |
-| Money | `cards`, `card_fee_profiles`, `transactions`, `issued_cards`, `payments` | `transactions` holds captured spending and its fee reconciliation. `payments` has `status` in CREATED, PROCESSING, SENT, FAILED, CANCELED |
-| Orders | `proposals`, `approvals`, `used_nonces` | `proposals.canonical_order` is the signed object. `used_nonces` has the nonce as primary key |
+| Identity and keys | `users`, `user_keys`, `webauthn_credentials_rules`, `webauthn_credentials_payments`, `devices` | Two credential tables, written separately. `user_keys`: per-user data key wrapped with `USER_KEK` |
+| Profile and rules | `profiles`, `rule_changes`, `mandates`, `budgets`, `obligations`, `payees` | Caps and base rules in `profiles`. Payee accounts AES-256-GCM encrypted (`accountEnc`), `accountHash` for comparison |
+| Money | `cards`, `card_fee_profiles`, `transactions`, `issued_cards`, `payments` | `transactions`: captured spending and fee reconciliation. `payments.status`: CREATED, PROCESSING, SENT, FAILED, CANCELED |
+| Orders | `proposals`, `approvals`, `used_nonces` | `proposals.canonical_order` is the signed object; `used_nonces` keyed by nonce |
 | Ledger | `ledger_entries`, `ledger_checkpoints` | `prev_hash` and `hash` per entry; checkpoint every 20 entries |
-| Agent and capture | `agent_messages`, `agent_documents`, `placeholder_maps`, `merchant_category_memory`, `onboarding_drafts` | Redacted history only. `placeholder_maps` is server-side. Uploaded documents are cached with their Reader result |
-| Business and commerce | `merchants`, `inventory_items`, `recipes`, `supplier_items`, `sales_daily`, `stock_movements`, `purchase_orders`, `shop_orders` | Stock on hand is the sum of `stock_movements`. `purchase_orders` stores the signed `core`, `poHash` (unique) and the owner assertion; `shop_orders` mirrors the shop's status timeline |
+| Agent and capture | `agent_messages`, `agent_documents`, `placeholder_maps`, `merchant_category_memory`, `onboarding_drafts` | Redacted history only; `placeholder_maps` server-side; documents cached with their Reader result |
+| Business and commerce | `merchants`, `inventory_items`, `recipes`, `supplier_items`, `sales_daily`, `stock_movements`, `purchase_orders`, `shop_orders` | Stock = sum of `stock_movements`. `purchase_orders`: signed `core`, unique `poHash`, owner assertion. `shop_orders` mirrors the shop's status |
 | Demo and notices | `notifications`, `demo_state` | Demo clock offset and agent mode |
 
 ## 7. AI layer
 
 ### 7.1 Provider-agnostic model registry
 
-Models are addressed as `provider:model` in `PLANNER_MODEL` and `READER_MODEL`. The registry is built on the Vercel AI SDK (`ai`) provider registry (`apps/api/src/modules/ai/registry.ts`). Providers: `openrouter`, `openai`, `google`, and `local` (any OpenAI-compatible endpoint, for example Ollama or LM Studio). The registry splits on the first `:`, so `local:llama3.1:8b` is valid.
-
-Providers that do not support tool calling or image input return an error code for the affected feature (for example `AI_VISION_UNSUPPORTED`). The spec named one vendor SDK directly; the AI SDK was chosen so that providers can change without code changes (`architecture/decisions.md`, 2026-10-10).
+`PLANNER_MODEL` and `READER_MODEL` are `provider:model`, resolved by the Vercel AI SDK provider registry (`apps/api/src/modules/ai/registry.ts`). Providers: `openrouter`, `openai`, `google`, `local` (any OpenAI-compatible endpoint, e.g. Ollama, LM Studio). Split on the first `:`, so `local:llama3.1:8b` is valid. A provider without tool calling or image input returns an error code for that feature (e.g. `AI_VISION_UNSUPPORTED`). Why the AI SDK: decisions.md, 2026-10-10.
 
 ### 7.2 Planner loop
 
-- Up to 8 tool rounds per user turn, then one text-only step (`MAX_TOOL_STEPS = 8`, `apps/api/src/modules/agent/tools.ts`).
-- Fifteen planner tools (`apps/api/src/modules/agent/tools.ts`, schemas in `packages/shared/src/tools.ts`): the 11 of the spec (`get_profile_summary`, `get_balances`, `get_budget`, `get_obligations`, `get_payee_facts`, `search_catalog`, `get_routes`, `forecast_coverage`, `read_document`, `propose_order`, `log_expense`) plus four read-only ones (`get_fx_rate`, `get_spending_summary`, `get_money_history`, and `get_payments`: recent orders with their payment status, the bill each pays and how it was approved, payees as placeholders), and the `ask_*` UI tools that only show a picker. `propose_order` is the only tool that writes an order: it submits a draft to `rules.proposeOrder`, and code (`decide()`), not the model, decides. An AUTO decision (inside a passkey-signed mandate or the small-auto limit of the passkey-signed base rules) executes inside that tool call through the executor registered at startup; any other payment waits for the user's passkey over the exact order. `log_expense` only logs. The business owner's planner has its own set (`get_inventory`, `forecast_stock`, `propose_purchase_order`, which drafts a purchase order the owner signs). The test `apps/api/test/intel/agent-loop.test.ts` ("exposes exactly the 11 spec tools plus the read-only READ_TOOLS and the ask_* UI tools; propose_order is the only write tool") pins the list.
-- When a tool returns REFUSE or a cooling payee, the next step runs with no tools so the agent can explain, and the loop stops.
-- Every model call sees redacted messages only (section 7.4).
+- Up to 8 tool rounds per turn, then one text-only step (`MAX_TOOL_STEPS = 8`, `apps/api/src/modules/agent/tools.ts`).
+- Fifteen planner tools (schemas in `packages/shared/src/tools.ts`): the 11 of the spec (`get_profile_summary`, `get_balances`, `get_budget`, `get_obligations`, `get_payee_facts`, `search_catalog`, `get_routes`, `forecast_coverage`, `read_document`, `propose_order`, `log_expense`) plus four read-only ones (`get_fx_rate`, `get_spending_summary`, `get_money_history`, and `get_payments`: recent orders, payment status, the bill paid and how it was approved, payees as placeholders), and the `ask_*` UI tools (pickers only). `propose_order` is the only write tool: it submits a draft to `rules.proposeOrder` and `decide()` decides. AUTO (inside a passkey-signed mandate or the small-auto limit of the passkey-signed base rules) executes within that call via the registered executor; anything else waits for the passkey over the exact order. `log_expense` only logs. The business owner's planner has `get_inventory`, `forecast_stock`, `propose_purchase_order` (a PO draft the owner signs). The test `apps/api/test/intel/agent-loop.test.ts` ("exposes exactly the 11 spec tools plus the read-only READ_TOOLS and the ask_* UI tools; propose_order is the only write tool") pins the list.
+- After REFUSE or a cooling payee, one tool-less step explains, then the loop stops.
+- Every model call sees redacted messages only (7.4).
 
 ### 7.3 Replay mode
 
-`AGENT_MODE=REPLAY` (or the demo panel toggle) serves recorded model steps from `fixtures/agent-recordings/<scenario>.json` through the AI SDK mock model. Only model outputs are recorded. Tools run for real in replay, so balances, rules and the ledger are live. Reader extractions are recorded separately under `fixtures/agent-recordings/reader/<key>.json` and are re-verified against the source on replay. `RECORD=1` (live only) writes new recordings.
+`AGENT_MODE=REPLAY` (or the demo toggle) serves recorded model steps from `fixtures/agent-recordings/<scenario>.json` via the AI SDK mock model. Only model outputs are recorded; tools run for real, so balances, rules and ledger are live. Reader extractions are in `fixtures/agent-recordings/reader/<key>.json` and re-verified against the source. `RECORD=1` (live only) records.
 
-The planner's behaviour in replay is therefore fixed, which is what makes the demo repeatable. It is not evidence about live model quality.
+Replay makes the demo repeatable. It is not evidence of live model quality.
 
 ### 7.4 Reader and redaction
 
-- **Reader (I10):** one model call with no tools, no memory, and forced structured output. The Reader's fields are checked on the server: each `evidence` string must appear in the extracted source text, and numbers are re-parsed from the evidence (`reader/evidence.ts`). Failures become `UNVERIFIED`, and amount or account failures become `READER_SOURCE_MISMATCH`.
-- **Redaction (I11):** `agent/redact.ts` replaces IBANs, card numbers (Luhn-checked), email addresses, phone numbers (E.164) and personal names with stable placeholders per conversation. `agent/middleware.ts` applies this to every planner input and tool result. Enum and code fields are never redacted. `propose_order` resolves placeholders on the server.
-- **Display:** the app shows names and masked accounts (`HU…1234`, `•••• 1234`). The planner never sees them.
+- **Reader (I10):** no tools, no memory, forced structured output. Server checks: each `evidence` string must appear in the source text; numbers are re-parsed from it (`reader/evidence.ts`). Failures are `UNVERIFIED`; amount or account failures are `READER_SOURCE_MISMATCH`.
+- **Redaction (I11):** `agent/redact.ts` replaces IBANs, card numbers (Luhn-checked), email addresses, phone numbers (E.164) and personal names with stable per-conversation placeholders. `agent/middleware.ts` applies it to every planner input and tool result; enum and code fields are left alone. `propose_order` resolves placeholders on the server.
+- **Display:** the app shows names and masked accounts (`HU…1234`, `•••• 1234`); the planner never sees them.
 
 ## 8. Clock and demo
 
-`Clock.now() = realNow + demo_state.clockOffsetMs` (`apps/api/src/modules/clock/`). Every expiry, cooling window, due date, token lifetime and webhook window uses it. The demo can advance the clock by hours or days, which triggers the scheduler. The seed story time is `2026-10-27T09:00:00Z`, four to five days before the tuition and rent due dates, so the "+3 days" demo step falls inside the rent scheduling window.
+`Clock.now() = realNow + demo_state.clockOffsetMs` (`apps/api/src/modules/clock/`). Used by every expiry, cooling window, due date, token lifetime and webhook window. The demo advances it by hours or days, which triggers the scheduler. Seed story time `2026-10-27T09:00:00Z` is four to five days before tuition and rent are due, so "+3 days" lands in the rent scheduling window.
 
 ## 9. Code map
 
@@ -353,7 +349,7 @@ The planner's behaviour in replay is therefore fixed, which is what makes the de
 | Errors | RFC 9457 (problem details) |
 | Encryption | NIST SP 800-38D (AES-GCM), RFC 5869 (HKDF for the PAN reference key) |
 
-The full list, with the reasoning, is in `architecture/decisions.md` (standards-first rule, 2026-10-10).
+Reasoning: `architecture/decisions.md` (standards-first rule, 2026-10-10).
 
 ## 11. Known deviations from the spec
 
@@ -362,10 +358,10 @@ The full list, with the reasoning, is in `architecture/decisions.md` (standards-
 | pnpm | bun workspaces with Turborepo | The Expo boilerplate is bun-native | DECISIONS 2026-10-10 |
 | Single-vendor LLM SDK | Vercel AI SDK provider registry | Provider change without code changes, replay independent of vendor | DECISIONS 2026-10-10 |
 | `agentMode` preset switch | `agentAutonomy` | Name clash with the demo `agentMode` | DECISIONS 2026-10-10 |
-| Native app from scratch | Expo app generated from ReadyNative Pro | Time before the feature freeze | DECISIONS 2026-10-10 (licence resolved 2026-10-12, see LICENSE) |
+| Native app from scratch | Expo app from ReadyNative Pro | Time | DECISIONS 2026-10-10 (licence resolved 2026-10-12, see LICENSE) |
 | `PAYMENTS_DAILY_CAP_HOME_MINOR` 50,000,000 | 200,000,000 | The hero tuition would always be refused | DECISIONS 2026-10-11 |
-| `PAYMENTS_DAILY_CAP_CURRENCY` | KZT | Reference currency of the cap; converted to each home currency, rounded down (fail closed) | DECISIONS 2026-10-12 |
+| `PAYMENTS_DAILY_CAP_CURRENCY` | KZT | Cap's reference currency; converted to each home currency, rounded down (fail closed) | DECISIONS 2026-10-12 |
 | Route cost with late-arrival penalty | Late routes excluded, no penalty term | Simpler and deterministic | Section 4.1 |
 | Single Postgres | PGlite by default, Postgres when `DATABASE_URL` is set | No Docker needed for local use | DECISIONS 2026-10-11 |
 
-Known limitations of the current build are listed in [security/self-assessment.md](../security/self-assessment.md), section 7.
+Known limitations: [security/self-assessment.md](../security/self-assessment.md), section 7.
