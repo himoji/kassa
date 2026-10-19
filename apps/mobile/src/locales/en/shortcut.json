@@ -16,6 +16,15 @@
   "done": "I copied it",
   "copied": "Copied",
   "stepsTitle": "Set up on your iPhone",
+  "stepsTitleManual": "Or build it yourself",
+  "quick": {
+    "title": "Quick setup",
+    "add": "Add the “Log to Kassa” Shortcut",
+    "after": "Your link is copied. In Shortcuts tap Add Shortcut and paste it when asked. Then Automation → + → Transaction → pick your Wallet cards → Run Immediately → Next → Log to Kassa.",
+    "footer": "iOS lets no app create the automation itself, so that last step is yours. Then pay once and use “Test it live” above.",
+    "needToken": "Create a token above first: the Shortcut asks for a link with it.",
+    "copyFailed": "Could not copy the link. Copy it by hand instead."
+  },
   "steps": {
     "1": "Create a token above and copy the header value.",
     "2": "Open Shortcuts → Automation → + → Transaction. Pick your Wallet cards, choose Run Immediately, then Next → New Blank Automation.",
@@ -141,6 +150,8 @@
       "4": "Add “Get Contents of URL”: paste the voice link as the URL. Tap ›: Method POST, Request Body JSON, Text fields audio = Base64 Encoded and format = m4a.",
       "5": "Add “Get Dictionary Value”: Value for key reply in Contents of URL.",
       "6": "Add “Speak Text” (or “Show Result”) with the Dictionary Value. Then say “Hey Siri, Ask Kassa”."
-    }
+    },
+    "add": "Add the “Ask Kassa” Shortcut",
+    "after": "Your voice link is copied. In Shortcuts tap Add Shortcut and paste it when asked. Then say “Hey Siri, Ask Kassa”."
   }
 }

@@ -16,6 +16,15 @@
   "done": "Көшірдім",
   "copied": "Көшірілді",
   "stepsTitle": "iPhone-да баптау",
+  "stepsTitleManual": "Немесе өзіңіз жинаңыз",
+  "quick": {
+    "title": "Жылдам баптау",
+    "add": "«Log to Kassa» Shortcut-ын қосу",
+    "after": "Сілтеме көшірілді. Shortcuts-та Add Shortcut басып, сұрағанда сілтемені қойыңыз. Содан кейін Automation → + → Transaction → Wallet карталарыңызды таңдаңыз → Run Immediately → Next → Log to Kassa.",
+    "footer": "iOS ешбір қолданбаға автоматтандыруды жасауға рұқсат бермейді, сондықтан соңғы қадам сізде. Содан кейін бір рет төлеп, жоғарыдағы «Тікелей тексеру» ашыңыз.",
+    "needToken": "Алдымен жоғарыда токен жасаңыз: Shortcut сол токені бар сілтемені сұрайды.",
+    "copyFailed": "Сілтемені көшіру мүмкін болмады. Оны қолмен көшіріңіз."
+  },
   "steps": {
     "1": "Жоғарыда токен жасап, тақырып мәнін көшіріңіз.",
     "2": "Shortcuts → Automation → + → Transaction ашыңыз. Wallet карталарыңызды таңдап, Run Immediately таңдаңыз, содан кейін Next → New Blank Automation.",
@@ -141,6 +150,8 @@
       "4": "«Get Contents of URL» қосыңыз: URL ретінде дауыс сілтемесін қойыңыз. › басыңыз: Method POST, Request Body JSON, мәтін өрістері audio = Base64 Encoded және format = m4a.",
       "5": "«Get Dictionary Value» қосыңыз: Contents of URL ішінен reply кілтінің мәні.",
       "6": "Dictionary Value бар «Speak Text» (немесе «Show Result») қосыңыз. Содан кейін «Hey Siri, Ask Kassa» деңіз."
-    }
+    },
+    "add": "«Ask Kassa» Shortcut-ын қосу",
+    "after": "Дауыс сілтемесі көшірілді. Shortcuts-та Add Shortcut басып, сұрағанда сілтемені қойыңыз. Содан кейін «Hey Siri, Ask Kassa» деңіз."
   }
 }

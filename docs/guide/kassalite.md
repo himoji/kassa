@@ -42,7 +42,7 @@ The Shortcut is the capture path: it must be set up once. The reference is [guid
 
 1. Checks the server and key from this iPhone: POST `/api/capture/shortcut` `{"test": true}` with the Shortcut's key (nothing logged or recorded). A revoked key or an unreachable server is reported here, before the person goes to Shortcuts.
 2. Readies the automation's only input. A build **with** the Kassa action: writes the action's Keychain copy, nothing to paste. Any other build: copies **one link**, `https://<server>/api/capture/shortcut?key=<token>` (the key in the URL, so no header; the server log redacts `key`). The key goes on the clipboard only on this tap and is never part of a URL the app opens.
-3. Opens the **ready-made Shortcut** when the bundle has its iCloud link (`EXPO_PUBLIC_KASSALITE_SHORTCUT_URL`, see [guide/shortcuts.md](./shortcuts.md), "The ready-made Shortcut"), Shortcuts otherwise. One line then says what is left:
+3. Opens the **ready-made Shortcut** when the bundle has its iCloud link (`EXPO_PUBLIC_KASSALITE_SHORTCUT_URL`, see [The ready-made Shortcuts](./shortcuts.md#the-ready-made-shortcuts)), Shortcuts otherwise. One line then says what is left:
    - ready-made Shortcut: "Tap Add Shortcut and paste when asked. Then Automation → + → Transaction → Run Immediately → choose “Log to Kassa”."
    - Kassa action: "Automation → + → Transaction → Run Immediately → New Blank Automation → add “Log Payment in Kassa”."
    - hand-built: "Automation → + → Transaction → Run Immediately → New Blank Automation → Get Contents of URL → paste."

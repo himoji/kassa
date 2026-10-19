@@ -56,6 +56,21 @@ export function voiceUrlWithKey(serverUrl: string, token: string): string {
 export function readyShortcutLink(
   raw: string | undefined = process.env.EXPO_PUBLIC_KASSALITE_SHORTCUT_URL
 ): string | null {
+  return icloudShortcutLink(raw);
+}
+
+/**
+ * The published "Ask Kassa" voice Shortcut, set like `readyShortcutLink` with `EXPO_PUBLIC_KASSA_VOICE_SHORTCUT_URL`.
+ * Its one import question takes the link `voiceUrlWithKey` puts on the clipboard. Null: the hand-built steps.
+ */
+export function readyVoiceShortcutLink(
+  raw: string | undefined = process.env.EXPO_PUBLIC_KASSA_VOICE_SHORTCUT_URL
+): string | null {
+  return icloudShortcutLink(raw);
+}
+
+/** `raw` when it is an `https://www.icloud.com/shortcuts/<id>` link with nothing after the id, else null. */
+function icloudShortcutLink(raw: string | undefined): string | null {
   const url = raw?.trim();
   if (!url) return null;
   return /^https:\/\/(www\.)?icloud\.com\/shortcuts\/[A-Za-z0-9]+\/?$/.test(url) ? url : null;

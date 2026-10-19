@@ -42,6 +42,20 @@ Capture **only logs**. It never approves, creates or blocks a payment (invariant
 - A card in **Apple Wallet**.
 - A Kassa server the iPhone can reach over HTTPS: a deployed server, or `bun run phone` (tunnel) for a demo.
 
+## Fastest: add the ready-made Shortcut
+
+When your Kassa build carries the published Shortcut's iCloud link (see [The ready-made Shortcuts](#the-ready-made-shortcuts)
+below), setup is three taps and one paste:
+
+1. **Settings → Payment taps → Kassa** → **Create token** → **Add the “Log to Kassa” Shortcut**. Kassa copies your
+   link (endpoint with the key) and opens the Shortcut in Shortcuts.
+2. Tap **Add Shortcut** and paste the link when Shortcuts asks for it.
+3. **Automation** → **+** → **Transaction** → pick your Wallet cards → **Run Immediately** → **Next** → choose
+   **Log to Kassa** from the list. iOS lets no app create this automation, so this step is always yours.
+
+Then pay once and use **Test it live**. Without the link in the build, the button is not shown: build it by hand
+(sections 1 to 3).
+
 ## 1. Create a device token in Kassa
 
 1. In the Kassa app, open **Settings → Payment taps → Kassa**.
@@ -181,13 +195,20 @@ Instead of the `Authorization` header, the key can be the `key` query parameter:
 `https://<host>/api/capture/shortcut?key=<token>`. KassaLite copies this one link so a hand-built Shortcut needs a
 single paste. The server log redacts `key`.
 
-### The ready-made Shortcut (KassaLite, optional)
+### The ready-made Shortcuts
 
-KassaLite's one setup button can open a published Shortcut instead of making the person build one. Nothing in the
-repository contains such a Shortcut: someone publishes it once from an iPhone and the link goes into the KassaLite
-bundle. Until then the button copies the link for a hand-built Shortcut (above), and nothing else changes.
+Kassa (Settings → Payment taps) and KassaLite can open a published Shortcut instead of making the person build one:
+**Log to Kassa** for Apple Pay taps and **Ask Kassa** for voice. Nothing in the repository contains these Shortcuts,
+because a `.shortcut` file must be signed by Apple: someone publishes each once from an iPhone or Mac and its iCloud
+link goes into the app bundle. Until then the buttons copy the link for a hand-built Shortcut (above), and nothing
+else changes.
 
-Publish it:
+| Shortcut | Bundle variable | Its import question takes |
+| --- | --- | --- |
+| Log to Kassa | `EXPO_PUBLIC_KASSALITE_SHORTCUT_URL` (used by both apps) | `https://<host>/api/capture/shortcut?key=<token>` |
+| Ask Kassa | `EXPO_PUBLIC_KASSA_VOICE_SHORTCUT_URL` | `https://<host>/api/capture/voice?key=<token>` |
+
+Publish **Log to Kassa**:
 
 1. In Shortcuts, make a new shortcut named **Log to Kassa** (the name KassaLite tells people to pick).
 2. Add the actions of section 3 (Get Contents of URL with `POST`, JSON body `merchant`, `amount`, `card` from
@@ -206,7 +227,16 @@ Publish it:
    must get the Transaction as its Shortcut Input from the automation that runs it; if the Merchant or Amount line
    says "empty", it does not on that iOS version, and the link must not be shipped.
 
-The flow with the link set: the button checks the server and key, copies `https://<host>/api/capture/shortcut?key=<token>`
+Publish **Ask Kassa** the same way: build the voice Shortcut of [Voice](#voice-hey-siri-ask-kassa) with the URL field
+empty, add the import question "Paste the voice link Kassa copied" on that URL field, **Copy iCloud Link**, set
+`EXPO_PUBLIC_KASSA_VOICE_SHORTCUT_URL`, and ship. It has no automation, so after **Add Shortcut** and the paste,
+"Hey Siri, Ask Kassa" works.
+
+The same steps on a Mac (macOS 13 or later, signed in to the same iCloud account): Shortcuts app → build the shortcut →
+**File → Share → Copy iCloud Link**. A link is public to anyone who has it, which is why the key never goes in it.
+Publishing a change makes a new link: share again and update the variable.
+
+The flow with the link set (KassaLite): the button checks the server and key, copies `https://<host>/api/capture/shortcut?key=<token>`
 (the key is only on the clipboard, never in a URL KassaLite opens) and opens the iCloud link. The person taps **Add
 Shortcut**, pastes when asked, then makes the automation, which iOS lets no app create: **Automation → + →
 Transaction → Run Immediately → Log to Kassa**.

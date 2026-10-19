@@ -9,6 +9,7 @@ import {
   useShortcutDevices,
   type ShortcutToken,
 } from "@/api/hooks/shortcut";
+import { AddShortcutButton } from "@/components/kassa/add-shortcut-button";
 import { errorText } from "@/components/kassa/error-text";
 import { QueryView } from "@/components/kassa/query-view";
 import { Segmented } from "@/components/kassa/segmented";
@@ -21,6 +22,7 @@ import { confirm } from "@/lib/confirm";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
+import { readyShortcutLink, readyVoiceShortcutLink } from "@/lite/shortcut-check";
 
 const noSubscribe = () => () => {};
 
@@ -39,6 +41,8 @@ const ANDROID_BODY =
  * the phone (docs/guide/shortcuts.md): iPhone, the Shortcuts Transaction trigger for Apple Pay taps in shops plus a
  * Message trigger for the bank SMS that online and in-app Apple Pay leave; Android, an automation app forwarding
  * Google Wallet, Samsung Wallet, Alipay, WeChat Pay and bank notifications. Revoke tokens. Capture only logs (I6).
+ * When the bundle carries the published Shortcuts' iCloud links, iPhone setup is "Add" (copy the link with the key,
+ * open the iCloud link) plus the Transaction automation, which no app can create; the hand-built steps stay below.
  */
 export function ShortcutScreen() {
   const t = useKassaT();
@@ -58,6 +62,12 @@ export function ShortcutScreen() {
 
   const [phone, setPhone] = useState<Phone>(Platform.OS === "android" ? "android" : "iphone");
   const copy = (text: string) => void copyToClipboard(text, { toast: t("shortcut:copied") });
+  const readyLink = readyShortcutLink();
+  const readyVoiceLink = readyVoiceShortcutLink();
+  const keyedLink = (path: "shortcut" | "voice") =>
+    fresh && endpoint
+      ? `${endpoint.replace(/\/shortcut$/, `/${path}`)}?key=${encodeURIComponent(fresh.token)}`
+      : null;
 
   const onCreate = async () => {
     try {
@@ -161,27 +171,45 @@ export function ShortcutScreen() {
 
       {phone === "iphone" ? (
         <>
+          {readyLink ? (
+            <RowGroup title={t("shortcut:quick.title")} footer={t("shortcut:quick.footer")}>
+              <Box p={4} gap={3}>
+                {fresh && endpoint ? (
+                  <AddShortcutButton
+                    link={readyLink}
+                    pasteValue={() => keyedLink("shortcut")}
+                    label={t("shortcut:quick.add")}
+                    after={t("shortcut:quick.after")}
+                  />
+                ) : (
+                  <Text variant="caption">{t("shortcut:quick.needToken")}</Text>
+                )}
+              </Box>
+            </RowGroup>
+          ) : null}
           <RowGroup title={t("shortcut:voice.title")} footer={t("shortcut:voice.footer")}>
             <Box p={4} gap={3}>
               <Text variant="caption">{t("shortcut:voice.intro")}</Text>
               {fresh && endpoint ? (
-                <Button
-                  variant="outline"
-                  onPress={() =>
-                    copy(
-                      `${endpoint.replace(/\/shortcut$/, "/voice")}?key=${encodeURIComponent(fresh.token)}`
-                    )
-                  }
-                >
-                  {t("shortcut:voice.copyLink")}
-                </Button>
+                readyVoiceLink ? (
+                  <AddShortcutButton
+                    link={readyVoiceLink}
+                    pasteValue={() => keyedLink("voice")}
+                    label={t("shortcut:voice.add")}
+                    after={t("shortcut:voice.after")}
+                  />
+                ) : (
+                  <Button variant="outline" onPress={() => copy(keyedLink("voice") ?? "")}>
+                    {t("shortcut:voice.copyLink")}
+                  </Button>
+                )
               ) : (
                 <Text variant="caption">{t("shortcut:voice.needToken")}</Text>
               )}
-              <VoiceShortcutSteps />
+              {readyVoiceLink ? null : <VoiceShortcutSteps />}
             </Box>
           </RowGroup>
-          <RowGroup title={t("shortcut:stepsTitle")}>
+          <RowGroup title={t(readyLink ? "shortcut:stepsTitleManual" : "shortcut:stepsTitle")}>
             <Box p={4} gap={3}>
               {STEPS.map((n) => (
                 <Text key={n}>{t("shortcut:step", { n, text: t(`shortcut:steps.${n}`) })}</Text>

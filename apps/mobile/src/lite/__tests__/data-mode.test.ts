@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
 import type { RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 
-import { readyShortcutLink } from "../shortcut-check";
+import { readyShortcutLink, readyVoiceShortcutLink } from "../shortcut-check";
 import {
   dataModeStore,
   isSimulatedCapture,
@@ -78,5 +78,14 @@ describe("readyShortcutLink", () => {
     expect(readyShortcutLink("http://www.icloud.com/shortcuts/abc")).toBeNull();
     expect(readyShortcutLink("https://evil.example/shortcuts/abc")).toBeNull();
     expect(readyShortcutLink("https://www.icloud.com/shortcuts/abc?key=x")).toBeNull();
+  });
+});
+
+describe("readyVoiceShortcutLink", () => {
+  it("accepts only an iCloud Shortcuts link, like the tap Shortcut's", () => {
+    const link = "https://www.icloud.com/shortcuts/fedcba9876543210fedcba9876543210";
+    expect(readyVoiceShortcutLink(link)).toBe(link);
+    expect(readyVoiceShortcutLink(undefined)).toBeNull();
+    expect(readyVoiceShortcutLink("https://www.icloud.com/shortcuts/abc#key=x")).toBeNull();
   });
 });
