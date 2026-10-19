@@ -2,8 +2,9 @@ import { router, useLocalSearchParams, type Href } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import type { TextInput } from "react-native";
 
+import { LogoMark } from "@/components/kassa/logo";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
-import { Box, Button, Card, Icon, Input, Text } from "@/components/ui";
+import { Box, Button, Card, Input, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 import { errorText } from "@/components/kassa/error-text";
 import {
@@ -76,14 +77,9 @@ export function PairScreen() {
   // collapses on scroll and nothing sits under the bar.
   return (
     <ScrollScreen>
-      <Box align="center" gap={3} pt={2}>
-        <Icon
-          name="iphone.radiowaves.left.and.right"
-          fallback="phonelink_ring"
-          size={44}
-          color="brandAccent"
-        />
-        <Text variant="caption" align="center">
+      <Box align="center" gap={4} pt={4}>
+        <LogoMark size={72} />
+        <Text variant="subtitle" align="center" style={{ maxWidth: 320 }}>
           {t("lite:pair.intro")}
         </Text>
       </Box>

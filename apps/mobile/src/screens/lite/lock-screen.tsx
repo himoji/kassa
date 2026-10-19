@@ -1,3 +1,4 @@
+import { LogoMark } from "@/components/kassa/logo";
 import { Box, Button, Icon, Screen, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 
@@ -7,14 +8,22 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   return (
     <Screen>
       <Box flex={1} align="center" justify="center" gap={4}>
-        <Icon name="lock.fill" fallback="lock" size={48} color="mutedForeground" />
+        <LogoMark size={80} />
         <Text variant="title" align="center">
           {t("lite:lock.title")}
         </Text>
         <Text variant="caption" align="center">
           {t("lite:lock.body")}
         </Text>
-        <Button onPress={onUnlock}>{t("lite:lock.unlock")}</Button>
+        <Button
+          size="lg"
+          onPress={onUnlock}
+          leftIcon={
+            <Icon name="faceid" fallback="fingerprint" size={20} color="primaryForeground" />
+          }
+        >
+          {t("lite:lock.unlock")}
+        </Button>
       </Box>
     </Screen>
   );

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kassa Evidence Room</title>
+<link rel="icon" type="image/svg+xml" href="/icons/logo-mark.svg">
 <style>
 /* Self-hosted fonts (SIL OFL 1.1, see fonts/OFL-*.txt): latin, latin-ext, cyrillic subsets. */
 @font-face{font-family:'Archivo';font-style:normal;font-weight:400 900;font-stretch:62% 125%;font-display:swap;src:url(/showcase/fonts/Archivo-400-900-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF}
@@ -153,7 +154,7 @@ footer a{color:var(--cobalt)}
 
 <div class="wrap">
   <header style="display:flex;flex-direction:column;gap:18px">
-    <p class="eyebrow">Kassa · FinTechathon 2026 · Topic C · evidence room</p>
+    <p class="eyebrow" style="display:flex;align-items:center;gap:10px"><img src="/icons/logo-mark.svg" alt="" width="22" height="22" style="border-radius:6px">Kassa · FinTechathon 2026 · Topic C · evidence room</p>
     <h1 style="font-size:clamp(36px,6vw,68px);font-weight:900;font-stretch:72%;line-height:.98;letter-spacing:-.015em;max-width:18ch">The same 16 attacks. Kassa refused 7, asked on 8, paid 1.</h1>
     <p class="lede">Sixteen attacks, including recreations of real AI-agent money incidents, each run with the same attacker intent through Kassa's rules, payment checks and document Reader, and through a chatbot whose payment tool needs only a confirm tap. The planner and Reader are scripted to obey the attacker, so this measures the guards, not the model's luck. Every case is marked <b>refused</b> (code stopped it), <b>asked</b> (a passkey prompt on the exact order: nothing moves unless the user approves, and a fooled user might) or <b>paid</b>.</p>
     <nav aria-label="Sections"><a href="#attacks">16 attacks</a><a href="#flow">Who decides</a><a href="#ledger">Tamper-evident ledger</a><a href="#sources">Sources</a></nav>
