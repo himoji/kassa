@@ -38,7 +38,12 @@ export function ScrollScreen({
       contentContainerStyle={[
         { padding: 16, gap: 24, paddingBottom: 48 },
         // Web on a wide window: one readable column instead of a stretched phone layout.
-        Platform.OS === "web" && { width: "100%", maxWidth: 760, alignSelf: "center", paddingTop: 24 },
+        Platform.OS === "web" && {
+          width: "100%",
+          maxWidth: 760,
+          alignSelf: "center",
+          paddingTop: 24,
+        },
       ]}
       refreshControl={
         onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} /> : undefined

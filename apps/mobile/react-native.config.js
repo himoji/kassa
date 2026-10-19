@@ -7,8 +7,6 @@ const LITE_EXCLUDE = ["react-native-passkeys", "@stripe/stripe-react-native"];
 module.exports = {
   dependencies:
     process.env.APP_VARIANT === "lite"
-      ? Object.fromEntries(
-          LITE_EXCLUDE.map((name) => [name, { platforms: { ios: null } }]),
-        )
+      ? Object.fromEntries(LITE_EXCLUDE.map((name) => [name, { platforms: { ios: null } }]))
       : {},
 };

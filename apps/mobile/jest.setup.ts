@@ -105,7 +105,10 @@ jest.mock("@expo/ui", () => ({
   Slider: (props: Record<string, unknown>) => {
     const { View } = jest.requireActual<typeof import("react-native")>("react-native");
     const { createElement } = jest.requireActual<typeof import("react")>("react");
-    return createElement(View, { ...props, testID: (props.testID as string | undefined) ?? "slider" });
+    return createElement(View, {
+      ...props,
+      testID: (props.testID as string | undefined) ?? "slider",
+    });
   },
   BottomSheet: ({
     isPresented,
