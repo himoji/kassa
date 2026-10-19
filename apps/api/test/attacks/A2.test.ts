@@ -127,7 +127,6 @@ describe("A2: 'landlord new IBAN' email (end to end)", () => {
     expect(await moneyMoved()).toEqual(ZERO_MONEY);
     recordGuarded("A2", {
       case: "new IBAN added by the user (cooling): agent proposes rent to it",
-      outcome: "BLOCKED",
       decision: "REFUSE",
       reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING"],
       ledger: ["PAYEE_CREATED", "PROPOSAL_CREATED"],
@@ -160,10 +159,10 @@ describe("A2: 'landlord new IBAN' email (end to end)", () => {
     expect(await getDb().select().from(approvals)).toHaveLength(1); // only the scheduler's rent approval
     recordGuarded("A2", {
       case: "after cooling: rent to the attacker's payee still needs the user, never autopay",
-      outcome: "BLOCKED",
       decision: late.decision,
       reasonCodes: late.reasonCodes,
       ledger: ["PROPOSAL_CREATED"],
+      ifApproved: { paysAttacker: true, note: "The user added the attacker's account and, 24 h later, approves the rent order to it with the passkey: the attacker is paid." },
     });
   });
 });

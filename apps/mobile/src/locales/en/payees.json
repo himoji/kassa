@@ -197,13 +197,15 @@
   },
   "school": {
     "title": "Find your school",
-    "body": "Pick your school and enter your student ID. Kassa fetches your invoice and adds it as a bill, with the exact amount and reference.",
+    "body": "Pick your school and enter your student ID and date of birth. The school confirms it's you, then Kassa fetches your invoice and adds it as a bill, with the exact amount and reference.",
     "search": "School",
     "searchPlaceholder": "Search by name or city",
     "noneFound": "No school matches that. You can add it by hand instead.",
     "directoryNote": "The school list and invoices come from the schools' payment portals. In this demo they are fictitious schools.",
     "manual": "My school isn't listed: enter its details by hand",
     "findInvoice": "Find my invoice",
+    "dateOfBirth": "Date of birth",
+    "dateOfBirthHint": "As your school has it on file (YYYY-MM-DD). The school checks it; Kassa doesn't keep it.",
     "invoiceFor": "{{term}} tuition, student {{studentId}}",
     "dueOn": "due {{date}}",
     "reference": "Reference {{reference}}",
@@ -228,6 +230,8 @@
     "errors": {
       "STUDENT_ID_INVALID": "A student ID is 4 to 20 letters, digits or dashes.",
       "SCHOOL_DIRECTORY_UNAVAILABLE": "The school directory isn't answering. Try again in a moment.",
+      "STUDENT_NOT_VERIFIED": "The school couldn't confirm this student. Check your student ID and date of birth.",
+      "DATE_OF_BIRTH_INVALID": "Enter your date of birth like 2005-03-14.",
       "SCHOOL_ACCOUNT_CHANGED": "The school now lists a different bank account. Add the school again: it becomes a new recipient and cools down for 24 hours."
     },
     "otherCategory": "Pay something else"

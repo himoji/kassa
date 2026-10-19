@@ -17,7 +17,18 @@ const COVERAGE_TONE: Record<ObligationDto["coverage"], StatusTone> = {
   UNKNOWN: "neutral",
 };
 
-/** One upcoming bill: amount, due date, best route, coverage and payee status (spec §16 Home). */
+/** (2026-10-19) Where the bill's current period stands; DUE shows coverage instead. */
+const PERIOD_TONE: Record<Exclude<ObligationDto["status"], "DUE">, StatusTone> = {
+  PAID: "positive",
+  IN_FLIGHT: "info",
+  AWAITING_APPROVAL: "warning",
+};
+
+/**
+ * One upcoming bill: amount, due date, best route, coverage and payee status (spec §16 Home). (2026-10-19) A bill whose
+ * period is paid or on its way says so ("Paid 19 Oct", "Payment pending") instead of its coverage, with the next due
+ * date of a recurring bill, and opens nothing (there is nothing to pay or convert for it).
+ */
 export function ObligationRow({
   obligation,
   homeCurrency,
@@ -28,7 +39,14 @@ export function ObligationRow({
   const t = useKassaT();
   const f = useFormat();
   const o = obligation;
-  const steps = o.coverage === "CONVERTIBLE" ? (o.conversions ?? []) : [];
+  const settled = o.status === "PAID" || o.status === "IN_FLIGHT";
+  const steps = !settled && o.coverage === "CONVERTIBLE" ? (o.conversions ?? []) : [];
+  const periodLabel =
+    o.status === "PAID"
+      ? t("bills:periodStatus.PAID", { date: f.date(o.paidAt ?? o.dueDate) })
+      : o.status === "IN_FLIGHT" || o.status === "AWAITING_APPROVAL"
+        ? t(`bills:periodStatus.${o.status}`)
+        : null;
   const body = (
     <>
       <Box row justify="between" gap={3}>
@@ -45,7 +63,12 @@ export function ObligationRow({
           category: t(`common:category.${o.category}`, { defaultValue: o.category }),
         })}
       </Text>
-      {o.bestRoute ? (
+      {settled && o.nextDueDate ? (
+        <Text variant="caption" testID={`obligation-next-due-${o.id}`}>
+          {t("bills:nextDue", { date: f.date(o.nextDueDate) })}
+        </Text>
+      ) : null}
+      {!settled && o.bestRoute ? (
         <Text variant="caption">
           {t("bills:bestRoute", {
             from: o.bestRoute.fundingCurrency,
@@ -55,7 +78,16 @@ export function ObligationRow({
         </Text>
       ) : null}
       <Box row gap={2} style={{ flexWrap: "wrap" }}>
-        <StatusChip tone={COVERAGE_TONE[o.coverage]} label={t(`bills:coverage.${o.coverage}`)} />
+        {periodLabel && o.status !== "DUE" ? (
+          <StatusChip
+            tone={PERIOD_TONE[o.status]}
+            label={periodLabel}
+            testID={`obligation-status-${o.id}`}
+          />
+        ) : null}
+        {settled ? null : (
+          <StatusChip tone={COVERAGE_TONE[o.coverage]} label={t(`bills:coverage.${o.coverage}`)} />
+        )}
         {o.payeeAccountMissing ? (
           <StatusChip
             tone="warning"
@@ -79,10 +111,11 @@ export function ObligationRow({
       {o.payeeAccountMissing ? (
         <Text variant="caption">{t("bills:needsPayeeDetailsBody", { payee: o.payeeName })}</Text>
       ) : null}
-      {o.coverage === "SHORTFALL" && !o.payeeAccountMissing ? (
+      {o.status === "IN_FLIGHT" ? <Text variant="caption">{t("bills:inFlightBody")}</Text> : null}
+      {!settled && o.coverage === "SHORTFALL" && !o.payeeAccountMissing ? (
         <Text variant="caption">{t("bills:shortfallBody", { currency: o.currency })}</Text>
       ) : null}
-      {o.coverage === "CONVERTIBLE" && !o.payeeAccountMissing ? (
+      {!settled && o.coverage === "CONVERTIBLE" && !o.payeeAccountMissing ? (
         <Text variant="caption" testID={`obligation-convert-plan-${o.id}`}>
           {steps.length > 0
             ? t("bills:convertPlan", {
@@ -103,6 +136,22 @@ export function ObligationRow({
   const style = { paddingHorizontal: 16, paddingVertical: 12, gap: 6, minHeight: 44 };
   // A bill whose payee has no account details (from the setup chat) links to the payee: that is where the
   // details are needed. Nothing can pay it until then (rules: PAYEE_ACCOUNT_MISSING).
+  // Paid or on its way: nothing to add, convert or pay for this period.
+  if (settled) return <View style={style}>{body}</View>;
+  // An order for this bill waits for the passkey: open it.
+  if (o.status === "AWAITING_APPROVAL" && o.proposalId) {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityHint={t("chat:reviewAndSign")}
+        testID={`obligation-awaiting-${o.id}`}
+        onPress={() => router.push(`/order/${o.proposalId}`)}
+        style={style}
+      >
+        {body}
+      </Pressable>
+    );
+  }
   if (o.payeeAccountMissing) {
     return (
       <Pressable

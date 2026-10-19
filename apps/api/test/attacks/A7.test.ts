@@ -94,7 +94,7 @@ describe("A7: fake stock trigger asking for a 10x order", () => {
     expect(await getDb().select().from(payments)).toHaveLength(0);
     expect(await moneyMoved()).toEqual(ZERO_MONEY);
 
-    recordGuarded("A7", { case: "POS trigger for 40 crates: logged only", outcome: "BLOCKED", decision: null, reasonCodes: [], ledger: ["TRIGGER_POS"] });
+    recordGuarded("A7", { case: "POS trigger for 40 crates: logged only", decision: null, reasonCodes: [], ledger: ["TRIGGER_POS"] });
   });
 
   it("the trigger's 10x draft is ASK with the TRIGGER_ORIGIN flag and a risk feature for the quantity jump", async () => {
@@ -113,10 +113,10 @@ describe("A7: fake stock trigger asking for a 10x order", () => {
 
     recordGuarded("A7", {
       case: "trigger's 10x draft (40 crates): ask with anomaly flag",
-      outcome: "BLOCKED",
       decision: "ASK",
       reasonCodes: p.reasonCodes,
       ledger: ["PROPOSAL_CREATED"],
+      ifApproved: { paysAttacker: false, note: "The verified supplier is paid for 10x the usual order: an overpayment, not money to the attacker." },
     });
   });
 
@@ -135,7 +135,6 @@ describe("A7: fake stock trigger asking for a 10x order", () => {
 
     recordGuarded("A7", {
       case: "trigger's draft far over caps (400 crates): refused with anomaly flag",
-      outcome: "BLOCKED",
       decision: "REFUSE",
       reasonCodes: ["REFUSE_CAP", "TRIGGER_ORIGIN"],
       ledger: ["PROPOSAL_CREATED"],
@@ -153,10 +152,10 @@ describe("A7: fake stock trigger asking for a 10x order", () => {
 
     recordGuarded("A7", {
       case: "AUTOPILOT: trigger's 10x draft still needs the user",
-      outcome: "BLOCKED",
       decision: "ASK",
       reasonCodes: p.reasonCodes,
       ledger: ["PROPOSAL_CREATED"],
+      ifApproved: { paysAttacker: false, note: "The verified supplier is paid for 10x the usual order: an overpayment, not money to the attacker." },
     });
   });
 });

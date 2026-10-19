@@ -57,7 +57,7 @@ describe("A4: loosening needs the passkey, tightening is instant", () => {
     expect(await caps(userId)).toEqual(before);
     expect(await ledgerOf("AUTH_ASSERTION_FAILED")).toHaveLength(1);
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
-    recordGuarded("A4", { case: "cap raise without passkey (428) and with a forged assertion (403)", outcome: "BLOCKED", decision: null, reasonCodes: ["PASSKEY_REQUIRED"], ledger: ["AUTH_ASSERTION_FAILED"] });
+    recordGuarded("A4", { case: "cap raise without passkey (428) and with a forged assertion (403)", decision: null, reasonCodes: ["PASSKEY_REQUIRED"], ledger: ["AUTH_ASSERTION_FAILED"] });
   });
 
   it("a raised cap with a passkey applies at once", async () => {
@@ -176,7 +176,7 @@ describe("A4: loosening needs the passkey, tightening is instant", () => {
     expect(await ledgerWithReason("PROPOSAL_CREATED", "REFUSE_CAP")).toHaveLength(1);
     expect(await getDb().select().from(payments)).toHaveLength(0);
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
-    recordGuarded("A4", { case: "cap raise not signed with the passkey: order still refused", outcome: "BLOCKED", decision: "REFUSE", reasonCodes: ["REFUSE_CAP"], ledger: ["PROPOSAL_CREATED"] });
+    recordGuarded("A4", { case: "cap raise not signed with the passkey: order still refused", decision: "REFUSE", reasonCodes: ["REFUSE_CAP"], ledger: ["PROPOSAL_CREATED"] });
 
     const { challengeId, webauthnOptions } = first.json().details;
     const signed = await app().inject({

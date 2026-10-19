@@ -10,7 +10,7 @@ import { clock } from "../../src/modules/clock/index.ts";
 import { executeApproval } from "../../src/modules/payments/index.ts";
 import { approveOrder, getOrderView, proposeOrder, registerExecutor } from "../../src/modules/rules/index.ts";
 import { setSanctionsListForTests } from "../../src/modules/screening/index.ts";
-import { addActiveMandate, addObligation, addPayee, createUserWithPasskey, IBAN_UNIVERSITY, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { addActiveMandate, addObligation, addPayee, createUserWithPasskey, IBAN_UNIVERSITY, offlineEnvironment, signBaseRules, addPriorPayment } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
 import { forgeSignedApproval } from "../helpers/forge.ts";
 
@@ -162,10 +162,15 @@ describe("payments verification", () => {
     const payee = await addPayee(userId, { name: "Corner Shop", kind: "MERCHANT", currency: "KZT" });
     // Seed history so newMerchant is 0 and risk stays low.
     await signBaseRules(userId, auth);
-    const r = await proposeOrder({ userId, createdBy: "USER", payeeId: payee.id, amountMinor: 500_000, currency: "KZT", purpose: "Snacks", rail: "BANK_TRANSFER" });
+    // The first payment to a payee always asks (FIRST_PAYMENT_TO_PAYEE); small-auto starts after one completed payment.
+    const first = await proposeOrder({ userId, createdBy: "USER", payeeId: payee.id, amountMinor: 500_000, currency: "KZT", purpose: "Snacks", rail: "BANK_TRANSFER" });
+    expect(first.decision).toBe("ASK");
+    expect(first.reasonCodes).toEqual(["FIRST_PAYMENT_TO_PAYEE"]);
+    await addPriorPayment(userId, payee.id);
+    const r = await proposeOrder({ userId, createdBy: "USER", payeeId: payee.id, amountMinor: 500_000, currency: "KZT", purpose: "Snacks again", rail: "BANK_TRANSFER" });
     expect(r.decision).toBe("AUTO");
     expect(r.reasonCodes).toEqual(["SMALL_AUTO"]);
-    expect((await getDb().select().from(payments))[0]?.status).toBe("PROCESSING");
+    expect((await getDb().select().from(payments)).find((p) => p.proposalId === r.proposalId)?.status).toBe("PROCESSING");
   });
 
   it("orderHash of the stored order equals the signed approval hash", async () => {

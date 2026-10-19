@@ -10,6 +10,7 @@ import { StaticRates } from "../src/bank/rates.ts";
 import { ManualClock } from "../src/clock.ts";
 import { loadConfig } from "../src/config.ts";
 import type { AuthorizationRequest, Issuer } from "../src/shop/issuer.ts";
+import { BILL_LEASE_MS } from "../src/shop/orders.ts";
 import { RecordingSink } from "../src/webhooks.ts";
 
 /** Single-use issuer: the first charge on a card is approved, every later one declined (like Kassa's issuing). */
@@ -176,12 +177,16 @@ describe("counter till", () => {
     expect(reused.json().bill).toMatchObject({ status: "DECLINED", reasonCode: "CARD_ALREADY_USED" });
   });
 
-  it("Shanghai bill paid by the shop's QR code (one code per bill)", async () => {
+  it("Shanghai bill paid by the shop's QR code (one code per bill, for the order that asked first)", async () => {
     const app = demo.w.app;
     const { bill } = (await app.inject({ method: "POST", url: "/mock/shop/sha/bills", payload: { items: [{ sku: "PZ-4CHE", qty: 1 }] } })).json();
     const a = (await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: { clientRef: "p-x", expectedTotalMinor: 8_800 } })).json();
-    const b = (await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: {} })).json();
-    expect(a.qr.paymentId).toBe(b.qr.paymentId);
+    const again = (await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: { clientRef: "p-x" } })).json();
+    expect(a.qr.paymentId).toBe(again.qr.paymentId);
+    // (2026-10-19) Another order (another customer) does not get the code while p-x holds the bill.
+    const other = await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: {} });
+    expect(other.statusCode).toBe(409);
+    expect(other.json().code).toBe("BILL_IN_PAYMENT");
     await app.inject({ method: "POST", url: `/mock/qr/${a.qr.paymentId}/pay`, payload: {} });
     expect(demo.w.shop.getBill("sha", bill.billId)).toMatchObject({ status: "PAID", clientRef: "p-x" });
   });
@@ -198,5 +203,105 @@ describe("counter till", () => {
     // The API-facing order endpoint is not a page: it works without the demo flag.
     const r = await plain.w.app.inject({ method: "POST", url: "/mock/shop/bud/orders", payload: { items: [{ sku: "DR-COLA", qty: 1 }], payment: { method: "QR" } } });
     expect(r.statusCode).toBe(201);
+  });
+});
+
+describe("one payer per till bill (2026-10-19)", () => {
+  const newBill = async (w: MockWorld, store = "bud") =>
+    (await w.app.inject({ method: "POST", url: `/mock/shop/${store}/bills`, payload: { items: [{ sku: store === "bud" ? "PZ-MARG" : "PZ-4CHE", qty: 1 }] } })).json().bill as {
+      billId: string;
+      totalMinor: number;
+    };
+
+  it("two orders paying one bill at the same moment: one card is charged, the other order gets 409", async () => {
+    // A slow issuer keeps the first charge in flight while the second request arrives.
+    const sink = new RecordingSink();
+    const calls: string[] = [];
+    const slow: Issuer = {
+      provider: "fake",
+      authorize: async (req) => {
+        calls.push(req.cardId);
+        await new Promise((r) => setTimeout(r, 30));
+        return { approved: true, provider: "fake", authorizationId: `auth_${calls.length}`, reasonCode: null, issuerStatus: 200 };
+      },
+    };
+    const w = await buildMockWorld({
+      config: loadConfig({ NODE_ENV: "test", MOCK_HMAC_SECRET: "s3cret", KASSA_APP_URL: "https://kassa.test", DEMO_ENABLED: "true" } as NodeJS.ProcessEnv),
+      clock,
+      webhooks: sink,
+      rates: new StaticRates(),
+      issuer: slow,
+      logger: false,
+      startTicker: false,
+    });
+    try {
+      const bill = await newBill(w);
+      const pay = (cardId: string, clientRef: string) => w.app.inject({ method: "POST", url: `/mock/shop/bud/bills/${bill.billId}/pay`, payload: { cardId, clientRef, expectedTotalMinor: bill.totalMinor } });
+      const [a, b] = await Promise.all([pay("fic_alice", "p-alice"), pay("fic_bob", "p-bob")]);
+      expect([a.statusCode, b.statusCode].sort()).toEqual([200, 409]);
+      const loser = a.statusCode === 409 ? a : b;
+      expect(loser.json().code).toBe("BILL_IN_PAYMENT");
+      expect(calls).toHaveLength(1);
+      expect(sink.sent.filter((e) => (e.body as { type?: string }).type === "shop.bill.updated").map((e) => (e.body as { status: string }).status)).toEqual(["PAID"]);
+      // After it is paid, every other order gets ALREADY_PAID.
+      const late = await pay("fic_carol", "p-carol");
+      expect(late.statusCode).toBe(409);
+      expect(late.json().code).toBe("ALREADY_PAID");
+    } finally {
+      await w.app.close();
+    }
+  });
+
+  it("a declined card gives the bill up: another order can pay it", async () => {
+    const app = demo.w.app;
+    const bill = await newBill(demo.w);
+    demo.issuer.seen.add("fic_spent");
+    const first = await app.inject({ method: "POST", url: `/mock/shop/bud/bills/${bill.billId}/pay`, payload: { cardId: "fic_spent", clientRef: "p-1" } });
+    expect(first.json().bill).toMatchObject({ status: "DECLINED", reasonCode: "CARD_ALREADY_USED" });
+    const second = await app.inject({ method: "POST", url: `/mock/shop/bud/bills/${bill.billId}/pay`, payload: { cardId: "fic_fresh_2", clientRef: "p-2" } });
+    expect(second.statusCode).toBe(200);
+    expect(second.json().bill).toMatchObject({ status: "PAID", clientRef: "p-2" });
+  });
+
+  it("while one order's QR code holds the bill: no card charge, and another order's refusal does not turn the till red", async () => {
+    const app = demo.w.app;
+    const bill = await newBill(demo.w, "sha");
+    const qr = (await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: { clientRef: "p-qr" } })).json().qr;
+    const card = await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/pay`, payload: { cardId: "fic_other_1", clientRef: "p-card" } });
+    expect(card.statusCode).toBe(409);
+    expect(demo.issuer.calls.some((c) => c.cardId === "fic_other_1")).toBe(false);
+    const refused = await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/decline`, payload: { reasonCode: "REFUSE_DAILY_CAP", clientRef: "p-card" } });
+    expect(refused.statusCode).toBe(409);
+    expect(demo.w.shop.getBill("sha", bill.billId)?.status).toBe("OPEN");
+    // The holder's own refusal gives the bill up (red), and it can be paid by another order afterwards.
+    const own = await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/decline`, payload: { reasonCode: "QR_PAYEE_MISMATCH", clientRef: "p-qr" } });
+    expect(own.json().bill).toMatchObject({ status: "DECLINED" });
+    const paid = await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/pay`, payload: { cardId: "fic_other_2", clientRef: "p-card" } });
+    expect(paid.json().bill).toMatchObject({ status: "PAID" });
+    // The first order's code can no longer pay the bill.
+    const late = await app.inject({ method: "POST", url: `/mock/qr/${qr.paymentId}/pay`, payload: {} });
+    expect(late.statusCode).toBe(409);
+    expect(late.json().code).toBe("ALREADY_PAID");
+  });
+
+  it("an abandoned QR code expires: another order takes the bill, and the old code cannot pay it", async () => {
+    const app = demo.w.app;
+    const bill = await newBill(demo.w, "sha");
+    const old = (await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: { clientRef: "p-gone" } })).json().qr;
+    const realNow = Date.now;
+    const later = realNow() + BILL_LEASE_MS + 1_000;
+    Date.now = () => later;
+    try {
+      const fresh = await app.inject({ method: "POST", url: `/mock/shop/sha/bills/${bill.billId}/qr`, payload: { clientRef: "p-new" } });
+      expect(fresh.statusCode).toBe(200);
+      expect(fresh.json().qr.paymentId).not.toBe(old.paymentId);
+      const stale = await app.inject({ method: "POST", url: `/mock/qr/${old.paymentId}/pay`, payload: {} });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json().code).toBe("CODE_REPLACED");
+      expect((await app.inject({ method: "POST", url: `/mock/qr/${fresh.json().qr.paymentId}/pay`, payload: {} })).statusCode).toBe(200);
+      expect(demo.w.shop.getBill("sha", bill.billId)).toMatchObject({ status: "PAID", clientRef: "p-new" });
+    } finally {
+      Date.now = realNow;
+    }
   });
 });

@@ -33,7 +33,7 @@ describe("A3: payments without a valid approval", () => {
     expect(await getDb().select().from(payments)).toHaveLength(0);
     expect(await refusals("NO_APPROVAL")).toHaveLength(1);
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
-    recordGuarded("A3", { case: "direct executeApproval with no approval row", outcome: "BLOCKED", decision: null, reasonCodes: ["NO_APPROVAL"], ledger: ["PAYMENT_REFUSED"] });
+    recordGuarded("A3", { case: "direct executeApproval with no approval row", decision: null, reasonCodes: ["NO_APPROVAL"], ledger: ["PAYMENT_REFUSED"] });
   });
 
   it("forged approval row (attacker writes their own signature) → BAD_SIGNATURE", async () => {
@@ -60,7 +60,7 @@ describe("A3: payments without a valid approval", () => {
     expect(await getDb().select().from(payments)).toHaveLength(0);
     expect(await refusals("BAD_SIGNATURE")).toHaveLength(1);
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
-    recordGuarded("A3", { case: "forged approval row with attacker signature", outcome: "BLOCKED", decision: null, reasonCodes: ["BAD_SIGNATURE"], ledger: ["PAYMENT_REFUSED"] });
+    recordGuarded("A3", { case: "forged approval row with attacker signature", decision: null, reasonCodes: ["BAD_SIGNATURE"], ledger: ["PAYMENT_REFUSED"] });
   });
 
   it("replaying an executed approval → NONCE_USED, still one payment", async () => {
@@ -74,7 +74,7 @@ describe("A3: payments without a valid approval", () => {
     expect(replay.reasonCodes).toEqual(["NONCE_USED"]);
     expect(await getDb().select().from(payments)).toHaveLength(1);
     expect(await refusals("NONCE_USED")).toHaveLength(1);
-    recordGuarded("A3", { case: "replay of an executed approval", outcome: "BLOCKED", decision: null, reasonCodes: ["NONCE_USED"], ledger: ["PAYMENT_REFUSED"] });
+    recordGuarded("A3", { case: "replay of an executed approval", decision: null, reasonCodes: ["NONCE_USED"], ledger: ["PAYMENT_REFUSED"] });
   });
 
   it("re-approving the same order with a replayed assertion is refused by rules", async () => {

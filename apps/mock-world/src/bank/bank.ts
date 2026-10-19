@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { convertMinor, crossRate, isSupportedCurrency, normalizeIban, parseRate, validatePayeeAccount, type PayeeAccountFields } from "@kassa/shared";
 
 import type { Clock } from "../clock.ts";
-import type { BalanceStore, SeedWallet } from "../store/types.ts";
+import { sameCardCharge, type BalanceStore, type CardDebitRecord, type SeedWallet } from "../store/types.ts";
 import { type Collection, mapCollection } from "../store/sync.ts";
 import type { WebhookSink } from "../webhooks.ts";
 import type { RailRoute, RateProvider } from "./rates.ts";
@@ -137,6 +137,36 @@ export interface BalanceMovement {
   rate: string;
   fee: { totalMinor: number; currency: string };
   simulated: true;
+}
+
+/** (2026-10-19) A card charge paid from the wallet (POST /bank/card-debits). */
+export interface CardDebit {
+  reference: string;
+  authorizationId: string;
+  cardId: string;
+  profileId: number;
+  /** The charge as the merchant sent it. */
+  amount: { valueMinor: number; currency: string };
+  /** What left the wallet: the funding balance, converted when its currency differs. */
+  debited: { valueMinor: number; currency: string };
+  balanceAfterMinor: number;
+  /** false: a replay of a recorded debit (no money moved this time). */
+  created: boolean;
+  simulated: true;
+}
+
+function cardDebitView(d: CardDebitRecord, authorizationId: string, created: boolean): CardDebit {
+  return {
+    reference: d.reference,
+    authorizationId,
+    cardId: d.cardId,
+    profileId: d.profile,
+    amount: { valueMinor: d.requestAmountMinor, currency: d.requestCurrency },
+    debited: { valueMinor: d.amountMinor, currency: d.currency },
+    balanceAfterMinor: d.balanceAfterMinor,
+    created,
+    simulated: true,
+  };
 }
 
 export interface QuoteInput {
@@ -295,11 +325,43 @@ export class MockBank {
     if ((input.sourceAmountMinor === undefined) === (input.targetAmountMinor === undefined)) {
       throw new BankError(422, "NOT_VALID", "Provide exactly one of sourceAmountMinor or targetAmountMinor", "sourceAmountMinor");
     }
+    const now = await this.opts.clock.now();
+    const { route, table, midRate, markupBps, feeMinor, sourceAmountMinor, targetAmountMinor } = await this.price(src, tgt, input);
+
+    const quote: Quote = {
+      id: randomUUID(),
+      profile,
+      sourceCurrency: src,
+      targetCurrency: tgt,
+      sourceAmountMinor,
+      targetAmountMinor,
+      rate: src === tgt ? "1" : effectiveRate(midRate, markupBps),
+      midRate,
+      rateType: "FIXED",
+      rateDate: table.date,
+      rateSource: table.source,
+      createdTime: now.toISOString(),
+      expirationTime: new Date(now.getTime() + QUOTE_TTL_MS).toISOString(),
+      payIn: "BALANCE",
+      payOut: "BANK_TRANSFER",
+      routeId: route.routeId,
+      fee: { totalMinor: feeMinor, currency: src, fixedMinor: feeMinor, markupBps },
+      estimatedDelivery: new Date(now.getTime() + route.settlementDays * DAY_MS).toISOString(),
+      status: "PENDING",
+      simulated: true,
+    };
+    this.quotes.set(quote.id, quote);
+    return quote;
+  }
+
+  /**
+   * The bank's price for src → tgt on its own route for src (rails.json MOCK_BANK): mid-market rate from the rate
+   * provider, the route's markup when the currencies differ, and its fixed fee in src. Exactly one of the amounts.
+   */
+  private async price(src: string, tgt: string, input: { sourceAmountMinor?: number | undefined; targetAmountMinor?: number | undefined; routeId?: string | undefined }) {
     const route: RailRoute | undefined = mockBankRoute(src, input.routeId);
     if (!route) throw new BankError(422, "NOT_VALID", `No mock bank route for ${src}${input.routeId ? ` (${input.routeId})` : ""}`, "routeId");
-
     const table = await this.opts.rates.getRates();
-    const now = await this.opts.clock.now();
     for (const c of [src, tgt, route.feeCurrency]) {
       if (table.rates[c] === undefined) throw new BankError(422, "NOT_VALID", `No rate for ${c}`, "targetCurrency");
     }
@@ -326,31 +388,7 @@ export class MockBank {
       targetAmountMinor = convertMinor(net, src, tgt, midRate, { markupBps, markupMode: "RECEIVE_LESS", rounding: "FLOOR" });
       if (targetAmountMinor <= 0) throw new BankError(422, "NOT_VALID", "Amount too small", "sourceAmountMinor");
     }
-
-    const quote: Quote = {
-      id: randomUUID(),
-      profile,
-      sourceCurrency: src,
-      targetCurrency: tgt,
-      sourceAmountMinor,
-      targetAmountMinor,
-      rate: src === tgt ? "1" : effectiveRate(midRate, markupBps),
-      midRate,
-      rateType: "FIXED",
-      rateDate: table.date,
-      rateSource: table.source,
-      createdTime: now.toISOString(),
-      expirationTime: new Date(now.getTime() + QUOTE_TTL_MS).toISOString(),
-      payIn: "BALANCE",
-      payOut: "BANK_TRANSFER",
-      routeId: route.routeId,
-      fee: { totalMinor: feeMinor, currency: src, fixedMinor: feeMinor, markupBps },
-      estimatedDelivery: new Date(now.getTime() + route.settlementDays * DAY_MS).toISOString(),
-      status: "PENDING",
-      simulated: true,
-    };
-    this.quotes.set(quote.id, quote);
-    return quote;
+    return { route, table, midRate, markupBps, feeMinor, sourceAmountMinor, targetAmountMinor };
   }
 
   getQuote(profile: number, id: string): Quote {
@@ -545,6 +583,65 @@ export class MockBank {
     await this.store.credit(profile, quote.targetCurrency, quote.targetAmountMinor);
     quote.status = "ACCEPTED";
     return m;
+  }
+
+  // ---------- Card charges (one-time cards Kassa issued, paid from the wallet) ----------
+
+  /**
+   * (added 2026-10-19) Pay an approved one-time card charge from the profile's wallet. Called by Kassa's issuer
+   * (POST /bank/card-debits) when it approves an authorization; the issuer approves only if this succeeds.
+   *
+   * Funding: the balance in the charge currency when it covers the charge. Otherwise the other balances that cover it
+   * after conversion at the bank's own price (price(): mid rate, the route's markup and fixed fee, rounded up, as for
+   * a balance conversion), cheapest at the mid rate first (funding.ts picks the cheapest covering route the same way),
+   * wallet order on ties. One balance pays the whole charge; nothing is split. None covers it: 422
+   * transfer.insufficient_funds and nothing moves.
+   *
+   * Idempotent per authorization (reference "card-auth:<authorizationId>"): a replay returns the recorded debit
+   * (created false) without moving money again. A card is debited at most once: another authorization on the same card
+   * for the same charge returns the recorded debit too, a different charge is 409 card_debit.conflict.
+   */
+  async cardDebit(profile: number, input: { authorizationId: string; cardId: string; amountMinor: number; currency: string }): Promise<CardDebit> {
+    checkCredit(input.currency, input.amountMinor);
+    await this.requireWallet(profile);
+    const request = { reference: `card-auth:${input.authorizationId}`, cardId: input.cardId, profile, requestCurrency: input.currency, requestAmountMinor: input.amountMinor };
+    const conflict = () => new BankError(409, "card_debit.conflict", "This authorization or card already paid a different charge", "authorizationId");
+    const seen = await this.store.findCardDebit(request.reference, request.cardId);
+    if (seen) {
+      if (!sameCardCharge(seen, { ...request, currency: seen.currency, amountMinor: seen.amountMinor })) throw conflict();
+      return cardDebitView(seen, input.authorizationId, false);
+    }
+    for (const c of await this.cardFunding(profile, input.currency, input.amountMinor)) {
+      const r = await this.store.cardDebit({ ...request, currency: c.currency, amountMinor: c.amountMinor });
+      if (r.kind === "ok") return cardDebitView(r.debit, input.authorizationId, r.created);
+      if (r.kind === "conflict") throw conflict();
+      // insufficient: the balance moved since it was read; try the next one.
+    }
+    throw new BankError(422, "transfer.insufficient_funds", "Insufficient balance", undefined, { type: "BALANCE", status: "REJECTED", errorCode: "transfer.insufficient_funds" });
+  }
+
+  /** Balances that cover the charge, in the order they are tried (see cardDebit). */
+  private async cardFunding(profile: number, currency: string, amountMinor: number): Promise<{ currency: string; amountMinor: number }[]> {
+    const wallet = (await this.store.balances(profile)) ?? [];
+    const same = wallet.find(([c]) => c === currency);
+    if (same && same[1] >= amountMinor) return [{ currency, amountMinor }];
+    const converted: { currency: string; amountMinor: number; midValue: number; position: number }[] = [];
+    for (const [i, [src, balance]] of wallet.entries()) {
+      if (src === currency || balance <= 0) continue;
+      let p: Awaited<ReturnType<MockBank["price"]>>;
+      try {
+        p = await this.price(src, currency, { targetAmountMinor: amountMinor });
+      } catch (err) {
+        if (err instanceof BankError) continue; // no route or no rate for this balance
+        throw err;
+      }
+      if (p.sourceAmountMinor > balance) continue;
+      // The debit's worth in the charge currency at the mid rate: the cost of paying from this balance.
+      const midValue = convertMinor(p.sourceAmountMinor, src, currency, p.midRate);
+      converted.push({ currency: src, amountMinor: p.sourceAmountMinor, midValue, position: i });
+    }
+    converted.sort((a, b) => a.midValue - b.midValue || a.position - b.position);
+    return converted.map(({ currency: c, amountMinor: a }) => ({ currency: c, amountMinor: a }));
   }
 
   async getTransfer(id: number): Promise<Transfer> {

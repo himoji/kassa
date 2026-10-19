@@ -38,6 +38,7 @@ const TOOL_TEXT: Record<string, string> = {
   search_catalog: "the shop's catalog",
   get_spending_summary: "your spending",
   get_money_history: "your money history",
+  get_payments: "your payments",
   read_document: "the document",
   log_expense: "the expense log",
   get_fx_rate: "exchange rates",

@@ -473,9 +473,10 @@ export const STAGE_JS: string = `
     } catch (e) {
       return { ok: false, tone: "bad", title: "Network error", detail: String(e) };
     }
-    // Reset and the shared clock need the operator's key: ask once, keep it in this browser, retry once.
+    // Reset, the shared clock and (on a deployed build) every scene button need the operator's key: ask once, keep it
+    // in this browser, retry once.
     if (res.status === 401 && !retried) {
-      var typed = window.prompt("Operator key (the demo admin token) for reset and the demo clock:");
+      var typed = window.prompt("Operator key (the demo admin token). Cancel if you are not running the demo:");
       if (typed) {
         try {
           localStorage.setItem(KEY_STORE, typed.trim());
@@ -501,7 +502,8 @@ export const STAGE_JS: string = `
   }
 
   async function state() {
-    var res = await fetch("/mock/stage/api/state", { cache: "no-store" });
+    var key = storedKey();
+    var res = await fetch("/mock/stage/api/state", { cache: "no-store", headers: key ? { "x-stage-key": key } : {} });
     return res.json();
   }
 

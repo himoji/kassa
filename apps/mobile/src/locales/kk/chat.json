@@ -113,5 +113,18 @@
   },
   "proposalConvertTitle": "{{currency}} валютасына айырбастау",
   "proposalFunding": "{{currency}} балансыңыздан · ең көбі {{max}}",
-  "proposalSigned": "Қол қоятыныңыз"
+  "orderStance": {
+    "TO_SIGN": "Қол қойылатын тапсырма",
+    "SIGNED": "Қол қойылған тапсырма",
+    "PAID_MANDATE": "Мандатыңыз бойынша төленді",
+    "PAID_SMALL_AUTO": "Шағын төлем лимиті шегінде төленді",
+    "ORDER": "Тапсырма"
+  },
+  "orderLine": {
+    "pay": "{{amount}}, алушы: {{payee}}",
+    "funded": "{{pay}}, {{currency}} балансыңыздан: комиссиялармен ең көбі {{max}} (бағыт {{route}}).",
+    "fundedLinked": "{{pay}}, байланыстырылған {{currency}} шотыңыздан: комиссиялармен ең көбі {{max}} (бағыт {{route}}).",
+    "rail": "{{pay}} · {{rail}}.",
+    "convert": "{{from}} балансыңыздан {{to}} балансына {{amount}} айырбастау, комиссиялармен ең көбі {{max}} есептен шығарылады (бағыт {{route}})."
+  }
 }

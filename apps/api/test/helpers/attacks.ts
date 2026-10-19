@@ -71,25 +71,162 @@ export const WRITE_EVIDENCE = process.env.WRITE_EVIDENCE === "1";
 const EVIDENCE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../docs/evidence");
 export const ATTACKS_JSON = resolve(EVIDENCE_DIR, "attacks.json");
 export const NAIVE_JSON = resolve(EVIDENCE_DIR, "naive-baseline.json");
+export const TAP_JSON = resolve(EVIDENCE_DIR, "tap-confirm-baseline.json");
 
-export type GuardedCase = {
+/**
+ * What one attack case ended in:
+ *  - REFUSED: code stopped it and there is nothing to approve (REFUSE, no proposal at all, or refused at approval or
+ *    execution whatever the rules said).
+ *  - ASKED: a passkey prompt on the exact canonical order. Nothing moves unless the user approves it, so a fooled user
+ *    can still pay; `ifApproved` says who would be paid.
+ *  - PAID: money reached the attacker.
+ * "No money moved" alone is not REFUSED: an ASK is a prompt, not a refusal.
+ */
+export type Outcome = "REFUSED" | "ASKED" | "PAID";
+
+export type CaseInput = {
   /** What the attacker tried, in this case. */
   case: string;
-  /** BLOCKED = no money moved; anything else is a finding. */
-  outcome: "BLOCKED" | "PAID";
   decision?: string | null;
   reasonCodes: string[];
-  /** Ledger entry types that record the refusal. */
+  /** Ledger entry types that record what happened. */
   ledger: string[];
+  /** Money reached the attacker in this case (default false). */
+  paid?: boolean;
+  /** Required when the case ends at a passkey prompt (ASK / HANDOFF): who is paid if the user approves. */
+  ifApproved?: { paysAttacker: boolean; note: string };
+  /** A caveat shown with the case. */
+  note?: string;
 };
+
+export type PayeeCooling = "IN_COOLING" | "COOLED_UNVERIFIED";
+
+export type GuardedCase = Omit<CaseInput, "paid"> & {
+  outcome: Outcome;
+  /**
+   * From PAYEE_COOLING (rules/decide.ts): IN_COOLING = added less than 24 h ago, refused even if the user would
+   * approve; COOLED_UNVERIFIED = the 24 h are over but the user never verified the payee, so every order asks and
+   * an approval does pay. null = the code is absent.
+   */
+  payeeCooling: PayeeCooling | null;
+};
+
+/** Ledger entries that mean code refused at approval or execution, whatever the rules decision was. */
+const REFUSED_AFTER_DECISION = new Set(["PAYMENT_REFUSED", "APPROVAL_DENIED", "HANDOFF_MISMATCH"]);
+
+/** Classify one guarded case. Throws on a case that cannot be classified honestly. */
+export function classifyGuarded(c: CaseInput): GuardedCase {
+  const { paid = false, ...rest } = c;
+  let outcome: Outcome;
+  if (paid) outcome = "PAID";
+  else if (c.ledger.some((t) => REFUSED_AFTER_DECISION.has(t))) outcome = "REFUSED";
+  else if (c.decision === "ASK" || c.decision === "HANDOFF") outcome = "ASKED";
+  else if (c.decision === "AUTO") throw new Error(`${c.case}: an AUTO decision must end paid or refused at execution`);
+  else outcome = "REFUSED";
+  if (outcome === "ASKED" && !c.ifApproved) throw new Error(`${c.case}: an ASKED case needs ifApproved (who is paid if the user approves)`);
+  const payeeCooling: PayeeCooling | null = !c.reasonCodes.includes("PAYEE_COOLING")
+    ? null
+    : c.decision === "ASK"
+      ? "COOLED_UNVERIFIED"
+      : "IN_COOLING";
+  const out: GuardedCase = { ...rest, outcome, payeeCooling };
+  if (outcome !== "ASKED") delete out.ifApproved;
+  return out;
+}
+
+const RANK: Record<Outcome, number> = { REFUSED: 0, ASKED: 1, PAID: 2 };
+
+/** The worst outcome over an attack's cases (PAID > ASKED > REFUSED). */
+export function worstOutcome(cases: readonly GuardedCase[]): Outcome {
+  return cases.reduce<Outcome>((w, c) => (RANK[c.outcome] > RANK[w] ? c.outcome : w), "REFUSED");
+}
+
+/** True when a user who approves every prompt would pay the attacker in at least one case (or a case already paid). */
+export function paysAttackerIfUserApproves(cases: readonly GuardedCase[]): boolean {
+  return cases.some((c) => c.outcome === "PAID" || (c.outcome === "ASKED" && c.ifApproved?.paysAttacker === true));
+}
+
 export type NaiveResult = { outcome: "PAID" | "BLOCKED"; paid: boolean; railCalls: number; detail: string };
 
-type AttacksFile = {
-  generatedBy: string;
+/** The chatbot + tap-to-confirm baseline (test/naive/tap-confirm.ts) for one attack. */
+export type TapResult = {
+  outcome: "PAID" | "REFUSED";
+  paid: boolean;
+  railCalls: number;
+  /** Confirm taps the fooled user gave. */
+  taps: number;
+  /** Paid, and it needed the user's tap: a user who declined would have stopped it. */
+  paidOnlyBecauseUserTapped: boolean;
+  /** Paid even when the user declines every confirm card. */
+  carefulUserPaid: boolean;
+  /** The money went to an account the attacker controls (not an overpayment to a legitimate payee). */
+  toAttacker: boolean;
+  detail: string;
+  /** Why it paid, in words. */
   note: string;
-  attacks: Record<string, { attack: string; expected: string; guarded: { paid: boolean; cases: GuardedCase[] }; naive: NaiveResult | null }>;
-  summary: { total: number; guardedPaid: number; naivePaid: number };
 };
+
+export type AttackEntry = {
+  attack: string;
+  expected: string;
+  guarded: { paid: boolean; worst: Outcome; paysAttackerIfUserApproves: boolean; cases: GuardedCase[] };
+  tapConfirm: TapResult | null;
+  naive: NaiveResult | null;
+};
+
+export type AttacksSummary = {
+  total: number;
+  /** Attacks by worst guarded case. */
+  guardedRefused: number;
+  guardedAsked: number;
+  guardedPaid: number;
+  cases: { total: number; refused: number; asked: number; paid: number };
+  /** Attacks where a user who approves every Kassa prompt pays the attacker's account. */
+  guardedPaysAttackerIfUserApproves: number;
+  tapConfirmPaid: number;
+  tapConfirmPaidToAttacker: number;
+  tapConfirmPaidOnlyBecauseUserTapped: number;
+  tapConfirmCarefulUserPaid: number;
+  naivePaid: number;
+};
+
+type AttacksFile = { generatedBy: string; note: string; attacks: Record<string, AttackEntry>; summary: AttacksSummary };
+
+const NOTE =
+  "Per case: REFUSED = code stopped it, nothing to approve; ASKED = a passkey prompt on the exact canonical order, nothing moves unless the user approves (ifApproved says who would be paid; payeeCooling IN_COOLING = refused for 24 h even with approval, COOLED_UNVERIFIED = the wait is over and an approval pays); PAID = money reached the attacker. " +
+  "guarded = the real Kassa modules (rules, payments, Reader, webhooks) on PGlite with stub/mock rails. " +
+  "tapConfirm = a chatbot with a payment tool where every payment needs one confirm tap and nothing else (no cooling, verified payees, caps, mandate scope or order signature), with a fooled user who taps every card (the live-agent.md assumption). " +
+  "naive = the raw intent through a stub rail with no confirmation at all: it pays every case by construction and is shown only as the upper bound. " +
+  "No real AI: the planner and the Reader are scripted mock models.";
+
+/** Recompute an attack's derived fields and the file summary. Exported for the classification tests. */
+export function summarize(attacks: Record<string, AttackEntry>): AttacksSummary {
+  const rows = Object.values(attacks);
+  for (const a of rows) {
+    a.guarded.worst = worstOutcome(a.guarded.cases);
+    a.guarded.paid = a.guarded.worst === "PAID";
+    a.guarded.paysAttackerIfUserApproves = paysAttackerIfUserApproves(a.guarded.cases);
+  }
+  const cases = rows.flatMap((a) => a.guarded.cases);
+  return {
+    total: rows.length,
+    guardedRefused: rows.filter((a) => a.guarded.worst === "REFUSED").length,
+    guardedAsked: rows.filter((a) => a.guarded.worst === "ASKED").length,
+    guardedPaid: rows.filter((a) => a.guarded.worst === "PAID").length,
+    cases: {
+      total: cases.length,
+      refused: cases.filter((c) => c.outcome === "REFUSED").length,
+      asked: cases.filter((c) => c.outcome === "ASKED").length,
+      paid: cases.filter((c) => c.outcome === "PAID").length,
+    },
+    guardedPaysAttackerIfUserApproves: rows.filter((a) => a.guarded.paysAttackerIfUserApproves).length,
+    tapConfirmPaid: rows.filter((a) => a.tapConfirm?.paid).length,
+    tapConfirmPaidToAttacker: rows.filter((a) => a.tapConfirm?.paid && a.tapConfirm.toAttacker).length,
+    tapConfirmPaidOnlyBecauseUserTapped: rows.filter((a) => a.tapConfirm?.paidOnlyBecauseUserTapped).length,
+    tapConfirmCarefulUserPaid: rows.filter((a) => a.tapConfirm?.carefulUserPaid).length,
+    naivePaid: rows.filter((a) => a.naive?.paid).length,
+  };
+}
 
 function withLock<T>(fn: () => T): T {
   const lock = `${ATTACKS_JSON}.lock`;
@@ -119,29 +256,25 @@ function writeJson(path: string, value: unknown): void {
 
 function updateAttacks(mutate: (f: AttacksFile) => void): void {
   withLock(() => {
-    const f: AttacksFile = existsSync(ATTACKS_JSON)
-      ? (JSON.parse(readFileSync(ATTACKS_JSON, "utf8")) as AttacksFile)
-      : { generatedBy: "", note: "", attacks: {}, summary: { total: 0, guardedPaid: 0, naivePaid: 0 } };
+    const f = (existsSync(ATTACKS_JSON) ? JSON.parse(readFileSync(ATTACKS_JSON, "utf8")) : { attacks: {} }) as AttacksFile;
     f.generatedBy = "bun run evidence:attacks (apps/api test/attacks + test/naive, WRITE_EVIDENCE=1)";
-    f.note =
-      "guarded = the real Kassa modules (rules, payments, Reader, webhooks) on PGlite with stub/mock rails; naive = test/naive harness that executes the agent's raw intent through a stub rail without rules or payments verification. No real AI: planner and Reader are scripted mock models.";
+    f.note = NOTE;
     for (const id of Object.keys(ATTACKS) as AttackId[]) {
-      f.attacks[id] ??= { ...ATTACKS[id], guarded: { paid: false, cases: [] }, naive: null };
+      f.attacks[id] ??= { ...ATTACKS[id], guarded: { paid: false, worst: "REFUSED", paysAttackerIfUserApproves: false, cases: [] }, tapConfirm: null, naive: null };
     }
     mutate(f);
-    const rows = Object.values(f.attacks);
-    f.summary = { total: rows.length, guardedPaid: rows.filter((r) => r.guarded.paid).length, naivePaid: rows.filter((r) => r.naive?.paid).length };
-    writeJson(ATTACKS_JSON, f);
+    f.summary = summarize(f.attacks);
+    writeJson(ATTACKS_JSON, { generatedBy: f.generatedBy, note: f.note, summary: f.summary, attacks: f.attacks });
   });
 }
 
 /** Record one guarded case for an attack (no-op unless WRITE_EVIDENCE=1). Same case name → replaced. */
-export function recordGuarded(id: AttackId, c: GuardedCase): void {
+export function recordGuarded(id: AttackId, c: CaseInput): void {
+  const classified = classifyGuarded(c); // always: a case that cannot be classified fails the test, evidence or not
   if (!WRITE_EVIDENCE) return;
   updateAttacks((f) => {
     const a = f.attacks[id]!;
-    a.guarded.cases = [...a.guarded.cases.filter((x) => x.case !== c.case), c].sort((x, y) => x.case.localeCompare(y.case));
-    a.guarded.paid = a.guarded.cases.some((x) => x.outcome === "PAID");
+    a.guarded.cases = [...a.guarded.cases.filter((x) => x.case !== c.case), classified].sort((x, y) => x.case.localeCompare(y.case));
   });
 }
 
@@ -153,6 +286,14 @@ export function recordNaive(id: AttackId, r: NaiveResult): void {
   });
 }
 
+/** Record the tap-to-confirm baseline result for an attack (no-op unless WRITE_EVIDENCE=1). */
+export function recordTap(id: AttackId, r: TapResult): void {
+  if (!WRITE_EVIDENCE) return;
+  updateAttacks((f) => {
+    f.attacks[id]!.tapConfirm = r;
+  });
+}
+
 /** Write docs/evidence/naive-baseline.json (no-op unless WRITE_EVIDENCE=1). */
 export function writeNaiveBaseline(results: Record<AttackId, NaiveResult & { intent: unknown }>): void {
   if (!WRITE_EVIDENCE) return;
@@ -160,9 +301,26 @@ export function writeNaiveBaseline(results: Record<AttackId, NaiveResult & { int
   writeJson(NAIVE_JSON, {
     generatedBy: "bun run evidence:attacks (apps/api test/naive, WRITE_EVIDENCE=1)",
     description:
-      "Naive baseline (spec §19): the agent's raw intent for each attack (A1-A8, A10-A17) executed directly through a stub rail, without the rules module, payments verification, Reader checks or webhook checks.",
+      "Naive baseline (spec §19): the agent's raw intent for each attack (A1-A8, A10-A17) executed directly through a stub rail, without the rules module, payments verification, Reader checks or webhook checks, and without any user confirmation. It pays every case by construction: it is the upper bound, not a realistic competitor. The fairer comparison is tap-confirm-baseline.json.",
     total: ids.length,
     paid: ids.filter((id) => results[id].paid).length,
+    results: Object.fromEntries(ids.map((id) => [id, { ...ATTACKS[id], ...results[id] }])),
+  });
+}
+
+/** Write docs/evidence/tap-confirm-baseline.json (no-op unless WRITE_EVIDENCE=1). */
+export function writeTapBaseline(results: Record<AttackId, TapResult>): void {
+  if (!WRITE_EVIDENCE) return;
+  const ids = Object.keys(results) as AttackId[];
+  writeJson(TAP_JSON, {
+    generatedBy: "bun run evidence:attacks (apps/api test/naive/tap-confirm-baseline.test.ts, WRITE_EVIDENCE=1)",
+    description:
+      "Chatbot + tap-to-confirm baseline: an agent with a payment tool where every payment needs one confirm tap by the user, and nothing else: no payee register, no 24 h cooling, no verified payees, no caps, no mandate scope, no signature binding the tap to the order. The card shows the tool call's arguments. The fooled user taps every card (as docs/evidence/live-agent.md assumes); the careful user declines every card. Attacks that pay only because the user tapped are marked paidOnlyBecauseUserTapped.",
+    total: ids.length,
+    paid: ids.filter((id) => results[id].paid).length,
+    paidOnlyBecauseUserTapped: ids.filter((id) => results[id].paidOnlyBecauseUserTapped).length,
+    paidToAttacker: ids.filter((id) => results[id].paid && results[id].toAttacker).length,
+    carefulUserPaid: ids.filter((id) => results[id].carefulUserPaid).length,
     results: Object.fromEntries(ids.map((id) => [id, { ...ATTACKS[id], ...results[id] }])),
   });
 }

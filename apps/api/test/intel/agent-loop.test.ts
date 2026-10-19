@@ -7,6 +7,7 @@ import type { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it } from "vitest";
 
 import { startTurn } from "../../src/modules/agent/loop.ts";
+import { SYSTEM_PROMPT } from "../../src/modules/agent/prompt.ts";
 import { replayModel, type RecordedStep } from "../../src/modules/agent/replay.ts";
 import { buildTools, MAX_TOOL_STEPS, READ_TOOLS, UI_TOOLS, WRITE_TOOLS } from "../../src/modules/agent/tools.ts";
 import { Redactor } from "../../src/modules/agent/redact.ts";
@@ -31,7 +32,7 @@ async function run(steps: RecordedStep[], opts: Parameters<typeof fakePorts>[0] 
 }
 
 describe("agent tool surface (I1)", () => {
-  it("exposes the 11 spec tools plus read-only get_fx_rate and the ask_* UI tools; propose_order is the only write tool", () => {
+  it("exposes exactly the 11 spec tools plus the read-only READ_TOOLS and the ask_* UI tools; propose_order is the only write tool", () => {
     const { ports } = fakePorts();
     const tools = buildTools({ ports, redactor: new Redactor(), emit: () => undefined, readDocs: new Map(), stop: { requested: false, reason: null }, proposals: [] });
     expect(Object.keys(tools).sort()).toEqual(
@@ -52,7 +53,20 @@ describe("agent tool surface (I1)", () => {
       ].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
-    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary", "get_money_history"]);
+    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary", "get_money_history", "get_payments"]);
+  });
+
+  it("(2026-10-19) get_payments is read-only, in the shared read-tool schemas, and the prompt tells the planner when to use it", async () => {
+    const { READ_TOOL_INPUT_SCHEMAS } = await import("@kassa/shared");
+    expect(Object.keys(READ_TOOL_INPUT_SCHEMAS).sort()).toEqual([...READ_TOOLS].sort());
+    expect(WRITE_TOOLS).not.toContain("get_payments");
+    // The judge's findings, as prompt rules: plan without paying, check before calling something unpaid, no promises
+    // the code does not keep, and "signed" only after the passkey.
+    expect(SYSTEM_PROMPT).toMatch(/plan, compare, check or prioritise[^\n]*do not call propose_order/);
+    expect(SYSTEM_PROMPT).toMatch(/get_payments/);
+    expect(SYSTEM_PROMPT).toMatch(/Never promise future behaviour that the code does not enforce/);
+    expect(SYSTEM_PROMPT).toMatch(/"signed" only after the user signed it/);
+    expect(SYSTEM_PROMPT).not.toMatch(/signedOrder/);
   });
 
   it("agent/** never imports payments, rails or ledger/internal (static import scan)", () => {

@@ -68,7 +68,7 @@ describe("file formats", () => {
 
   it("reads OFX transactions", () => {
     const ofx = readOfx("<OFX><CURDEF>USD<BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261001<TRNAMT>-12.50<NAME>COFFEE SHOP</STMTTRN></BANKTRANLIST>");
-    expect(ofx).toEqual({ currency: "USD", records: [{ date: "2026-10-01", amount: "-12.50", description: "COFFEE SHOP", currency: "" }] });
+    expect(ofx).toEqual({ currency: "USD", period: null, records: [{ date: "2026-10-01", amount: "-12.50", description: "COFFEE SHOP", currency: "" }] });
   });
 
   it("reads a PDF's text and ruled tables", async () => {
@@ -91,6 +91,10 @@ describe("statement layouts", () => {
     expect(fieldFor("Transaction Date")).toBe("date");
     expect(parseDate("15.10.2026\n08:09:10", true)?.toISOString()).toBe("2026-10-15T08:09:10.000Z");
     expect(parseDate("04/14/26", false)?.toISOString().slice(0, 10)).toBe("2026-04-14");
+    // Year first (Hungarian, Chinese exports): exact, in UTC, whatever the column's day order.
+    expect(parseDate("2026.10.13.", true)?.toISOString()).toBe("2026-10-13T12:00:00.000Z");
+    expect(parseDate("2026. 10. 13.", false)?.toISOString()).toBe("2026-10-13T12:00:00.000Z");
+    expect(parseDate("2026/10/13 08:15", true)?.toISOString()).toBe("2026-10-13T08:15:00.000Z");
   });
 
   it("Kazakh card bank table: purchase in HUF with the KZT actually charged, a page-split row joined, repeated headers skipped", () => {

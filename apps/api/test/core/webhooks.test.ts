@@ -9,7 +9,7 @@ import { env } from "../../src/env.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { useTestApp } from "../helpers/app.ts";
-import { addPayee, createUserWithPasskey, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { addPayee, addPriorPayment, createUserWithPasskey, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
 
 const t = useTestDb();
@@ -30,6 +30,7 @@ async function issuedCard() {
   const { userId, auth } = await createUserWithPasskey({ moneyMode: "CAPPED_WALLET" });
   const shop = await addPayee(userId, { name: "Pizza Shop in Budapest", kind: "MERCHANT", account: "pizza shop in", currency: "HUF" });
   await signBaseRules(userId, auth);
+  await addPriorPayment(userId, shop.id, { currency: "HUF" }); // a shop paid before: small-auto applies (FIRST_PAYMENT_TO_PAYEE)
   const r = await proposeOrder({ userId, createdBy: "USER", payeeId: shop.id, amountMinor: 450_000, currency: "HUF", purpose: "Pizza" });
   expect(r.decision).toBe("AUTO");
   const card = (await getDb().select().from(issuedCards))[0]!;
@@ -87,7 +88,7 @@ describe("FakeIssuing one-time card", () => {
   });
 
   it("approves the exact charge once, declines the second, then the payment is SENT", async () => {
-    const { userId, card } = await issuedCard();
+    const { card } = await issuedCard();
     const charge = (over: Record<string, unknown> = {}) =>
       signed("/api/rails/fake-issuing/authorize", {
         authorizationId: crypto.randomUUID(),
@@ -103,7 +104,7 @@ describe("FakeIssuing one-time card", () => {
     expect((await charge({ merchant: { name: "Burger Place" } })).json()).toEqual({ approved: false, reasonCode: "MERCHANT_MISMATCH" });
     expect((await charge()).json()).toEqual({ approved: true });
     expect((await charge()).json()).toEqual({ approved: false, reasonCode: "CARD_ALREADY_USED" });
-    const p = (await getDb().select().from(payments).where(eq(payments.userId, userId)))[0]!;
+    const p = (await getDb().select().from(payments).where(eq(payments.id, card.paymentId)))[0]!;
     expect(p.status).toBe("SENT");
     const tx = await getDb().select().from(transactions).where(eq(transactions.paymentId, p.id));
     expect(tx[0]).toMatchObject({ source: "KASSA_PAYMENT", amountMinor: 450_000, currency: "HUF" });

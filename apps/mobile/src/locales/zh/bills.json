@@ -24,5 +24,12 @@
   "convertPlan": "请先{{steps}}，然后付款。",
   "convertStep": "用 {{from}} 兑换 {{amount}}",
   "convertStepJoin": "，",
-  "convertGeneric": "没有任何单一余额足以支付，但在您的余额之间换汇后即可支付。请先换汇，然后付款。"
+  "convertGeneric": "没有任何单一余额足以支付，但在您的余额之间换汇后即可支付。请先换汇，然后付款。",
+  "periodStatus": {
+    "PAID": "已于 {{date}} 付款",
+    "IN_FLIGHT": "付款处理中",
+    "AWAITING_APPROVAL": "等待您批准"
+  },
+  "nextDue": "下次到期 {{date}}",
+  "inFlightBody": "付款正在途中，此账单不再重复计算。"
 }

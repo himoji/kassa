@@ -182,6 +182,22 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
     return { profileId: profile, currency: body.currency, amountMinor: body.amountMinor, ...(await bank.topUp(profile, body.currency, body.amountMinor, body.reference)), simulated: true };
   });
 
+  // (added 2026-10-19) Kassa's issuer pays an approved one-time card charge from the wallet (bank.cardDebit).
+  app.post("/bank/card-debits", async (req) => {
+    const body = wiseParse(
+      z.object({
+        profileId: z.union([z.number().int().positive(), z.string().min(1).max(64)]),
+        authorizationId: z.string().min(1).max(64),
+        cardId: z.string().min(1).max(64),
+        amountMinor: Minor,
+        currency: Currency,
+      }),
+      req.body,
+    );
+    const profile = await bank.resolveProfile(body.profileId);
+    return bank.cardDebit(profile, { authorizationId: body.authorizationId, cardId: body.cardId, amountMinor: body.amountMinor, currency: body.currency });
+  });
+
   // Demo helpers (not part of Wise's API).
   app.get("/bank/transfers", async () => {
     await bank.tick();

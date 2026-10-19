@@ -112,5 +112,18 @@
   },
   "proposalConvertTitle": "换汇为 {{currency}}",
   "proposalFunding": "从您的 {{currency}} 余额 · 最多 {{max}}",
-  "proposalSigned": "您签署的内容"
+  "orderStance": {
+    "TO_SIGN": "待签署的付款指令",
+    "SIGNED": "已签署的付款指令",
+    "PAID_MANDATE": "已按您的授权付款",
+    "PAID_SMALL_AUTO": "已在小额付款限额内付款",
+    "ORDER": "付款指令"
+  },
+  "orderLine": {
+    "pay": "向 {{payee}} 支付 {{amount}}",
+    "funded": "{{pay}}，从您的 {{currency}} 余额扣款：含手续费最多 {{max}}（路线 {{route}}）。",
+    "fundedLinked": "{{pay}}，从您关联的 {{currency}} 账户扣款：含手续费最多 {{max}}（路线 {{route}}）。",
+    "rail": "{{pay}} · {{rail}}。",
+    "convert": "从您的 {{from}} 余额换汇 {{amount}} 至您的 {{to}} 余额，含手续费最多扣款 {{max}}（路线 {{route}}）。"
+  }
 }

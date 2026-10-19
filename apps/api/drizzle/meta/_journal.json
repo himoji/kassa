@@ -176,6 +176,20 @@
       "when": 1792368968938,
       "tag": "0024_mock_world_state",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792372568938,
+      "tag": "0025_mock_world_card_debits",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792387031394,
+      "tag": "0026_wallet_top_ups_linked_balances",
+      "breakpoints": true
     }
   ]
 }

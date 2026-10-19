@@ -17,12 +17,12 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import type { FastifyInstance, RouteOptions } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest, RouteOptions } from "fastify";
 
 import { env } from "../env.ts";
 import { requireUser } from "../modules/auth/session.ts";
 import { HttpProblem } from "./problem.ts";
-import { PgRateLimitStore } from "./rate-limit-store.ts";
+import { incrCounter, PgRateLimitStore } from "./rate-limit-store.ts";
 
 /** "METHOD /api/path" → why the route may skip the session check (and what authenticates it instead). */
 export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
@@ -40,6 +40,7 @@ export const PUBLIC_ROUTES: Readonly<Record<string, string>> = {
   "POST /api/auth/pair/complete": "single-use 8-character pairing code, 2-minute TTL, created behind a passkey assertion (auth/pair.ts)",
   "GET /api/public/verify/:id": "lender verification of a credit record by its 128-bit capability id",
   "GET /api/public/credit-record/:file": "credit record JSON/PDF by its 128-bit capability id",
+  "GET /api/public/keys": "the public keys that verify credit records and ledger checkpoints (JWKS), no personal data",
   "GET /api/fx/rates": "published reference FX rates, no personal data (mock-world reads them)",
   "GET /api/privacy/ai-notice": "AI transparency notice shown before sign-up (EU AI Act Art. 50), no personal data",
   "POST /api/webhooks/mock/bank": "HMAC-SHA256 over timestamp.body, 5-min window (I13)",
@@ -90,6 +91,8 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/demo/stage/document": "auth",
   // (added 2026-10-18) a reviewer's own "money from home" (judge build / dev sessions): no tapping it in a loop
   "POST /api/demo/money-from-home": "sensitive",
+  // (added 2026-10-19) runs the scheduler's due-bills pass for the caller's own account
+  "POST /api/demo/run-due-payments": "sensitive",
   "POST /api/orders/:proposalId/approve": "sensitive",
   "POST /api/merchant-bills/:billId/propose": "sensitive",
   "POST /api/capture/shortcut": "sensitive",
@@ -105,7 +108,23 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/privacy/restrict": "sensitive",
   // (added 2026-10-16) identity checks: no guessing documents in a loop
   "POST /api/kyc/start": "sensitive",
+  // (added 2026-10-19) "Find your school" sends a student's date of birth to the school: no guessing it in a loop
+  "POST /api/schools/:id/lookup": "sensitive",
+  "POST /api/schools/:id/link": "sensitive",
 };
+
+/**
+ * A per-IP budget a handler consumes itself, for a cost no per-minute route bucket fits (judge copies per hour,
+ * auth/dev.ts). Same Postgres counters as the plugin (namespace `budget:<name>`, key = client IP as the plugin's
+ * default keyGenerator); over the budget → the plugin's 429 RATE_LIMITED problem with Retry-After.
+ */
+export async function consumeIpBudget(req: FastifyRequest, reply: FastifyReply, name: string, max: number, windowMs: number): Promise<void> {
+  const hit = await incrCounter(`budget:${name}`, req.ip, windowMs);
+  if (hit.current <= max) return;
+  const seconds = Math.max(1, Math.ceil(hit.ttl / 1000));
+  void reply.header("retry-after", String(seconds));
+  throw new HttpProblem(429, "RATE_LIMITED", `Too many requests; retry in ${seconds} seconds`, { reasonCodes: ["RATE_LIMITED"] });
+}
 
 export const DEFAULT_BODY_LIMIT = 1024 * 1024;
 const BODY_LIMITS: Readonly<Record<string, number>> = {

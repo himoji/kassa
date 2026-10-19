@@ -43,5 +43,16 @@
   "shareFailed": "无法分享。请改为从验证页面复制链接。",
   "incomeMonths": "有资金到账的月份",
   "requestedPeriod": "申请的期间",
-  "accountOpened": "开户日期"
+  "accountOpened": "开户日期",
+  "budgetsKept": "控制在限额内的预算",
+  "paymentsCompleted": "已完成的付款",
+  "paymentsOnTime": "按期支付的账单",
+  "nameTitle": "核对持有人姓名",
+  "namePlaceholder": "对方告诉您的全名",
+  "nameCheck": "核对姓名",
+  "nameMatch": "姓名一致",
+  "nameNoMatch": "姓名不一致",
+  "nameFooterKyc": "该记录绑定了持有人经身份核验的全名。只显示一致或不一致，不会透露姓名本身。",
+  "nameFooterProfile": "该记录绑定了持有人账户上的全名（未经身份核验）。只显示一致或不一致。",
+  "importedHistory": "包含 Kassa 之前该账户的模拟历史，在创建演示账户时导入（开户于 {{date}}）。"
 }

@@ -74,7 +74,7 @@ describe("A8: confirmation that lies", () => {
     const card = r.emitted.find((c) => c.type === "data-proposal") as { data: { payeeName: string; amountMinor: number; currency: string } } | undefined;
     expect(card?.data).toMatchObject({ payeeName: "University in Budapest", amountMinor: 240_000, currency: "EUR" });
 
-    recordGuarded("A8", { case: "lying agent text vs confirmation view: view and passkey challenge = canonical order", outcome: "BLOCKED", decision: "ASK", reasonCodes: r.ctx.proposals[0]!.reasonCodes, ledger: ["PROPOSAL_CREATED"] });
+    recordGuarded("A8", { case: "lying agent text vs confirmation view: view and passkey challenge = canonical order", decision: "ASK", reasonCodes: r.ctx.proposals[0]!.reasonCodes, ledger: ["PROPOSAL_CREATED"], ifApproved: { paysAttacker: false, note: "The sheet and the passkey challenge show the real order (EUR 2,400 to the verified university), not the agent's text; a user who approves anyway pays the university." } });
   });
 
   it("an order tampered with in storage before approval cannot be approved (ORDER_HASH_MISMATCH)", async () => {
@@ -93,7 +93,7 @@ describe("A8: confirmation that lies", () => {
     expect(await getDb().select().from(approvals)).toHaveLength(0);
     expect(await getDb().select().from(payments)).toHaveLength(0);
 
-    recordGuarded("A8", { case: "stored order tampered before approval", outcome: "BLOCKED", decision: "ASK", reasonCodes: ["ORDER_HASH_MISMATCH"], ledger: ["APPROVAL_DENIED"] });
+    recordGuarded("A8", { case: "stored order tampered before approval", decision: "ASK", reasonCodes: ["ORDER_HASH_MISMATCH"], ledger: ["APPROVAL_DENIED"] });
   });
 
   it("an order tampered with after approval fails payments' own hash and signature checks", async () => {
@@ -118,6 +118,6 @@ describe("A8: confirmation that lies", () => {
     const refused = (await ledgerOf("PAYMENT_REFUSED")).map((e) => (e.payload as { reasonCodes: string[] }).reasonCodes[0]);
     expect(refused).toEqual(["ORDER_HASH_MISMATCH", "BAD_SIGNATURE"]);
 
-    recordGuarded("A8", { case: "stored order tampered after approval", outcome: "BLOCKED", decision: "ASK", reasonCodes: ["ORDER_HASH_MISMATCH", "BAD_SIGNATURE"], ledger: ["PAYMENT_REFUSED"] });
+    recordGuarded("A8", { case: "stored order tampered after approval", decision: "ASK", reasonCodes: ["ORDER_HASH_MISMATCH", "BAD_SIGNATURE"], ledger: ["PAYMENT_REFUSED"] });
   });
 });

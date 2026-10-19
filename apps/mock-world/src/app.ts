@@ -32,6 +32,7 @@ import type { SeedWallet, WorldStore } from "./store/types.ts";
 import { StageApi } from "./stage/client.ts";
 import { FakeIssuerClient, type Issuer, StripeTestHelperClient } from "./shop/issuer.ts";
 import { ShopOrderBook } from "./shop/orders.ts";
+import { MemoryLeases } from "./store/leases.ts";
 import { type OutboxEntry, WebhookClient, type WebhookSink } from "./webhooks.ts";
 import { PAYEE_INVOICES, SUPPLIERS } from "./world/data.ts";
 
@@ -135,9 +136,10 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
       ? new StripeTestHelperClient({ secretKey: config.stripeSecretKey!, apiBase: config.stripeApiBase, ...(deps.fetch ? { fetch: deps.fetch } : {}) })
       : new FakeIssuerClient({ apiUrl: config.apiUrl, secret: config.hmacSecret, clock, ...(deps.fetch ? { fetch: deps.fetch } : {}) }));
   const charges = new ChargeLog();
-  const shop = new ShopOrderBook({ issuer, clock, log: charges, webhooks, qr, kassaAppUrl: config.kassaAppUrl, stepMs: config.shopStepMs, autopilot: config.shopAutopilot });
+  const leases = store.leases ?? new MemoryLeases();
+  const shop = new ShopOrderBook({ issuer, clock, log: charges, webhooks, qr, kassaAppUrl: config.kassaAppUrl, stepMs: config.shopStepMs, autopilot: config.shopAutopilot, leases });
   const suppliers = new SupplierBook({ clock, webhooks, publicUrl: config.publicUrl });
-  const schools = new SchoolBook({ clock, webhooks });
+  const schools = new SchoolBook({ clock, webhooks, secret: config.hmacSecret });
   const kyc = new KycDesk({ clock });
   bank.onPayout((t, account) => schools.onPayout(t, account));
   const docs = await renderDocuments();
@@ -147,6 +149,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     qr.reset();
     charges.reset();
     shop.reset();
+    if (leases instanceof MemoryLeases) leases.reset();
     suppliers.reset();
     schools.reset();
     kyc.reset();
@@ -284,7 +287,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
       shopOrderRoutes(r, { config, book: shop });
       documentRoutes(r, { docs, publicUrl: config.publicUrl });
       qrRoutes(r, qr);
-      schoolRoutes(r, { book: schools });
+      schoolRoutes(r, { book: schools, config });
       kycRoutes(r, { desk: kyc });
       // (M5) own context: its raw-body JSON parser (HMAC check of Kassa's signed POs) stays local.
       await r.register(async (s) => supplierPortalRoutes(s, { config, book: suppliers, clock }));

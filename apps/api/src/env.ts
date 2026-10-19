@@ -34,6 +34,8 @@ const EnvSchema = z.object({
   RULES_PUBLIC_KEY: z.string().optional(),
   LEDGER_CHECKPOINT_KEY: z.string().optional(),
   LEDGER_CHECKPOINT_PUBLIC_KEY: z.string().optional(),
+  /** (2026-10-19) Optional own Ed25519 key for credit records; absent = derived from LEDGER_CHECKPOINT_KEY (credit-record/keys.ts). */
+  CREDIT_RECORD_KEY: z.string().optional(),
   ACCOUNT_ENC_KEY: z.string().optional(),
   /** KEK for per-user data keys (GDPR Art. 17 crypto-shredding). Rotating it: scripts/rotate-kek.ts. */
   USER_KEK: z.string().optional(),
@@ -107,6 +109,8 @@ const EnvSchema = z.object({
   RATE_LIMIT_GLOBAL_PER_MIN: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_AUTH_PER_MIN: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_SENSITIVE_PER_MIN: z.coerce.number().int().positive().default(30),
+  /** Judge build: persona copies / fresh users one client IP may create per hour via POST /auth/dev/login (auth/dev.ts). */
+  RATE_LIMIT_JUDGE_COPIES_PER_HOUR: z.coerce.number().int().positive().default(30),
   /** Retention (days) for the purge job (GDPR Art. 5(1)(e) storage limitation); 0 = keep. */
   RETENTION_DAYS_NOTIFICATIONS: z.coerce.number().int().min(0).default(90),
   RETENTION_DAYS_PLACEHOLDER_MAPS: z.coerce.number().int().min(0).default(30),

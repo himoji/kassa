@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
-import { devices, transactions } from "../../src/db/schema.ts";
+import { devices, transactions, users } from "../../src/db/schema.ts";
 import { resetEnvCache, setEnvForTests } from "../../src/env.ts";
 import { devLoginAllowed, judgeModeActive } from "../../src/modules/auth/dev.ts";
 import { clock } from "../../src/modules/clock/index.ts";
@@ -54,6 +54,24 @@ describe("judge build (JUDGE_MODE)", () => {
     setEnvForTests({ DEMO_ENABLED: "true", JUDGE_MODE: "true", RP_ID: "kassa-judge.vercel.app" });
     expect(judgeModeActive()).toBe(true);
     expect((await app().inject({ method: "GET", url: "/api/auth/demo" })).json()).toMatchObject({ devLogin: true, judgeMode: true });
+  });
+
+  it("caps account creation per client IP per hour (RATE_LIMIT_JUDGE_COPIES_PER_HOUR): over it 429 RATE_LIMITED, no new user", async () => {
+    setEnvForTests({ DEMO_ENABLED: "true", JUDGE_MODE: "true", RP_ID: "localhost", RATE_LIMIT_JUDGE_COPIES_PER_HOUR: "2" });
+    const login = (remoteAddress: string) =>
+      app().inject({ method: "POST", url: "/api/auth/dev/login", payload: { client: "native", fresh: true }, remoteAddress });
+    const ip = "198.51.100.7";
+    expect((await login(ip)).statusCode).toBe(200);
+    expect((await login(ip)).statusCode).toBe(200);
+    const before = (await getDb().select({ id: users.id }).from(users)).length;
+    const over = await login(ip);
+    expect(over.statusCode, over.body).toBe(429);
+    expect(over.headers["content-type"]).toContain("application/problem+json");
+    expect(over.json()).toMatchObject({ status: 429, code: "RATE_LIMITED", reasonCodes: ["RATE_LIMITED"] });
+    expect(Number(over.headers["retry-after"])).toBeGreaterThan(3_000);
+    expect((await getDb().select({ id: users.id }).from(users)).length).toBe(before);
+    // Per IP: another client still signs in.
+    expect((await login("198.51.100.8")).statusCode).toBe(200);
   });
 
   it("stays off without DEMO_ENABLED", () => {

@@ -23,6 +23,7 @@ import { setTransactionCategory } from "../capture/index.ts";
 import { toHome, type HomeAmount } from "./fx.ts";
 import { walletBalances } from "../rules/facts.ts";
 import { billRail, coverageOf, type Coverage } from "../obligations/coverage.ts";
+import { obligationPeriodStates } from "../obligations/status.ts";
 import { loadUser } from "../users/service.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -145,8 +146,12 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       }
     };
 
+    // (2026-10-19) Each bill's current period: paid or on its way, it is no longer checked for coverage (obligations/status.ts).
+    const states = await obligationPeriodStates(db, userId, rows);
+
     for (const o of rows) {
       const home = await homeOf(o.amountMinor, o.currency, homeCurrency, now);
+      const state = states.get(o.id);
       const mandate = activeMandates.find((m) => m.payeeIds.includes(o.payeeId) && m.categories.includes(o.category));
       obligationDtos.push({
         id: o.id,
@@ -161,8 +166,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         recurrence: o.recurrence,
         reference: o.reference,
         category: o.category,
-        ...(await planOf(o)),
+        ...(state?.settled ? { coverage: "COVERED" as const, bestRoute: null } : await planOf(o)),
         mandateId: mandate?.id ?? null,
+        status: state?.status ?? "DUE",
+        proposalId: state?.proposalId ?? null,
+        paymentId: state?.paymentId ?? null,
+        paidAt: state?.paidAt ?? null,
+        nextDueDate: state?.nextDueDate ?? null,
       });
     }
 

@@ -337,3 +337,78 @@ describe("(2026-10-18) conversions between a wallet's own balances (POST /v2/pro
     await expect(ctx.bank.convert(PROFILE, { quoteId: b.id, customerTransactionId: "p-6" })).rejects.toMatchObject({ status: 409 });
   });
 });
+
+describe("(2026-10-19) one-time card charges paid from the wallet (POST /bank/card-debits)", () => {
+  let ctx: Ctx;
+  const balance = async (currency: string) => (await ctx.bank.listBalances(PROFILE)).find((b) => b.currency === currency)?.amount.valueMinor ?? 0;
+  const charge = (over: Partial<{ authorizationId: string; cardId: string; amountMinor: number; currency: string }> = {}) =>
+    ctx.bank.cardDebit(PROFILE, { authorizationId: "auth-1", cardId: "fic_1", amountMinor: 5_000, currency: "EUR", ...over });
+  beforeEach(() => {
+    ctx = makeCtx();
+  });
+
+  it("same currency: the charge leaves that balance, nothing converts", async () => {
+    const d = await charge();
+    expect(d).toMatchObject({ created: true, amount: { valueMinor: 5_000, currency: "EUR" }, debited: { valueMinor: 5_000, currency: "EUR" }, balanceAfterMinor: 25_000 });
+    expect(await balance("EUR")).toBe(25_000);
+    expect(await balance("KZT")).toBe(90_000_000);
+  });
+
+  it("no balance in the card currency: the cheapest covering balance pays at the bank's own conversion price", async () => {
+    // HUF 5,980.00: no HUF balance. EUR and KZT both cover it; EUR is cheaper at the mid rate.
+    const q = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "HUF", targetAmountMinor: 598_000 });
+    const k = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "HUF", targetAmountMinor: 598_000 });
+    expect(convertMinor(q.sourceAmountMinor, "EUR", "HUF", q.midRate)).toBeLessThan(convertMinor(k.sourceAmountMinor, "KZT", "HUF", k.midRate));
+    const d = await charge({ amountMinor: 598_000, currency: "HUF" });
+    expect(d.debited).toEqual({ valueMinor: q.sourceAmountMinor, currency: "EUR" });
+    // Mid conversion plus the route's 35 bps markup and EUR 0.50 fee, rounded up.
+    expect(q.sourceAmountMinor).toBe(convertMinor(598_000, "HUF", "EUR", crossRate(FIXTURE_RATES.rates, "HUF", "EUR", 12), { markupBps: 35, rounding: "CEIL" }) + 50);
+    expect(await balance("EUR")).toBe(30_000 - q.sourceAmountMinor);
+    expect(await balance("HUF")).toBe(0);
+    expect(await balance("KZT")).toBe(90_000_000);
+  });
+
+  it("the cheaper balance short: the next covering one pays (one balance, never split)", async () => {
+    // HUF 196,250.00 = EUR 500 at mid: more than the EUR 300 balance, so KZT pays.
+    const k = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "HUF", targetAmountMinor: 19_625_000 });
+    const d = await charge({ amountMinor: 19_625_000, currency: "HUF" });
+    expect(d.debited).toEqual({ valueMinor: k.sourceAmountMinor, currency: "KZT" });
+    expect(await balance("EUR")).toBe(30_000);
+    expect(await balance("KZT")).toBe(90_000_000 - k.sourceAmountMinor);
+  });
+
+  it("no balance covers it: 422 transfer.insufficient_funds, nothing moves, and the authorization can be tried again", async () => {
+    await expect(charge({ amountMinor: 50_000_000, currency: "USD" })).rejects.toMatchObject({ status: 422, code: "transfer.insufficient_funds" });
+    expect(await balance("EUR")).toBe(30_000);
+    expect(await balance("KZT")).toBe(90_000_000);
+    expect(await charge({ amountMinor: 30_000 })).toMatchObject({ created: true, balanceAfterMinor: 0 });
+    // The card currency's balance short: another balance pays the whole charge (KZT here), never part of it.
+    expect((await charge({ authorizationId: "auth-2", cardId: "fic_2", amountMinor: 100 })).debited.currency).toBe("KZT");
+    expect(await balance("EUR")).toBe(0);
+  });
+
+  it("idempotent per authorization; a single-use card is debited once", async () => {
+    const first = await charge();
+    // Replay of the same authorization: the recorded debit, no money moves.
+    expect(await charge()).toEqual({ ...first, created: false });
+    // Another authorization for the same charge on the same card (e.g. after a lost answer): still one debit.
+    expect(await charge({ authorizationId: "auth-2" })).toMatchObject({ created: false, debited: first.debited, authorizationId: "auth-2" });
+    expect(await balance("EUR")).toBe(25_000);
+    // A different charge on the card, or the authorization id reused for another card: 409, nothing moves.
+    await expect(charge({ authorizationId: "auth-3", amountMinor: 4_000 })).rejects.toMatchObject({ status: 409, code: "card_debit.conflict" });
+    await expect(charge({ cardId: "fic_2" })).rejects.toMatchObject({ status: 409 });
+    expect(await balance("EUR")).toBe(25_000);
+  });
+
+  it("concurrent replays of one authorization debit once", async () => {
+    const all = await Promise.all([charge(), charge(), charge()]);
+    expect(all.filter((d) => d.created)).toHaveLength(1);
+    expect(await balance("EUR")).toBe(25_000);
+  });
+
+  it("reset() forgets card debits", async () => {
+    await charge();
+    await ctx.bank.reset();
+    expect(await charge()).toMatchObject({ created: true });
+  });
+});

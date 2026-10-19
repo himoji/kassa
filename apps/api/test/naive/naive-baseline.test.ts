@@ -1,8 +1,9 @@
 /*
  * Naive baseline (spec §19). Each attack (A1..A8, and the real-world incidents A10..A17) is run as the agent's RAW
  * intent through a stub rail with no rules, payments verification, Reader, screening, caps, cooling or webhook checks.
- * Every case must pay: that is the baseline the guarded counterparts in test/attacks/ are measured against. No DB, no
- * HTTP. Evidence is written only with WRITE_EVIDENCE=1 (root `bun run evidence:attacks`).
+ * Every case must pay, by construction (there is not even a confirm tap): it is the upper bound, not a realistic
+ * competitor; the fairer baseline is tap-confirm-baseline.test.ts. No DB, no HTTP. Evidence is written only with
+ * WRITE_EVIDENCE=1 (root `bun run evidence:attacks`).
  */
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -34,9 +35,9 @@ describe("naive baseline: the raw intent of every attack pays through a stub rai
     expect(ids.filter((id) => results[id]?.paid)).toHaveLength(16);
   });
 
-  it("the harness imports nothing from the guarded modules (rules, payments, reader, screening, webhooks, users)", async () => {
+  it("the harnesses import nothing from the guarded modules (rules, payments, reader, screening, webhooks, users)", async () => {
     const { readFileSync } = await import("node:fs");
-    for (const file of ["./harness.ts", "../helpers/incidents.ts"]) {
+    for (const file of ["./harness.ts", "./tap-confirm.ts", "../helpers/incidents.ts"]) {
       const src = readFileSync(new URL(file, import.meta.url), "utf8");
       const specifiers = [...src.matchAll(/(?:from\s+|import\s*\(\s*|import\s+)["']([^"']+)["']/g)].map((m) => m[1]!);
       expect(specifiers.length).toBeGreaterThan(0);

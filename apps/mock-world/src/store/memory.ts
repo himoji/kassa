@@ -1,4 +1,4 @@
-import type { BalanceStore, SeedWallet, TopUpResult, WorldStore } from "./types.ts";
+import { sameCardCharge, type BalanceStore, type CardDebitRecord, type CardDebitResult, type SeedWallet, type TopUpResult, type WorldStore } from "./types.ts";
 
 /*
  * (added 2026-10-18) In-memory state: local development and tests. Resets on restart and on POST /mock/reset.
@@ -9,6 +9,9 @@ export class MemoryBalanceStore implements BalanceStore {
   private wallets = new Map<number, Map<string, number>>();
   private readonly aliases = new Map<string, number>();
   private readonly topUps = new Map<string, { profile: number; currency: string; amountMinor: number; balanceAfterMinor: number }>();
+  /** Card debits by reference, and the reference per card (a card is debited once). */
+  private readonly cardDebits = new Map<string, CardDebitRecord>();
+  private readonly cardDebitByCard = new Map<string, string>();
   private next: number;
 
   constructor(
@@ -77,6 +80,29 @@ export class MemoryBalanceStore implements BalanceStore {
     return { kind: "ok", balanceAfterMinor, created: true };
   }
 
+  private findCardDebitNow(reference: string, cardId: string): CardDebitRecord | null {
+    const ref = this.cardDebits.has(reference) ? reference : this.cardDebitByCard.get(cardId);
+    return ref !== undefined ? (this.cardDebits.get(ref) ?? null) : null;
+  }
+
+  async findCardDebit(reference: string, cardId: string): Promise<CardDebitRecord | null> {
+    return this.findCardDebitNow(reference, cardId);
+  }
+
+  // No await between the lookup, the debit and the record: atomic in this single process.
+  async cardDebit(d: Omit<CardDebitRecord, "balanceAfterMinor">): Promise<CardDebitResult> {
+    const seen = this.findCardDebitNow(d.reference, d.cardId);
+    if (seen) return sameCardCharge(seen, d) ? { kind: "ok", debit: seen, created: false } : { kind: "conflict" };
+    const w = this.wallets.get(d.profile);
+    const available = w?.get(d.currency) ?? 0;
+    if (!w || available < d.amountMinor) return { kind: "insufficient" };
+    w.set(d.currency, available - d.amountMinor);
+    const debit: CardDebitRecord = { ...d, balanceAfterMinor: available - d.amountMinor };
+    this.cardDebits.set(d.reference, debit);
+    this.cardDebitByCard.set(d.cardId, d.reference);
+    return { kind: "ok", debit, created: true };
+  }
+
   /** Nothing can wipe this store from outside. */
   async seed(): Promise<void> {}
 
@@ -87,6 +113,8 @@ export class MemoryBalanceStore implements BalanceStore {
   /** Seeded wallets only; ids keep increasing, aliases stay (as before: a re-opened wallet keeps its ids). */
   async reset(): Promise<void> {
     this.topUps.clear();
+    this.cardDebits.clear();
+    this.cardDebitByCard.clear();
     this.restoreSeeds();
   }
 }

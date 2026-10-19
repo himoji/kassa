@@ -1,12 +1,13 @@
 import { useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 
-import { useVerifyRecord } from "@/api/hooks/records";
+import { useCheckHolderName, useVerifyRecord } from "@/api/hooks/records";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { RowGroup } from "@/components/row-group";
-import { Box, Card, Row, Text } from "@/components/ui";
+import { Box, Button, Card, Input, Row, Text } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 
@@ -16,6 +17,8 @@ export function VerifyScreen() {
   const f = useFormat();
   const { id = "" } = useLocalSearchParams<{ id: string }>();
   const record = useVerifyRecord(id);
+  const checkName = useCheckHolderName(id);
+  const [name, setName] = useState("");
 
   return (
     <ScrollScreen onRefresh={() => void record.refetch()} refreshing={record.isRefetching}>
@@ -96,6 +99,33 @@ export function VerifyScreen() {
                   trailing={<Text selectable>{String(data.summary.incomeMonths)}</Text>}
                 />
               ) : null}
+              {data.summary.budgetsTotal !== undefined ? (
+                <Row
+                  title={t("credit:budgetsKept")}
+                  trailing={
+                    <Text selectable>
+                      {t("credit:billsOnTimeValue", {
+                        paid: data.summary.budgetsWithinLimit ?? 0,
+                        total: data.summary.budgetsTotal,
+                      })}
+                    </Text>
+                  }
+                />
+              ) : null}
+              {data.summary.paymentsCompleted !== undefined ? (
+                <Row
+                  title={t("credit:paymentsCompleted")}
+                  trailing={<Text selectable>{String(data.summary.paymentsCompleted)}</Text>}
+                />
+              ) : null}
+              {data.summary.paymentsOnTimePct !== undefined ? (
+                <Row
+                  title={t("credit:paymentsOnTime")}
+                  trailing={
+                    <Text selectable>{f.percent(data.summary.paymentsOnTimePct / 100)}</Text>
+                  }
+                />
+              ) : null}
               {data.summary.regularIncomeMonths !== undefined ? (
                 <Row
                   title={t("credit:regularIncome")}
@@ -112,6 +142,47 @@ export function VerifyScreen() {
               <Row title={t("credit:sha256")} trailing={<Text selectable>{data.sha256}</Text>} />
             </RowGroup>
 
+            {data.holderNameSource ? (
+              <RowGroup
+                title={t("credit:nameTitle")}
+                footer={t(
+                  data.holderNameSource === "KYC"
+                    ? "credit:nameFooterKyc"
+                    : "credit:nameFooterProfile"
+                )}
+              >
+                <Box p={4} gap={3}>
+                  <Input
+                    value={name}
+                    onChangeText={(v) => {
+                      setName(v);
+                      checkName.reset();
+                    }}
+                    placeholder={t("credit:namePlaceholder")}
+                    autoCapitalize="words"
+                  />
+                  <Button
+                    variant="secondary"
+                    loading={checkName.isPending}
+                    disabled={name.trim().length === 0}
+                    onPress={() => checkName.mutate(name.trim())}
+                  >
+                    {t("credit:nameCheck")}
+                  </Button>
+                  {checkName.data === true ? (
+                    <StatusChip tone="positive" label={t("credit:nameMatch")} />
+                  ) : checkName.data === false ? (
+                    <StatusChip tone="critical" label={t("credit:nameNoMatch")} />
+                  ) : null}
+                </Box>
+              </RowGroup>
+            ) : null}
+
+            {data.importedHistory ? (
+              <Text variant="caption">
+                {t("credit:importedHistory", { date: f.date(data.importedHistory.openedOn) })}
+              </Text>
+            ) : null}
             <Text variant="caption">{t("credit:verifyExplainer")}</Text>
           </>
         )}

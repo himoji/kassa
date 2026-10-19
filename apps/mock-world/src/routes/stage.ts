@@ -53,6 +53,17 @@ export interface StageDeps {
  */
 export const STAGE_GLOBAL_ACTIONS: readonly string[] = ["reset", "clock", "forecast-tick"];
 
+/**
+ * (added 2026-10-19, security review) Every other scene button acts on the shared world too: the base demo persona
+ * (captures, settlements, documents, money from home), the newest QR code of anyone (wallet-pay), the QR attack switch
+ * for every new code (wallet-swap), any customer's delivery order (kitchen-advance), any merchant's purchase order
+ * (supplier-attack) or any card id typed in (tap-card). The Stage page cannot see a Kassa session, so on a deployed
+ * build (config.locked) these need the operator key as well; reviewers act on their own copy in the app (the QR wallet
+ * link Kassa gives them, the till, their own orders). Only this one stays open: it sends Kassa forged bank messages
+ * that must be rejected, and changes nothing.
+ */
+export const STAGE_OPEN_ACTIONS: readonly string[] = ["bank-forged"];
+
 function sameSecret(given: string, expected: string): boolean {
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
@@ -176,14 +187,26 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
   app.get("/stage/stage.css", async (_req, reply) => reply.type("text/css; charset=utf-8").header("cache-control", "no-cache").send(STAGE_CSS));
   app.get("/stage/stage.js", async (_req, reply) => reply.type("text/javascript; charset=utf-8").header("cache-control", "no-cache").send(STAGE_JS));
 
-  // Read-only state the screens poll. Nothing secret: QR codes, mock-bank transfers, the last card the terminal saw.
-  app.get("/stage/api/state", async () => {
+  /** The operator's key on this request (header `x-stage-key`, the demo admin token). */
+  function hasOperatorKey(req: FastifyRequest): boolean {
+    const key = req.headers["x-stage-key"];
+    const expected = deps.config.demoAdminToken;
+    return Boolean(expected) && typeof key === "string" && sameSecret(key, expected!);
+  }
+
+  // State the screens poll: the newest QR code (its payment id pays it), mock-bank transfers of every profile and the
+  // last card the terminal charged. (2026-10-19) That is other users' data on a deployed build: there only the
+  // operator (x-stage-key) gets it; everyone else gets the empty screens and `operator: false`.
+  app.get("/stage/api/state", async (req) => {
     await deps.bank.tick();
-    const latest = deps.qr.list()[0] ?? null;
-    const lastApproved = [...deps.shop.log.charges].reverse().find((c) => c.result.approved) ?? null;
+    const operator = !deps.config.locked || hasOperatorKey(req);
+    const latest = operator ? (deps.qr.list()[0] ?? null) : null;
+    const lastApproved = operator ? ([...deps.shop.log.charges].reverse().find((c) => c.result.approved) ?? null) : null;
     return {
       simulated: true,
       demoTokenConfigured: deps.api.hasDemoToken,
+      operatorOnly: deps.config.locked,
+      operator,
       tap: {
         lastCardId: lastApproved?.cardId ?? null,
         pendingDcc: pendingDcc ? { charged: formatMoney(pendingDcc.chargedMinor, STAGE_TAP.dcc.chargedCurrency), local: formatMoney(pendingDcc.localMinor, STAGE_TAP.dcc.localCurrency) } : null,
@@ -207,8 +230,7 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
           : null,
       },
       bank: {
-        transfers: deps.bank
-          .listTransfers()
+        transfers: (operator ? deps.bank.listTransfers() : [])
           .slice()
           .sort((a, b) => b.id - a.id)
           .slice(0, 5)
@@ -230,6 +252,15 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
     if (STAGE_GLOBAL_ACTIONS.includes(action)) {
       const refused = globalActionRefusal(req);
       if (refused) return reply.code(refused.status).send(refused.body);
+    } else if (deps.config.locked && !STAGE_OPEN_ACTIONS.includes(action) && !hasOperatorKey(req)) {
+      return reply.code(401).send({
+        ok: false,
+        tone: "warn",
+        code: "STAGE_KEY_REQUIRED",
+        title: "Operator only on this deployment",
+        detail:
+          "This button acts on the shared demo world (other people's QR codes, orders and the demo persona). Use your own copy in the Kassa app instead: pay the QR code Kassa gives you, scan a bill at the till, follow your order.",
+      } satisfies ActionResult & { code: string });
     }
     try {
       const result = await runAction(action, req.body ?? {});
@@ -249,9 +280,7 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
         body: { ok: false, tone: "bad", code: "STAGE_GLOBAL_OFF", title: "Off on the judge build", detail: "Reset and the shared clock would change every reviewer's demo. Each sign-in already gets its own fresh copy." },
       };
     }
-    const key = req.headers["x-stage-key"];
-    const expected = deps.config.demoAdminToken;
-    if (!expected || typeof key !== "string" || !sameSecret(key, expected)) {
+    if (!hasOperatorKey(req)) {
       return {
         status: 401,
         body: { ok: false, tone: "warn", code: "STAGE_KEY_REQUIRED", title: "Operator key needed", detail: "Reset and the demo clock need the demo admin token of this deployment." },

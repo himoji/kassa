@@ -12,7 +12,7 @@ import { itemsHash } from "@kassa/shared";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { BUSINESS_IDS, IDS } from "../../../../fixtures/seed-data.ts";
+import { BUSINESS_IDS, IDS, MOCK_BANK_PROFILE_ID } from "../../../../fixtures/seed-data.ts";
 import { getDb } from "../../src/db/client.ts";
 import { issuedCards, ledgerEntries, notifications, payments, proposals, shopOrders, stockMovements, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
 import { startTurn } from "../../src/modules/agent/loop.ts";
@@ -25,7 +25,7 @@ import { setRailOverridesForTests } from "../../src/modules/rails/index.ts";
 import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
 import { useTestDb } from "../helpers/db.ts";
-import { offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { offlineEnvironment, signBaseRules, useRealCardDebit } from "../helpers/fixtures.ts";
 import { deliverWebhooks, postSignedWebhook, startMockWorld, stubCatalogFetch, type TestMockWorld } from "../helpers/mockWorld.ts";
 import { SoftAuthenticator } from "../helpers/webauthn.ts";
 import { drain } from "../intel/fakes.ts";
@@ -42,8 +42,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   await t.reset();
   offlineEnvironment();
-  // Real rails (card issuing, handoff) and the commerce hooks around them.
+  // Real rails (card issuing, handoff) and the commerce hooks around them; card charges debit the mock bank wallet.
   setRailOverridesForTests({});
+  useRealCardDebit();
   wireExecutor();
   mw = await startMockWorld({ env: { DEMO_ENABLED: "true" }, api: app });
   stubCatalogFetch(mw);
@@ -86,6 +87,8 @@ describe("M2 pizza order, Budapest (one-time card)", () => {
 
   it("REPLAY turn → storefront fulfillment signed → card charged once by the shop → RECEIVED … DELIVERED; second charge declined", async () => {
     const auth = await passkey(IDS.user, "KZT");
+    const huf = async () => (await mw.bank.listBalances(MOCK_BANK_PROFILE_ID)).find((b) => b.currency === "HUF")!.amount.valueMinor;
+    const hufBefore = await huf();
     const s = await turn(IDS.user, "Order me 2 pizzas");
     expect(s.toolCalls.map((c) => c.toolName)).toEqual(["search_catalog", "propose_order"]);
 
@@ -105,6 +108,10 @@ describe("M2 pizza order, Budapest (one-time card)", () => {
     expect(card!.usedAt).not.toBeNull();
     const [pay] = await getDb().select().from(payments).where(eq(payments.proposalId, p!.id));
     expect(pay!.status).toBe("SENT");
+    // (2026-10-19) The charge was paid from the wallet's HUF balance, and the authorization ledgers the debit.
+    expect(await huf()).toBe(hufBefore - 598_000);
+    const auths = await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "CARD_AUTHORIZATION"));
+    expect(auths.map((e) => e.payload)).toEqual([expect.objectContaining({ approved: true, walletDebit: { currency: "HUF", amountMinor: 598_000, replayed: false } })]);
 
     const [row] = await getDb().select().from(shopOrders).where(eq(shopOrders.proposalId, p!.id));
     expect(row).toMatchObject({ userId: IDS.user, merchantSlug: "bud", merchantId: BUSINESS_IDS.bud.merchant, channel: "DELIVERY", status: "RECEIVED", totalMinor: 598_000, paymentId: pay!.id });
@@ -114,6 +121,7 @@ describe("M2 pizza order, Budapest (one-time card)", () => {
     const again = await mw.app.inject({ method: "POST", url: "/mock/shop/bud/checkout", payload: { cardId: card!.stripeCardId, items: [{ sku: "PZ-MARG", quantity: 2 }] } });
     expect(again.statusCode).toBe(402);
     expect(again.json()).toMatchObject({ status: "declined", reasonCode: "CARD_ALREADY_USED" });
+    expect(await huf()).toBe(hufBefore - 598_000);
 
     // Kitchen: ACCEPTED → COOKING → OUT_FOR_DELIVERY → DELIVERED, each reported by a signed webhook.
     for (let i = 0; i < 4; i++) {

@@ -87,12 +87,27 @@ async function ownedPayee(userId: string, payeeId: string) {
 }
 
 /**
+ * (2026-10-19) A tuition recipient's `portalSchoolId` says the school confirmed this student to Kassa ("Find your
+ * school", schools/service.ts), which lets Kassa read the student's invoices without asking again. Only that flow sets
+ * it (`portalSchoolId`); whatever a client sends is ignored. An edit keeps the link while the student ID stays the
+ * same and drops it when the student ID changes.
+ */
+function withPortalLink(details: RecipientDetails | null, previous: RecipientDetails | null, portalSchoolId?: string): RecipientDetails | null {
+  if (details?.category !== "TUITION") return details;
+  const { portalSchoolId: _ignored, ...rest } = details;
+  const kept = previous?.category === "TUITION" && previous.portalSchoolId && previous.studentId.toUpperCase() === details.studentId.toUpperCase() ? previous.portalSchoolId : undefined;
+  const link = portalSchoolId ?? kept;
+  return link ? { ...rest, portalSchoolId: link } : rest;
+}
+
+/**
  * Edit a recipient's details (student ID, customer number, relationship…). Where the money goes (account, name,
  * currency) never changes here: that is a new payee with replacesPayeeId and a new cooling period (I7).
  */
-export async function updatePayeeDetails(userId: string, payeeId: string, details: RecipientDetails | null) {
+export async function updatePayeeDetails(userId: string, payeeId: string, input: RecipientDetails | null, opts: { portalSchoolId?: string } = {}) {
   const p = await ownedPayee(userId, payeeId);
-  assertDetailsFit(p.kind, details);
+  assertDetailsFit(p.kind, input);
+  const details = withPortalLink(input, readDetails(p), opts.portalSchoolId);
   const db = getDb();
   return db.transaction(async (tx) => {
     const r = await tx
@@ -141,6 +156,8 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
   }
   if (!/^[A-Z]{2}$/.test(req.country)) throw new HttpProblem(422, "INVALID_COUNTRY", "country must be ISO 3166-1 alpha-2");
   assertDetailsFit(req.kind, req.details);
+  // Only "Find your school" links a new recipient to the school's portal (withPortalLink).
+  const details = req.source === "school-directory" ? (req.details ?? null) : withPortalLink(req.details ?? null, null);
   // I9 / X4: screen the name at creation. A hit is refused and not stored (a payee that can never be paid is no
   // use); the hit is ledgered with the name sealed under the user's key (GDPR Art. 17 crypto-shredding).
   const screening = screenName(req.name);
@@ -180,7 +197,7 @@ export async function createPayee(userId: string, req: CreatePayeeRequest & { so
         verifiedAt: null,
         coolingUntil,
         replacesPayeeId: req.replacesPayeeId ?? null,
-        detailsEnc: req.details ? encryptDetails(userId, req.details) : null,
+        detailsEnc: details ? encryptDetails(userId, details) : null,
         createdAt: now,
       })
       .returning();

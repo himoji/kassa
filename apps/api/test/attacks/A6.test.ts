@@ -35,7 +35,7 @@ describe("A6: sanctions screening before bank transfers", () => {
     const entry = (await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "PROPOSAL_CREATED")))[0]!;
     expect((entry.payload as { reasonCodes: string[] }).reasonCodes).toEqual(["REFUSE_SANCTIONS"]);
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
-    recordGuarded("A6", { case: label, outcome: "BLOCKED", decision: "REFUSE", reasonCodes: ["REFUSE_SANCTIONS"], ledger: ["PROPOSAL_CREATED"] });
+    recordGuarded("A6", { case: label, decision: "REFUSE", reasonCodes: ["REFUSE_SANCTIONS"], ledger: ["PROPOSAL_CREATED"] });
   });
 
   it("a normal payee is not a hit", async () => {

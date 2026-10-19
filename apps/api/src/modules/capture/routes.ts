@@ -266,6 +266,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           text: transcript,
           mode: await currentAgentMode(),
           readOnly: true,
+          // A spoken reply has no cards: any order line would be part of the text.
+          cardless: true,
           emit: () => undefined,
         });
         const reader = turn.uiStream.getReader();

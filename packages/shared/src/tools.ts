@@ -106,6 +106,23 @@ export const GetFxRateInput = z.object({
 });
 
 /*
+ * (added 2026-10-19) Read-only: the user's recent orders and payments with their status, so the planner checks what is
+ * paid before calling a bill unpaid. Never part of proposal gating.
+ */
+export const GetPaymentsInput = z.object({
+  limit: z.number().int().min(1).max(20).optional().describe("How many recent orders, newest first (default 10)"),
+});
+
+/** Read-only tools on top of the spec's eleven (apps/api agent/tools.ts READ_TOOLS). */
+export const READ_TOOL_INPUT_SCHEMAS = {
+  get_fx_rate: GetFxRateInput,
+  get_spending_summary: GetSpendingSummaryInput,
+  get_money_history: GetMoneyHistoryInput,
+  get_payments: GetPaymentsInput,
+} as const;
+export type ReadToolName = keyof typeof READ_TOOL_INPUT_SCHEMAS;
+
+/*
  * (added 2026-10-13) UI tools: each emits a `data-choices` part and ends the turn, so the app waits for the user's
  * pick (tap or, later, speech). The server validates the answer against the stored part.
  */

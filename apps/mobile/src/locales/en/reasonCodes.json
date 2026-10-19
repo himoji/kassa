@@ -231,10 +231,20 @@
     "label": "Not covered by your autopay",
     "text": "This recipient is in one of your autopay mandates, but this payment is not the bill you signed the mandate for (or it is a different amount), so it needs your passkey."
   },
+  "MANDATE_NOT_DUE_YET": {
+    "label": "Not due yet",
+    "text": "Your mandate pays this bill on its own only when it is due within 3 days. It is not due yet, so paying it now needs your passkey."
+  },
+
   "SMALL_AUTO_BUDGET_EXHAUSTED": {
     "label": "Daily auto-pay limit used",
     "text": "Kassa already paid the most small amounts it may pay on its own today, so this one needs your passkey."
   },
+  "FIRST_PAYMENT_TO_PAYEE": {
+    "label": "First payment to this recipient",
+    "text": "This is your first payment to this recipient, so it needs your passkey. Later small payments to them can go automatically."
+  },
+
   "PIPL_CONSENT_REQUIRED": {
     "label": "Cross-border consent needed",
     "text": "You are in region CN and Kassa's AI runs outside mainland China. Under China's PIPL this needs your separate consent: give it in Settings > Privacy > Cross-border AI processing before using the assistant."

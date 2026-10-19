@@ -115,5 +115,18 @@
   },
   "proposalConvertTitle": "Обмен в {{currency}}",
   "proposalFunding": "С вашего баланса в {{currency}} · не более {{max}}",
-  "proposalSigned": "Что вы подписываете"
+  "orderStance": {
+    "TO_SIGN": "Поручение на подпись",
+    "SIGNED": "Подписанное поручение",
+    "PAID_MANDATE": "Оплачено по вашему мандату",
+    "PAID_SMALL_AUTO": "Оплачено в пределах лимита малых платежей",
+    "ORDER": "Поручение"
+  },
+  "orderLine": {
+    "pay": "{{amount}} получателю {{payee}}",
+    "funded": "{{pay}}, списание с вашего баланса в {{currency}}: не более {{max}} с комиссиями (маршрут {{route}}).",
+    "fundedLinked": "{{pay}}, списание с привязанного счёта в {{currency}}: не более {{max}} с комиссиями (маршрут {{route}}).",
+    "rail": "{{pay}} · {{rail}}.",
+    "convert": "Обмен с вашего баланса в {{from}} на {{amount}} на баланс в {{to}}, списание не более {{max}} с комиссиями (маршрут {{route}})."
+  }
 }

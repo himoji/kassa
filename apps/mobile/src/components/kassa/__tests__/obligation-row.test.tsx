@@ -40,6 +40,7 @@ const bill: ObligationDto = {
     },
   ],
   mandateId: null,
+  status: "DUE",
 };
 
 const wrap = (o: ObligationDto) => (
@@ -70,5 +71,41 @@ describe("ObligationRow", () => {
       pathname: "/add-money",
       params: { currency: "EUR" },
     });
+  });
+
+  it("a paid bill says when it was paid and its next due date, with no coverage and nothing to open", async () => {
+    (router.push as jest.Mock).mockClear();
+    await render(
+      wrap({
+        ...bill,
+        recurrence: "MONTHLY",
+        coverage: "COVERED",
+        conversions: undefined,
+        status: "PAID",
+        paymentId: "7e1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f",
+        paidAt: "2026-10-19T08:00:00.000Z",
+        nextDueDate: "2026-12-01",
+      })
+    );
+    expect(screen.getByTestId(`obligation-status-${bill.id}`)).toHaveTextContent(/^Paid .*2026/);
+    expect(screen.getByTestId(`obligation-next-due-${bill.id}`)).toHaveTextContent(
+      /^Next due .*2026/
+    );
+    expect(screen.queryByText("Covered")).toBeNull();
+    expect(screen.queryByTestId(`obligation-convertible-${bill.id}`)).toBeNull();
+  });
+
+  it("a payment on its way reads 'Payment pending'; a bill waiting for the passkey opens its order", async () => {
+    await render(
+      wrap({ ...bill, status: "IN_FLIGHT", coverage: "COVERED", conversions: undefined })
+    );
+    expect(screen.getByText("Payment pending")).toBeTruthy();
+    expect(screen.queryByTestId(`obligation-convertible-${bill.id}`)).toBeNull();
+
+    const proposalId = "1e1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f";
+    await render(wrap({ ...bill, status: "AWAITING_APPROVAL", proposalId }));
+    expect(screen.getByText("Waiting for your approval")).toBeTruthy();
+    fireEvent.press(screen.getByTestId(`obligation-awaiting-${bill.id}`));
+    expect(router.push).toHaveBeenLastCalledWith(`/order/${proposalId}`);
   });
 });

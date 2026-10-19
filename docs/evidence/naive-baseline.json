@@ -1,6 +1,6 @@
 {
   "generatedBy": "bun run evidence:attacks (apps/api test/naive, WRITE_EVIDENCE=1)",
-  "description": "Naive baseline (spec §19): the agent's raw intent for each attack (A1-A8, A10-A17) executed directly through a stub rail, without the rules module, payments verification, Reader checks or webhook checks.",
+  "description": "Naive baseline (spec §19): the agent's raw intent for each attack (A1-A8, A10-A17) executed directly through a stub rail, without the rules module, payments verification, Reader checks or webhook checks, and without any user confirmation. It pays every case by construction: it is the upper bound, not a realistic competitor. The fairer comparison is tap-confirm-baseline.json.",
   "total": 16,
   "paid": 16,
   "results": {

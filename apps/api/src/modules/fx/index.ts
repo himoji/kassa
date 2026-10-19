@@ -9,6 +9,7 @@ import { clock } from "../clock/index.ts";
 import { walletBalances } from "../rules/facts.ts";
 import { chooseFunding } from "../rules/funding.ts";
 import { billRail } from "../obligations/coverage.ts";
+import { obligationPeriodStates } from "../obligations/status.ts";
 import { addDays, isoDate } from "./dates.ts";
 import { computeForecast, medianInt, type Flow } from "./forecast.ts";
 import { convertMinor } from "./rational.ts";
@@ -112,20 +113,27 @@ export async function forecastCoverage(userId: string): Promise<ForecastResponse
   // included), not a CNY balance the user never holds. Before, every bill counted against its own currency, so a bill
   // GET /obligations showed COVERED appeared here as a shortfall. A bill no single balance pays stays in its own
   // currency: its shortfall and the conversion suggestion below are then real.
+  // (2026-10-19) A period already paid (or a bank transfer on its way, already debited) is not money still to go: a
+  // one-off bill drops out and a recurring one starts at its next period (obligations/status.ts). Before, a paid bill
+  // took the money from the forecast a second time on its due date.
+  const states = await obligationPeriodStates(db, userId, obs.map(({ o }) => o));
   const obligationFlows: Flow[] = [];
   for (const { o, payeeKind, payeeAccountHash } of obs) {
     const cadence: Flow["cadence"] = o.recurrence === "MONTHLY" ? "MONTHLY" : o.recurrence === "TERM" ? "TERM" : "ONCE";
+    const state = states.get(o.id);
+    const date = state?.settled ? state.nextDueDate : o.dueDate;
+    if (date === null || date === undefined) continue;
     let currency = o.currency;
     let amountMinor = o.amountMinor;
     // Only a bank transfer converts on the way; a handoff bill (region CN, money mode Handoff) needs its own currency.
     if (payeeKind !== "MERCHANT" && payeeAccountHash !== null && balances.length > 0 && billRail(u, payeeKind) === "BANK_TRANSFER") {
-      const f = await chooseFunding({ userId, homeCurrency: u.homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: o.dueDate, balances }).catch(() => null);
+      const f = await chooseFunding({ userId, homeCurrency: u.homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: date, balances }).catch(() => null);
       if (f?.status === "OK" && f.funding.currency !== o.currency) {
         currency = f.funding.currency;
         amountMinor = f.funding.estimatedAmountMinor;
       }
     }
-    obligationFlows.push({ currency, amountMinor, date: o.dueDate, cadence });
+    obligationFlows.push({ currency, amountMinor, date, cadence });
   }
   const reserves: Record<string, number> = {};
   for (const r of p?.reserveRules.reserves ?? []) reserves[r.currency] = r.minMinor;

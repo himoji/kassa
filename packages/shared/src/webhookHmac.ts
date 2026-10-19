@@ -103,3 +103,30 @@ export function verifyMockRequestAuth(
   if (Math.abs(Math.floor(nowSeconds) - ts) > windowSeconds) return false;
   return timingSafeEqualHex(requestMac(secret, ts, method, path, body), m[2]!);
 }
+
+/*
+ * (added 2026-10-19) Signing in to a school portal from Kassa. The portal link on a tuition recipient added from the
+ * school directory (apps/api/src/modules/schools/portal.ts) carries
+ *   access=<exp>.<hex(HMAC-SHA256(MOCK_HMAC_SECRET, "school-portal:v1\n<exp>\n<schoolId>\n<studentId>"))>
+ * so the student who opens it from the app sees that student's invoices until <exp> (unix seconds, wall time) without
+ * typing their date of birth again. Its own domain prefix: never valid as a request or webhook signature.
+ */
+function portalMac(secret: string, expSeconds: number, schoolId: string, studentId: string): string {
+  if (!secret) throw new Error("schoolPortalAccess: empty secret");
+  return bytesToHex(hmac(sha256, utf8ToBytes(secret), utf8ToBytes(`school-portal:v1\n${expSeconds}\n${schoolId.toLowerCase()}\n${studentId.toUpperCase()}`)));
+}
+
+/** The `access` value for one student's portal page, valid until `expSeconds`. */
+export function schoolPortalAccess(secret: string, schoolId: string, studentId: string, expSeconds: number): string {
+  const exp = Math.floor(expSeconds);
+  return `${exp}.${portalMac(secret, exp, schoolId, studentId)}`;
+}
+
+/** True when `token` is a valid, unexpired `access` value for this school and student. */
+export function verifySchoolPortalAccess(secret: string, token: unknown, schoolId: string, studentId: string, nowSeconds: number): boolean {
+  const m = /^(\d{1,12})\.([0-9a-f]{64})$/.exec(typeof token === "string" ? token.trim() : "");
+  if (!m || !secret) return false;
+  const exp = Number(m[1]);
+  if (exp < Math.floor(nowSeconds)) return false;
+  return timingSafeEqualHex(portalMac(secret, exp, schoolId, studentId), m[2]!);
+}

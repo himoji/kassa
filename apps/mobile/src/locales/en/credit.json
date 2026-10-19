@@ -43,5 +43,16 @@
   "shareFailed": "Could not share. Copy the link from the verification page instead.",
   "incomeMonths": "Months with money received",
   "requestedPeriod": "Requested period",
-  "accountOpened": "Account opened"
+  "accountOpened": "Account opened",
+  "budgetsKept": "Budgets kept within limit",
+  "paymentsCompleted": "Payments completed",
+  "paymentsOnTime": "Bill payments sent by the due date",
+  "nameTitle": "Check the holder's name",
+  "namePlaceholder": "Full name you were told",
+  "nameCheck": "Check name",
+  "nameMatch": "Name matches",
+  "nameNoMatch": "Name does not match",
+  "nameFooterKyc": "The record binds the holder's identity-checked full name. Only match or no match is shown; the name itself is never revealed.",
+  "nameFooterProfile": "The record binds the full name on the holder's account (not identity-checked). Only match or no match is shown.",
+  "importedHistory": "Includes the account's simulated history before Kassa, imported when the demo account was set up (opened {{date}})."
 }

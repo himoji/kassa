@@ -10,9 +10,12 @@ import { users, webauthnCredentialsPayments, webauthnCredentialsRules } from "..
 import { env } from "../../env.ts";
 import { audit } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
+import { consumeIpBudget } from "../../http/security.ts";
 import { clock } from "../clock/index.ts";
 import { createUser } from "../users/service.ts";
 import { activateJudgeCopyMandates } from "../mandates/service.ts";
+import { bringMandateBillsDue, seedAccountHistory, sendMoneyFromHome } from "../demo/judgeCopy.ts";
+import { bankMode } from "../rails/bankApi.ts";
 import { demoClaimUserId, judgeDemoCopy } from "./demoClaim.ts";
 import { mintInternalAccessToken, requireUser, sessionBody, startSession, userIdOf } from "./session.ts";
 import { SoftAuthenticator } from "./soft-authenticator.ts";
@@ -152,11 +155,20 @@ async function judgeLoginUser(app: FastifyInstance, req: FastifyRequest, demoCla
   await getDb().update(users).set({ aiConsentAt: clock.now() }).where(eq(users.id, userId));
   try {
     await signSeededOnboarding(app, req, userId, copy.mandates ?? []);
-    // The copy opens as an account in use for a while: its seeded mandates in effect (mandates/service.ts).
+    // The copy opens as an account in use for a while: its seeded mandates in effect (mandates/service.ts), and the
+    // bills they cover due now, so the scheduler's autopay inside the mandate can be seen (demo/judgeCopy.ts).
     await activateJudgeCopyMandates(userId);
+    await bringMandateBillsDue(userId);
   } catch (err) {
     // The copy stays usable; the app then opens on onboarding, where the user can sign the rules themselves.
     req.log.error({ err, userId }, "judge build: signing the copied persona's onboarding failed");
+  }
+  try {
+    // The months before (simulated history: bills paid on time, money received) and this month's money from home.
+    if (copy.history) await seedAccountHistory(userId, copy.history, clock.now());
+    if (bankMode() === "mock" && (copy.balances?.length ?? 0) > 0) await sendMoneyFromHome(userId, "judge-copy");
+  } catch (err) {
+    req.log.warn({ err, userId }, "judge build: the copy's history or money from home was not added");
   }
   return userId;
 }
@@ -177,6 +189,8 @@ const devRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { body: DevLoginBody, response: { 200: AuthSessionResponse } } },
     async (req, reply) => {
       assertAllowed();
+      // Judge build: each sign-in creates (and onboards) an account, so an hourly per-IP cap on top of the auth bucket.
+      if (judgeModeActive()) await consumeIpBudget(req, reply, "judge-copies", env().RATE_LIMIT_JUDGE_COPIES_PER_HOUR, 3_600_000);
       const { demoClaim, fresh } = req.body;
       const userId = judgeModeActive()
         ? await judgeLoginUser(app, req, demoClaim)

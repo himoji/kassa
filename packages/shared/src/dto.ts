@@ -29,6 +29,7 @@ import { MandateCore } from "./mandate.ts";
 import { isKnownCurrency } from "./money.ts";
 import { AccountType } from "./purchaseOrder.ts";
 import { CanonicalOrder } from "./order.ts";
+import { ORDER_LINE_STANCES } from "./orderText.ts";
 import { AmountMinor, CurrencyCode, IsoDate, IsoDateTime, paginated, PositiveAmountMinor, Uuid } from "./primitives.ts";
 import { ReasonCode } from "./reasonCodes.ts";
 import { RecipientCategory, RecipientDetails } from "./recipient.ts";
@@ -165,6 +166,10 @@ export const ConversionPlanStep = z.object({
 });
 export type ConversionPlanStep = z.infer<typeof ConversionPlanStep>;
 
+/** (added 2026-10-19) The state of a bill's current period (apps/api obligations/status.ts). */
+export const ObligationPeriodStatus = z.enum(["DUE", "AWAITING_APPROVAL", "IN_FLIGHT", "PAID"]);
+export type ObligationPeriodStatus = z.infer<typeof ObligationPeriodStatus>;
+
 export const ObligationDto = z.object({
   id: Uuid,
   payeeId: Uuid,
@@ -190,6 +195,19 @@ export const ObligationDto = z.object({
   /** (added 2026-10-18) SHORTFALL because paying would take the wallet below the protected reserve (rules: REFUSE_CAP). */
   reserveBreached: z.boolean().optional(),
   mandateId: Uuid.nullable(),
+  /**
+   * (added 2026-10-19) Where the bill's current period (`dueDate`) stands: DUE, AWAITING_APPROVAL (an order waits for the
+   * passkey), IN_FLIGHT (approved, payment on its way) or PAID (delivered). A settled period is not checked for coverage
+   * (COVERED, no route) and not counted by the forecast; a recurring one continues on `nextDueDate`.
+   */
+  status: ObligationPeriodStatus,
+  /** The order and payment holding the period, when one does. */
+  proposalId: Uuid.nullable().optional(),
+  paymentId: Uuid.nullable().optional(),
+  /** When the payment was delivered (PAID). */
+  paidAt: IsoDateTime.nullable().optional(),
+  /** Recurring bill whose current period is settled: the next period's due date. */
+  nextDueDate: IsoDate.nullable().optional(),
 });
 export type ObligationDto = z.infer<typeof ObligationDto>;
 
@@ -479,6 +497,22 @@ export const ProposalSummary = z.object({
    * model's paraphrase of it.
    */
   orderLine: z.string().optional(),
+  /**
+   * (added 2026-10-19) The same order as structured fields, so the app words the line in the user's language: how it
+   * is introduced (`stance`: to sign, signed, paid under a mandate or the small-payment limit, or a plain order), the
+   * rail, whether a linked account pays (else the `funding` balance), and a conversion's own amounts. Absent for a
+   * refused order (no line) and on cards stored before it existed (the English `orderLine` is shown then).
+   */
+  orderFacts: z
+    .object({
+      stance: z.enum(ORDER_LINE_STANCES),
+      rail: z.union([Rail, z.literal("CONVERT")]),
+      linkedAccount: z.boolean(),
+      conversion: z
+        .object({ fromCurrency: CurrencyCode, toCurrency: CurrencyCode, amountMinor: PositiveAmountMinor, maxDebitMinor: PositiveAmountMinor, routeId: z.string() })
+        .optional(),
+    })
+    .optional(),
 });
 export type ProposalSummary = z.infer<typeof ProposalSummary>;
 

@@ -197,13 +197,15 @@
   },
   "school": {
     "title": "查找您的学校",
-    "body": "选择您的学校并输入学号。Kassa 会获取您的缴费单，并以准确的金额和参考号添加为账单。",
+    "body": "选择您的学校并输入学号和出生日期。学校确认是您本人后，Kassa 会获取您的缴费单，并以准确的金额和参考号添加为账单。",
     "search": "学校",
     "searchPlaceholder": "按名称或城市搜索",
     "noneFound": "没有匹配的学校。您可以改为手动添加。",
     "directoryNote": "学校列表和缴费单来自各学校的缴费门户。本演示中均为虚构学校。",
     "manual": "我的学校不在列表中：手动输入信息",
     "findInvoice": "查找我的缴费单",
+    "dateOfBirth": "出生日期",
+    "dateOfBirthHint": "与学校档案中的一致（YYYY-MM-DD）。由学校核对，Kassa 不会保存。",
     "invoiceFor": "{{term}}学费，学号 {{studentId}}",
     "dueOn": "{{date}} 到期",
     "reference": "参考号 {{reference}}",
@@ -227,6 +229,8 @@
     "errors": {
       "STUDENT_ID_INVALID": "学号为 4 到 20 位字母、数字或连字符。",
       "SCHOOL_DIRECTORY_UNAVAILABLE": "学校目录没有响应，请稍后重试。",
+      "STUDENT_NOT_VERIFIED": "学校无法确认该学生。请检查学号和出生日期。",
+      "DATE_OF_BIRTH_INVALID": "请按 2005-03-14 的格式输入出生日期。",
       "SCHOOL_ACCOUNT_CHANGED": "学校现在列出了不同的银行账户。请重新添加学校：它将成为新收款人，并经过 24 小时冷静期。"
     },
     "otherCategory": "支付其他费用"

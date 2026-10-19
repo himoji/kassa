@@ -15,7 +15,7 @@ import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "./replay.ts";
 import { fallbackAnswer, type ProposalOutcome, type ToolOutcome } from "./summary.ts";
-import { orderFactsStream } from "./turn-summary.ts";
+import { orderFactsStream, stepBreakStream } from "./turn-summary.ts";
 import { buildTools, DRAFT_TOOLS, MAX_TOOL_CALLS, MAX_TOOL_STEPS, UI_TOOLS, WRITE_TOOLS, type ToolContext } from "./tools.ts";
 import type { ReaderResult } from "../reader/index.ts";
 
@@ -58,6 +58,11 @@ export interface TurnOptions {
    * log_expense stay.
    */
   readOnly?: boolean;
+  /**
+   * (2026-10-19) The channel shows no proposal cards: each order's sentence is appended to the reply as text
+   * (turn-summary.ts orderFactsStream). The app renders the card, which carries the same sentence, so it leaves this off.
+   */
+  cardless?: boolean;
   /** Time budget overrides (tests); defaults from the environment (budget.ts). */
   budget?: Partial<TurnBudget>;
 }
@@ -377,8 +382,10 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   });
 
   const payeeNames = new Map(payees.map((p) => [p.id, p.name]));
-  // (2026-10-18) after rehydration: the signed-order lines are server text with real names (turn-summary.ts).
-  return { uiStream: raw.pipeThrough(rehydrateStream(redactor, payeeNames)).pipeThrough(orderFactsStream(ctx)), done, ctx };
+  // (2026-10-18) after rehydration: the order lines are server text with real names (turn-summary.ts); only for a
+  // channel without cards (2026-10-19). Separate steps' text parts are kept apart by a paragraph break.
+  const shown = raw.pipeThrough(rehydrateStream(redactor, payeeNames)).pipeThrough(stepBreakStream());
+  return { uiStream: o.cardless ? shown.pipeThrough(orderFactsStream(ctx)) : shown, done, ctx };
 }
 
 /** Below this much time left, the final answer call is skipped for the code-written summary. */

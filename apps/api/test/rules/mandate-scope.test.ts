@@ -6,12 +6,14 @@
  * Anything else to that payee → ASK + MANDATE_SCOPE_MISMATCH. Payments re-checks the same link itself (I2).
  */
 import { orderHash, type CanonicalOrder } from "@kassa/shared";
+import { eq } from "drizzle-orm";
 import { randomBytes, randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
-import { approvals, obligationSettlements, payments, proposals } from "../../src/db/schema.ts";
-import { addMs, clock } from "../../src/modules/clock/index.ts";
+import { approvals, obligations, obligationSettlements, payments, proposals } from "../../src/db/schema.ts";
+import { addMs, clock, isoDate } from "../../src/modules/clock/index.ts";
+import { DUE_WINDOW_DAYS } from "../../src/modules/scheduler/window.ts";
 import { executeApproval } from "../../src/modules/payments/index.ts";
 import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { APPROVAL_TTL_MS, signApproval } from "../../src/modules/rules/signing.ts";
@@ -193,3 +195,51 @@ describe("X1 mandate scope: payments re-checks the obligation link itself (I2)",
     expect(await getDb().select().from(payments)).toHaveLength(1);
   });
 });
+
+describe("mandate AUTO only within the due window (2026-10-19, scheduler/window.ts)", () => {
+  beforeEach(async () => {
+    await t.reset();
+    offlineEnvironment();
+    setSanctionsListForTests([]);
+  });
+
+  async function earlyRent() {
+    const { userId, auth } = await createUserWithPasskey({ preset: "SMART" });
+    await signBaseRules(userId, auth);
+    const landlord = await addPayee(userId, { name: "Landlord in Budapest", kind: "LANDLORD" });
+    // Due in 13 days: what the judge saw paid at once.
+    const rent = await addObligation(userId, landlord.id, { amountMinor: 18_000_000, category: "rent", dueDate: isoDate(addMs(clock.now(), 13 * 86_400_000)) });
+    const mandate = await addActiveMandate(userId, auth, { payeeIds: [landlord.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 20_000_000 });
+    return { userId, auth, landlord, rent, mandate };
+  }
+
+  it("the agent proposing rent due in 13 days → ASK MANDATE_NOT_DUE_YET, nothing paid", async () => {
+    const s = await earlyRent();
+    const r = await proposeOrder({ userId: s.userId, createdBy: "AGENT", payeeId: s.landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: s.rent.id });
+    expect(r.decision).toBe("ASK");
+    expect(r.reasonCodes).toEqual(["MANDATE_NOT_DUE_YET"]);
+    expect(await getDb().select().from(payments)).toHaveLength(0);
+  });
+
+  it("the last day of the window is still AUTO; the day after asks", async () => {
+    const s = await earlyRent();
+    const at = (days: number) => isoDate(addMs(clock.now(), days * 86_400_000));
+    await getDb().update(obligations).set({ dueDate: at(DUE_WINDOW_DAYS + 1) }).where(eq(obligations.id, s.rent.id));
+    const early = await proposeOrder({ userId: s.userId, createdBy: "AGENT", payeeId: s.landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: s.rent.id });
+    expect(early.reasonCodes).toEqual(["MANDATE_NOT_DUE_YET"]);
+    // The early proposal claimed the period; reject it to free the bill, then bring the due date to the window's edge.
+    await getDb().delete(obligationSettlements);
+    await getDb().update(obligations).set({ dueDate: at(DUE_WINDOW_DAYS) }).where(eq(obligations.id, s.rent.id));
+    const due = await proposeOrder({ userId: s.userId, createdBy: "AGENT", payeeId: s.landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: s.rent.id });
+    expect(due.decision).toBe("AUTO");
+    expect(due.reasonCodes).toEqual(["MANDATE_MATCH"]);
+  });
+
+  it("payments refuses a T1 mandate approval for a bill not due yet (a rules bug that signs it anyway)", async () => {
+    const s = await earlyRent();
+    const { approvalId } = await forgedMandateApproval(s, { amountMinor: 18_000_000, obligation: { id: s.rent.id, period: s.rent.dueDate } });
+    expect((await executeApproval(approvalId)).reasonCodes).toEqual(["MANDATE_NOT_DUE_YET"]);
+    expect(await getDb().select().from(payments)).toHaveLength(0);
+  });
+});
+

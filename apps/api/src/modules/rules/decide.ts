@@ -18,12 +18,16 @@
  *  6 region CN or money mode HANDOFF → HANDOFF
  *  6b (added 2026-10-16) above the KYC threshold without a VERIFIED identity check → KYC_REQUIRED (every preset)
  *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1); the draft must be linked server-side to a bill in
- *    the mandate's scope (X1, mandates/scope.ts)
+ *    the mandate's scope (X1, mandates/scope.ts). (2026-10-19) Only for a bill due within the scheduler's window
+ *    (scheduler/window.ts DUE_WINDOW_DAYS): an earlier mandate payment → ASK MANDATE_NOT_DUE_YET, so the agent never
+ *    pays a mandate bill sooner than the scheduler would without the user's passkey
  *  8 ASK_ME always asks; AUTOPILOT without mandate asks; SMART asks at risk ≥ 0.5 → ASK (T2);
  *    (X1) a payee covered by a mandate is never paid automatically outside that mandate (MANDATE_SCOPE_MISMATCH /
  *    MANDATE_OUT_OF_SCOPE force ASK, also below the small-auto limit)
  *  9 otherwise AUTO — only SMART, verified payee, ≤ small auto limit, capped wallet, (X3) inside the per-day
- *    small-auto budget (count + amount, else ASK SMALL_AUTO_BUDGET_EXHAUSTED);
+ *    small-auto budget (count + amount, else ASK SMALL_AUTO_BUDGET_EXHAUSTED); (2026-10-19) and only to a payee the
+ *    user has completed a payment to before (database fact, else ASK FIRST_PAYMENT_TO_PAYEE), so a fooled planner that
+ *    leaves agentRequestedConfirm off cannot make the first payment to anyone on its own;
  *    trigger/scheduler drafts never (ASK + TRIGGER_NEEDS_MANDATE); they need a mandate (step 7)
  *
  * The agent's uncertainty (agentRequestedConfirm) can force ASK, never AUTO.
@@ -67,10 +71,20 @@ export type DecideFacts = {
   mandateOutOfScope: boolean;
   /** (X1) A mandate covers this payee but the draft is not linked to a bill in its scope (payee, category, amount, period). */
   mandateScopeMismatch?: boolean;
+  /**
+   * (2026-10-19) The linked bill's period is after the due window (scheduler/window.ts): a mandate match then asks
+   * (MANDATE_NOT_DUE_YET) instead of paying automatically. Undefined = due.
+   */
+  mandateNotDueYet?: boolean;
   riskScore: number;
   agentRequestedConfirm: boolean;
   triggerOrigin: boolean;
   smallAutoLimitHomeMinor: number;
+  /**
+   * (2026-10-19) Completed (SENT) payments to this payee, read from the database. 0 = a first payment: never small-auto.
+   * Undefined = not checked (pure unit tests of other steps).
+   */
+  priorCompletedPaymentsToPayee?: number;
   /** (X3) Per-day small-auto budget: today's small-auto usage and the limits (count, home amount). Undefined = none. */
   smallAutoBudget?: { usedCount: number; usedHomeMinor: number; maxCount: number; maxHomeMinor: number };
   /** Base rules (incl. the small auto limit) were passkey-signed — payments needs this for T1 without a mandate. */
@@ -162,6 +176,8 @@ export function decide(f: DecideFacts): DecideResult {
   if (f.mandate && !alwaysAsk) {
     if (f.agentRequestedConfirm) return ask(["MANDATE_MATCH", "AGENT_REQUESTED_CONFIRM"], f);
     if (coolingAsk) return ask(["PAYEE_COOLING"], f);
+    // Not due yet: never AUTO (nor small-auto, X1); the user may still approve paying early with the passkey.
+    if (f.mandateNotDueYet) return ask(["MANDATE_NOT_DUE_YET"], f);
     return { decision: "AUTO", reasonCodes: ["MANDATE_MATCH"], tier: "T1", mandateId: f.mandate.id };
   }
 
@@ -193,6 +209,8 @@ export function decide(f: DecideFacts): DecideResult {
   // (2026-10-12) trigger/scheduler drafts may be AUTO only inside a mandate (step 7), never via the small-auto limit
   if (f.triggerOrigin) return ask(["TRIGGER_NEEDS_MANDATE"], f);
   if (c.amountHomeMinor > f.smallAutoLimitHomeMinor) return ask(["ABOVE_SMALL_AUTO_LIMIT"], f);
+  // The model's agentRequestedConfirm flag can only add an ASK; the first payment to a payee is asked for by code.
+  if (f.priorCompletedPaymentsToPayee === 0) return ask(["FIRST_PAYMENT_TO_PAYEE"], f);
   // (X3) per-day budget: a fooled planner cannot drain the day's cap through many small payments.
   const b = f.smallAutoBudget;
   if (b && (b.usedCount + 1 > b.maxCount || b.usedHomeMinor + c.amountHomeMinor > b.maxHomeMinor)) return ask(["SMALL_AUTO_BUDGET_EXHAUSTED"], f);

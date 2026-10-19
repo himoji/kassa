@@ -241,6 +241,9 @@ export const ACCOUNTS = {
 
 /** ISO 11649 structured creditor reference printed on the tuition invoice. */
 export const TUITION_REFERENCE = "RF39RUB2026F04217";
+/** Dana's date of birth as her school has it on file: with her student ID it is how the school portal (and "Find your
+ * school") confirms she is the student (apps/mock-world/src/school/schools.ts). */
+export const DANA_DATE_OF_BIRTH = "2005-03-14";
 
 // ---------- Rows ----------
 
@@ -457,6 +460,20 @@ export const mandates: SeedMandate[] = [
   },
 ];
 
+/**
+ * (added 2026-10-19) SIMULATED account history before the seed day: the rent and the quarterly insurance paid on time
+ * and the monthly incomes (profile.incomes) received, for the 6 months before. Recorded once as an
+ * ACCOUNT_HISTORY_IMPORTED ledger entry (simulated: true) when the account is seeded or copied (demo/judgeCopy.ts);
+ * the credit record and the agent's money history read it. Not payments: nothing here moves money or uses a cap.
+ */
+export const history = {
+  months: 6,
+  bills: [
+    { obligationId: IDS.obligations.rent, everyMonths: 1, paidDaysBefore: 2 },
+    { obligationId: IDS.obligations.insurance, everyMonths: 3, paidDaysBefore: 5 },
+  ],
+};
+
 export const budgets: SeedBudget[] = [
   { id: IDS.budgets.groceries, userId: IDS.user, category: "groceries", periodStart: "2026-10-01", periodEnd: "2026-10-31", limitHomeMinor: toMinor("90000", "KZT") },
   { id: IDS.budgets.eatingOut, userId: IDS.user, category: "eating_out", periodStart: "2026-10-01", periodEnd: "2026-10-31", limitHomeMinor: toMinor("60000", "KZT") },
@@ -657,6 +674,8 @@ export const LI_WEI_HOME_CURRENCY = "CNY";
 export const LI_WEI_MOCK_BANK_PROFILE_ID = 16_000_002;
 /** ISO 11649 creditor reference on Li Wei's tuition invoice. */
 export const LI_WEI_TUITION_REFERENCE = "RF32RUB2026L03318";
+/** Li Wei's date of birth on his school's file (as DANA_DATE_OF_BIRTH). */
+export const LI_WEI_DATE_OF_BIRTH = "2004-09-21";
 
 const liWeiUser: SeedUser = {
   id: LI_WEI_IDS.user,
@@ -1315,6 +1334,7 @@ export const seed = {
   budgets,
   transactions,
   fundingSources,
+  history,
   /** Extra demo personas, inserted only with `seedDatabase(..., { personas: true })`. */
   personas: [liWei, liWeiCn, pizzeriaBud, pizzeriaSha],
 } as const;

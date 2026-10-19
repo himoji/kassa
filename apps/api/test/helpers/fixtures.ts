@@ -7,12 +7,13 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "../../src/db/client.ts";
-import { kycChecks, mandates, obligations, payees, profiles, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
+import { approvals, kycChecks, mandates, obligations, payees, payments, profiles, proposals, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
 import { clock } from "../../src/modules/clock/index.ts";
 import { setBalanceProviderForTests } from "../../src/modules/rules/facts.ts";
 import { useFallbackFxForTests } from "../../src/modules/money/fx.ts";
 import { wireExecutor } from "../../src/modules/orders/wiring.ts";
 import { accountHash, encryptAccount, normalizeAccount } from "../../src/modules/payees/crypto.ts";
+import { setCardDebitForTests } from "../../src/modules/rails/cardFunding.ts";
 import { requestHandoffQr } from "../../src/modules/rails/handoff.ts";
 import { setRailOverridesForTests, type Rail } from "../../src/modules/rails/index.ts";
 import { registerHandoffPreflight } from "../../src/modules/rules/index.ts";
@@ -35,6 +36,8 @@ export function offlineEnvironment(): { railCalls: { rail: RailId; amountMinor: 
   const railCalls: { rail: RailId; amountMinor: number }[] = [];
   useFallbackFxForTests(true);
   setBalanceProviderForTests(async () => AMPLE_WALLET);
+  // (2026-10-19) Card charges: the wallet pays every charge (tests of the real debit call useRealCardDebit()).
+  setCardDebitForTests(async (r) => ({ kind: "DEBITED", currency: r.currency, amountMinor: r.amountMinor, balanceAfterMinor: 0, created: true }));
   const stub = (id: RailId, status: "PROCESSING" | "SENT" = "PROCESSING"): Rail => ({
     id,
     async execute(order) {
@@ -57,6 +60,11 @@ export function offlineEnvironment(): { railCalls: { rail: RailId; amountMinor: 
     qrCurrency: order.currency,
   }));
   return { railCalls };
+}
+
+/** (2026-10-19) Card charges debit the real (in-process) mock bank wallet. */
+export function useRealCardDebit(): void {
+  setCardDebitForTests(null);
 }
 
 /** Real handoff rail + real QR preflight (tests with the in-process mock world, e.g. A5, D-CN1). */
@@ -217,4 +225,31 @@ export async function addObligation(
 export function resetOverrides(): void {
   setRailOverridesForTests({});
   setBalanceProviderForTests(null);
+}
+
+/**
+ * A completed (SENT) payment to `payeeId` 40 days before the Clock's now: the user has paid this payee before, so a
+ * small order to it may be small-auto (decide step 9 FIRST_PAYMENT_TO_PAYEE). Outside today's and this month's usage.
+ */
+export async function addPriorPayment(userId: string, payeeId: string, o: { amountMinor?: number; currency?: string } = {}) {
+  const db = getDb();
+  const at = new Date(clock.now().getTime() - 40 * 86_400_000);
+  const amountMinor = o.amountMinor ?? 100_000;
+  const currency = o.currency ?? "KZT";
+  const proposalId = randomUUID();
+  await db.insert(proposals).values({
+    id: proposalId,
+    userId,
+    createdBy: "USER",
+    draft: { payeeId, amountMinor, currency, purpose: "Earlier payment", rail: "BANK_TRANSFER" } as typeof proposals.$inferInsert.draft,
+    decision: "ASK",
+    riskScore: 0,
+    status: "EXECUTED",
+    category: "other",
+    createdAt: at,
+    updatedAt: at,
+  });
+  const approvalId = randomUUID();
+  await db.insert(approvals).values({ id: approvalId, proposalId, orderHash: "prior", tier: "T2", approvalSig: "prior", keyId: "prior", issuedAt: at, expiresAt: at });
+  await db.insert(payments).values({ approvalId, rail: "BANK_TRANSFER", status: "SENT", amountMinor, currency, createdAt: at, updatedAt: at, userId, proposalId, homeAmountMinor: amountMinor, homeCurrency: "KZT" });
 }

@@ -557,7 +557,7 @@ export const CreditRecordVerifyResponse = z.object({
   verifyId: z.string(),
   valid: z.boolean(),
   issuedAt: IsoDateTime,
-  /** Bundle version: 1 = before 2026-10-18 (declared income, unclamped period); 2 = evidenced figures only. */
+  /** Bundle version: 1 = before 2026-10-18 (declared income, unclamped period); 2 = evidenced figures only; 3 = credit record key + domain-separated signature, holder name bound, budgets and payments figures (2026-10-19). */
   version: z.number().int().positive().optional(),
   /** The period the figures cover: v2 clamps the request to [account opened, issue day]. */
   period: z.object({ from: IsoDate, to: IsoDate }),
@@ -567,10 +567,20 @@ export const CreditRecordVerifyResponse = z.object({
   accountOpenedOn: IsoDate.optional(),
   /** Initials or masked name only. */
   holder: z.string(),
+  /** v3: the bundle binds the holder's full name (keyed hash); KYC = the identity-checked name. */
+  holderNameSource: z.enum(["KYC", "PROFILE"]).optional(),
+  /** v3, with ?name= : whether that name matches the holder (the name itself is never returned). */
+  nameMatch: z.boolean().optional(),
+  /** v3: the figures include a simulated history imported when the demo account was set up. */
+  importedHistory: z.object({ source: z.literal("seed"), simulated: z.literal(true), openedOn: IsoDate }).optional(),
   items: z.array(CreditRecordItem),
-  /** Only the figures of the selected items (v2): BILLS → bills*, INCOME → incomeMonths. */
+  /** Only the figures of the selected items: BILLS → bills*, INCOME → incomeMonths, BUDGETS → budgets* (v3), PAYMENTS → payments* (v3). */
   summary: z.object({
     monthsCovered: z.number().int().nonnegative(),
+    budgetsTotal: z.number().int().nonnegative().optional(),
+    budgetsWithinLimit: z.number().int().nonnegative().optional(),
+    paymentsCompleted: z.number().int().nonnegative().optional(),
+    paymentsOnTimePct: z.number().int().min(0).max(100).optional(),
     billsPaidOnTime: z.number().int().nonnegative().optional(),
     /** Bill periods that fell due in the period. */
     billsTotal: z.number().int().nonnegative().optional(),

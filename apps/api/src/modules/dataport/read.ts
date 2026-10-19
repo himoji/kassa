@@ -113,7 +113,8 @@ async function readOne(input: ImportFileInput, index: number, o: PreviewOptions)
   } else if (format === "ofx") {
     const ofx = readOfx((text = decodeText(input.data)));
     mapped = mapRecordArrays([{ path: "$.STMTTRN", rows: ofx.records, accountCurrency: ofx.currency }], { homeCurrency: o.homeCurrency, docCurrency: ofx.currency, file: index, via: "records" });
-    facts = { ...statementFacts(text), accountCurrency: ofx.currency };
+    const fromText = statementFacts(text);
+    facts = { ...fromText, accountCurrency: ofx.currency, period: ofx.period ?? fromText.period };
     file.via = "records";
   } else {
     let tables: RecordArray[] = [];

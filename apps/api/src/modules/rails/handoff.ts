@@ -9,10 +9,12 @@
 import type { CanonicalOrder } from "@kassa/shared";
 import { eq } from "drizzle-orm";
 
+import { getDb } from "../../db/client.ts";
 import { proposals, type ProposalDraftJson } from "../../db/schema.ts";
 
 import { nameSimilarity } from "../screening/normalize.ts";
 import { mockWorld } from "./http.ts";
+import { referenceForOrder } from "./reference.ts";
 import type { ExecCtx, Rail, RailResult } from "./types.ts";
 
 export const HANDOFF_NAME_THRESHOLD = 0.92;
@@ -60,7 +62,8 @@ export async function requestHandoffQr(order: CanonicalOrder): Promise<HandoffQr
     payeeName: order.payeeName,
     amountMinor: order.amountMinor,
     currency: order.currency,
-    reference: order.purpose.slice(0, 35),
+    // (2026-10-19) Structured parts first, as for a bank transfer (rails/reference.ts).
+    reference: await referenceForOrder(getDb(), order),
   });
   return checked(qr, order);
 }

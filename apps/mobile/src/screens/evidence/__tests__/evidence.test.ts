@@ -3,14 +3,27 @@ import { describe, expect, it } from "@jest/globals";
 import { attackList, moneyInDetail } from "../evidence-screen";
 
 describe("attack evidence page", () => {
-  it("lists every attack in id order, none paid with the guards", () => {
+  it("lists every attack in id order", () => {
     const list = attackList();
     expect(list.length).toBe(16);
     expect(list[0]!.id).toBe("A1");
     expect(list.map((a) => Number(a.id.slice(1)))).toEqual(
       [...list.map((a) => Number(a.id.slice(1)))].sort((x, y) => x - y)
     );
-    expect(list.every((a) => !a.guarded.paid)).toBe(true);
+  });
+
+  it("each attack's chip is its worst case, and a passkey prompt is never shown as a refusal", () => {
+    const rank = { REFUSED: 0, ASKED: 1, PAID: 2 } as const;
+    for (const a of attackList()) {
+      expect(a.guarded.cases.length).toBeGreaterThan(0);
+      const worst = a.guarded.cases.reduce((w, c) => Math.max(w, rank[c.outcome]), 0);
+      expect(rank[a.guarded.worst]).toBe(worst);
+      for (const c of a.guarded.cases) {
+        if (c.decision === "ASK" && c.outcome !== "REFUSED") expect(c.outcome).toBe("ASKED");
+        if (c.outcome === "ASKED") expect(c.ifApproved?.note).toBeTruthy();
+      }
+      expect(a.tapConfirm).not.toBeNull();
+    }
   });
 
   it("shows minor-unit amounts as money", () => {

@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { orderConversion, type CanonicalOrder, orderHash, orderLineEn, ownWalletAccountHash, OWN_WALLET_PAYEE_NAME } from "../src/index.ts";
+import { orderConversion, type CanonicalOrder, orderHash, orderLineEn, orderLineStance, ownWalletAccountHash, OWN_WALLET_PAYEE_NAME } from "../src/index.ts";
 
 const USER = "3f1b3c9e-5d2a-4e8f-9b7c-1a2b3c4d5e6f";
 const CONVERT: CanonicalOrder = {
@@ -57,7 +57,7 @@ describe("CONVERT canonical orders", () => {
 
 describe("orderLineEn: the signed order in one sentence", () => {
   it("a conversion names both balances, the amount bought and the signed maximum", () => {
-    expect(orderLineEn(CONVERT)).toBe("Signed order: convert from your KZT balance into EUR 2,100.50 in your EUR balance, debiting at most KZT 1,300,000.00 incl. fees (route kzt-mock-bank).");
+    expect(orderLineEn(CONVERT)).toBe("Order to sign: convert from your KZT balance into EUR 2,100.50 in your EUR balance, debiting at most KZT 1,300,000.00 incl. fees (route kzt-mock-bank).");
   });
 
   it("a payment names the funding balance it is signed with (the judge's insurance case: HUF, not EUR)", () => {
@@ -73,8 +73,28 @@ describe("orderLineEn: the signed order in one sentence", () => {
       fundingRouteId: "huf-mock-bank",
       fundingMarkupBps: 35,
     };
-    expect(orderLineEn(pay)).toBe("Signed order: EUR 89.50 to Insurer Ltd, funded from your HUF balance: at most HUF 35,327.45 incl. fees (route huf-mock-bank).");
+    expect(orderLineEn(pay, "SIGNED")).toBe("Signed order: EUR 89.50 to Insurer Ltd, funded from your HUF balance: at most HUF 35,327.45 incl. fees (route huf-mock-bank).");
     const { fundingCurrency: _c, fundingAmountMinor: _a, fundingRouteId: _r, fundingMarkupBps: _m, ...card } = pay;
-    expect(orderLineEn({ ...(card as CanonicalOrder), rail: "CARD_ISSUING" })).toBe("Signed order: EUR 89.50 to Insurer Ltd, with a one-time card.");
+    expect(orderLineEn({ ...(card as CanonicalOrder), rail: "CARD_ISSUING" }, "PAID_SMALL_AUTO")).toBe("Paid under your small-payment limit: EUR 89.50 to Insurer Ltd, with a one-time card.");
+    expect(orderLineEn(pay, "PAID_MANDATE").startsWith("Paid under your mandate: EUR 89.50 to Insurer Ltd")).toBe(true);
+  });
+});
+
+describe("orderLineStance: never \"signed\" before the passkey (2026-10-19)", () => {
+  const withMandate = { mandateId: "c0ffee00-1234-4abc-8def-0123456789ab" };
+  const noMandate = { mandateId: null };
+  it("by decision and status", () => {
+    expect(orderLineStance("ASK", "PENDING_APPROVAL", noMandate)).toBe("TO_SIGN");
+    expect(orderLineStance("HANDOFF", "PENDING_APPROVAL", noMandate)).toBe("TO_SIGN");
+    expect(orderLineStance("ASK", "EXECUTED", noMandate)).toBe("SIGNED");
+    expect(orderLineStance("ASK", "APPROVED", noMandate)).toBe("SIGNED");
+    expect(orderLineStance("AUTO", "EXECUTED", withMandate)).toBe("PAID_MANDATE");
+    expect(orderLineStance("AUTO", "EXECUTED", noMandate)).toBe("PAID_SMALL_AUTO");
+    // An AUTO order whose payment failed was not paid.
+    expect(orderLineStance("AUTO", "FAILED", withMandate)).toBe("ORDER");
+    expect(orderLineStance("ASK", "REJECTED", noMandate)).toBe("ORDER");
+    expect(orderLineStance("ASK", "EXPIRED", noMandate)).toBe("ORDER");
+    // A refused order has no order line at all.
+    expect(orderLineStance("REFUSE", "REFUSED", noMandate)).toBeNull();
   });
 });

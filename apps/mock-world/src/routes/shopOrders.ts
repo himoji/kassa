@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import type { MockWorldConfig } from "../config.ts";
 import { HttpError, parseWith } from "../errors.ts";
-import { esc, page } from "../html.ts";
+import { esc, OPERATOR_FETCH_JS, OPERATOR_NOTE_HTML, page } from "../html.ts";
 import { qrSvg } from "../qr/svg.ts";
 import { ORDER_FLOW, type ShopOrderBook } from "../shop/orders.ts";
 import { PIZZA_MENUS } from "../world/data.ts";
@@ -18,9 +18,11 @@ import { resolveStore } from "./shop.ts";
  *   GET  /shop/:store/bills/:billId          one till bill
  *   POST /shop/:store/bills/:billId/pay      {cardId, clientRef?, expectedTotalMinor?} (card terminal)
  *   POST /shop/:store/bills/:billId/qr       {clientRef?, expectedTotalMinor?} → {bill, qr} (the shop's QR code)
- *   POST /shop/:store/bills/:billId/decline  {reasonCode} (Kassa refused to pay: the till shows red)
+ *   POST /shop/:store/bills/:billId/decline  {reasonCode, clientRef?} (Kassa refused to pay: the till shows red)
+ * One payer per bill (2026-10-19): pay / qr / decline answer 409 BILL_IN_PAYMENT while another order holds the bill.
  * Demo-only (404 unless DEMO_ENABLED, like the Stage; they are public pages over the phone tunnel):
  *   GET  /shop/:store/kitchen, GET /shop/:store/orders, POST /shop/:store/orders/:orderId/advance
+ *        (the order list and "advance" are operator-only on a deployed build, access.ts)
  *   GET  /shop/:store/till, POST /shop/:store/bills {items}, GET /shop/:store/bills/:billId/qr.svg
  * Order creation and bill payment answer 200/201 with the resulting status, including DECLINED (the shop's view).
  */
@@ -41,7 +43,7 @@ const CreateOrderBody = z.object({
 });
 const PayBillBody = z.object({ cardId: z.string().min(3).max(128), clientRef: ClientRef, expectedTotalMinor: Total });
 const BillQrBody = z.object({ clientRef: ClientRef, expectedTotalMinor: Total });
-const DeclineBody = z.object({ reasonCode: z.string().regex(/^[A-Z0-9_]{2,64}$/) });
+const DeclineBody = z.object({ reasonCode: z.string().regex(/^[A-Z0-9_]{2,64}$/), clientRef: ClientRef });
 
 type P = { store?: unknown; orderId?: unknown; billId?: unknown };
 const idOf = (v: unknown) => (typeof v === "string" && /^[A-Za-z0-9_-]{4,80}$/.test(v) ? v : "");
@@ -106,7 +108,10 @@ export function shopOrderRoutes(app: FastifyInstance, deps: { config: MockWorldC
     const b = book.getBill(storeId, billId);
     if (!b) throw new HttpError(404, "NOT_FOUND", "Unknown bill");
     const store = resolveStore(storeId);
-    return { bill: b, merchant: { storeId, name: store.name, city: store.city, country: store.country }, simulated: true };
+    // Public by bill id (the till polls it, every scanner has it): without who is paying and how (2026-10-19: the
+    // QR payment id in `payment` would let a bystander mark another customer's QR code paid).
+    const { payment: _payment, clientRef: _clientRef, ...view } = b;
+    return { bill: view, merchant: { storeId, name: store.name, city: store.city, country: store.country }, simulated: true };
   });
 
   app.get("/shop/:store/bills/:billId/qr.svg", async (req, reply) => {
@@ -136,8 +141,8 @@ export function shopOrderRoutes(app: FastifyInstance, deps: { config: MockWorldC
 
   app.post("/shop/:store/bills/:billId/decline", async (req) => {
     const { storeId, billId } = billOf(req);
-    const { reasonCode } = parseWith(DeclineBody, req.body);
-    return { bill: await book.declineBill(storeId, billId, reasonCode), simulated: true };
+    const { reasonCode, clientRef } = parseWith(DeclineBody, req.body);
+    return { bill: await book.declineBill(storeId, billId, reasonCode, clientRef ?? null), simulated: true };
   });
 
   // ---------- pages (demo only) ----------
@@ -149,19 +154,20 @@ export function shopOrderRoutes(app: FastifyInstance, deps: { config: MockWorldC
     const body = `
 <h1>${esc(store.name)}: kitchen screen</h1>
 <p class="muted">Simulated restaurant system. Orders paid through Kassa appear here; each step is reported back to Kassa.</p>
+${OPERATOR_NOTE_HTML}
 <div id="orders" aria-live="polite"><p class="muted">No orders yet.</p></div>`;
-    const script = `
+    const script = `${OPERATOR_FETCH_JS}
 const BASE = ${JSON.stringify(base)};
 const FLOW = ${JSON.stringify(ORDER_FLOW)};
 const CUR = ${JSON.stringify(store.currency)};
 const fmt = (m) => new Intl.NumberFormat(undefined, { style: 'currency', currency: CUR }).format(m / 100);
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 async function advance(id) {
-  await fetch(BASE + '/orders/' + encodeURIComponent(id) + '/advance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  await opFetch(BASE + '/orders/' + encodeURIComponent(id) + '/advance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   load();
 }
 async function load() {
-  const res = await fetch(BASE + '/orders', { cache: 'no-store' });
+  const res = await opFetch(BASE + '/orders', { cache: 'no-store' });
   if (!res.ok) return;
   const { orders } = await res.json();
   const box = document.getElementById('orders');

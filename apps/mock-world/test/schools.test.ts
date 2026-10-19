@@ -2,27 +2,32 @@
  * School payment portals: the directory, a student's invoice (seeded or generated once, deterministically), and
  * payments booked from the mock bank's payouts: matched by the invoice reference (signed "school" webhook), or kept
  * as unmatched without one. The portal page renders for a student.
+ * (2026-10-19) Invoices only for the student: their date of birth (with a per-student limit on wrong ones) or a Kassa
+ * portal link; on a deployed build the plain GET answers only Kassa's signed request.
  */
 import { randomUUID } from "node:crypto";
 
-import { isValidIban, isValidRfReference } from "@kassa/shared";
+import { DEMO_TOKEN_HEADER, isValidIban, isValidRfReference, MOCK_REQUEST_AUTH_HEADER, mockRequestAuth, schoolPortalAccess } from "@kassa/shared";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { buildMockWorld, type MockWorld } from "../src/app.ts";
 import { StaticRates } from "../src/bank/rates.ts";
 import { ManualClock } from "../src/clock.ts";
 import { loadConfig } from "../src/config.ts";
-import { SCHOOLS } from "../src/school/schools.ts";
+import { DOB_MAX_FAILURES, SCHOOLS, studentDateOfBirth } from "../src/school/schools.ts";
 import { RecordingSink } from "../src/webhooks.ts";
-import { MOCK_BANK_PROFILE_ID, TUITION_REFERENCE } from "../../../fixtures/seed-data.ts";
+import { DANA_DATE_OF_BIRTH, MOCK_BANK_PROFILE_ID, TUITION_REFERENCE } from "../../../fixtures/seed-data.ts";
+import { judgeCopyStudentId } from "../../../fixtures/judge-copy.ts";
 
 const clock = new ManualClock(Date.parse("2026-10-27T18:00:00Z"));
 const worlds: MockWorld[] = [];
 
-async function world() {
+const SECRET = "s3cret";
+
+async function world(env: Record<string, string> = {}) {
   const sink = new RecordingSink();
   const w = await buildMockWorld({
-    config: loadConfig({ NODE_ENV: "test", MOCK_HMAC_SECRET: "s3cret", MOCK_BANK_INSTANT: "true" } as NodeJS.ProcessEnv),
+    config: loadConfig({ NODE_ENV: "test", MOCK_HMAC_SECRET: SECRET, MOCK_BANK_INSTANT: "true", ...env } as NodeJS.ProcessEnv),
     clock,
     webhooks: sink,
     rates: new StaticRates(),
@@ -110,8 +115,79 @@ describe("school portals", () => {
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain("University in Budapest: tuition payments");
     expect(page.body).toContain("KZ26-0417");
+    // Asks the student to sign in: no invoice is on the page and none is loaded without the date of birth.
+    expect(page.body).toContain("Sign in to see your invoices");
+    expect(page.body).toContain('let creds = null;');
     const empty = await w.app.inject({ url: "/mock/schools/budapest/portal?studentId=%3Cscript%3E" });
     expect(empty.body).not.toContain("<script>alert");
-    expect(empty.body).toContain("Enter your student ID");
+    expect(empty.body).toContain("Sign in with your student ID and date of birth");
+    // Opened from Kassa with a valid link: signed in. A link for another student or an expired one is ignored.
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const fromKassa = await w.app.inject({ url: `/mock/schools/budapest/portal?studentId=KZ26-0417&access=${schoolPortalAccess(SECRET, "budapest", "KZ26-0417", exp)}` });
+    expect(fromKassa.body).toContain("Signed in from Kassa as student KZ26-0417");
+    for (const access of [schoolPortalAccess(SECRET, "budapest", "CN26-0331", exp), schoolPortalAccess(SECRET, "budapest", "KZ26-0417", exp - 7200)]) {
+      const p = await w.app.inject({ url: `/mock/schools/budapest/portal?studentId=KZ26-0417&access=${access}` });
+      expect(p.body).toContain('let creds = null;');
+    }
+  });
+
+  it("shows a student's invoices only with their date of birth or a Kassa link; a wrong date reads the same for every ID", async () => {
+    const { w } = await world();
+    const ask = (school: string, body: Record<string, unknown>) => w.app.inject({ method: "POST", url: `/mock/schools/${school}/invoices`, payload: body });
+    const dana = await ask("budapest", { studentId: "kz26-0417", dateOfBirth: DANA_DATE_OF_BIRTH });
+    expect(dana.statusCode).toBe(200);
+    expect(dana.json().invoices[0]).toMatchObject({ studentId: "KZ26-0417", reference: TUITION_REFERENCE });
+    // A judge copy of Dana has her date; a generated student has one only the school (and its secret) knows.
+    const copy = judgeCopyStudentId("KZ26-0417", "0b7e6a1e-3d1c-4b8e-9a51-1f1f1f1f1f1f");
+    expect((await ask("budapest", { studentId: copy, dateOfBirth: DANA_DATE_OF_BIRTH })).statusCode).toBe(200);
+    const generated = studentDateOfBirth(SECRET, SCHOOLS.vienna!, "S1234567");
+    expect(generated).toMatch(/^(199[6-9]|200[0-7])-\d{2}-\d{2}$/);
+    expect(studentDateOfBirth("another-secret", SCHOOLS.vienna!, "S1234567")).not.toBe(generated);
+    expect((await ask("vienna", { studentId: "S1234567", dateOfBirth: generated })).statusCode).toBe(200);
+
+    const refusals = [
+      await ask("budapest", { studentId: "KZ26-0417" }),
+      await ask("budapest", { studentId: "KZ26-0417", dateOfBirth: "2005-03-15" }),
+      await ask("budapest", { studentId: "ZZ99-0001", dateOfBirth: "2005-03-15" }),
+      await ask("budapest", { studentId: "KZ26-0417", access: schoolPortalAccess("not-the-secret", "budapest", "KZ26-0417", Math.floor(Date.now() / 1000) + 60) }),
+    ];
+    for (const r of refusals) {
+      expect(r.statusCode).toBe(403);
+      expect(r.json()).toEqual(refusals[0]!.json());
+    }
+    expect(refusals[0]!.json().code).toBe("STUDENT_NOT_VERIFIED");
+    const link = schoolPortalAccess(SECRET, "budapest", "KZ26-0417", Math.floor(Date.now() / 1000) + 60);
+    expect((await ask("budapest", { studentId: "KZ26-0417", access: link })).statusCode).toBe(200);
+    // The link is for one student at one school.
+    expect((await ask("budapest", { studentId: "CN26-0331", access: link })).statusCode).toBe(403);
+  });
+
+  it("stops checking a student's date of birth after too many wrong ones", async () => {
+    const { w } = await world();
+    const ask = (dateOfBirth: string, studentId = "KZ26-0417") => w.app.inject({ method: "POST", url: "/mock/schools/budapest/invoices", payload: { studentId, dateOfBirth } });
+    // Wrong dates count; right ones do not.
+    expect((await ask(DANA_DATE_OF_BIRTH)).statusCode).toBe(200);
+    for (let i = 0; i < DOB_MAX_FAILURES; i++) expect((await ask(`1990-01-${String(i + 1).padStart(2, "0")}`)).statusCode).toBe(403);
+    const locked = await ask(DANA_DATE_OF_BIRTH);
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json().code).toBe("TOO_MANY_ATTEMPTS");
+    // Per student: others are unaffected; a Kassa link still works (the school confirmed that student before).
+    expect((await ask(studentDateOfBirth(SECRET, SCHOOLS.budapest!, "S1234567"), "S1234567")).statusCode).toBe(200);
+    const link = schoolPortalAccess(SECRET, "budapest", "KZ26-0417", Math.floor(Date.now() / 1000) + 60);
+    expect((await w.app.inject({ method: "POST", url: "/mock/schools/budapest/invoices", payload: { studentId: "KZ26-0417", access: link } })).statusCode).toBe(200);
+  });
+
+  it("deployed build: the plain invoice read answers only Kassa's signed request or the operator", async () => {
+    const token = "demo-admin-token-for-school-tests-0123456789";
+    const { w } = await world({ NODE_ENV: "production", DEMO_ADMIN_TOKEN: token, API_URL: "http://api.test", MOCK_PUBLIC_URL: "http://mock.test" });
+    const url = "/mock/schools/budapest/invoices?studentId=KZ26-0417";
+    const anon = await w.app.inject({ url });
+    expect(anon.statusCode).toBe(401);
+    expect(anon.json().code).toBe("KASSA_AUTH_REQUIRED");
+    expect((await w.app.inject({ url, headers: { [MOCK_REQUEST_AUTH_HEADER]: mockRequestAuth("not-the-secret", "GET", url, "", Math.floor(Date.now() / 1000)) } })).statusCode).toBe(401);
+    expect((await w.app.inject({ url, headers: { [MOCK_REQUEST_AUTH_HEADER]: mockRequestAuth(SECRET, "GET", url, "", Math.floor(Date.now() / 1000)) } })).statusCode).toBe(200);
+    expect((await w.app.inject({ url, headers: { [DEMO_TOKEN_HEADER]: token } })).statusCode).toBe(200);
+    // The student's own way in still works.
+    expect((await w.app.inject({ method: "POST", url: "/mock/schools/budapest/invoices", payload: { studentId: "KZ26-0417", dateOfBirth: DANA_DATE_OF_BIRTH } })).statusCode).toBe(200);
   });
 });

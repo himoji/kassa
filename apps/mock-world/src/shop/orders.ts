@@ -1,8 +1,9 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { HttpError } from "../errors.ts";
-import type { QrPayment, QrWallet } from "../qr/qr.ts";
+import { type QrPayment, QrError, type QrWallet } from "../qr/qr.ts";
 import { pizzaCheckout, type ShopDeps } from "../routes/shop.ts";
+import type { Leases } from "../store/leases.ts";
 import { type Collection, mapCollection } from "../store/sync.ts";
 import type { WebhookSink } from "../webhooks.ts";
 import { PIZZA_MENUS, PIZZA_STORES } from "../world/data.ts";
@@ -17,7 +18,10 @@ import type { StoreId } from "../../../../fixtures/seed-data.ts";
  *   code in the QR wallet (Shanghai, region CN). A paid QR moves the order on through QrWallet.onPaid.
  * - Delivery status: AWAITING_PAYMENT → RECEIVED → ACCEPTED → COOKING → OUT_FOR_DELIVERY → DELIVERED (or DECLINED).
  *   The kitchen screen advances it; with SHOP_AUTOPILOT it advances itself on the demo clock.
- * - Till bills: OPEN → PAID, or DECLINED (with the reason; still payable by another attempt).
+ * - Till bills: OPEN → PAID, or DECLINED (with the reason; still payable by another attempt). (2026-10-19) One payer
+ *   at a time: a card charge or the bill's QR code holds the bill's lease (store/leases.ts, keyed by Kassa's proposal
+ *   id) until it is paid (for good) or fails (given up, or expired after BILL_LEASE_MS); another order is refused with
+ *   409 BILL_IN_PAYMENT, a paid bill with 409 ALREADY_PAID, so two customers never both pay one bill.
  * - Every change is reported to Kassa as a signed "shop" webhook (webhooks.ts).
  * - `clientRef` (Kassa's proposal id) makes order creation idempotent per store.
  */
@@ -85,7 +89,24 @@ export interface TillBill {
 
 export type ItemRequest = { sku: string; qty: number };
 
-export type OrderBookDeps = ShopDeps & { webhooks: WebhookSink; qr: QrWallet; kassaAppUrl: string; stepMs: number; autopilot: boolean };
+export type OrderBookDeps = ShopDeps & {
+  webhooks: WebhookSink;
+  qr: QrWallet;
+  kassaAppUrl: string;
+  stepMs: number;
+  autopilot: boolean;
+  /** Who is paying which bill, across instances (store/leases.ts). */
+  leases: Leases;
+  /** Wall clock for lease expiry (not the demo clock: a clock jump must not hand a bill over). Default Date.now. */
+  realNowMs?: () => number;
+};
+
+/** How long a started payment keeps a till bill (a QR code the customer has not paid yet, a crashed charge). */
+export const BILL_LEASE_MS = 10 * 60_000;
+const ANONYMOUS = "anonymous";
+const leaseKey = (billId: string) => `bill:${billId}`;
+/** A card id is a bearer credential: the lease row keeps a digest of it. */
+const cardOwner = (cardId: string) => `card:${createHash("sha256").update(cardId).digest("hex").slice(0, 32)}`;
 
 function priced(storeId: StoreId, items: ItemRequest[]): { items: LineItem[]; totalMinor: number } {
   const bySku = new Map<string, number>();
@@ -112,6 +133,18 @@ export class ShopOrderBook {
 
   constructor(private readonly deps: OrderBookDeps) {
     deps.qr.onPaid((p) => this.onQrPaid(p));
+    deps.qr.beforePay((p) => this.checkBillQr(p));
+  }
+
+  private realNow(): number {
+    return (this.deps.realNowMs ?? Date.now)();
+  }
+
+  /** Takes the bill's lease for `owner`, or refuses: paid already, or someone else is paying it. */
+  private async holdBill(billId: string, owner: string): Promise<void> {
+    const l = await this.deps.leases.acquire(leaseKey(billId), owner, this.realNow(), BILL_LEASE_MS);
+    if (l.final) throw new HttpError(409, "ALREADY_PAID", "This bill is already paid");
+    if (l.owner !== owner) throw new HttpError(409, "BILL_IN_PAYMENT", "Another customer is paying this bill");
   }
 
   reset(): void {
@@ -285,11 +318,23 @@ export class ShopOrderBook {
   async payBillWithCard(storeId: StoreId, billId: string, input: { cardId: string; clientRef?: string | null; expectedTotalMinor?: number }): Promise<TillBill> {
     const b = this.billOrThrow(storeId, billId);
     this.checkTotal(b, input.expectedTotalMinor);
-    b.clientRef = input.clientRef ?? b.clientRef;
-    const r = await pizzaCheckout(this.deps, { cardId: input.cardId, items: b.items.map((i) => ({ sku: i.sku, quantity: i.qty })) }, storeId);
-    b.payment = { method: "CARD", cardHint: hint(input.cardId), authorizationId: r.body.authorizationId, qrPaymentId: null };
-    if (r.body.status === "approved") await this.setBillStatus(b, "PAID");
-    else await this.setBillStatus(b, "DECLINED", r.body.reasonCode ?? "DECLINED");
+    const owner = input.clientRef ?? cardOwner(input.cardId);
+    await this.holdBill(billId, owner);
+    // Another request of this instance may have finished it during the await.
+    if (b.status === "PAID") throw new HttpError(409, "ALREADY_PAID", "This bill is already paid");
+    let paid = false;
+    try {
+      b.clientRef = input.clientRef ?? b.clientRef;
+      const r = await pizzaCheckout(this.deps, { cardId: input.cardId, items: b.items.map((i) => ({ sku: i.sku, quantity: i.qty })) }, storeId);
+      b.payment = { method: "CARD", cardHint: hint(input.cardId), authorizationId: r.body.authorizationId, qrPaymentId: null };
+      if (r.body.status === "approved") {
+        paid = true;
+        await this.deps.leases.finalize(leaseKey(billId), owner);
+        await this.setBillStatus(b, "PAID");
+      } else await this.setBillStatus(b, "DECLINED", r.body.reasonCode ?? "DECLINED");
+    } finally {
+      if (!paid) await this.deps.leases.release(leaseKey(billId), owner);
+    }
     return b;
   }
 
@@ -297,8 +342,11 @@ export class ShopOrderBook {
   async billQr(storeId: StoreId, billId: string, input: { clientRef?: string | null; expectedTotalMinor?: number }): Promise<{ bill: TillBill; qr: QrView }> {
     const b = this.billOrThrow(storeId, billId);
     this.checkTotal(b, input.expectedTotalMinor);
-    b.clientRef = input.clientRef ?? b.clientRef;
-    const existing = this.qrOf(b.payment?.qrPaymentId ?? null);
+    // The code is this order's until it is paid or the lease expires; then another order gets a new code.
+    await this.holdBill(billId, input.clientRef ?? ANONYMOUS);
+    if (b.status === "PAID") throw new HttpError(409, "ALREADY_PAID", "This bill is already paid");
+    const existing = b.clientRef === (input.clientRef ?? null) ? this.qrOf(b.payment?.qrPaymentId ?? null) : null;
+    b.clientRef = input.clientRef ?? null;
     if (existing) return { bill: b, qr: existing };
     const store = PIZZA_STORES[storeId];
     const qr = await this.deps.qr.create({ merchantId: store.id, amountMinor: b.totalMinor, currency: b.currency, reference: b.billId });
@@ -306,9 +354,18 @@ export class ShopOrderBook {
     return { bill: b, qr: qrView(qr) };
   }
 
-  /** Kassa refused to pay (rules or payments): the till shows red with the reason. The bill stays payable. */
-  async declineBill(storeId: StoreId, billId: string, reasonCode: string): Promise<TillBill> {
+  /**
+   * Kassa refused to pay (rules or payments): the till shows red with the reason. The bill stays payable. A refusal
+   * of one order does not touch a bill another order is paying (409 BILL_IN_PAYMENT); the order holding the lease
+   * gives it up.
+   */
+  async declineBill(storeId: StoreId, billId: string, reasonCode: string, clientRef: string | null = null): Promise<TillBill> {
     const b = this.billOrThrow(storeId, billId);
+    const l = await this.deps.leases.get(leaseKey(billId));
+    if (l?.final) throw new HttpError(409, "ALREADY_PAID", "This bill is already paid");
+    const mine = l !== null && l.owner === (clientRef ?? ANONYMOUS);
+    if (l && !mine && l.untilMs >= this.realNow()) throw new HttpError(409, "BILL_IN_PAYMENT", "Another customer is paying this bill");
+    if (l && mine) await this.deps.leases.release(leaseKey(billId), l.owner);
     await this.setBillStatus(b, "DECLINED", reasonCode);
     return b;
   }
@@ -342,6 +399,21 @@ export class ShopOrderBook {
     return p && p.status === "PENDING" ? qrView(p) : null;
   }
 
+  /**
+   * Before the wallet pays a code made for a till bill (its reference is the bill id): the bill must be unpaid, the
+   * code must be the bill's current one, and its order must still hold the bill's lease (renewed here).
+   */
+  private async checkBillQr(p: QrPayment): Promise<void> {
+    const b = p.reference ? this.bills.get(p.reference) : undefined;
+    if (!b) return;
+    if (b.status === "PAID") throw new QrError(409, "ALREADY_PAID", "This bill is already paid");
+    if (b.payment?.qrPaymentId !== p.paymentId) throw new QrError(409, "CODE_REPLACED", "This bill has a newer payment code");
+    const owner = b.clientRef ?? ANONYMOUS;
+    const l = await this.deps.leases.acquire(leaseKey(b.billId), owner, this.realNow(), BILL_LEASE_MS);
+    if (l.final) throw new QrError(409, "ALREADY_PAID", "This bill is already paid");
+    if (l.owner !== owner) throw new QrError(409, "BILL_IN_PAYMENT", "Another customer is paying this bill");
+  }
+
   /** A paid QR code that belongs to an order or bill of this shop moves it on (amount and merchant must match). */
   private async onQrPaid(p: QrPayment): Promise<void> {
     for (const o of this.orders.values()) {
@@ -352,8 +424,14 @@ export class ShopOrderBook {
     }
     for (const b of this.bills.values()) {
       if (b.payment?.qrPaymentId !== p.paymentId || b.status === "PAID") continue;
-      if (p.payeeName !== PIZZA_STORES[b.storeId].name || p.amountMinor !== b.totalMinor) await this.setBillStatus(b, "DECLINED", "QR_PAYEE_MISMATCH");
-      else await this.setBillStatus(b, "PAID");
+      const owner = b.clientRef ?? ANONYMOUS;
+      if (p.payeeName !== PIZZA_STORES[b.storeId].name || p.amountMinor !== b.totalMinor) {
+        await this.deps.leases.release(leaseKey(b.billId), owner);
+        await this.setBillStatus(b, "DECLINED", "QR_PAYEE_MISMATCH");
+      } else {
+        await this.deps.leases.finalize(leaseKey(b.billId), owner);
+        await this.setBillStatus(b, "PAID");
+      }
       return;
     }
   }

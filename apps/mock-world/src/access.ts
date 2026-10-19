@@ -16,13 +16,16 @@ import { HttpError } from "./errors.ts";
  *            5-minute window, @kassa/shared mockRequestAuth) or the operator (x-kassa-demo-token = DEMO_ADMIN_TOKEN).
  *            A user reaches these only through an authenticated API route that picks the user's own bank profile
  *            from the session (wallet top-ups, payments, KYC, shop orders).
- *   "admin"  the operator only: the webhook outbox (every signed delivery, profile ids included) and the global QR
- *            attack switch.
+ *   "admin"  the operator only: the webhook outbox (every signed delivery, profile ids included), the global QR
+ *            attack switch and (2026-10-19) the screens that show or move every customer's orders: the kitchen's
+ *            order list and its "advance" button, and the supplier portals' purchase orders, invoices and attack button.
+ *            Their pages still load; on a locked build they ask for the operator key (html.ts operatorFetch).
  *
- * Everything else stays public on purpose: pages and catalogs, the shop's checkout page, the kitchen screen and the
- * till, the supplier portals (demo only), school portals, and the QR wallet page with its Pay button, whose payment id
- * (a random UUID) only the paying user is given (a capability link, docs/SECURITY.md). The Stage has its own gate
- * (routes/stage.ts). Local development (not locked) leaves every route open for the sim and curl.
+ * Everything else stays public on purpose: pages and catalogs, the shop's checkout page (charges a one-time card id
+ * only its holder has; the issuer allows one charge for the signed amount), the till (it creates its own bills and
+ * polls the one it shows; bill ids are random and listed nowhere), school portals, and the QR wallet page with its Pay
+ * button, whose payment id (a random UUID) only the paying user is given (a capability link, docs/SECURITY.md). The
+ * Stage has its own gate (routes/stage.ts). Local development (not locked) leaves every route open for the sim and curl.
  */
 
 export type Access = "kassa" | "admin";
@@ -45,6 +48,8 @@ export const ROUTE_ACCESS: Readonly<Record<string, Access>> = {
   "GET /mock/v4/profiles/:p/balances": "kassa",
   "POST /mock/bank/wallets": "kassa",
   "POST /mock/bank/top-ups": "kassa",
+  // (2026-10-19) one-time card charges paid from the wallet (Kassa's issuer, on approval)
+  "POST /mock/bank/card-debits": "kassa",
   "GET /mock/bank/transfers": "kassa",
   "POST /mock/bank/tick": "kassa",
   // Event emitters (money from home, POS stock levels)
@@ -62,6 +67,17 @@ export const ROUTE_ACCESS: Readonly<Record<string, Access>> = {
   "POST /mock/shop/:store/bills/:billId/qr": "kassa",
   "POST /mock/shop/:store/bills/:billId/decline": "kassa",
   "GET /mock/shop/:store/charges": "kassa",
+  // (2026-10-19) One order by id (delivery address included): only Kassa asks for it.
+  "GET /mock/shop/:store/orders/:orderId": "kassa",
+  // (2026-10-19) Every customer's orders and suppliers' purchase orders: operator screens on a deployed build.
+  "GET /mock/shop/:store/orders": "admin",
+  "POST /mock/shop/:store/orders/:orderId/advance": "admin",
+  "GET /mock/supplier/:id/purchase-orders": "admin",
+  "POST /mock/supplier/:id/purchase-orders/:po/confirm": "admin",
+  "POST /mock/supplier/:id/purchase-orders/:po/deliver": "admin",
+  "POST /mock/supplier/:id/purchase-orders/:po/invoice": "admin",
+  "POST /mock/supplier/:id/attack/swapped-invoice": "admin",
+  "GET /mock/supplier/:id/invoices/:invoiceId/invoice.pdf": "admin",
 };
 
 const digest = (s: string) => createHash("sha256").update(s, "utf8").digest();

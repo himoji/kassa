@@ -49,3 +49,30 @@ ${opts.script ? `<script>${opts.script}</script>` : ""}
 </body>
 </html>`;
 }
+
+/**
+ * (added 2026-10-19) Page script helper for the operator screens (kitchen, supplier portals): `opFetch(url, init)` is
+ * fetch with the operator key (the demo admin token, the same browser key the Stage keeps) as x-kassa-demo-token. On a
+ * locked build their JSON routes are admin-only (access.ts): the first 401 asks for the key once per page load; without
+ * it the page shows `#opnote` and stays read-only. Local development never answers 401, so nothing is asked there.
+ */
+export const OPERATOR_FETCH_JS = `
+const OP_KEY_STORE = 'kassa:stageKey';
+let opAsked = false;
+function opKey() { try { return localStorage.getItem(OP_KEY_STORE) || ''; } catch (e) { return ''; } }
+function opNote(show) { const n = document.getElementById('opnote'); if (n) n.hidden = !show; }
+async function opFetch(url, init) {
+  init = init || {};
+  const send = () => { const h = Object.assign({}, init.headers || {}); const k = opKey(); if (k) h['x-kassa-demo-token'] = k; return fetch(url, Object.assign({}, init, { headers: h })); };
+  let res = await send();
+  if (res.status === 401 && !opAsked) {
+    opAsked = true;
+    const typed = window.prompt('Operator key (the demo admin token). This screen shows every customer\\'s orders:');
+    if (typed) { try { localStorage.setItem(OP_KEY_STORE, typed.trim()); } catch (e) {} res = await send(); }
+  }
+  opNote(res.status === 401);
+  return res;
+}`;
+
+/** The note an operator screen shows when its data needs the operator key (OPERATOR_FETCH_JS). */
+export const OPERATOR_NOTE_HTML = `<p id="opnote" class="card muted" hidden>On this deployment this screen is for the demo operator: it shows and moves every customer's orders. Reload and enter the operator key, or follow your own order in the Kassa app.</p>`;

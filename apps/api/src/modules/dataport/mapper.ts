@@ -227,6 +227,8 @@ export function parseAmount(v: unknown, currency: string, minorColumn: boolean):
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}([T ][\d:.]+(Z|[+-]\d{2}:?\d{2})?)?$/;
 const NUMERIC_DATE = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4}|\d{2})(?!\d)(?:\D+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
+/** Year first with dots or slashes: Hungarian "2026.10.01." (also "2026. 10. 01."), Chinese and Japanese "2026/10/01". */
+const YMD_DATE = /^(\d{4})[./] ?(\d{1,2})[./] ?(\d{1,2})\.?(?!\d)(?:\D+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
 
 /** Day-first unless the column shows otherwise ("10/31/2026" anywhere → month-first). */
 export function dayFirstColumn(values: unknown[]): boolean {
@@ -254,14 +256,19 @@ export function parseDate(v: unknown, dayFirst: boolean): Date | null {
     const d = new Date(s.length === 10 ? `${s}T12:00:00Z` : s.replace(" ", "T"));
     return Number.isNaN(d.getTime()) ? null : d;
   }
-  // 15.10.2026, 15.10.26, 04/14/26, "13.10.2026\n17:44:44": parsed exactly (chrono reads two-digit years oddly).
-  const m = NUMERIC_DATE.exec(s.replace(/\s+/g, " "));
-  if (m) {
-    const [a, b] = [Number(m[1]), Number(m[2])];
-    const [day, month] = dayFirst ? [a, b] : [b, a];
-    const year = m[3]!.length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  // 15.10.2026, 15.10.26, 04/14/26, "13.10.2026\n17:44:44", 2026.10.13.: parsed exactly (chrono reads two-digit years
+  // oddly, and parses in the local time zone).
+  const folded = s.replace(/\s+/g, " ");
+  const ymd = YMD_DATE.exec(folded);
+  const m = ymd ? null : NUMERIC_DATE.exec(folded);
+  const t = ymd ?? m;
+  if (t) {
+    const [a, b] = m ? [Number(m[1]), Number(m[2])] : [Number(t[3]), Number(t[2])];
+    const [day, month] = m && !dayFirst ? [b, a] : [a, b];
+    const year = ymd ? Number(ymd[1]) : m![3]!.length === 2 ? 2000 + Number(m![3]) : Number(m![3]);
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-    const d = m[4] ? new Date(Date.UTC(year, month - 1, day, Number(m[4]), Number(m[5]), Number(m[6] ?? 0))) : new Date(Date.UTC(year, month - 1, day, 12));
+    // Time groups are 4–6 in both patterns.
+    const d = t[4] ? new Date(Date.UTC(year, month - 1, day, Number(t[4]), Number(t[5]), Number(t[6] ?? 0))) : new Date(Date.UTC(year, month - 1, day, 12));
     return d.getUTCDate() === day ? d : null;
   }
   return (dayFirst ? chrono.en.GB : chrono.en).parseDate(s) ?? null;

@@ -433,3 +433,37 @@ describe("decide: Phase 2 fix pass (X1, X2, X3)", () => {
     expect(decide({ ...base(), smallAutoBudget: { ...budget, usedHomeMinor: 2_600_000 } }).reasonCodes).toContain("SMALL_AUTO_BUDGET_EXHAUSTED");
   });
 });
+
+describe("decide: step 7 due window (2026-10-19)", () => {
+  const mandated = (): DecideFacts => ({ ...base(), caps: { ...base().caps, amountHomeMinor: 25_000_000 }, mandate: { id: "m1" } });
+
+  it("a mandate bill due within the window is AUTO (T1, MANDATE_MATCH)", () => {
+    const r = decide({ ...mandated(), mandateNotDueYet: false });
+    expect(r).toMatchObject({ decision: "AUTO", reasonCodes: ["MANDATE_MATCH"], tier: "T1", mandateId: "m1" });
+  });
+
+  it("a mandate bill not due yet asks (MANDATE_NOT_DUE_YET), never AUTO and never small-auto", () => {
+    const r = decide({ ...mandated(), mandateNotDueYet: true });
+    expect(r).toMatchObject({ decision: "ASK", reasonCodes: ["MANDATE_NOT_DUE_YET"], tier: "T2", mandateId: null });
+    // Even under the small-auto limit, a mandate payee's early bill is not paid on its own.
+    const small = decide({ ...base(), mandate: { id: "m1" }, mandateNotDueYet: true });
+    expect(small.decision).toBe("ASK");
+    expect(small.reasonCodes).toContain("MANDATE_NOT_DUE_YET");
+  });
+});
+
+describe("decide: step 9 first payment to a payee (2026-10-19)", () => {
+  it("no completed payment to the payee → ASK FIRST_PAYMENT_TO_PAYEE, whatever the planner's flag", () => {
+    const r = decide({ ...base(), priorCompletedPaymentsToPayee: 0, agentRequestedConfirm: false });
+    expect(r).toMatchObject({ decision: "ASK", reasonCodes: ["FIRST_PAYMENT_TO_PAYEE"], tier: "T2" });
+  });
+
+  it("one completed payment → small-auto as before", () => {
+    expect(decide({ ...base(), priorCompletedPaymentsToPayee: 1 }).reasonCodes).toEqual(["SMALL_AUTO"]);
+  });
+
+  it("a mandate bill does not need payment history (step 7 decides first)", () => {
+    const r = decide({ ...base(), mandate: { id: "m1" }, priorCompletedPaymentsToPayee: 0 });
+    expect(r.reasonCodes).toEqual(["MANDATE_MATCH"]);
+  });
+});

@@ -29,18 +29,19 @@ import { getDb } from "../../db/client.ts";
 import { cards, demoState, devices, transactions, users } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { HttpProblem } from "../../http/problem.ts";
-import { clock } from "../clock/index.ts";
+import { clock, isoDate } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { notify } from "../notifications/service.ts";
 import { mockWorld } from "../rails/http.ts";
 import { ingestCapture, reconcileSettlement, SettlementError } from "../capture/service.ts";
 import { DocumentError, storeDocument } from "../reader/index.ts";
 import { forecastTick } from "../business/scheduler.ts";
-import { tick } from "../scheduler/index.ts";
+import { proposeDue, tick } from "../scheduler/index.ts";
+import { dueHorizon } from "../scheduler/window.ts";
 import { judgeModeActive } from "../auth/dev.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { bankMode } from "../rails/bankApi.ts";
-import { ensureWalletProfile } from "../wallet/service.ts";
+import { MONEY_FROM_HOME_DAILY_MAX, moneyFromHomeToday, sendMoneyFromHome } from "./judgeCopy.ts";
 import { loadSeedData, seedDatabase } from "./seed.ts";
 
 function assertDemoEnabled(): void {
@@ -184,13 +185,7 @@ const StageDocumentBody = z.object({
  * nothing is proposed or paid. One amount per home currency, about EUR 2,000 (Dana's parents send KZT 1,000,000, the
  * demo story: then tuition can be paid).
  */
-export const MONEY_FROM_HOME_MINOR: Readonly<Record<string, number>> = {
-  KZT: 100_000_000,
-  CNY: 1_500_000,
-  EUR: 200_000,
-  USD: 200_000,
-  HUF: 80_000_000,
-};
+export { MONEY_FROM_HOME_MINOR } from "./judgeCopy.ts";
 const MoneyFromHomeResponse = z.object({
   currency: z.string().length(3),
   amountMinor: z.number().int().positive(),
@@ -198,14 +193,43 @@ const MoneyFromHomeResponse = z.object({
   simulated: z.literal(true),
 });
 
-function assertOwnMoneyAllowed(req: FastifyRequest): void {
+/** Own-account demo actions: the judge build (every reviewer on a private copy) or a dev sign-in session, never Lite. */
+function assertOwnDemoAllowed(req: FastifyRequest, what: string): void {
   assertDemoEnabled();
   if (req.session?.scope === "lite") throw new HttpProblem(403, "LITE_SESSION", "A KassaLite device cannot do this");
   if (!judgeModeActive() && req.session?.dev !== true) {
-    throw new HttpProblem(403, "NOT_DEMO_SESSION", "Money from home is a demo action for the judge build and dev sign-in sessions");
+    throw new HttpProblem(403, "NOT_DEMO_SESSION", `${what} is a demo action for the judge build and dev sign-in sessions`);
   }
+}
+
+function assertOwnMoneyAllowed(req: FastifyRequest): void {
+  assertOwnDemoAllowed(req, "Money from home");
   if (bankMode() !== "mock") throw new HttpProblem(409, "NOT_MOCK_BANK", "Money from home needs the simulated bank");
 }
+
+/**
+ * (added 2026-10-19) "Run today's scheduled payments" for the signed-in user's OWN account: the scheduler's due-bills
+ * pass (scheduler/index.ts proposeDue) for this user only, at the Clock's date (never moved, never overridden). Bills
+ * due within the window (scheduler/window.ts) get their proposal now instead of at the next tick: a bill covered by a
+ * signed mandate is paid without a prompt (T1), anything else waits for the passkey. Same code, same rules and payments
+ * checks as the 15 s job; a judge copy's mandate-covered rent is due within the window from sign-in (demo/judgeCopy.ts).
+ */
+const RunDuePaymentsResponse = z.object({
+  today: z.string(),
+  dueBy: z.string(),
+  results: z.array(
+    z.object({
+      obligationId: z.string().uuid(),
+      category: z.string(),
+      dueDate: z.string(),
+      outcome: z.enum(["PROPOSED", "PAID", "PENDING", "TRIED"]),
+      proposalId: z.string().uuid().nullable(),
+      decision: z.enum(["AUTO", "ASK", "REFUSE", "HANDOFF"]).nullable(),
+      reasonCodes: z.array(z.string()),
+      paymentStatus: z.string().nullable(),
+    }),
+  ),
+});
 
 /** Admin check before body parsing/validation (no schema hints to callers without the token). */
 const admin = { onRequest: async (req: FastifyRequest) => assertAdmin(req) };
@@ -267,22 +291,48 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     async (req) => {
       assertOwnMoneyAllowed(req);
       const userId = userIdOf(req);
-      const u = (await getDb().select({ homeCurrency: users.homeCurrency }).from(users).where(eq(users.id, userId)))[0];
+      const u = (await getDb().select({ id: users.id }).from(users).where(eq(users.id, userId)))[0];
       if (!u) throw new HttpProblem(404, "NOT_FOUND", "User not found");
-      const currency = MONEY_FROM_HOME_MINOR[u.homeCurrency] ? u.homeCurrency : "EUR";
-      const amountMinor = MONEY_FROM_HOME_MINOR[currency]!;
-      // Opens the wallet if the mock bank has none for this user yet (idempotent), and names the user's own profile.
-      const profileId = await ensureWalletProfile(userId);
-      let r: { event?: { balanceAfterMinor?: unknown } };
+      // A demo button, not a money printer: a few presses per account per day.
+      if ((await moneyFromHomeToday(userId)) >= MONEY_FROM_HOME_DAILY_MAX) {
+        throw new HttpProblem(429, "DEMO_MONEY_DAILY_LIMIT", `Parents can send money ${MONEY_FROM_HOME_DAILY_MAX} times a day in the demo. Try again tomorrow.`, {
+          details: { maxPerDay: MONEY_FROM_HOME_DAILY_MAX },
+        });
+      }
       try {
-        r = await mockWorld("POST", "/remittance/incoming", { profileId, amountMinor, currency, sender: "Parents (simulated)" });
+        const r = await sendMoneyFromHome(userId);
+        return { ...r, simulated: true as const };
       } catch (err) {
         req.log.warn({ err }, "money from home: mock world refused");
         throw new HttpProblem(503, "BANK_UNAVAILABLE", "The simulated bank is not answering; try again shortly");
       }
-      const balanceAfterMinor = Number(r.event?.balanceAfterMinor);
-      await ledger.append("DEMO_TRIGGER", { scenario: "money-from-home", userId, self: true, currency, amountMinor });
-      return { currency, amountMinor, balanceAfterMinor: Number.isSafeInteger(balanceAfterMinor) ? balanceAfterMinor : 0, simulated: true as const };
+    },
+  );
+
+  app.post(
+    "/demo/run-due-payments",
+    { preHandler: requireUser, schema: { body: z.object({}).strict().optional(), response: { 200: RunDuePaymentsResponse } } },
+    async (req) => {
+      assertOwnDemoAllowed(req, "Running the scheduled payments");
+      const userId = userIdOf(req);
+      await clock.load();
+      const now = clock.now();
+      const results = await proposeDue({ userId });
+      await ledger.append("DEMO_TRIGGER", { scenario: "run-due-payments", userId, self: true, proposed: results.filter((r) => r.outcome === "PROPOSED").length });
+      return {
+        today: isoDate(now),
+        dueBy: dueHorizon(now),
+        results: results.map((r) => ({
+          obligationId: r.obligationId,
+          category: r.category,
+          dueDate: r.dueDate,
+          outcome: r.outcome,
+          proposalId: r.proposal?.proposalId ?? null,
+          decision: r.proposal?.decision ?? null,
+          reasonCodes: r.proposal?.reasonCodes ?? [],
+          paymentStatus: r.proposal?.paymentStatus ?? null,
+        })),
+      };
     },
   );
 

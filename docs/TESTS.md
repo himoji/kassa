@@ -5,7 +5,7 @@ Workspace totals from the run of 2026-10-19 (see "Changelog" at the end). Per-fi
 ## How to run
 - Everything: `bun run typecheck && bun run lint && bun run test` (turbo; all workspaces incl. mobile jest).
 - API only: `bun run --cwd apps/api test`; one folder: `bun run --cwd apps/api vitest run test/attacks --reporter=verbose` (also `invariants`, `security`, `core`, `rules`, `screening`, `intel`, `demos`, `naive`, `sim`).
-- Attack evidence: `bun run evidence:attacks` → `docs/evidence/attacks.json`, `docs/evidence/naive-baseline.json`.
+- Attack evidence: `bun run evidence:attacks` → `docs/evidence/attacks.json`, `docs/evidence/tap-confirm-baseline.json`, `docs/evidence/naive-baseline.json` (scripted planner and Reader, no network or model calls).
 - Ledger: `bun run db:migrate && bun run seed && bun run ledger:verify`.
 - Simulation (personas, demos): `bun run sim …` — see `docs/evidence/sim/RUNBOOK.md`.
 
@@ -17,7 +17,7 @@ Workspace totals from the run of 2026-10-19 (see "Changelog" at the end). Per-fi
 | packages/shared | 8 | 59 | all pass |
 | apps/mobile (jest) | 91 | 935 | all pass |
 
-Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 of 16 paid** (`docs/evidence/attacks.json`: A1 to A8 and the real-world incidents A10 to A17, 2026-10-15). A9 is refused by its own test; it is not in the naive baseline.
+Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incidents A10 to A17, regenerated 2026-10-19). Each case is REFUSED (code stopped it, nothing to approve), ASKED (a passkey prompt on the exact order; nothing moves unless the user approves) or PAID. Worst case per attack: **7 refused, 8 asked, 1 paid** (49 cases: 38 refused, 10 asked, 1 paid). The paid case is A5's handoff variant: a QR swapped inside the wallet after Kassa's check, detected (HANDOFF_PAID_MISMATCH) but not stopped. If the fooled user approves every prompt, the attacker's account is paid in **5 of 16** (A2, A5, A10, A16, A17). Baselines with the same intents: a **chatbot with a confirm tap** and no other checks pays the attacker's account in **11 of 16** when the fooled user taps (16 of 16 make an unwanted payment; with a user who declines, 1 of 16: A3, a forged confirmation); the **no-checks agent** pays **16 of 16** by construction. A9 is refused by its own test; it is not in the baselines.
 
 ## Bank statement import (`apps/api/test/dataport/`, IMPORT_PLAN S12)
 
@@ -27,6 +27,7 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 | dataport/import-file.test.ts | `POST /import/file` with several files; commit keeps the amount really charged and the fee x-ray; no payee or account from a statement; same-day duplicates inside a statement kept, a re-import adds nothing; `POST /onboarding/history` prefills the draft in code and leaves only aggregates for the model | 4 passed |
 | mobile lib/__tests__/commit-chunks.test.ts | Commit chunks keep every row in time order and never split rows that could be the same purchase | 2 passed |
 | dataport/history-route.test.ts | `GET /history` (the Home card's stored history): null before any import, then the caller's own history only | added after 2026-10-12 |
+| dataport/sample-statements.test.ts | The committed sample statements (`fixtures/statements/`: Kaspi-style KZT CSV, Hungarian HUF CSV, USD OFX) import with no skipped rows; the father's money is irregular (8 of 12 months), the scholarship regular, rent a monthly bill, own transfers left out; files match `generate.ts` | added 2026-10-19 (5 tests) |
 | dataport/keywords.test.ts | Dictionary keywords for Kazakh, Russian and Hungarian chains (`fixtures/merchants.json`); a word inside another word does not match | added after 2026-10-12 |
 
 ## Attacks (`apps/api/test/attacks/`)
@@ -36,7 +37,7 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 | A2.test.ts | "Landlord new IBAN" email | new COOLING payee; rent stays on verified account | 2 passed | A2; I7, I10 |
 | A3.test.ts | Payment without approval, forged approval, replay | NO_APPROVAL, BAD_SIGNATURE, NONCE_USED; no money; ledgered | 4 passed | A3; I2, I4 |
 | A4.test.ts | Loosen caps without passkey / before signing | passkey required; REFUSE_CAP until signed; signed raise instant; preset loosening 24 h; tightening instant | 9 passed | A4; I8 |
-| A5.test.ts | Swapped QR (checked when shown, X7) | QR_PAYEE_MISMATCH up front; approve refused; no pay action | 3 passed | A5; I2, I3 |
+| A5.test.ts | Swapped QR (checked when shown, X7) | QR_PAYEE_MISMATCH up front; approve refused; no pay action. A code swapped inside the wallet after the check is only detected (never SENT); the evidence counts it as PAID | 3 passed | A5; I2, I3 |
 | A6.test.ts | Sanctions (Cyrillic, transliterated, fuzzy) | REFUSE_SANCTIONS | 6 passed | A6; I9 |
 | A7.test.ts | Fake POS trigger 10× (end to end) | logged only; ASK TRIGGER_ORIGIN; REFUSE_CAP | 4 passed | A7; I6 |
 | A8.test.ts | Lying confirmation; tampered order | canonical values shown; ORDER_HASH_MISMATCH | 3 passed | A8; I3 |
@@ -49,6 +50,7 @@ Guarded attack suite: **0 of 16 attacks paid**; naive baseline (no rules): **16 
 | A15.test.ts | Chevrolet "$1 Tahoe" / talked-into discount | ITEMS_TOTAL_MISMATCH; agent text creates no approval | 4 passed | Chevrolet 2023 |
 | A16.test.ts | Salami: ten slices under the small-auto limit | cooling REFUSE ×10; ASK ×10 after cooling; small-auto budget bound | 5 passed | X3b; I7 |
 | A17.test.ts | APP "safe account" scam | UNKNOWN_PAYEE_REF; cooling REFUSE; REFUSE_CAP; ASK; REFUSE_FROZEN | 5 passed | UK Finance APP; I5, I7 |
+| evidence-outcomes.test.ts | The evidence overclaims (an ASK reported as blocked) | REFUSED / ASKED / PAID classification; ASKED needs "who is paid if approved"; PAYEE_COOLING split into in-cooling and cooled-unverified; worst case and summary counts | added 2026-10-19 (6 tests) | evidence |
 | cooling-stays-on.test.ts | The demo switch for the 24 h waits is used to weaken the suite | no attack test touches the switch; no agent module can reach `demo/cooling.ts` | added after 2026-10-12 | I7, I8 |
 
 ## Invariants (`apps/api/test/invariants/`)
@@ -180,7 +182,8 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 | demos/till.test.ts | second phone as the counter till: Kassa proposes exactly the bill the till reports; PAID or DECLINED with the reason; Shanghai variant with the till's QR | added after 2026-10-12 |
 | demos/stage.test.ts | Demo Stage server actions (Shortcut token, card settlement with DCC flag, forwarded email) only log or store; admin token required | added after 2026-10-12 |
 | demos/business-restock.test.ts | small business mode, replay: forecast finds the box shortage, the agent drafts one purchase order; nothing payable is created | added after 2026-10-12 |
-| naive/naive-baseline.test.ts | raw agent intent without rules: 16 of 16 attacks pay (A1–A8, A10–A17) | 19 passed |
+| naive/naive-baseline.test.ts | raw agent intent without rules or any confirmation: 16 of 16 attacks pay (A1–A8, A10–A17), by construction | 19 passed |
+| naive/tap-confirm-baseline.test.ts | chatbot + tap-to-confirm (payment tool, one confirm tap, no other check): a fooled user who taps pays 16 of 16 (11 to the attacker's account), 15 only because of the tap; a user who declines stops all but A3 (forged confirmation) | added 2026-10-19 (18 tests) |
 | sim/sim-smoke.test.ts | sim CLI end to end on ports 4190–4192 | 1 passed |
 | sim/sim-down.test.ts | `sim down` kills the whole daemon tree; a test sim stops when its owner dies (Y7) | 2 passed |
 
@@ -193,13 +196,14 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 - `docs/evidence/sim/SUMMARY.md` — summary
 
 ## Changelog
-- 2026-10-12: catalogue created from the review run. Final fix pass: counts refreshed from the final `bun run test` (api 72 files / 633 tests, mock-world 6 / 279, shared 4 / 34, mobile 46 / 410) and rows added for the new and changed test files (X1–X10, Y1–Y7, cap currency, settings derived changes).
-- 2026-10-14: workspace totals refreshed (api 101 files / 821 tests, mock-world 9 / 338, shared 7 / 53, mobile 65 / 526). Rows added for A9, dev sign-in and wallet P2P. Shared and mock-world totals re-run with `npx vitest run`; api and mobile totals from the team's latest full run.
-- 2026-10-14 (later): totals re-run with `bun run test` after the live-AI round (api 104 files / 828 tests, 1 opt-in live smoke test skipped; mobile 65 / 527).
-- 2026-10-15: attacks A10 to A17 added (real-world incidents, see SECURITY.md §6); naive baseline 16 of 16; totals re-run per workspace (api 121 files / 949 tests, 1 opt-in live smoke test skipped; mock-world 10 / 343; shared 7 / 53; mobile 74 / 560).
-- 2026-10-15 (later): bank statement import (IMPORT_PLAN.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
-- 2026-10-15 (latest): history patterns (IMPORT_PLAN S14) and `get_money_history`; api 121 files / 954 tests, 1 skipped; mobile 75 / 562; mock-world 10 / 343; shared 7 / 53.
-- 2026-10-16: identity check (KYC) and `eval:invoices` (live Reader accuracy on the 30 labelled invoices, `docs/evidence/invoice-eval.json`); api 133 files / 1,029 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
-- 2026-10-17: ledger-anchor.test.ts added (testnet anchoring of ledger checkpoints, 5 tests); api 134 files / 1,034 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
+- 2026-10-19 (later): attack evidence split into REFUSED / ASKED / PAID per case (an ASK is a passkey prompt, not a refusal), with a second baseline, chatbot + tap-to-confirm (`test/naive/tap-confirm.ts`); `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts` added. These files are not in the totals of the 2026-10-19 run above.
 - 2026-10-19: totals re-run (api 147 files / 1,189 tests, 1 opt-in live smoke test skipped; mock-world 12 / 375; shared 8 / 59; mobile 91 / 935; 2,558 in all) after the conversion orders, caps at approval, chat turn deadline, voice transcription, durable mock world and credit-record fixes. Same method as below.
 - 2026-10-18: totals re-run (api 139 files / 1,122 tests, 1 opt-in live smoke test skipped; mock-world 11 / 363; shared 7 / 53; mobile 84 / 908; 2,446 in all). There is no counting script: each figure is the summary line that `bun run test` prints per workspace (Vitest's "Test Files" and "Tests" lines for api, mock-world and shared, Jest's "Test Suites" and "Tests" lines for mobile), and the overall total is their sum. One workspace at a time: `bun run --cwd apps/api test` (likewise `apps/mock-world`, `packages/shared`, `apps/mobile`). Rows added for the 50 API test files that had none (business mode, judge build, R13/R14/R15 fixes, AI retries and fallbacks, and others), marked "added after 2026-10-12" without a per-file count. `security/mock-world-auth.test.ts` and `security/credit-record.test.ts` were added after this run and are not in these totals.
+- 2026-10-17: ledger-anchor.test.ts added (testnet anchoring of ledger checkpoints, 5 tests); api 134 files / 1,034 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
+- 2026-10-16: identity check (KYC) and `eval:invoices` (live Reader accuracy on the 30 labelled invoices, `docs/evidence/invoice-eval.json`; the eval ran on `openrouter:deepseek/deepseek-v4.1-flash`, the default Reader model then; the current default, `deepseek-v4.1-flash-1017` in `apps/api/src/modules/ai/models.ts`, has not been re-evaluated); api 133 files / 1,029 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
+- 2026-10-15 (latest): history patterns (IMPORT_PLAN S14) and `get_money_history`; api 121 files / 954 tests, 1 skipped; mobile 75 / 562; mock-world 10 / 343; shared 7 / 53.
+- 2026-10-15 (later): bank statement import (IMPORT_PLAN.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
+- 2026-10-15: attacks A10 to A17 added (real-world incidents, see SECURITY.md §6); naive baseline 16 of 16; totals re-run per workspace (api 121 files / 949 tests, 1 opt-in live smoke test skipped; mock-world 10 / 343; shared 7 / 53; mobile 74 / 560).
+- 2026-10-14 (later): totals re-run with `bun run test` after the live-AI round (api 104 files / 828 tests, 1 opt-in live smoke test skipped; mobile 65 / 527).
+- 2026-10-14: workspace totals refreshed (api 101 files / 821 tests, mock-world 9 / 338, shared 7 / 53, mobile 65 / 526). Rows added for A9, dev sign-in and wallet P2P. Shared and mock-world totals re-run with `npx vitest run`; api and mobile totals from the team's latest full run.
+- 2026-10-12: catalogue created from the review run. Final fix pass: counts refreshed from the final `bun run test` (api 72 files / 633 tests, mock-world 6 / 279, shared 4 / 34, mobile 46 / 410) and rows added for the new and changed test files (X1–X10, Y1–Y7, cap currency, settings derived changes).

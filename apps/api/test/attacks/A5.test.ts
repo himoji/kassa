@@ -74,7 +74,6 @@ describe("A5: swapped QR code (payee name mismatch)", () => {
 
     recordGuarded("A5", {
       case: "swapped QR caught when the order is shown: no passkey prompt, approve refused",
-      outcome: "BLOCKED",
       decision: "HANDOFF",
       reasonCodes: ["QR_PAYEE_MISMATCH"],
       ledger: ["HANDOFF_MISMATCH"],
@@ -109,10 +108,12 @@ describe("A5: swapped QR code (payee name mismatch)", () => {
 
     recordGuarded("A5", {
       case: "QR swapped after it was shown and paid anyway: webhook recorded as mismatch, never SENT",
-      outcome: "BLOCKED",
       decision: "HANDOFF",
       reasonCodes: ["QR_PAYEE_MISMATCH"],
       ledger: ["HANDOFF_PAID_MISMATCH", "PAYMENT_STATUS"],
+      // Handoff: the user's own wallet moves the money. Kassa detects the swap afterwards; it cannot stop it.
+      paid: true,
+      note: "The QR matched when shown and the user approved it; the code was swapped afterwards and the wallet paid another name. Kassa only detects it (HANDOFF_PAID_MISMATCH, never marked SENT): the money is gone unless the wallet or bank reverses it.",
     });
   });
 

@@ -236,21 +236,24 @@ export function readXlsx(b: Uint8Array): Sheet[] {
 
 // ---------- OFX ----------
 
-/** OFX statement transactions as records (DTPOSTED, TRNAMT, NAME / MEMO, CURDEF). */
-export function readOfx(text: string): { currency: string | null; records: Record<string, string>[] } {
+/** OFX statement transactions as records (DTPOSTED, TRNAMT, NAME / MEMO, CURDEF), and the statement's period (DTSTART, DTEND). */
+export function readOfx(text: string): { currency: string | null; period: { from: string; to: string } | null; records: Record<string, string>[] } {
   const tag = (block: string, name: string) => new RegExp(`<${name}>([^<\\r\\n]*)`, "i").exec(block)?.[1]?.trim() ?? "";
+  const day = (d: string) => (d.length >= 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d);
   const currency = tag(text, "CURDEF") || null;
+  const [start, end] = [day(tag(text, "DTSTART")), day(tag(text, "DTEND"))];
+  const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const period = isDay(start) && isDay(end) && start <= end ? { from: start, to: end } : null;
   const records = [...text.matchAll(/<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>)|<\/BANKTRANLIST>)/gi)].map((m) => {
     const b = m[1]!;
-    const d = tag(b, "DTPOSTED");
     return {
-      date: d.length >= 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d,
+      date: day(tag(b, "DTPOSTED")),
       amount: tag(b, "TRNAMT"),
       description: [tag(b, "NAME"), tag(b, "MEMO")].filter(Boolean).join(" "),
       currency: tag(b, "CURRENCY") ? tag(tag(b, "CURRENCY"), "CURSYM") : "",
     };
   });
-  return { currency, records };
+  return { currency, period, records };
 }
 
 // ---------- PDF ----------

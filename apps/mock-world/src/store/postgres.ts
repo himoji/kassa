@@ -1,4 +1,5 @@
-import type { BalanceStore, EntityRow, EntityStore, Row, SeedWallet, SqlClient, TopUpResult, WorldStore } from "./types.ts";
+import { sameCardCharge, type BalanceStore, type CardDebitRecord, type CardDebitResult, type EntityRow, type EntityStore, type Row, type SeedWallet, type SqlClient, type TopUpResult, type WorldStore } from "./types.ts";
+import { PgLeases } from "./leases.ts";
 
 /*
  * (added 2026-10-18) Mock-world state in Postgres, shared by every serverless instance of a deployed build (tables:
@@ -94,8 +95,12 @@ export class PgBalanceStore implements BalanceStore {
     return this.creditWith(this.sql, profile, currency, amountMinor);
   }
 
-  async debit(profile: number, currency: string, amountMinor: number): Promise<number | null> {
-    const rows = await this.sql.query(
+  debit(profile: number, currency: string, amountMinor: number): Promise<number | null> {
+    return this.debitWith(this.sql, profile, currency, amountMinor);
+  }
+
+  private async debitWith(q: SqlClient, profile: number, currency: string, amountMinor: number): Promise<number | null> {
+    const rows = await q.query(
       `update mock_world_balances set amount_minor = amount_minor - $3
         where profile_id = $1 and currency = $2 and amount_minor >= $3
        returning amount_minor::text as amount`,
@@ -130,6 +135,55 @@ export class PgBalanceStore implements BalanceStore {
     });
   }
 
+  private async findCardDebitWith(q: SqlClient, reference: string, cardId: string): Promise<CardDebitRecord | null> {
+    const r = (await q.query(
+      `select reference, card_id, profile_id::text as p, request_currency, request_amount_minor::text as req, currency,
+              amount_minor::text as amount, balance_after_minor::text as after
+         from mock_world_card_debits where reference = $1 or card_id = $2
+        order by (reference = $1) desc limit 1`,
+      [reference, cardId],
+    ))[0];
+    if (!r) return null;
+    return {
+      reference: String(r.reference),
+      cardId: String(r.card_id),
+      profile: num(r.p),
+      requestCurrency: String(r.request_currency),
+      requestAmountMinor: num(r.req),
+      currency: String(r.currency),
+      amountMinor: num(r.amount),
+      balanceAfterMinor: num(r.after),
+    };
+  }
+
+  findCardDebit(reference: string, cardId: string): Promise<CardDebitRecord | null> {
+    return this.findCardDebitWith(this.sql, reference, cardId);
+  }
+
+  async cardDebit(d: Omit<CardDebitRecord, "balanceAfterMinor">): Promise<CardDebitResult> {
+    return this.sql.transaction(async (tx): Promise<CardDebitResult> => {
+      // Unique reference and unique card: a concurrent debit of the same authorization or card waits on the key until
+      // the first commits (then sees its row) or rolls back (then this one goes ahead).
+      const inserted = await tx.query(
+        `insert into mock_world_card_debits (reference, card_id, profile_id, request_currency, request_amount_minor, currency, amount_minor, balance_after_minor)
+         values ($1, $2, $3, $4, $5, $6, $7, 0) on conflict do nothing returning reference`,
+        [d.reference, d.cardId, d.profile, d.requestCurrency, d.requestAmountMinor, d.currency, d.amountMinor],
+      );
+      if (inserted.length === 0) {
+        const seen = await this.findCardDebitWith(tx, d.reference, d.cardId);
+        if (!seen) throw new Error("card debit conflict without a recorded debit");
+        return sameCardCharge(seen, d) ? { kind: "ok", debit: seen, created: false } : { kind: "conflict" };
+      }
+      const after = await this.debitWith(tx, d.profile, d.currency, d.amountMinor);
+      if (after === null) throw new Insufficient(); // rolls the record back too
+      await tx.query(`update mock_world_card_debits set balance_after_minor = $2 where reference = $1`, [d.reference, after]);
+      return { kind: "ok", debit: { ...d, balanceAfterMinor: after }, created: true };
+    }).catch((err: unknown) => {
+      if (err instanceof Insufficient) return { kind: "insufficient" } as const;
+      throw err;
+    });
+  }
+
   async nextId(): Promise<number> {
     for (;;) {
       if (this.block && this.block.next < this.block.end) return this.block.next++;
@@ -150,6 +204,7 @@ export class PgBalanceStore implements BalanceStore {
     this.aliasCache.clear();
     await this.sql.transaction(async (tx) => {
       await tx.query(`delete from mock_world_top_ups`);
+      await tx.query(`delete from mock_world_card_debits`);
       await tx.query(`delete from mock_world_balances`);
       await tx.query(`delete from mock_world_aliases`);
       await tx.query(`delete from mock_world_wallets`);
@@ -159,6 +214,7 @@ export class PgBalanceStore implements BalanceStore {
 }
 
 class NoWallet extends Error {}
+class Insufficient extends Error {}
 
 export class PgEntityStore implements EntityStore {
   constructor(private readonly sql: SqlClient) {}
@@ -213,5 +269,5 @@ export class PgEntityStore implements EntityStore {
 export async function postgresStore(sql: SqlClient, seeds: SeedWallet[]): Promise<WorldStore> {
   const balances = new PgBalanceStore(sql, seeds);
   await balances.seed();
-  return { persistence: "postgres", balances, entities: new PgEntityStore(sql) };
+  return { persistence: "postgres", balances, entities: new PgEntityStore(sql), leases: new PgLeases(sql) };
 }

@@ -30,11 +30,16 @@ export const ReasonCode = z.enum([
   // (added 2026-10-12, X1) the payee is in a mandate but the draft is not linked server-side to an obligation in
   // the mandate's scope (payee, category, amount ≤ the bill, period not settled) → ASK, never AUTO
   "MANDATE_SCOPE_MISMATCH",
+  // (added 2026-10-19) a mandate bill not yet due within the scheduler's window (DUE_WINDOW_DAYS): the agent may not
+  // pay it automatically earlier than the scheduler would → ASK (payments refuses such a mandate payment too)
+  "MANDATE_NOT_DUE_YET",
   "SMALL_AUTO",
   // (added 2026-10-18) an exchange between the user's own balances: always asks for the passkey, never AUTO
   "CONVERT_OWN_BALANCES",
   // (added 2026-10-12, X3) the per-day small-auto budget (count / amount) is used up → ASK
   "SMALL_AUTO_BUDGET_EXHAUSTED",
+  // (added 2026-10-19) no completed payment to this payee yet: the first payment is never small-auto → ASK
+  "FIRST_PAYMENT_TO_PAYEE",
   "RISK_HIGH",
   "AGENT_REQUESTED_CONFIRM",
   "PRESET_ASK_ME",

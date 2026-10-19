@@ -113,5 +113,18 @@
   },
   "proposalConvertTitle": "Convert into {{currency}}",
   "proposalFunding": "From your {{currency}} balance · at most {{max}}",
-  "proposalSigned": "What you sign"
+  "orderStance": {
+    "TO_SIGN": "Order to sign",
+    "SIGNED": "Signed order",
+    "PAID_MANDATE": "Paid under your mandate",
+    "PAID_SMALL_AUTO": "Paid under your small-payment limit",
+    "ORDER": "Order"
+  },
+  "orderLine": {
+    "pay": "{{amount}} to {{payee}}",
+    "funded": "{{pay}}, funded from your {{currency}} balance: at most {{max}} incl. fees (route {{route}}).",
+    "fundedLinked": "{{pay}}, funded from your linked {{currency}} account: at most {{max}} incl. fees (route {{route}}).",
+    "rail": "{{pay}} · {{rail}}.",
+    "convert": "Convert from your {{from}} balance into {{amount}} in your {{to}} balance, debiting at most {{max}} incl. fees (route {{route}})."
+  }
 }

@@ -4,11 +4,14 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { IDS, TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
+import { DANA_DATE_OF_BIRTH, IDS, TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
+import { SCHOOLS, studentDateOfBirth } from "../../../mock-world/src/school/schools.ts";
 import { getDb } from "../../src/db/client.ts";
+import { env } from "../../src/env.ts";
 import { ledgerEntries, notifications, obligations, payees, payments, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
 import { loadSeedData, seedDatabase } from "../../src/modules/demo/seed.ts";
 import { setRailOverridesForTests } from "../../src/modules/rails/index.ts";
+import { SCHOOL_PROOF_TRIES_PER_HOUR } from "../../src/modules/schools/service.ts";
 import { setBalanceProviderForTests } from "../../src/modules/rules/facts.ts";
 import { approveOrder, getOrderView } from "../../src/modules/rules/index.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
@@ -32,6 +35,9 @@ async function seedDana(): Promise<SoftAuthenticator> {
 
 const get = async (url: string) => app().inject({ method: "GET", url, headers: await bearer(IDS.user) });
 const post = async (url: string, payload?: unknown) => app().inject({ method: "POST", url, headers: await bearer(IDS.user), ...(payload !== undefined ? { payload: payload as object } : {}) });
+
+/** The date of birth the mock school has on file for a generated student (only the school and its secret know it). */
+const dobOf = (school: string, studentId: string) => studentDateOfBirth(env().MOCK_HMAC_SECRET, SCHOOLS[school]!, studentId);
 
 async function linkCard(auth: SoftAuthenticator, currency: string): Promise<string> {
   const start = (await post("/api/funding-sources/card/start", { testCard: "VISA", currency })).json();
@@ -60,33 +66,35 @@ describe("find your school", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().schools).toEqual([{ id: "vienna", name: "Music Academy in Vienna", city: "Vienna", country: "AT", currency: "EUR", simulated: true }]);
     expect((await get("/api/schools")).json().schools).toHaveLength(4);
-    expect((await post("/api/schools/nowhere/lookup", { studentId: "S1234567" })).statusCode).toBe(404);
+    expect((await post("/api/schools/nowhere/lookup", { studentId: "S1234567", dateOfBirth: "2001-01-01" })).statusCode).toBe(404);
     expect((await post("/api/schools/vienna/lookup", { studentId: "no" })).statusCode).toBe(400);
   });
 
   it("adds a school with its open invoice as a bill, once", async () => {
     await seedDana();
-    const look = (await post("/api/schools/vienna/lookup", { studentId: "s1234567" })).json();
+    const dateOfBirth = dobOf("vienna", "S1234567");
+    const look = (await post("/api/schools/vienna/lookup", { studentId: "s1234567", dateOfBirth })).json();
     expect(look.existingPayeeId).toBeNull();
     expect(look.invoices).toHaveLength(1);
     const inv = look.invoices[0];
     expect(inv).toMatchObject({ studentId: "S1234567", currency: "EUR", status: "OPEN", term: "Winter 2026" });
 
-    const res = await post("/api/schools/vienna/link", { studentId: "S1234567" });
+    const res = await post("/api/schools/vienna/link", { studentId: "S1234567", dateOfBirth });
     expect(res.statusCode).toBe(200);
     const body = res.json();
     // Added from the directory, but still a new recipient: it cools like any other (I7).
     expect(body.payee).toMatchObject({ name: "Music Academy in Vienna", kind: "UNIVERSITY", category: "TUITION", status: "COOLING", currency: "EUR", details: { studentId: "S1234567", portalSchoolId: "vienna", term: "Winter 2026" } });
-    expect(body.payee.portalLink).toBe("http://localhost:4001/mock/schools/vienna/portal?studentId=S1234567");
+    // The portal link signs the student in (the school confirmed them): a day's access, no date of birth again.
+    expect(body.payee.portalLink).toMatch(/^http:\/\/localhost:4001\/mock\/schools\/vienna\/portal\?studentId=S1234567&access=\d+\.[0-9a-f]{64}$/);
     expect(body.createdObligationIds).toHaveLength(1);
     const bill = (await getDb().select().from(obligations).where(eq(obligations.id, body.createdObligationIds[0])))[0]!;
     expect(bill).toMatchObject({ payeeId: body.payee.id, amountMinor: inv.amountMinor, currency: "EUR", dueDate: inv.dueDate, recurrence: "ONCE", reference: inv.reference, category: "tuition" });
 
-    const again = (await post("/api/schools/vienna/link", { studentId: "S1234567" })).json();
+    const again = (await post("/api/schools/vienna/link", { studentId: "S1234567", dateOfBirth })).json();
     expect(again.payee.id).toBe(body.payee.id);
     expect(again.createdObligationIds).toEqual([]);
     expect((await post(`/api/payees/${body.payee.id}/school-invoices`)).json().createdObligationIds).toEqual([]);
-    expect((await post("/api/schools/vienna/lookup", { studentId: "S1234567" })).json().existingPayeeId).toBe(body.payee.id);
+    expect((await post("/api/schools/vienna/lookup", { studentId: "S1234567", dateOfBirth })).json().existingPayeeId).toBe(body.payee.id);
   });
 
   it("recognises the tuition recipient Dana added by hand and does not import her bill twice", async () => {
@@ -98,12 +106,77 @@ describe("find your school", () => {
     // Without a student ID there is nothing to match on: a new recipient would be made, so give it one first.
     const patch = await app().inject({ method: "PATCH", url: `/api/payees/${IDS.payees.university}`, headers: await bearer(IDS.user), payload: { details: { category: "TUITION", studentId: "KZ26-0417" } } });
     expect(patch.json().portalLink).toBeNull();
-    const look = (await post("/api/schools/budapest/lookup", { studentId: "KZ26-0417" })).json();
+    const look = (await post("/api/schools/budapest/lookup", { studentId: "KZ26-0417", dateOfBirth: DANA_DATE_OF_BIRTH })).json();
     expect(look.existingPayeeId).toBe(IDS.payees.university);
     expect(look.invoices[0]).toMatchObject({ amountMinor: 240_000, reference: TUITION_REFERENCE });
-    const linked = (await post("/api/schools/budapest/link", { studentId: "KZ26-0417" })).json();
+    const linked = (await post("/api/schools/budapest/link", { studentId: "KZ26-0417", dateOfBirth: DANA_DATE_OF_BIRTH })).json();
     expect(linked.payee).toMatchObject({ id: IDS.payees.university, status: "VERIFIED", details: { portalSchoolId: "budapest", term: "Fall 2026" } });
     expect(linked.createdObligationIds).toEqual([]);
+  });
+
+  it("shows invoices and adds a school only once the school confirms the student; a refusal says nothing about the ID", async () => {
+    await seedDana();
+    const before = (await getDb().select().from(payees).where(eq(payees.userId, IDS.user))).length;
+    const refusals = [
+      await post("/api/schools/budapest/lookup", { studentId: "KZ26-0417" }), // no date of birth
+      await post("/api/schools/budapest/lookup", { studentId: "KZ26-0417", dateOfBirth: "2005-03-15" }), // a real student, wrong date
+      await post("/api/schools/budapest/lookup", { studentId: "ZZ99-0001", dateOfBirth: "2005-03-15" }), // an ID nobody uses
+      await post("/api/schools/budapest/link", { studentId: "KZ26-0417", dateOfBirth: "2005-03-15" }),
+      await post("/api/schools/vienna/link", { studentId: "S1234567" }),
+    ];
+    for (const r of refusals) {
+      expect(r.statusCode, r.body).toBe(422);
+      const { code, error, details } = r.json();
+      expect({ code, error, details }).toEqual({ code: "STUDENT_NOT_VERIFIED", error: "The school could not confirm this student: check the student ID and date of birth", details: { field: "dateOfBirth" } });
+    }
+    expect((await getDb().select().from(payees).where(eq(payees.userId, IDS.user))).length).toBe(before);
+    expect(await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "SCHOOL_LINKED"))).toHaveLength(0);
+    // A malformed date never reaches the school.
+    expect((await post("/api/schools/budapest/lookup", { studentId: "KZ26-0417", dateOfBirth: "14.03.2005" })).statusCode).toBe(400);
+
+    const ok = await post("/api/schools/budapest/lookup", { studentId: "KZ26-0417", dateOfBirth: DANA_DATE_OF_BIRTH });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(ok.json().invoices[0]).toMatchObject({ studentId: "KZ26-0417", reference: TUITION_REFERENCE });
+    const vienna = await post("/api/schools/vienna/link", { studentId: "S1234567", dateOfBirth: dobOf("vienna", "S1234567") });
+    expect(vienna.statusCode, vienna.body).toBe(200);
+    expect(vienna.json().payee.details).toMatchObject({ studentId: "S1234567", portalSchoolId: "vienna" });
+  });
+
+  it("limits date-of-birth tries per user, even for the right date after that", async () => {
+    await seedDana();
+    // Different students each time: the school's own per-student limit is not what stops this.
+    for (let i = 1; i <= SCHOOL_PROOF_TRIES_PER_HOUR; i++) {
+      expect((await post("/api/schools/vienna/lookup", { studentId: `T000${String(i).padStart(4, "0")}`, dateOfBirth: "1900-01-01" })).statusCode).toBe(422);
+    }
+    const blocked = await post("/api/schools/vienna/lookup", { studentId: "S1234567", dateOfBirth: dobOf("vienna", "S1234567") });
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json().code).toBe("RATE_LIMITED");
+  });
+
+  it("only Find your school links a recipient to the school's portal; a client cannot claim the link", async () => {
+    await seedDana();
+    const vienna = SCHOOLS.vienna!;
+    // Created by hand with the directory's school id: the link is dropped, so Kassa never reads that student's invoices.
+    const made = await app().inject({
+      method: "POST",
+      url: "/api/payees",
+      headers: await bearer(IDS.user),
+      payload: { name: vienna.name, kind: "UNIVERSITY", account: vienna.iban, country: vienna.country, currency: vienna.currency, details: { category: "TUITION", studentId: "S7654321", portalSchoolId: "vienna" } },
+    });
+    expect(made.statusCode, made.body).toBe(201);
+    expect(made.json().details.portalSchoolId).toBeUndefined();
+    expect(made.json().portalLink).toBeNull();
+    expect((await post(`/api/payees/${made.json().id}/school-invoices`)).json().code).toBe("NOT_FROM_SCHOOL_DIRECTORY");
+
+    // Dana's seeded recipient is linked to her student ID: an edit that keeps the ID keeps the link...
+    const patch = async (details: object) => app().inject({ method: "PATCH", url: `/api/payees/${IDS.payees.university}`, headers: await bearer(IDS.user), payload: { details } });
+    const kept = await patch({ category: "TUITION", studentId: "kz26-0417", term: "Spring 2027" });
+    expect(kept.json().details).toMatchObject({ studentId: "kz26-0417", portalSchoolId: "budapest", term: "Spring 2027" });
+    // ...and one that changes the student ID drops it, whatever school id the client sends along.
+    const moved = await patch({ category: "TUITION", studentId: "CN26-0331", portalSchoolId: "budapest" });
+    expect(moved.json().details.portalSchoolId).toBeUndefined();
+    expect(moved.json().portalLink).toBeNull();
+    expect((await post(`/api/payees/${IDS.payees.university}/school-invoices`)).json().code).toBe("NOT_FROM_SCHOOL_DIRECTORY");
   });
 
   it("pays a bill now, once: the order settles the bill like the scheduler's would", async () => {

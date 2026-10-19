@@ -15,6 +15,7 @@ is not a workspace).
 | `notifications/` | Notification samples (Kazakh bank RU + KK, incl. a CNY purchase on the KZT card, Alipay-style, WeChat Pay-style, Revolut-style, Wise-style, iOS Shortcut JSON) with `index.json` ground-truth parses. Bodies carry no brand names. | parsers + simulator (B, C) |
 | `sanctions-sample.json` | EU FSF consolidated-list format with FICTITIOUS entries (incl. a Cyrillic name and transliterated variants) and `testCases`. Licence note inside. | screening (A) |
 | `invoices/` | 30 labelled invoice PDFs, 9 layouts, EN/DE/HU/FR, varied number and date formats, distractors. `labels.json` = ground truth; `source.ts` = data; `bban.ts` = fictitious IBAN builders with national check digits. | `eval:invoices` (B), mock-world |
+| `statements/` | Sample bank statements for the statement import: a Kaspi Gold-style KZT CSV (money from home irregular), a Hungarian bank HUF CSV, a USD OFX, one year each; `generate.ts` writes them. See `statements/README.md`. | judges, `apps/api/test/dataport/sample-statements.test.ts` |
 | `agent-recordings/` | Replay transcripts: `tuition`, `onboarding`, and the CN demos `cn-shanghai-handoff` (D-CN1), `cn-spending` (D-CN2), `cn-li-wei` (D-CN3); `reader/` holds Reader extractions keyed by source hash. | agent replay |
 
 ## Story time

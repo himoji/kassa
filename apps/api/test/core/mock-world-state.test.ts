@@ -128,6 +128,41 @@ describe("mock world state shared by instances (Postgres)", () => {
     for (const r of results) if (r.status === "rejected") expect(r.reason).toMatchObject({ code: "transfer.insufficient_funds" });
   });
 
+  it("(2026-10-19) a card charge debits the shared wallet once, from either instance, and never overdraws", async () => {
+    const [a, b] = [await instance(), await instance()];
+    const profileId = 32_000_002;
+    await post(a, "/mock/bank/wallets", { profileId, aliases: [] });
+    await post(a, "/mock/remittance/incoming", { profileId, amountMinor: 10_000, currency: "EUR" });
+    const charge = (w: MockWorld, authorizationId: string, cardId: string, amountMinor: number, currency = "EUR") =>
+      post(w, "/mock/bank/card-debits", { profileId, authorizationId, cardId, amountMinor, currency });
+
+    // The same authorization replayed on both instances at once: one debit.
+    const replays = await Promise.all(Array.from({ length: 6 }, (_, i) => charge(i % 2 ? a : b, "auth-1", "fic_1", 4_000)));
+    for (const r of replays) expect(r.statusCode, r.body).toBe(200);
+    expect(replays.filter((r) => r.json().created === true)).toHaveLength(1);
+    expect((await balancesOf(b, profileId)).EUR).toBe(6_000);
+    // Another authorization on the same card for another amount: 409. The id reused for another card: 409.
+    expect((await charge(a, "auth-2", "fic_1", 1_000)).statusCode).toBe(409);
+    expect((await charge(b, "auth-1", "fic_9", 4_000)).statusCode).toBe(409);
+
+    // Three different cards of EUR 25 at once against EUR 60: only two fit; the third is refused with nothing moved.
+    const many = await Promise.all([charge(a, "auth-3", "fic_3", 2_500), charge(b, "auth-4", "fic_4", 2_500), charge(a, "auth-5", "fic_5", 2_500)]);
+    expect(many.map((r) => r.statusCode).sort()).toEqual([200, 200, 422]);
+    expect((await balancesOf(a, profileId)).EUR).toBe(1_000);
+
+    // Cross-currency: no HUF balance, the EUR balance pays the bank's quote for it.
+    const quote = await a.bank.createQuote(profileId, { sourceCurrency: "EUR", targetCurrency: "HUF", targetAmountMinor: 20_000 });
+    const huf = await charge(b, "auth-6", "fic_6", 20_000, "HUF");
+    expect(huf.json()).toMatchObject({ created: true, debited: { currency: "EUR", valueMinor: quote.sourceAmountMinor } });
+    expect((await balancesOf(a, profileId)).EUR).toBe(1_000 - quote.sourceAmountMinor);
+
+    // A reset forgets the debits.
+    expect((await post(a, "/mock/reset", {})).statusCode).toBe(200);
+    await post(a, "/mock/bank/wallets", { profileId, aliases: [] });
+    await post(a, "/mock/remittance/incoming", { profileId, amountMinor: 4_000, currency: "EUR" });
+    expect((await charge(b, "auth-1", "fic_1", 4_000)).json().created).toBe(true);
+  });
+
   it("a transfer, a QR code and a school invoice made on one instance are seen and moved on by another", async () => {
     const a = await instance();
     const b = await instance();
@@ -172,7 +207,7 @@ describe("mock world state shared by instances (Postgres)", () => {
     expect((await b.app.inject({ method: "GET", url: `/mock/qr/payments/${qr.paymentId}` })).statusCode).toBe(404);
     expect((await balancesOf(b, MOCK_BANK_PROFILE_ID)).KZT).toBe(kzt - 100_000_000);
     // The API's demo reset truncates every table: the next instance reseeds the persona wallets.
-    await pg.exec("truncate mock_world_wallets, mock_world_balances, mock_world_aliases, mock_world_top_ups, mock_world_entities, mock_world_meta");
+    await pg.exec("truncate mock_world_wallets, mock_world_balances, mock_world_aliases, mock_world_top_ups, mock_world_card_debits, mock_world_entities, mock_world_meta");
     expect((await balancesOf(b, MOCK_BANK_PROFILE_ID)).KZT).toBe(kzt - 100_000_000);
     const c = await instance();
     expect((await balancesOf(c, MOCK_BANK_PROFILE_ID)).KZT).toBe(kzt - 100_000_000);

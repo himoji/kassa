@@ -11,6 +11,7 @@
 import { z } from "zod";
 
 import { PayeeDto } from "./dto.ts";
+import { IsoDate } from "./primitives.ts";
 
 export const StudentId = z
   .string()
@@ -49,8 +50,17 @@ export const SchoolInvoiceDto = z.object({
 });
 export type SchoolInvoiceDto = z.infer<typeof SchoolInvoiceDto>;
 
-/** POST /schools/:id/lookup and /schools/:id/link */
-export const SchoolStudentRequest = z.object({ studentId: StudentId });
+/**
+ * POST /schools/:id/lookup and /schools/:id/link. (2026-10-19) The school confirms the student before Kassa sees an
+ * invoice or adds a recipient: the student's date of birth must match the school's file (checked by the school's
+ * portal, not by Kassa; Kassa does not keep it). A wrong or missing date gets the same STUDENT_NOT_VERIFIED answer
+ * whether or not the student ID exists. Judge build only: the seeded student ID means the reviewer's own copy, which
+ * needs no date.
+ */
+export const SchoolStudentRequest = z.object({
+  studentId: StudentId,
+  dateOfBirth: IsoDate.optional(),
+});
 export type SchoolStudentRequest = z.input<typeof SchoolStudentRequest>;
 
 /** POST /schools/:id/lookup: what adding this school would do (writes nothing). */

@@ -62,6 +62,16 @@ async function dbIncr(key: string, nowMs: number, timeWindow: number): Promise<H
   return { current: row.hits, ttl: Math.max(0, row.expiresAt.getTime() - nowMs) };
 }
 
+/**
+ * One hit on a counter outside the plugin (a budget a handler checks itself, http/security.ts `consumeIpBudget`):
+ * the same table, window semantics and in-memory fallback as the plugin's buckets, under its own namespace.
+ */
+export async function incrCounter(namespace: string, key: string, timeWindow: number): Promise<Hit> {
+  const k = `${namespace}|${key}`;
+  const nowMs = clock.realNowMs();
+  return dbIncr(k, nowMs, timeWindow).catch(() => fallbackIncr(k, nowMs, timeWindow));
+}
+
 export class PgRateLimitStore implements FastifyRateLimitStore {
   private readonly namespace: string;
 

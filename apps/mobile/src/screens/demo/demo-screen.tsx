@@ -4,7 +4,15 @@ import { useState } from "react";
 import { useMe } from "@/api/hooks/me";
 import { useCaptureEvent } from "@/api/hooks/activity";
 import { useDemoAvailability } from "@/api/hooks/auth";
-import { useDemoAction, useDemoCooling, useMoneyFromHome, type DemoAction } from "@/api/hooks/demo";
+import { KassaApiError } from "@/api/errors";
+import {
+  useDemoAction,
+  useDemoCooling,
+  useMoneyFromHome,
+  useRunDuePayments,
+  type DemoAction,
+  type RunDuePaymentsResponse,
+} from "@/api/hooks/demo";
 import { SimulatedBadge } from "@/components/kassa/badges";
 import { errorText } from "@/components/kassa/error-text";
 import { SettingSwitch } from "@/components/kassa/native-controls";
@@ -33,6 +41,7 @@ export function DemoScreen() {
   const captureEvent = useCaptureEvent();
   const cooling = useDemoCooling();
   const moneyFromHome = useMoneyFromHome();
+  const runDue = useRunDuePayments();
   const availability = useDemoAvailability();
   const [notifText, setNotifText] = useState("");
   const admin = Boolean(env.DEMO_ADMIN_TOKEN) || __DEV__;
@@ -84,8 +93,52 @@ export function DemoScreen() {
       });
     } catch (err) {
       haptics.error();
+      const limited = err instanceof KassaApiError && err.code === "DEMO_MONEY_DAILY_LIMIT";
+      toast.show({ title: limited ? t("demo:homeLimit") : errorText(t, err), kind: "error" });
+    }
+  };
+
+  const runDuePayments = async () => {
+    try {
+      const r = await runDue.mutateAsync();
+      haptics.success();
+      toast.show({ title: dueSummary(r), kind: "success" });
+    } catch (err) {
+      haptics.error();
       toast.show({ title: errorText(t, err), kind: "error" });
     }
+  };
+
+  /** One line: what was paid on its own, what waits for the passkey, what was already done (bills by category). */
+  const dueSummary = (r: RunDuePaymentsResponse): string => {
+    const list = (pick: (x: RunDuePaymentsResponse["results"][number]) => boolean) =>
+      r.results
+        .filter(pick)
+        .map((x) => t(`common:category.${x.category}`, { defaultValue: x.category }))
+        .join(", ");
+    const parts = [
+      [
+        list(
+          (x) => x.outcome === "PROPOSED" && x.decision === "AUTO" && x.paymentStatus !== "FAILED"
+        ),
+        "demo:dueAuto",
+      ],
+      [
+        list((x) => (x.outcome === "PROPOSED" && x.decision === "ASK") || x.outcome === "PENDING"),
+        "demo:dueAsk",
+      ],
+      [
+        list(
+          (x) =>
+            x.outcome === "PROPOSED" && (x.decision === "REFUSE" || x.paymentStatus === "FAILED")
+        ),
+        "demo:dueRefused",
+      ],
+      [list((x) => x.outcome === "PAID"), "demo:duePaid"],
+    ]
+      .filter(([names]) => names)
+      .map(([names, key]) => t(key!, { names }));
+    return parts.length ? parts.join(" ") : t("demo:dueNone", { date: f.date(r.dueBy) });
   };
 
   const resetDemo = async () => {
@@ -110,6 +163,20 @@ export function DemoScreen() {
           <Box p={4}>
             <Button loading={moneyFromHome.isPending} onPress={() => void sendMoneyFromHome()}>
               {t("demo:homeSend")}
+            </Button>
+          </Box>
+        </RowGroup>
+      ) : null}
+
+      {ownMoney ? (
+        <RowGroup title={t("demo:dueTitle")} footer={t("demo:dueFooter")}>
+          <Box p={4}>
+            <Button
+              variant="secondary"
+              loading={runDue.isPending}
+              onPress={() => void runDuePayments()}
+            >
+              {t("demo:dueRun")}
             </Button>
           </Box>
         </RowGroup>

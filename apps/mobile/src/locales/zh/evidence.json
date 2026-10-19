@@ -1,16 +1,30 @@
 {
   "title": "攻击证据",
-  "intro": "十六种让 AI 助手被骗转钱的知名手法（Freysa、Grok 与 Bankrbot、AIXBT、ElizaOS 记忆、1 美元雪佛兰 Tahoe、推送支付诈骗等），分别在 Kassa 和一个没有防护、直接执行同样意图的朴素助手上重现。",
-  "ofTotal": "{{total}} 次中付款 {{paid}} 次",
-  "guarded": "启用 Kassa 的规则、付款校验和通行密钥",
-  "naive": "同一个助手，没有这些防护",
-  "paid": "已付款",
-  "blocked": "已拦截",
-  "naiveLine": "朴素助手：{{detail}}",
+  "intro": "十六种让 AI 助手被骗转钱的知名手法（Freysa、Grok 与 Bankrbot、AIXBT、ElizaOS 记忆、1 美元雪佛兰 Tahoe、推送支付诈骗等），分别在 Kassa、一个付款工具只需点一下“确认”的聊天机器人，以及一个完全没有校验的助手上重现。",
+  "kassaHeadline": "拒绝 {{refused}} · 需要通行密钥 {{asked}} · 已付款 {{paid}}",
+  "kassaCaption": "启用 Kassa 的规则、付款校验和通行密钥时，{{total}} 种攻击各自的最坏情况。“询问”指针对确切订单的通行密钥确认：你不批准就不会付款，但被骗的用户仍可能批准。",
+  "fooledTitle": "如果被骗的用户批准每一次确认，攻击者账户收到钱的次数：",
+  "ofTotal": "{{total}} 次中 {{paid}} 次",
+  "fooledKassa": "使用 Kassa（用户还须亲自把攻击者添加为收款人并等待 24 小时）",
+  "fooledTap": "带确认按钮的聊天机器人（{{paid}} 种攻击产生了不想要的付款）",
+  "fooledNaive": "没有校验也没有确认的助手（按构造必然付款）",
+  "carefulLine": "拒绝每一次确认的用户：Kassa 仍有 {{total}} 次中 {{kassa}} 次付款（二维码在检查后于钱包内被替换，只能事后发现）；按钮式聊天机器人付款 {{tap}} 次（伪造的确认，没有任何签名）。",
+  "outcome": {
+    "refused": "已拒绝",
+    "asked": "询问",
+    "paid": "已付款"
+  },
+  "cooling": {
+    "IN_COOLING": "收款人处于 24 小时冷却期：即使批准也会被拒绝。",
+    "COOLED_UNVERIFIED": "冷却期已过但收款人从未验证：批准就会付款。"
+  },
+  "ifApproved": "如果批准：{{note}}",
+  "tapLine": "带确认按钮的聊天机器人：{{detail}}。{{note}}",
+  "naiveLine": "没有校验的助手：{{detail}}",
   "how": "由自动化测试套件（bun run evidence:attacks）在真实的 Kassa 模块和模拟支付通道上生成；规划器和文档读取器是脚本化的，所以每次运行结果相同。来源：docs/evidence/attacks.json。",
   "back": "返回",
   "open": "查看攻击证据",
-  "settingsHint": "重现 16 种助手攻击：Kassa 付款 0 次",
+  "settingsHint": "重现 16 种助手攻击：Kassa 拒绝什么、询问什么、付款什么",
   "codes": {
     "UNKNOWN_PAYEE_REF": "收款人不在你的名册中",
     "UNKNOWN_ITEM": "菜单上没有该商品",

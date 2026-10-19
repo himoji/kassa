@@ -1,9 +1,9 @@
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
-import { categoryOfKind, orderFunding, orderLineEn, suggestedReference, type BudgetDto, type CanonicalOrder, type ImportHistory, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
+import { categoryOfKind, orderConversion, orderFunding, orderLineEn, orderLineStance, suggestedReference, type BudgetDto, type Decision, type ProposalStatus, type CanonicalOrder, type ImportHistory, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
-import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
+import { obligations, payees, payments, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
 import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { agentDocuments } from "../../db/schema.intel.ts";
 import { budgetImpact, listBudgets, spendContext, type SpendContext } from "../budget/index.ts";
@@ -17,6 +17,7 @@ import { addDays } from "../fx/dates.ts";
 import { forecastCoverage, getBalances, getRoutes, toHome } from "../fx/index.ts";
 import { getRoutes as rankRoutes } from "../fx/routes.ts";
 import { billRail, coverageOf, type Coverage } from "../obligations/coverage.ts";
+import { obligationPeriodStates, type ObligationPeriodState } from "../obligations/status.ts";
 import { accountHash, readDetails } from "../payees/crypto.ts";
 import { walletBalances } from "../rules/facts.ts";
 import { loadUser } from "../users/service.ts";
@@ -55,6 +56,30 @@ export interface ObligationRow {
   recurrence: string;
   reference: string | null;
   category: string;
+}
+
+/**
+ * (added 2026-10-19) One recent order and its payment, for get_payments: what the planner needs to tell paid from
+ * unpaid. No purpose text (it may hold the recipient's references) and no account details.
+ */
+export interface PaymentRow {
+  proposalId: string;
+  createdAt: string;
+  kind: "PAYMENT" | "CONVERT";
+  payeeId: string;
+  amountMinor: number;
+  currency: string;
+  category: string;
+  decision: "AUTO" | "ASK" | "HANDOFF" | "REFUSE";
+  /** AUTO under a mandate, AUTO under the small-payment limit, or the user's passkey; null when not approved. */
+  approvedBy: "MANDATE" | "SMALL_PAYMENT_LIMIT" | "PASSKEY" | null;
+  proposalStatus: string;
+  paymentId: string | null;
+  paymentStatus: string | null;
+  /** The payment's last status change (RFC 3339): delivery time once SENT. */
+  paymentUpdatedAt: string | null;
+  obligationId: string | null;
+  obligationPeriod: string | null;
 }
 
 export interface ProfileRow {
@@ -130,6 +155,13 @@ export interface AgentPorts {
    * COVERED, CONVERTIBLE with its conversion plan, SHORTFALL or UNKNOWN. Optional: fakes may leave it out.
    */
   obligationCoverage?(obligationIds: string[]): Promise<Map<string, Coverage>>;
+  /**
+   * (added 2026-10-19) Where each bill's current period stands (obligations/status.ts: DUE, AWAITING_APPROVAL,
+   * IN_FLIGHT, PAID), the same answer GET /obligations gives. Optional: fakes may leave it out (every bill DUE).
+   */
+  obligationStates?(bills: readonly ObligationRow[]): Promise<Map<string, ObligationPeriodState>>;
+  /** (added 2026-10-19) The user's most recent orders with their payments, newest first (get_payments). */
+  recentPayments?(limit: number): Promise<PaymentRow[]>;
   forecast(): Promise<ForecastResponse>;
   /** This month's spending per category, budgeted or not, against a usual month and monthly income (budget/context.ts). */
   spending(): Promise<SpendContext>;
@@ -170,18 +202,36 @@ export async function bindToConversation(userId: string, docId: string, conversa
 /** Catalog ids that name a shop's storefront → mock-world storeId. */
 const STOREFRONT_IDS: Record<string, string> = { pizza: "bud", "pizza-shop": "bud", pizzashop: "bud", bud: "bud", sha: "sha", "pizza-shop-sh": "sha" };
 
-/** (2026-10-18) The signed funding binding and the one-sentence signed order, for the proposal card. */
-function cardFunding(order: CanonicalOrder | null): Pick<ProposalSummary, "funding" | "orderLine"> {
+/**
+ * (2026-10-18) The signed funding binding and the order in one sentence, for the proposal card. (2026-10-19) Worded by
+ * where the order stands (shared orderLineStance), with the same order as structured fields for the app's own
+ * language; a refused order has neither.
+ */
+export function cardFunding(order: CanonicalOrder | null, decision: Decision, status: ProposalStatus): Pick<ProposalSummary, "funding" | "orderLine" | "orderFacts"> {
   if (!order) return {};
   let f: ReturnType<typeof orderFunding> = null;
+  let conversion: ReturnType<typeof orderConversion> = null;
   try {
     f = orderFunding(order);
+    conversion = orderConversion(order);
   } catch {
     f = null;
+    conversion = null;
   }
+  const stance = orderLineStance(decision, status, order);
   return {
     ...(f ? { funding: { currency: f.currency, maxAmountMinor: f.maxAmountMinor, routeId: f.routeId, markupBps: f.markupBps } } : {}),
-    orderLine: orderLineEn(order),
+    ...(stance
+      ? {
+          orderLine: orderLineEn(order, stance),
+          orderFacts: {
+            stance,
+            rail: order.rail,
+            linkedAccount: Boolean(order.fundingSourceId),
+            ...(conversion ? { conversion: { fromCurrency: conversion.fromCurrency, toCurrency: conversion.toCurrency, amountMinor: conversion.amountMinor, maxDebitMinor: conversion.maxDebitMinor, routeId: conversion.routeId } } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -283,6 +333,38 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         }
       }
       return out;
+    },
+    obligationStates: (bills) => obligationPeriodStates(db, userId, bills),
+    async recentPayments(limit) {
+      const ps = await db.select().from(proposals).where(eq(proposals.userId, userId)).orderBy(desc(proposals.createdAt), desc(proposals.id)).limit(limit);
+      if (ps.length === 0) return [];
+      const pays = await db
+        .select({ id: payments.id, proposalId: payments.proposalId, status: payments.status, createdAt: payments.createdAt, updatedAt: payments.updatedAt })
+        .from(payments)
+        .where(and(eq(payments.userId, userId), inArray(payments.proposalId, ps.map((p) => p.id))))
+        .orderBy(desc(payments.createdAt));
+      return ps.map((p): PaymentRow => {
+        const pay = pays.find((x) => x.proposalId === p.id) ?? null;
+        const order = p.canonicalOrder;
+        const approved = ["APPROVED", "EXECUTED", "FAILED", "HANDOFF"].includes(p.status) || pay !== null;
+        return {
+          proposalId: p.id,
+          createdAt: p.createdAt.toISOString(),
+          kind: order?.rail === "CONVERT" || p.draft.rail === "CONVERT" ? "CONVERT" : "PAYMENT",
+          payeeId: p.draft.payeeId,
+          amountMinor: p.draft.amountMinor,
+          currency: p.draft.currency,
+          category: p.category,
+          decision: p.decision,
+          approvedBy: !approved || p.decision === "REFUSE" ? null : p.decision === "AUTO" ? (order?.mandateId ? "MANDATE" : "SMALL_PAYMENT_LIMIT") : "PASSKEY",
+          proposalStatus: p.status,
+          paymentId: pay?.id ?? null,
+          paymentStatus: pay?.status ?? null,
+          paymentUpdatedAt: pay ? pay.updatedAt.toISOString() : null,
+          obligationId: order?.obligationId ?? p.obligationId ?? null,
+          obligationPeriod: order?.obligationPeriod ?? null,
+        };
+      });
     },
     async paymentCount(payeeId) {
       return (await payeeHistory(db, userId, payeeId)).count;
@@ -386,7 +468,7 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         homeCurrency: u.homeCurrency,
         createdAt: p.createdAt.toISOString(),
         ...(p.canonicalOrder?.rail === "CONVERT" || p.draft.rail === "CONVERT" ? { kind: "CONVERT" as const } : {}),
-        ...cardFunding(p.canonicalOrder),
+        ...cardFunding(p.canonicalOrder, p.decision, p.status),
       };
       const impact = p.decision === "REFUSE" ? null : await budgetImpact(userId, p.category, homeAmountMinor);
       return { summary, budgetImpact: impact };

@@ -1,9 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import { buildIban, buildRfReference, normalizeIban, toMinor } from "@kassa/shared";
 
 import { judgeCopyReference, judgeCopySuffixOf } from "../../../../fixtures/judge-copy.ts";
-import { ACCOUNTS, LI_WEI_TUITION_REFERENCE, TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
+import { ACCOUNTS, DANA_DATE_OF_BIRTH, LI_WEI_DATE_OF_BIRTH, LI_WEI_TUITION_REFERENCE, TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
 import type { Recipient, Transfer } from "../bank/bank.ts";
 import type { Clock } from "../clock.ts";
 import { HttpError } from "../errors.ts";
@@ -19,6 +19,12 @@ import type { WebhookSink } from "../webhooks.ts";
  * bursar's office, and is shown on the portal for manual matching.
  *
  * In production this is a partner such as Flywire or Convera, which identify payments the same way.
+ *
+ * (2026-10-19) A student ID alone is not proof of being that student. Each student has a date of birth on the school's
+ * file (seeded students: fixtures/seed-data.ts; a copy of a seeded student: the seeded one's; any other student ID: a
+ * date derived from the ID with MOCK_HMAC_SECRET, so only the school knows it). Seeing a student's invoices takes the
+ * matching date of birth (`verify`), with a per-student limit on wrong tries, or a Kassa portal link (webhookHmac.ts
+ * `schoolPortalAccess`); Kassa itself reads a linked student's invoices with its signed request (routes/schools.ts).
  */
 
 export interface School {
@@ -89,10 +95,30 @@ export const SCHOOLS: Record<string, School> = {
 };
 
 /** Invoices known before anyone looks them up: the seeded students' tuition (same amounts as the seeded bills). */
-const SEEDED: { schoolId: string; studentId: string; amountMinor: number; dueDate: string; reference: string }[] = [
-  { schoolId: "budapest", studentId: "KZ26-0417", amountMinor: 240_000, dueDate: "2026-10-31", reference: TUITION_REFERENCE },
-  { schoolId: "budapest", studentId: "CN26-0331", amountMinor: 320_000, dueDate: "2026-11-10", reference: LI_WEI_TUITION_REFERENCE },
+const SEEDED: { schoolId: string; studentId: string; dateOfBirth: string; amountMinor: number; dueDate: string; reference: string }[] = [
+  { schoolId: "budapest", studentId: "KZ26-0417", dateOfBirth: DANA_DATE_OF_BIRTH, amountMinor: 240_000, dueDate: "2026-10-31", reference: TUITION_REFERENCE },
+  { schoolId: "budapest", studentId: "CN26-0331", dateOfBirth: LI_WEI_DATE_OF_BIRTH, amountMinor: 320_000, dueDate: "2026-11-10", reference: LI_WEI_TUITION_REFERENCE },
 ];
+
+/** Wrong dates of birth allowed per student per window before the portal stops checking (wall time). */
+export const DOB_MAX_FAILURES = 10;
+export const DOB_FAILURE_WINDOW_MS = 15 * 60_000;
+
+/**
+ * The date of birth on the school's file for a student ID (YYYY-MM-DD). Seeded students and their judge copies have
+ * the seeded date; any other ID gets a date in 1996–2007 from HMAC(secret, school and ID).
+ */
+export function studentDateOfBirth(secret: string, school: School, studentId: string): string {
+  for (const s of SEEDED) {
+    if (s.schoolId === school.id && (s.studentId === studentId || judgeCopySuffixOf(studentId, s.studentId))) return s.dateOfBirth;
+  }
+  const h = createHmac("sha256", secret).update(`school-dob:v1:${school.id}:${studentId}`).digest();
+  const start = Date.UTC(1996, 0, 1);
+  const days = Math.floor((Date.UTC(2008, 0, 1) - start) / 86_400_000);
+  return new Date(start + (h.readUInt32BE(0) % days) * 86_400_000).toISOString().slice(0, 10);
+}
+
+export type Verification = { ok: true } | { ok: false; reason: "MISMATCH" | "TOO_MANY_ATTEMPTS" };
 
 export interface SchoolPayment {
   transferId: number;
@@ -144,8 +170,10 @@ export class SchoolBook {
   /** Payments without a known reference, by transfer id. */
   private readonly unmatched = new Map<number, SchoolPayment & { schoolId: string }>();
   private readonly seenTransfers = new Set<number>();
+  /** Wrong dates of birth per `${schoolId}:${studentId}` (this instance only; wall time). */
+  private readonly failures = new Map<string, { count: number; since: number }>();
 
-  constructor(private readonly deps: { clock: Clock; webhooks: WebhookSink }) {
+  constructor(private readonly deps: { clock: Clock; webhooks: WebhookSink; secret: string; realNowMs?: () => number }) {
     this.seed();
   }
 
@@ -153,7 +181,30 @@ export class SchoolBook {
     this.invoices.clear();
     this.unmatched.clear();
     this.seenTransfers.clear();
+    this.failures.clear();
     this.seed();
+  }
+
+  /**
+   * Is this the student? The date of birth must match the school's file. Every well-formed ID is a student here, so
+   * a wrong date reads the same whether or not anyone uses that ID. After DOB_MAX_FAILURES wrong dates in
+   * DOB_FAILURE_WINDOW_MS the student's dates are not checked at all (even a right one) until the window ends.
+   */
+  verify(school: School, studentId: string, dateOfBirth: unknown): Verification {
+    const key = `${school.id}:${studentId}`;
+    const now = (this.deps.realNowMs ?? Date.now)();
+    let f = this.failures.get(key);
+    if (f && now - f.since >= DOB_FAILURE_WINDOW_MS) {
+      this.failures.delete(key);
+      f = undefined;
+    }
+    if (f && f.count >= DOB_MAX_FAILURES) return { ok: false, reason: "TOO_MANY_ATTEMPTS" };
+    const given = Buffer.from(typeof dateOfBirth === "string" ? dateOfBirth.trim().slice(0, 10) : "");
+    const onFile = Buffer.from(studentDateOfBirth(this.deps.secret, school, studentId));
+    if (given.length === onFile.length && timingSafeEqual(given, onFile)) return { ok: true };
+    if (!f && this.failures.size >= 10_000) this.failures.delete(this.failures.keys().next().value as string);
+    this.failures.set(key, { count: (f?.count ?? 0) + 1, since: f?.since ?? now });
+    return { ok: false, reason: "MISMATCH" };
   }
 
   /** Shared between instances (store/sync.ts). */

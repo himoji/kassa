@@ -24,12 +24,17 @@ export function useSchools(q: string, enabled = true) {
   });
 }
 
+/** The student, as the school confirms them: the date of birth on the school's file (not kept by Kassa). */
+type SchoolStudent = { schoolId: string; studentId: string; dateOfBirth?: string };
+const studentBody = ({ studentId, dateOfBirth }: SchoolStudent) =>
+  SchoolStudentRequest.parse(dateOfBirth ? { studentId, dateOfBirth } : { studentId });
+
 /** What adding this school would do (writes nothing). */
 export function useSchoolLookup() {
   return useMutation({
-    mutationFn: ({ schoolId, studentId }: { schoolId: string; studentId: string }) =>
-      api.request(`/schools/${encodeURIComponent(schoolId)}/lookup`, {
-        json: SchoolStudentRequest.parse({ studentId }),
+    mutationFn: (v: SchoolStudent) =>
+      api.request(`/schools/${encodeURIComponent(v.schoolId)}/lookup`, {
+        json: studentBody(v),
         schema: SchoolLookupResponse,
       }),
   });
@@ -49,9 +54,9 @@ function useInvalidateBills() {
 export function useLinkSchool() {
   const invalidate = useInvalidateBills();
   return useMutation({
-    mutationFn: ({ schoolId, studentId }: { schoolId: string; studentId: string }) =>
-      api.request(`/schools/${encodeURIComponent(schoolId)}/link`, {
-        json: SchoolStudentRequest.parse({ studentId }),
+    mutationFn: (v: SchoolStudent) =>
+      api.request(`/schools/${encodeURIComponent(v.schoolId)}/link`, {
+        json: studentBody(v),
         schema: SchoolLinkResponse,
       }),
     onSettled: invalidate,

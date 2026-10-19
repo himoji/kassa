@@ -75,7 +75,7 @@ describe("A12: AIXBT-style compromised queue (attacker writes the rows the sched
     expect(await moneyMoved()).toEqual({ livePayments: 0, sentPayments: 0, kassaTransactions: 0 });
     const ledgered = (await ledgerOf("PROPOSAL_CREATED")).map((e) => e.payload as { createdBy: string; reasonCodes: string[] });
     expect(ledgered).toEqual([expect.objectContaining({ createdBy: "SCHEDULER", reasonCodes: expect.arrayContaining(["MANDATE_OUT_OF_SCOPE"]) })]);
-    recordGuarded("A12", { case: "inflated bill queued for the verified landlord (5× rent)", outcome: "BLOCKED", decision: p!.decision, reasonCodes: p!.reasonCodes, ledger: ["PROPOSAL_CREATED"] });
+    recordGuarded("A12", { case: "inflated bill queued for the verified landlord (5× rent)", decision: p!.decision, reasonCodes: p!.reasonCodes, ledger: ["PROPOSAL_CREATED"], ifApproved: { paysAttacker: false, note: "The verified landlord is paid 5x the rent: an overpayment, not money to the attacker." } });
   });
 
   it("a mandate widened to an attacker payee inserted as VERIFIED: rules say AUTO, payments refuse BAD_SIGNATURE", async () => {
@@ -95,7 +95,7 @@ describe("A12: AIXBT-style compromised queue (attacker writes the rows the sched
     expect(await getDb().select().from(payments)).toHaveLength(0);
     const refused = (await ledgerOf("PAYMENT_REFUSED")).map((e) => (e.payload as { reasonCodes: string[] }).reasonCodes);
     expect(refused).toEqual([["BAD_SIGNATURE"]]);
-    recordGuarded("A12", { case: "mandate widened to an attacker payee written as VERIFIED", outcome: "BLOCKED", decision: "AUTO", reasonCodes: ["BAD_SIGNATURE"], ledger: ["PROPOSAL_CREATED", "APPROVAL_ISSUED", "PAYMENT_REFUSED"] });
+    recordGuarded("A12", { case: "mandate widened to an attacker payee written as VERIFIED", decision: "AUTO", reasonCodes: ["BAD_SIGNATURE"], ledger: ["PROPOSAL_CREATED", "APPROVAL_ISSUED", "PAYMENT_REFUSED"] });
   });
 
   it("the verified landlord re-pointed at the attacker's account (copied ciphertext + hash): payments refuse, nothing reaches the attacker", async () => {
@@ -115,7 +115,7 @@ describe("A12: AIXBT-style compromised queue (attacker writes the rows the sched
     expect(p!.status).toBe("FAILED");
     const refused = (await ledgerOf("PAYMENT_REFUSED")).map((e) => (e.payload as { reasonCodes: string[] }).reasonCodes);
     expect(refused).toEqual([["REFUSE_UNVERIFIED_PAYEE"]]);
-    recordGuarded("A12", { case: "verified landlord row re-pointed at the attacker's account", outcome: "BLOCKED", decision: p!.decision, reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"], ledger: ["PROPOSAL_CREATED", "APPROVAL_ISSUED", "PAYMENT_REFUSED"] });
+    recordGuarded("A12", { case: "verified landlord row re-pointed at the attacker's account", decision: p!.decision, reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"], ledger: ["PROPOSAL_CREATED", "APPROVAL_ISSUED", "PAYMENT_REFUSED"] });
   });
 
   it("a ciphertext written for another payee row does not decrypt for this one (AAD binds user and payee)", () => {

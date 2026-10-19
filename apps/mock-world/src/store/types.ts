@@ -1,3 +1,5 @@
+import type { Leases } from "./leases.ts";
+
 /*
  * (added 2026-10-18) Where the mock world keeps its state.
  *
@@ -35,6 +37,34 @@ export type TopUpResult =
   | { kind: "conflict" }
   | { kind: "no_wallet" };
 
+/**
+ * (added 2026-10-19) A one-time card charge paid from a wallet balance. `reference` is the authorization's idempotency
+ * key ("card-auth:<authorization id>"); `requestCurrency`/`requestAmountMinor` are the charge as the merchant sent it,
+ * `currency`/`amountMinor` what left the wallet (the funding balance, converted when it differs).
+ */
+export interface CardDebitRecord {
+  reference: string;
+  cardId: string;
+  profile: number;
+  requestCurrency: string;
+  requestAmountMinor: number;
+  currency: string;
+  amountMinor: number;
+  balanceAfterMinor: number;
+}
+
+export type CardDebitResult =
+  | { kind: "ok"; debit: CardDebitRecord; created: boolean }
+  /** The reference or the card already paid a different charge. */
+  | { kind: "conflict" }
+  /** The balance does not cover it (or there is no wallet); nothing moved and nothing was recorded. */
+  | { kind: "insufficient" };
+
+/** The same charge as a recorded one (a replay, or a retry on the same single-use card). */
+export function sameCardCharge(seen: CardDebitRecord, d: Omit<CardDebitRecord, "balanceAfterMinor">): boolean {
+  return seen.cardId === d.cardId && seen.profile === d.profile && seen.requestCurrency === d.requestCurrency && seen.requestAmountMinor === d.requestAmountMinor;
+}
+
 /** Money in the mock bank. Every method is atomic on its own. */
 export interface BalanceStore {
   /** Canonical profile id for an alias (lower-cased) or a numeric id as text. */
@@ -50,6 +80,14 @@ export interface BalanceStore {
   debit(profile: number, currency: string, amountMinor: number): Promise<number | null>;
   /** Test money in, idempotent by reference (a retried tap adds the money once). */
   topUp(reference: string, profile: number, currency: string, amountMinor: number): Promise<TopUpResult>;
+  /** (2026-10-19) The card debit recorded under this reference, else the one recorded for this card; null if none. */
+  findCardDebit(reference: string, cardId: string): Promise<CardDebitRecord | null>;
+  /**
+   * (2026-10-19) Card charge from one balance, idempotent: the debit and its record commit together. A reference or
+   * card already recorded returns that record (created false) when it is the same charge, else conflict. A card is
+   * debited at most once.
+   */
+  cardDebit(d: Omit<CardDebitRecord, "balanceAfterMinor">): Promise<CardDebitResult>;
   /** Next id for recipients, transfers and balance transactions (unique across instances). */
   nextId(): Promise<number>;
   /** Back to the seeded wallets only. */
@@ -79,4 +117,6 @@ export interface WorldStore {
   readonly persistence: "memory" | "postgres";
   readonly balances: BalanceStore;
   readonly entities: EntityStore | null;
+  /** (2026-10-19) Cross-instance claims (store/leases.ts); absent in memory mode (the app keeps them in memory). */
+  readonly leases?: Leases;
 }

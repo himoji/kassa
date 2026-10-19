@@ -132,6 +132,47 @@ describe("locked mock world (NODE_ENV=production, DEMO_ADMIN_TOKEN set)", () => 
     expect((await app.inject({ method: "POST", url: `/mock/qr/${paymentId}/pay`, payload: {} })).statusCode).toBe(200);
   });
 
+  it("keeps every customer's orders and purchase orders for the operator; the till's own bill stays a capability (2026-10-19)", async () => {
+    // A delivery order and a purchase order exist (made by Kassa).
+    const orderBody = { items: [{ sku: "PZ-MARG", qty: 1 }], deliveryAddress: "Somewhere 1", payment: { method: "QR" } };
+    const order = await app.inject({ method: "POST", url: "/mock/shop/bud/orders", payload: orderBody, headers: signed("POST", "/mock/shop/bud/orders", orderBody) });
+    expect(order.statusCode, order.body).toBe(201);
+    const orderId = order.json().order.orderId as string;
+    const po = "6b0c7a1e-5d2f-4c3b-9a8e-1f2d3c4b5a69";
+    const anonymous: [string, string, unknown?][] = [
+      ["GET", "/mock/shop/bud/orders"],
+      ["GET", `/mock/shop/bud/orders/${orderId}`],
+      ["POST", `/mock/shop/bud/orders/${orderId}/advance`, {}],
+      ["GET", "/mock/supplier/c/purchase-orders"],
+      ["POST", `/mock/supplier/c/purchase-orders/${po}/confirm`, {}],
+      ["POST", `/mock/supplier/c/purchase-orders/${po}/deliver`, {}],
+      ["POST", `/mock/supplier/c/purchase-orders/${po}/invoice`, {}],
+      ["POST", "/mock/supplier/d/attack/swapped-invoice", { purchaseOrderId: po }],
+      ["GET", "/mock/supplier/c/invoices/inv_1234/invoice.pdf"],
+    ];
+    for (const [method, url, payload] of anonymous) {
+      const res = await app.inject({ method: method as "GET", url, ...(payload !== undefined ? { payload: payload as object } : {}) });
+      expect(res.statusCode, `${method} ${url}`).toBe(401);
+    }
+    // A Kassa signature is not enough for the operator screens.
+    expect((await app.inject({ method: "GET", url: "/mock/shop/bud/orders", headers: signed("GET", "/mock/shop/bud/orders") })).statusCode).toBe(401);
+    const list = await app.inject({ method: "GET", url: "/mock/shop/bud/orders", headers: { [DEMO_TOKEN_HEADER]: TOKEN } });
+    expect(list.statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/mock/supplier/c/purchase-orders", headers: { [DEMO_TOKEN_HEADER]: TOKEN } })).statusCode).toBe(200);
+    // The pages themselves load (they ask for the key), and the till's bill is readable by its id.
+    for (const url of ["/mock/shop/bud/kitchen", "/mock/supplier/c/portal"]) {
+      const page = await app.inject({ method: "GET", url });
+      expect(page.statusCode, url).toBe(200);
+      expect(page.body).toContain("opFetch");
+    }
+    const bill = (await app.inject({ method: "POST", url: "/mock/shop/bud/bills", payload: { items: [{ sku: "PZ-MARG", qty: 1 }] } })).json().bill;
+    const view = await app.inject({ method: "GET", url: `/mock/shop/bud/bills/${bill.billId}` });
+    expect(view.statusCode).toBe(200);
+    // Who pays and how (the QR payment id) is not in the public view.
+    expect(view.json().bill).not.toHaveProperty("payment");
+    expect(view.json().bill).not.toHaveProperty("clientRef");
+  });
+
   it("names only routes that exist", () => {
     for (const key of Object.keys(ROUTE_ACCESS)) {
       const [method, url] = key.split(" ") as [string, string];

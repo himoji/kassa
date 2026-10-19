@@ -16,12 +16,12 @@ import { createHash, randomUUID } from "node:crypto";
 import { fromMinor, KASSA_ID_ALPHABET, SupportedCurrency, type TopUpRequest, type TopUpResponse, type WalletResponse } from "@kassa/shared";
 import { and, eq, gte, sql } from "drizzle-orm";
 
-import { getDb } from "../../db/client.ts";
-import { ledgerEntries, profiles, users } from "../../db/schema.ts";
+import { getDb, type DbOrTx } from "../../db/client.ts";
+import { profiles, users, walletTopUps } from "../../db/schema.ts";
 import { env } from "../../env.ts";
-import { HttpProblem } from "../../http/problem.ts";
+import { conflict, HttpProblem } from "../../http/problem.ts";
 import { clock } from "../clock/index.ts";
-import { chargeSource, PullDeclined } from "../funding-sources/pull.ts";
+import { chargeSource, LinkedBalanceShort, PullDeclined } from "../funding-sources/pull.ts";
 import { activeFundingSource } from "../funding-sources/store.ts";
 import { kycStatusOf } from "../kyc/status.ts";
 import { kycThresholdInHome } from "../kyc/threshold.ts";
@@ -30,6 +30,7 @@ import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
 import { bankCall, bankMode } from "../rails/bankApi.ts";
 import { mockWorld } from "../rails/http.ts";
+import { lockUserPayments } from "../rules/facts.ts";
 import { stripe } from "../rails/issuing.ts";
 import { effectiveOf } from "../users/service.ts";
 
@@ -81,19 +82,19 @@ function utcDayStart(now: Date): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-async function topUpsToday(userId: string): Promise<{ homeMinor: number; byKey: Map<string, TopUpResponse> }> {
-  const rows = await getDb()
-    .select({ payload: ledgerEntries.payload })
-    .from(ledgerEntries)
-    .where(and(eq(ledgerEntries.type, "WALLET_TOPUP"), sql`${ledgerEntries.payload}->>'userId' = ${userId}`, gte(ledgerEntries.ts, utcDayStart(clock.now()))));
-  let homeMinor = 0;
-  const byKey = new Map<string, TopUpResponse>();
-  for (const r of rows) {
-    const p = r.payload as { homeAmountMinor?: number; idempotencyKey?: string; response?: TopUpResponse };
-    homeMinor += p.homeAmountMinor ?? 0;
-    if (p.idempotencyKey && p.response) byKey.set(p.idempotencyKey, p.response);
-  }
-  return { homeMinor, byKey };
+type TopUpRow = typeof walletTopUps.$inferSelect;
+
+/** Today's (UTC) top-ups in every state: claimed, charged and completed all count toward the per-day cap. */
+async function topUpTodayHomeMinor(db: DbOrTx, userId: string): Promise<number> {
+  const r = await db
+    .select({ total: sql<string>`coalesce(sum(${walletTopUps.homeAmountMinor}), 0)` })
+    .from(walletTopUps)
+    .where(and(eq(walletTopUps.userId, userId), gte(walletTopUps.createdAt, utcDayStart(clock.now()))));
+  return Number(r[0]?.total ?? 0);
+}
+
+async function topUpByKey(db: DbOrTx, userId: string, key: string): Promise<TopUpRow | null> {
+  return (await db.select().from(walletTopUps).where(and(eq(walletTopUps.userId, userId), eq(walletTopUps.idempotencyKey, key))))[0] ?? null;
 }
 
 async function walletContext(userId: string) {
@@ -111,7 +112,7 @@ export async function walletInfo(userId: string): Promise<WalletResponse> {
     canTopUp,
     topUpProvider: PROVIDER(),
     topUpDailyLimitHomeMinor: dailyLimit,
-    topUpTodayHomeMinor: (await topUpsToday(userId)).homeMinor,
+    topUpTodayHomeMinor: await topUpTodayHomeMinor(getDb(), userId),
     homeCurrency: user.homeCurrency,
     currencies: [...SupportedCurrency.options],
   };
@@ -144,6 +145,9 @@ async function chargeLinked(userId: string, req: TopUpRequest): Promise<{ ref: s
   try {
     return await chargeSource(source, req.amountMinor, req.currency, `topup-${req.idempotencyKey}`);
   } catch (err) {
+    if (err instanceof LinkedBalanceShort) {
+      throw new HttpProblem(402, "LINKED_BALANCE_SHORT", err.message, { reasonCodes: ["FUNDING_PULL_DECLINED"], details: { availableMinor: err.availableMinor, currency: err.currency, simulated: true } });
+    }
     if (err instanceof PullDeclined) throw new HttpProblem(402, "TOPUP_DECLINED", err.message, { reasonCodes: ["FUNDING_PULL_DECLINED"] });
     throw err;
   }
@@ -163,53 +167,148 @@ export async function creditWallet(userId: string, currency: string, amountMinor
   return null;
 }
 
+/** A key used before: the same request gets the first result; anything else with that key is refused (409). */
+function replay(row: TopUpRow, req: TopUpRequest): TopUpResponse | "resume" {
+  const same = row.amountMinor === req.amountMinor && row.currency === req.currency && row.method === req.method && (row.fundingSourceId ?? undefined) === (req.fundingSourceId ?? undefined);
+  // Rows backfilled from the ledger have no funding source id; amount, currency and method still have to match.
+  const sameLegacy = row.fundingSourceId === null && row.amountMinor === req.amountMinor && row.currency === req.currency && row.method === req.method;
+  if (!same && !sameLegacy) throw conflict("TOPUP_KEY_REUSED", "This top-up key was already used for a different top-up");
+  if (row.status === "COMPLETED" && row.response) return row.response;
+  if (row.status === "CHARGED") return "resume";
+  throw conflict("TOPUP_IN_PROGRESS", "This top-up is still being processed; try again in a moment");
+}
+
+type Claim =
+  | { kind: "claimed" }
+  | { kind: "existing"; row: TopUpRow }
+  | { kind: "limit"; todayHomeMinor: number }
+  | { kind: "kyc"; todayHomeMinor: number }
+  | { kind: "resume"; row: TopUpRow };
+
+/**
+ * Money in. Under the per-user payments lock (the one payments take around their caps), in one transaction: the key is
+ * looked up (it is unique per user for good, not per day), today's total is read and checked against the signed
+ * per-day cap and the KYC threshold, and the key is claimed (PENDING) with its home amount, so it counts at once.
+ * Two concurrent top-ups with one key therefore credit once (the second gets 409 TOPUP_IN_PROGRESS, then the first
+ * result), and two with different keys cannot both fit under the cap. The charge and the credit happen after the lock
+ * is released; a charge that fails frees the key, a credit that fails leaves it CHARGED for a retry to finish.
+ */
 export async function topUp(userId: string, req: TopUpRequest): Promise<TopUpResponse> {
   const { user, canTopUp, dailyLimit } = await walletContext(userId);
+  const db = getDb();
+  const prior = await topUpByKey(db, userId, req.idempotencyKey);
+  if (prior) {
+    const r = replay(prior, req);
+    if (r !== "resume") return r;
+  }
   if (!canTopUp) {
     throw new HttpProblem(409, "TOPUP_NEEDS_WALLET", "Top-ups go to the capped wallet; switch money mode to Capped wallet first");
   }
-  const today = await topUpsToday(userId);
-  const seen = today.byKey.get(req.idempotencyKey);
-  if (seen) return seen;
   const home = await toHome(req.amountMinor, req.currency, user.homeCurrency, clock.now(), "nearest");
-  if (today.homeMinor + home.amountMinor > dailyLimit) {
-    throw new HttpProblem(422, "TOPUP_DAILY_LIMIT", "That would go over today's top-up limit (your signed per-day cap)", {
-      details: { limitHomeMinor: dailyLimit, todayHomeMinor: today.homeMinor, homeCurrency: user.homeCurrency },
-    });
-  }
   // (KYC) a day's top-ups above the KYC threshold need a VERIFIED identity check.
   const kycThreshold = await kycThresholdInHome(user.homeCurrency, clock.now());
-  if (today.homeMinor + home.amountMinor > kycThreshold && (await kycStatusOf(getDb(), userId)) !== "VERIFIED") {
+
+  const claim = await db.transaction(async (tx): Promise<Claim> => {
+    await lockUserPayments(tx, userId);
+    const row = await topUpByKey(tx, userId, req.idempotencyKey);
+    if (row) {
+      if (row.status !== "CHARGED") return { kind: "existing", row };
+      // Resume a charged top-up whose credit failed: back to PENDING so a concurrent retry waits for this one.
+      await tx.update(walletTopUps).set({ status: "PENDING", updatedAt: clock.now() }).where(and(eq(walletTopUps.userId, userId), eq(walletTopUps.idempotencyKey, req.idempotencyKey)));
+      return { kind: "resume", row };
+    }
+    const todayHomeMinor = await topUpTodayHomeMinor(tx, userId);
+    if (todayHomeMinor + home.amountMinor > dailyLimit) return { kind: "limit", todayHomeMinor };
+    if (todayHomeMinor + home.amountMinor > kycThreshold && (await kycStatusOf(tx, userId)) !== "VERIFIED") return { kind: "kyc", todayHomeMinor };
+    await tx.insert(walletTopUps).values({
+      userId,
+      idempotencyKey: req.idempotencyKey,
+      status: "PENDING",
+      amountMinor: req.amountMinor,
+      currency: req.currency,
+      homeAmountMinor: home.amountMinor,
+      method: req.method,
+      fundingSourceId: req.fundingSourceId ?? null,
+      createdAt: clock.now(),
+    });
+    return { kind: "claimed" };
+  });
+
+  if (claim.kind === "existing") {
+    const r = replay(claim.row, req);
+    if (r === "resume") throw conflict("TOPUP_IN_PROGRESS", "This top-up is still being processed; try again in a moment");
+    return r;
+  }
+  if (claim.kind === "limit") {
+    throw new HttpProblem(422, "TOPUP_DAILY_LIMIT", "That would go over today's top-up limit (your signed per-day cap)", {
+      details: { limitHomeMinor: dailyLimit, todayHomeMinor: claim.todayHomeMinor, homeCurrency: user.homeCurrency },
+    });
+  }
+  if (claim.kind === "kyc") {
     await ledger.append("WALLET_TOPUP_REFUSED", { userId, idempotencyKey: req.idempotencyKey, amountMinor: req.amountMinor, currency: req.currency, homeAmountMinor: home.amountMinor, reasonCodes: ["KYC_REQUIRED"] });
     throw new HttpProblem(422, "KYC_REQUIRED", "Adding this much needs a verified identity first; complete the identity check in Settings", {
       reasonCodes: ["KYC_REQUIRED"],
-      details: { thresholdHomeMinor: kycThreshold, todayHomeMinor: today.homeMinor, homeCurrency: user.homeCurrency },
+      details: { thresholdHomeMinor: kycThreshold, todayHomeMinor: claim.todayHomeMinor, homeCurrency: user.homeCurrency },
     });
   }
-  const linked = req.method === "LINKED" ? await chargeLinked(userId, req) : null;
-  const providerRef = linked ? linked.ref : await chargeTest(userId, req);
-  const balanceAfterMinor = await creditWallet(userId, req.currency, req.amountMinor, `topup:${req.idempotencyKey}`);
+
+  const keyWhere = and(eq(walletTopUps.userId, userId), eq(walletTopUps.idempotencyKey, req.idempotencyKey));
+  // The charge (skipped when resuming a top-up already charged). Nothing charged: the key is freed for a retry.
+  let providerRef: string;
+  let provider: TopUpResponse["provider"];
+  if (claim.kind === "resume" && claim.row.providerRef) {
+    providerRef = claim.row.providerRef;
+    provider = providerRef.startsWith("sim_") ? "simulated" : "stripe-test";
+  } else {
+    try {
+      const linked = req.method === "LINKED" ? await chargeLinked(userId, req) : null;
+      providerRef = linked ? linked.ref : await chargeTest(userId, req);
+      provider = linked ? (linked.simulated ? "simulated" : "stripe-test") : PROVIDER();
+    } catch (err) {
+      await db.delete(walletTopUps).where(and(keyWhere, eq(walletTopUps.status, "PENDING")));
+      throw err;
+    }
+    await db.update(walletTopUps).set({ providerRef, updatedAt: clock.now() }).where(keyWhere);
+  }
+  let balanceAfterMinor: number | null;
+  try {
+    balanceAfterMinor = await creditWallet(userId, req.currency, req.amountMinor, `topup:${req.idempotencyKey}`);
+  } catch (err) {
+    // Charged but not credited: a retry with the same key credits it (the bank's top-up is idempotent by reference).
+    await db.update(walletTopUps).set({ status: "CHARGED", updatedAt: clock.now() }).where(keyWhere);
+    throw err;
+  }
   const response: TopUpResponse = {
     topUpId: req.idempotencyKey,
     amountMinor: req.amountMinor,
     currency: req.currency,
     method: req.method,
-    provider: linked ? (linked.simulated ? "simulated" : "stripe-test") : PROVIDER(),
+    provider,
     providerRef,
     balanceAfterMinor,
     simulated: true,
   };
-  await ledger.append("WALLET_TOPUP", {
-    userId,
-    idempotencyKey: req.idempotencyKey,
-    amountMinor: req.amountMinor,
-    currency: req.currency,
-    homeAmountMinor: home.amountMinor,
-    method: req.method,
-    provider: response.provider,
-    providerRef,
-    bank: bankMode(),
-    response,
+  await db.transaction(async (tx) => {
+    await tx.update(walletTopUps).set({ status: "COMPLETED", response, updatedAt: clock.now() }).where(keyWhere);
+    await ledger.append(
+      "WALLET_TOPUP",
+      {
+        userId,
+        idempotencyKey: req.idempotencyKey,
+        amountMinor: req.amountMinor,
+        currency: req.currency,
+        homeAmountMinor: home.amountMinor,
+        method: req.method,
+        ...(req.fundingSourceId ? { fundingSourceId: req.fundingSourceId } : {}),
+        provider,
+        providerRef,
+        // Test money: a wallet tap or test card, or a pull from a linked account's simulated balance (provider "simulated").
+        simulated: true,
+        bank: bankMode(),
+        response,
+      },
+      tx,
+    );
   });
   await notify(userId, {
     kind: "WALLET_TOPUP",

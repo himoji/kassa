@@ -1,5 +1,5 @@
 /*
- * Credit record v2 (security review 2026-10-18): only evidenced figures are signed, only for the selected items.
+ * Credit record v2/v3 (security review 2026-10-18; v3 2026-10-19, test/security/credit-record-v3.test.ts): only evidenced figures are signed, only for the selected items.
  * The period is clamped to [account opened, today]; income months come from money Kassa saw arrive, not from the
  * declared profile income; bills are the obligation periods that fell due, and refused duplicate proposals do not count.
  */
@@ -50,7 +50,7 @@ describe("credit record v2", () => {
     expect(res.statusCode, res.body).toBe(200);
     const v = await verify(res.json().verifyId);
     const today = isoDate(clock.now());
-    expect(v).toMatchObject({ valid: true, version: 2, period: { from: today, to: today }, requestedPeriod: { from: "2000-01-01", to: "2099-12-31" }, accountOpenedOn: today, items: ["BILLS"] });
+    expect(v).toMatchObject({ valid: true, version: 3, period: { from: today, to: today }, requestedPeriod: { from: "2000-01-01", to: "2099-12-31" }, accountOpenedOn: today, items: ["BILLS"] });
     // Only the selected item's figures, plus the period length.
     expect(v.summary).toEqual({ monthsCovered: 1, billsTotal: 0, billsPaidOnTime: 0 });
 
@@ -101,9 +101,10 @@ describe("credit record v2", () => {
     await updatePaymentStatus(pay.id, "SENT", { source: "test" });
     expect((await propose()).decision).toBe("REFUSE");
 
-    // Before the due dates: the period ends today, neither bill has fallen due yet.
+    // Before the due dates: the period ends today. The tuition paid early counts (sent today, due in 4 days: on time,
+    // 2026-10-19); the fee has not fallen due yet.
     let v = await verify((await exportRecord(userId, { from: today, to: addDays(today, 30), items: ["BILLS"] })).json().verifyId);
-    expect(v.summary).toMatchObject({ billsTotal: 0, billsPaidOnTime: 0 });
+    expect(v.summary).toMatchObject({ billsTotal: 1, billsPaidOnTime: 1 });
     expect(v.period.to).toBe(today);
 
     // After both due dates the missed fee counts too, not on time.

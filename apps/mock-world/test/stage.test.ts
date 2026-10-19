@@ -583,6 +583,75 @@ describe("actions that change the shared world", () => {
   });
 });
 
+describe("a deployed build (locked): the Stage acts on the shared world only for the operator (2026-10-19)", () => {
+  const SCENE_ACTIONS: [string, Record<string, unknown>][] = [
+    ["tap-coffee", {}],
+    ["tap-dcc", {}],
+    ["tap-dcc-settle", {}],
+    ["tap-card", { cardId: "fic_someone_elses" }],
+    ["wallet-swap", { enabled: true }],
+    ["wallet-pay", { paymentId: "00000000-0000-4000-8000-000000000000" }],
+    ["wallet-notify", {}],
+    ["mail-forward", { id: "msg-0001" }],
+    ["home-send", {}],
+    ["kitchen-advance", { store: "bud" }],
+    ["supplier-attack", {}],
+  ];
+
+  for (const env of [{ NODE_ENV: "production" }, { JUDGE_MODE: "true" }]) {
+    it(`${Object.keys(env)[0]}: scene buttons need the operator key, the state hides other users' data, forged-bank stays open`, async () => {
+      const lockedApi = makeFakeApi();
+      const sink = new RecordingSink();
+      const locked = await buildWorld(
+        loadConfig({ ...baseEnv, DEMO_ENABLED: "true", DEMO_ADMIN_TOKEN: TOKEN, ...env } as NodeJS.ProcessEnv),
+        lockedApi,
+        new ManualClock(Date.parse("2026-10-27T09:00:00Z")),
+        sink,
+      );
+      // Someone else's QR code (created by the API for that user).
+      const qr = await locked.inject({
+        method: "POST",
+        url: "/mock/qr/payments",
+        payload: { merchantId: "dorm-office", amountMinor: 180000, currency: "CNY" },
+        headers: { "x-kassa-demo-token": TOKEN },
+      });
+      expect(qr.statusCode, qr.body).toBe(201);
+      const paymentId = (JSON.parse(qr.body) as { paymentId: string }).paymentId;
+
+      const anon = await stateOf(locked);
+      expect(anon).toMatchObject({ operatorOnly: true, operator: false, tap: { lastCardId: null }, wallet: { latest: null }, bank: { transfers: [] } });
+      expect(JSON.stringify(anon)).not.toContain(paymentId);
+
+      for (const [action, payload] of [...SCENE_ACTIONS, ["wallet-pay", { paymentId }] as [string, Record<string, unknown>]]) {
+        for (const headers of [{}, { "x-stage-key": "wrong" }]) {
+          const res = await locked.inject({ method: "POST", url: `/mock/stage/api/${action}`, payload, headers });
+          expect(res.statusCode, action).toBe(401);
+          expect(jsonOf(res).code, action).toBe("STAGE_KEY_REQUIRED");
+        }
+      }
+      expect(lockedApi.calls).toHaveLength(0);
+      expect(sink.sent.filter((e) => e.kind === "qr")).toHaveLength(0);
+      expect((await locked.inject({ method: "GET", url: `/mock/qr/payments/${paymentId}` })).json()).toMatchObject({ status: "PENDING" });
+
+      // Changes nothing: open to everyone.
+      expect((await locked.inject({ method: "POST", url: "/mock/stage/api/bank-forged", payload: {} })).statusCode).toBe(200);
+
+      // The operator sees and drives everything.
+      const op = JSON.parse((await locked.inject({ method: "GET", url: "/mock/stage/api/state", headers: { "x-stage-key": TOKEN } })).body) as StageState & { operator: boolean };
+      expect(op.operator).toBe(true);
+      expect(op.wallet.latest).toMatchObject({ paymentId });
+      const paid = await locked.inject({ method: "POST", url: "/mock/stage/api/wallet-pay", payload: { paymentId }, headers: { "x-stage-key": TOKEN } });
+      expect(jsonOf(paid)).toMatchObject({ ok: true, tone: "ok" });
+    });
+  }
+
+  it("local development (not locked) stays open and shows everything", async () => {
+    const s = (await stateOf(app)) as StageState & { operatorOnly: boolean; operator: boolean };
+    expect(s).toMatchObject({ operatorOnly: false, operator: true });
+    expect((await app.inject({ method: "POST", url: "/mock/stage/api/wallet-swap", payload: { enabled: false } })).statusCode).toBe(200);
+  });
+});
+
 describe("demo switched off", () => {
   it("answers 404 on every stage route and never calls the API", async () => {
     const gets = ["/mock/stage", "/mock/stage/tap", "/mock/stage/api/state"];

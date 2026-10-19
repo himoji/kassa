@@ -30,6 +30,22 @@ export function useVerifyRecord(id: string) {
   });
 }
 
+/** v3 records: does the name the reader was told match the holder? The server answers yes / no only. */
+export function useCheckHolderName(id: string) {
+  return useMutation({
+    mutationFn: async (name: string) =>
+      (
+        await api.request(
+          `/public/verify/${encodeURIComponent(id)}?name=${encodeURIComponent(name)}`,
+          {
+            schema: CreditRecordVerifyResponse,
+            auth: false,
+          }
+        )
+      ).nameMatch ?? null,
+  });
+}
+
 export function useHandoff(paymentId: string) {
   return useQuery({
     queryKey: keys.handoff(paymentId),

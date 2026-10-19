@@ -236,8 +236,10 @@ const routes: FastifyPluginAsync = async (app) => {
     const card = (await getDb().select().from(issuedCards).where(eq(issuedCards.stripeCardId, cardId)))[0];
     if (card && card.provider !== "fake") return { approved: false, reasonCode: "NO_APPROVAL" };
     const amount = Number(b.amountMinor);
+    const authorizationId = typeof b.authorizationId === "string" && b.authorizationId.length > 0 && b.authorizationId.length <= 64 ? b.authorizationId : undefined;
     const d = await fakeCharge({
       cardId,
+      authorizationId,
       amountMinor: Number.isSafeInteger(amount) ? amount : -1,
       currency: String(b.currency ?? ""),
       merchantName: String(obj(b.merchant).name ?? b.merchantName ?? ""),
@@ -265,6 +267,7 @@ const routes: FastifyPluginAsync = async (app) => {
         const pending = auth.pending_request;
         const d = await authorizeCardUse({
           cardId: auth.card.id,
+          authorizationId: auth.id,
           amountMinor: pending?.merchant_amount ?? auth.merchant_amount,
           currency: (pending?.merchant_currency ?? auth.merchant_currency).toUpperCase(),
           merchantName: auth.merchant_data.name ?? "",

@@ -36,7 +36,7 @@ import {
   TransactionStatus,
   Decision,
 } from "@kassa/shared";
-import type { CanonicalOrder, Fulfillment, FulfillmentItem, PurchaseOrderCore, PurchaseOrderLine, ReasonCode, SettingsOverrides } from "@kassa/shared";
+import type { CanonicalOrder, Fulfillment, FulfillmentItem, PurchaseOrderCore, PurchaseOrderLine, ReasonCode, SettingsOverrides, TopUpResponse } from "@kassa/shared";
 import {
   bigint,
   boolean,
@@ -406,6 +406,71 @@ export const fundingSources = pgTable(
     removedAt: tstz("removed_at"),
   },
   (t) => [index("funding_sources_user_idx").on(t.userId)],
+);
+
+/**
+ * (added 2026-10-19) The simulated balance of a linked card or bank account (funding-sources/pull.ts). A simulated
+ * pull debits it and is refused when it is short, so a linked account cannot add money from nowhere. Keyed by the
+ * underlying account (`accountKey`: kind + provider ref), not the source row, so removing and linking the same account
+ * again does not refill it. Seeded on the first pull with a fixed test amount per currency.
+ */
+export const linkedAccountSimBalances = pgTable(
+  "linked_account_sim_balances",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountKey: text("account_key").notNull(),
+    currency: text("currency").notNull(),
+    balanceMinor: money("balance_minor").notNull(),
+    seededMinor: money("seeded_minor").notNull(),
+    updatedAt: tstz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.accountKey, t.currency] })],
+);
+
+/** (added 2026-10-19) One simulated pull per reference: a retried pull debits the simulated balance once. */
+export const linkedAccountSimDebits = pgTable(
+  "linked_account_sim_debits",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reference: text("reference").notNull(),
+    accountKey: text("account_key").notNull(),
+    currency: text("currency").notNull(),
+    amountMinor: money("amount_minor").notNull(),
+    providerRef: text("provider_ref").notNull(),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.reference] })],
+);
+
+/**
+ * (added 2026-10-19) Wallet top-ups, one row per (user, idempotency key) for good: claimed (PENDING) under the
+ * per-user payments lock before anything is charged, CHARGED once the charge succeeded but the credit has not, and
+ * COMPLETED with the response a retry returns. The day's total (the signed per-day cap and the KYC threshold) is the
+ * sum of today's rows in every state. Rows from before this table were backfilled from WALLET_TOPUP ledger entries.
+ */
+export const walletTopUps = pgTable(
+  "wallet_top_ups",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    idempotencyKey: text("idempotency_key").notNull(),
+    status: text("status").$type<"PENDING" | "CHARGED" | "COMPLETED">().notNull(),
+    amountMinor: money("amount_minor").notNull(),
+    currency: text("currency").notNull(),
+    homeAmountMinor: money("home_amount_minor").notNull(),
+    method: text("method").notNull(),
+    fundingSourceId: uuid("funding_source_id"),
+    providerRef: text("provider_ref"),
+    response: jsonb("response").$type<TopUpResponse>(),
+    createdAt: tstz("created_at").notNull(),
+    updatedAt: tstz("updated_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.idempotencyKey] }), index("wallet_top_ups_user_day_idx").on(t.userId, t.createdAt)],
 );
 
 /**

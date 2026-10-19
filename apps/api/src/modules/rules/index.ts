@@ -37,6 +37,7 @@ import { kycThresholdInHome } from "../kyc/threshold.ts";
 import { ledger } from "../ledger/index.ts";
 import { sealPii } from "../privacy/keys.ts";
 import { findMatchingMandate, type LinkedObligation } from "../mandates/scope.ts";
+import { dueHorizon } from "../scheduler/window.ts";
 import { claimSettlement, markSettlementPaid, releaseSettlement, settlementFor } from "../obligations/settlements.ts";
 import { toHome } from "../money/fx.ts";
 import { notify } from "../notifications/service.ts";
@@ -53,6 +54,7 @@ import {
   lockUserPayments,
   monthStartUtc,
   payeeHistory,
+  completedPaymentsToPayee,
   reserveBreached,
   smallAutoUsedSince,
   usedHomeSince,
@@ -393,7 +395,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
 
   // I9 / X4: screen the payee on every rail (card, handoff, pay-in-place, bank).
   const screening = payee ? screenName(payee.name) : { hit: false as const, score: 0 };
-  const [usedToday, usedMonth, reserve, mandate, history, remaining, smallAutoToday] = await Promise.all([
+  const [usedToday, usedMonth, reserve, mandate, history, remaining, smallAutoToday, completedToPayee] = await Promise.all([
     // (2026-10-18) executed + in flight (approved, not yet a payment row)
     usedHomeSince(db, user.id, dayStartUtc(now)),
     usedHomeSince(db, user.id, monthStartUtc(now)),
@@ -405,6 +407,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     payee ? payeeHistory(db, user.id, payee.id) : Promise.resolve({ count: 0, priceHistory: {}, qtyHistory: {} }),
     categoryRemaining(db, user.id, category, now),
     smallAutoUsedSince(db, user.id, dayStartUtc(now)),
+    payee ? completedPaymentsToPayee(db, user.id, payee.id) : Promise.resolve(0),
   ]);
   const triggerOrigin = input.createdBy === "SCHEDULER" || input.triggerOrigin === true;
   const features = riskFeatures({
@@ -447,10 +450,13 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     mandate: mandate.match ? { id: mandate.match.id } : null,
     mandateOutOfScope: mandate.outOfScope,
     mandateScopeMismatch: mandate.scopeMismatch,
+    // (2026-10-19) mandate AUTO only for a bill the scheduler would pay now (same window, scheduler/window.ts)
+    mandateNotDueYet: linked !== null && linked.period > dueHorizon(now),
     riskScore: score,
     agentRequestedConfirm: input.agentRequestedConfirm === true,
     triggerOrigin,
     smallAutoLimitHomeMinor: caps.smallAutoMinor,
+    priorCompletedPaymentsToPayee: completedToPayee,
     smallAutoBudget: {
       usedCount: smallAutoToday.count,
       usedHomeMinor: smallAutoToday.homeMinor,

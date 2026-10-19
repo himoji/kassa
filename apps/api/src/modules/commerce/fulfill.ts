@@ -46,9 +46,12 @@ async function signedFulfillment(proposalId: string): Promise<{ f: Fulfillment; 
 
 const shopItems = (f: Fulfillment) => f.items.map((i) => ({ sku: i.sku, qty: i.qty }));
 
-/** Tell the till that Kassa will not pay this bill (it shows red with the reason). Best effort. */
-export async function reportTillDecline(merchantSlug: string, billId: string, reasonCode: string): Promise<void> {
-  await mockWorld("POST", `/shop/${enc(merchantSlug)}/bills/${enc(billId)}/decline`, { reasonCode }).catch(() => undefined);
+/**
+ * Tell the till that Kassa will not pay this bill for this order (it shows red with the reason). Best effort: the till
+ * ignores it (409) while another customer's order is paying the bill.
+ */
+export async function reportTillDecline(merchantSlug: string, billId: string, reasonCode: string, proposalId: string): Promise<void> {
+  await mockWorld("POST", `/shop/${enc(merchantSlug)}/bills/${enc(billId)}/decline`, { reasonCode, clientRef: proposalId }).catch(() => undefined);
 }
 
 /** After a successful CARD_ISSUING execution: hand the one-time card to the shop for exactly the signed items. */
@@ -61,7 +64,7 @@ async function fulfilWithCard(approvalId: string, res: ExecutionResult): Promise
   if (!draftF) return;
   const ok = res.paymentId !== null && res.status !== "FAILED" && res.status !== "CANCELED";
   if (!ok) {
-    if (draftF.channel === "TILL" && draftF.billId) await reportTillDecline(draftF.merchant, draftF.billId, res.reasonCodes[0] ?? "PAYMENT_FAILED");
+    if (draftF.channel === "TILL" && draftF.billId) await reportTillDecline(draftF.merchant, draftF.billId, res.reasonCodes[0] ?? "PAYMENT_FAILED", a.proposalId);
     return;
   }
   const pay = (await db.select().from(payments).where(eq(payments.id, res.paymentId!)))[0];

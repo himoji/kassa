@@ -5,12 +5,16 @@
  * (X1) The order must carry a signed obligation link (obligationId + period) to a bill of this user and payee,
  * in the order's currency, for its current period, amount ≤ the bill, category (the obligation's, read here) in
  * the mandate, and the period settled by THIS proposal only (obligation_settlements).
+ * (2026-10-19) The bill's period must be due within the scheduler's window (scheduler/window.ts DUE_WINDOW_DAYS), the
+ * same rule the rules apply (MANDATE_NOT_DUE_YET); the arithmetic is payments' own.
  * Period (UTC): WEEK = ISO 8601 week from Monday; MONTH = calendar month.
  */
 import { orderObligation, type CanonicalOrder, type ReasonCode } from "@kassa/shared";
 import { and, eq, gte, notInArray, sql } from "drizzle-orm";
 
 import type { DbOrTx } from "../../db/client.ts";
+import { isoDate } from "../clock/index.ts";
+import { DUE_WINDOW_DAYS } from "../scheduler/window.ts";
 import { approvals, obligationSettlements, obligations, payments } from "../../db/schema.ts";
 import type { mandates } from "../../db/schema.ts";
 
@@ -51,6 +55,10 @@ export async function checkMandateScope(
     return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "amount above the bill or currency differs" };
   }
   if (link.period !== ob.dueDate) return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "not the obligation's current period" };
+  // (2026-10-19) Only a bill due within the scheduler's window is paid under a mandate (payments' own date check).
+  if (link.period > isoDate(new Date(t + DUE_WINDOW_DAYS * 86_400_000))) {
+    return { ok: false, reason: "MANDATE_NOT_DUE_YET", detail: `bill due ${link.period}, after the ${DUE_WINDOW_DAYS}-day due window` };
+  }
   if (!m.categories.includes(ob.category)) return { ok: false, reason: "MANDATE_SCOPE_MISMATCH", detail: "obligation category not in mandate" };
   const settlement = (
     await db

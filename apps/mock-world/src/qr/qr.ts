@@ -59,10 +59,17 @@ export class QrWallet {
   swapAll = false;
   /** Called after a code is paid (the merchant learns it was paid, e.g. the pizza shop's order book). */
   private readonly paidListeners: ((p: QrPayment) => void | Promise<void>)[] = [];
+  /** (2026-10-19) Checks before a code is paid; one that throws (a QrError) stops the payment. */
+  private readonly payGuards: ((p: QrPayment) => void | Promise<void>)[] = [];
 
   constructor(
     private readonly opts: { clock: Clock; webhooks: WebhookSink; publicUrl: string },
   ) {}
+
+  /** Runs before a code is paid (the shop refuses a code for a bill someone else is paying or has paid). */
+  beforePay(fn: (p: QrPayment) => void | Promise<void>): void {
+    this.payGuards.push(fn);
+  }
 
   onPaid(fn: (p: QrPayment) => void | Promise<void>): void {
     this.paidListeners.push(fn);
@@ -133,8 +140,11 @@ export class QrWallet {
 
   async pay(paymentId: string): Promise<QrPayment> {
     const now = await this.opts.clock.now();
-    const p = this.payments.get(paymentId);
-    if (!p) throw new QrError(404, "NOT_FOUND", "Unknown payment");
+    const known = this.payments.get(paymentId);
+    if (!known) throw new QrError(404, "NOT_FOUND", "Unknown payment");
+    if (known.status !== "PAID") for (const fn of this.payGuards) await fn(known);
+    // Re-read after the guards' awaits: the check and the change below have no await between them.
+    const p = this.payments.get(paymentId)!;
     if (p.status === "PAID") throw new QrError(409, "ALREADY_PAID", "This QR code was already paid");
     p.status = "PAID";
     p.paidAt = now.toISOString();

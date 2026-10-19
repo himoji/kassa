@@ -281,14 +281,20 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     requestUnfreeze(userIdOf(req), req.body),
   );
 
-  // Expo push token of this app install.
+  /*
+   * Expo push token of this app install. Re-registering one's own token is idempotent (and un-revokes it); a token
+   * already registered to another user is never moved over (409 DEVICE_TOKEN_TAKEN, the row stays as it is), so
+   * nobody can redirect another user's notifications to their own account by replaying a push token.
+   */
   app.post("/devices", { schema: { body: RegisterDeviceRequest } }, async (req, reply) => {
     const userId = userIdOf(req);
     const tokenHash = sha256Base64url(req.body.expoPushToken);
-    await getDb()
+    const rows = await getDb()
       .insert(devices)
       .values({ userId, kind: "APP", tokenHash, pushToken: req.body.expoPushToken, platform: req.body.platform })
-      .onConflictDoUpdate({ target: devices.tokenHash, set: { userId, revokedAt: null } });
+      .onConflictDoUpdate({ target: devices.tokenHash, set: { revokedAt: null }, setWhere: eq(devices.userId, userId) })
+      .returning({ id: devices.id });
+    if (rows.length === 0) throw conflict("DEVICE_TOKEN_TAKEN", "This push token is registered to another account");
     return reply.status(204).send();
   });
 

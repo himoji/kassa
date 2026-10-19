@@ -2,14 +2,15 @@
  * (added 2026-10-18) Judge build, the outside world per copy:
  * - each copy of Dana has its own student ID and tuition reference (fixtures/judge-copy.ts), so the school portal keeps
  *   one invoice per copy: one reviewer paying tuition never shows as paid in another's copy;
- * - "Find your school" with the seeded student ID means the copy's own;
+ * - "Find your school" with the seeded student ID means the copy's own (no date of birth asked); another copy's
+ *   student ID is refused;
  * - POST /demo/money-from-home credits the signed-in user's own wallet only (judge build or a dev sign-in session).
  */
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { judgeCopyReference, judgeCopyStudentId, judgeCopySuffix } from "../../../../fixtures/judge-copy.ts";
-import { TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
+import { DANA_DATE_OF_BIRTH, TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
 import { getDb } from "../../src/db/client.ts";
 import { obligations, payees, profiles } from "../../src/db/schema.ts";
 import { resetEnvCache, setEnvForTests } from "../../src/env.ts";
@@ -88,6 +89,31 @@ describe("judge build: the school portal keeps one invoice per copy", () => {
     expect((await tuitionOf(a.id)).o.reference).not.toBe((await tuitionOf(b.id)).o.reference);
   });
 
+  it("a copy's own student needs no date of birth; another copy's is refused even with the seeded date", async () => {
+    judgeEnv();
+    const a = await login();
+    const b = await login();
+    const own = judgeCopyStudentId("KZ26-0417", a.id);
+    // The seeded ID and the copy's own ID both mean A's own student: no date of birth asked.
+    for (const studentId of ["KZ26-0417", own]) {
+      const res = await app().inject({ method: "POST", url: "/api/schools/budapest/lookup", headers: a.h, payload: { studentId } });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().invoices[0].studentId).toBe(own);
+    }
+    const linked = await app().inject({ method: "POST", url: "/api/schools/budapest/link", headers: a.h, payload: { studentId: "KZ26-0417" } });
+    expect(linked.statusCode, linked.body).toBe(200);
+    expect(linked.json().payee.id).toBe((await tuitionOf(a.id)).p.id);
+    // B's copy has Dana's date of birth (printed in the demo script): A still cannot read or add it.
+    for (const url of ["/api/schools/budapest/lookup", "/api/schools/budapest/link"]) {
+      const res = await app().inject({ method: "POST", url, headers: a.h, payload: { studentId: judgeCopyStudentId("KZ26-0417", b.id), dateOfBirth: DANA_DATE_OF_BIRTH } });
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe("STUDENT_NOT_VERIFIED");
+    }
+    // Any other student still needs the school's confirmation in the judge build.
+    const other = await app().inject({ method: "POST", url: "/api/schools/vienna/lookup", headers: a.h, payload: { studentId: "S1234567" } });
+    expect(other.json().code).toBe("STUDENT_NOT_VERIFIED");
+  });
+
   it("a payment with copy A's reference marks only A's invoice paid", async () => {
     judgeEnv();
     const a = await login();
@@ -122,7 +148,8 @@ describe("POST /demo/money-from-home: the signed-in user's own wallet only", () 
     const b = await login();
     const [pa, pb] = [await walletOf(a.id), await walletOf(b.id)];
     const [beforeA, beforeB, beforeDana] = [await kztOf(pa), await kztOf(pb), await kztOf(seed.mockBankProfileId)];
-    expect(beforeA).toBe(90_000_000); // the seeded KZT 900,000: not rich by default
+    // The seeded KZT 900,000 plus this month's KZT 1,000,000 from home, received when the copy was made (2026-10-19).
+    expect(beforeA).toBe(190_000_000);
 
     const res = await app().inject({ method: "POST", url: "/api/demo/money-from-home", headers: a.h, payload: {} });
     expect(res.statusCode, res.body).toBe(200);

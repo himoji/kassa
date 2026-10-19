@@ -101,6 +101,14 @@ resetBtn.addEventListener("click", () => {
   window.stage.run(resetBtn, "reset", {}, out);
 });
 window.stage.state().then((s) => {
+  if (s.operatorOnly && !s.operator) {
+    window.stage.show(document.getElementById("tokenwarn"), {
+      tone: "info",
+      title: "Operator only on this deployment",
+      detail: "The scene buttons act on the shared demo world, so they need the operator key here. Your own copy lives in the Kassa app: pay the QR code it gives you, scan a bill at the till."
+    });
+    return;
+  }
   if (!s.demoTokenConfigured) {
     window.stage.show(document.getElementById("tokenwarn"), {
       tone: "warn",

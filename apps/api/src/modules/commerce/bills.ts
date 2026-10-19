@@ -84,6 +84,6 @@ export async function proposeBill(userId: string, billId: string): Promise<Merch
     category: "eating_out",
     fulfillment: { merchant: bill.merchantSlug, channel: "TILL", billId, items: bill.items },
   });
-  if (r.decision === "REFUSE") await reportTillDecline(bill.merchantSlug, billId, r.reasonCodes[0] ?? "REFUSED");
+  if (r.decision === "REFUSE") await reportTillDecline(bill.merchantSlug, billId, r.reasonCodes[0] ?? "REFUSED", r.proposalId);
   return { proposalId: r.proposalId, decision: r.decision, reasonCodes: r.reasonCodes, summary: r.summary, bill };
 }

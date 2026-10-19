@@ -21,7 +21,7 @@ import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { getDb } from "../../db/client.ts";
 import { obligations, payments, proposals, users } from "../../db/schema.ts";
 import { purgeRateLimitCounters } from "../../http/rate-limit-store.ts";
-import { addMs, clock, DAY_MS, isoDate } from "../clock/index.ts";
+import { clock } from "../clock/index.ts";
 import { forecastTick } from "../business/scheduler.ts";
 import { purgeRevokedTokens } from "../auth/revocation.ts";
 import { ledger } from "../ledger/index.ts";
@@ -30,31 +30,45 @@ import { settlementFor } from "../obligations/settlements.ts";
 import { updatePaymentStatus } from "../payments/status.ts";
 import { expireCards } from "../rails/issuing.ts";
 import { getTransferStatus } from "../rails/mockBank.ts";
-import { proposeOrder } from "../rules/index.ts";
+import { proposeOrder, type ProposeOrderResult } from "../rules/index.ts";
 import { purgeIfDue } from "../privacy/service.ts";
 import { applyDueRuleChanges } from "../users/settings.ts";
 import { applyDueUnfreezes } from "../users/unfreeze.ts";
 import { purgeSeenWebhookSignatures } from "../webhooks/replay.ts";
+import { addMonths, dueHorizon } from "./window.ts";
 
 export const TICK_MS = 15_000;
-export const DUE_WINDOW_DAYS = 3;
+/** The due window lives in ./window.ts (shared with the rules and payments mandate checks). */
+export { DUE_WINDOW_DAYS } from "./window.ts";
 
-/** ISO 8601 date + n calendar months, day clamped to the month's length. */
-export function addMonths(date: string, n: number): string {
-  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
-  const target = new Date(Date.UTC(y, m - 1 + n, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(d, last));
-  return isoDate(target);
-}
+export { addMonths } from "./window.ts";
 
-export async function proposeDueObligations(): Promise<number> {
+/** What one due-bills pass did with one bill inside the window (scheduler job and the demo's own-copy run). */
+export type DueObligationOutcome = {
+  obligationId: string;
+  category: string;
+  dueDate: string;
+  /** PROPOSED = a proposal now (see decision); PAID / PENDING = the period was already paid / awaiting approval; TRIED = the scheduler already proposed it once. */
+  outcome: "PROPOSED" | "PAID" | "PENDING" | "TRIED";
+  proposal?: ProposeOrderResult;
+};
+
+/**
+ * Bills due within the window (scheduler/window.ts) → one proposal each. `userId` limits the pass to one user (the
+ * demo's "run today's scheduled payments" on a reviewer's own copy); the date is always the Clock's, never an override.
+ */
+export async function proposeDue(opts: { userId?: string } = {}): Promise<DueObligationOutcome[]> {
   const db = getDb();
   const now = clock.now();
-  const horizon = isoDate(addMs(now, DUE_WINDOW_DAYS * DAY_MS));
-  const due = await db.select().from(obligations).where(lte(obligations.dueDate, horizon));
-  let created = 0;
+  const horizon = dueHorizon(now);
+  const inWindow = lte(obligations.dueDate, horizon);
+  const due = await db
+    .select()
+    .from(obligations)
+    .where(opts.userId ? and(inWindow, eq(obligations.userId, opts.userId)) : inWindow);
+  const out: DueObligationOutcome[] = [];
   for (const o of due) {
+    const base = { obligationId: o.id, category: o.category, dueDate: o.dueDate };
     // B4: one settlement per (obligation, period). Pending or paid (by the agent or by an earlier tick): skip;
     // a MONTHLY obligation rolls to the next period once this one is paid.
     const settled = await settlementFor(db, o.id, o.dueDate);
@@ -64,6 +78,7 @@ export async function proposeDueObligations(): Promise<number> {
         await db.update(obligations).set({ dueDate: next }).where(eq(obligations.id, o.id));
         await ledger.append("OBLIGATION_ROLLED", { userId: o.userId, obligationId: o.id, from: o.dueDate, to: next });
       }
+      out.push({ ...base, outcome: settled.status === "PAID" ? "PAID" : "PENDING" });
       continue;
     }
     // One scheduler attempt per period: a refused or rejected scheduler proposal is not re-proposed every tick.
@@ -71,8 +86,11 @@ export async function proposeDueObligations(): Promise<number> {
       .select({ id: proposals.id })
       .from(proposals)
       .where(and(eq(proposals.obligationId, o.id), eq(proposals.createdBy, "SCHEDULER"), sql`${proposals.draft}->>'dueDate' = ${o.dueDate}`));
-    if (tried.length > 0) continue;
-    await proposeOrder({
+    if (tried.length > 0) {
+      out.push({ ...base, outcome: "TRIED" });
+      continue;
+    }
+    const proposal = await proposeOrder({
       userId: o.userId,
       createdBy: "SCHEDULER",
       payeeId: o.payeeId,
@@ -83,9 +101,14 @@ export async function proposeDueObligations(): Promise<number> {
       obligationId: o.id,
       dueDate: o.dueDate,
     });
-    created++;
+    out.push({ ...base, outcome: "PROPOSED", proposal });
   }
-  return created;
+  return out;
+}
+
+/** Scheduler job: every user's due bills; returns how many proposals were made. */
+export async function proposeDueObligations(): Promise<number> {
+  return (await proposeDue()).filter((r) => r.outcome === "PROPOSED").length;
 }
 
 export async function pollBankTransfers(): Promise<number> {

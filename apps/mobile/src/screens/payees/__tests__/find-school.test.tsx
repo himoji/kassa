@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react-native";
 
 import { ThemeProvider } from "@/components/ui";
 
-import { SchoolInvoiceCard } from "../find-school";
+import { isDateOfBirth, SchoolInvoiceCard } from "../find-school";
 
 const INVOICE: SchoolInvoiceDto = {
   invoiceId: "INV-BUD-KZ26-0417",
@@ -30,5 +30,16 @@ describe("SchoolInvoiceCard", () => {
     expect(screen.getByText(/2,000\.00/)).toBeTruthy();
     expect(screen.getByText(/Partly paid/)).toBeTruthy();
     expect(screen.getByText("Reference RF39RUB2026F04217")).toBeTruthy();
+  });
+});
+
+describe("isDateOfBirth", () => {
+  it("takes a real YYYY-MM-DD date only", () => {
+    expect(isDateOfBirth("2005-03-14")).toBe(true);
+    expect(isDateOfBirth("2004-02-29")).toBe(true);
+    expect(isDateOfBirth("2005-02-29")).toBe(false);
+    expect(isDateOfBirth("14.03.2005")).toBe(false);
+    expect(isDateOfBirth("2005-3-14")).toBe(false);
+    expect(isDateOfBirth("")).toBe(false);
   });
 });

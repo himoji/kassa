@@ -3,6 +3,13 @@
  * from the schools' payment portals (mock-world; in production a partner such as Flywire or Convera).
  *
  *  - lookup: the school and the student's open invoices; writes nothing.
+ *  - (2026-10-19) Both lookup and linkSchool first need the school to confirm the student: the student's date of birth,
+ *    checked by the school's portal (mock-world POST /schools/:id/invoices), never kept by Kassa. A wrong or missing
+ *    date and an unknown student ID get the same 422 STUDENT_NOT_VERIFIED; tries are limited per user
+ *    (SCHOOL_PROOF_TRIES_PER_HOUR), per IP (http/security.ts) and per student at the portal. Judge build: the seeded
+ *    student ID means the reviewer's own copy (ownStudentId), which needs no date. Kassa reads a student's invoices
+ *    without the date (its signed request) only for that copy and for a recipient it linked after the school confirmed
+ *    the student (refreshInvoices; payees/service.ts keeps `portalSchoolId` server-set).
  *  - linkSchool: the tuition recipient (the directory's name and account; it still cools for 24 h like any new
  *    recipient, I7) plus a bill for each open invoice, with the exact amount, due date and reference. Adding the same
  *    school and student again reuses the recipient, and an invoice already imported is not imported twice.
@@ -14,10 +21,11 @@ import { type RecipientDetails, type SchoolDto, type SchoolInvoiceDto, type Scho
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
-import { judgeCopyStudentId } from "../../../../../fixtures/judge-copy.ts";
+import { judgeCopyStudentId, judgeCopySuffixOf } from "../../../../../fixtures/judge-copy.ts";
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, payments } from "../../db/schema.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
+import { incrCounter } from "../../http/rate-limit-store.ts";
 import { judgeModeActive } from "../auth/dev.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { loadSeedData } from "../demo/seed.ts";
@@ -55,16 +63,27 @@ const DirectoryInvoice = z.object({
 const toSchoolDto = (s: DirectorySchool): SchoolDto => ({ id: s.id, name: s.name, city: s.city, country: s.country, currency: s.currency, simulated: true });
 const toInvoiceDto = (i: z.infer<typeof DirectoryInvoice>): SchoolInvoiceDto => i;
 
-async function directory<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-  let body: unknown;
+/** The same answer for a wrong date, a missing one and a student ID nobody has: it says nothing about which. */
+const notVerified = () =>
+  new HttpProblem(422, "STUDENT_NOT_VERIFIED", "The school could not confirm this student: check the student ID and date of birth", { details: { field: "dateOfBirth" } });
+
+/** Proof attempts (date of birth sent to a school) per user per hour, on top of the per-IP route limit. */
+export const SCHOOL_PROOF_TRIES_PER_HOUR = 20;
+
+async function directory<T>(path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
+  let res: unknown;
   try {
-    body = await mockWorld("GET", path);
+    res = await mockWorld(body === undefined ? "GET" : "POST", path, body);
   } catch (err) {
     if (err instanceof MockWorldError && err.status === 404) throw notFound("School");
     if (err instanceof MockWorldError && err.status === 422) throw new HttpProblem(422, "STUDENT_ID_INVALID", "A student ID is 4 to 20 letters, digits or dashes", { details: { field: "studentId" } });
+    if (err instanceof MockWorldError && err.status === 403) throw notVerified();
+    if (err instanceof MockWorldError && err.status === 429) {
+      throw new HttpProblem(429, "RATE_LIMITED", "Too many tries for this student; try again in 15 minutes", { reasonCodes: ["RATE_LIMITED"] });
+    }
     throw new HttpProblem(503, "SCHOOL_DIRECTORY_UNAVAILABLE", "The school directory is not answering; try again shortly");
   }
-  const parsed = schema.safeParse(body);
+  const parsed = schema.safeParse(res);
   if (!parsed.success) throw new HttpProblem(502, "SCHOOL_DIRECTORY_INVALID", "The school directory sent something unexpected");
   return parsed.data;
 }
@@ -74,11 +93,17 @@ export async function listSchools(q: string): Promise<SchoolDto[]> {
   return r.schools.map(toSchoolDto);
 }
 
-async function schoolWithInvoices(schoolId: string, studentId: string) {
-  const r = await directory(
-    `/schools/${encodeURIComponent(schoolId)}/invoices?studentId=${encodeURIComponent(studentId)}`,
-    z.object({ school: DirectorySchool, invoices: z.array(DirectoryInvoice) }),
-  );
+/**
+ * The school and this student's invoices. With `dateOfBirth` the school's portal confirms the student first (POST);
+ * without it Kassa reads as itself (signed GET), which only a student it may already read can use (see top).
+ */
+async function schoolWithInvoices(schoolId: string, studentId: string, dateOfBirth?: string) {
+  const id = encodeURIComponent(schoolId);
+  const schema = z.object({ school: DirectorySchool, invoices: z.array(DirectoryInvoice) });
+  const r =
+    dateOfBirth === undefined
+      ? await directory(`/schools/${id}/invoices?studentId=${encodeURIComponent(studentId)}`, schema)
+      : await directory(`/schools/${id}/invoices`, schema, { studentId, dateOfBirth });
   // Only this student's invoices, in the school's own currency (what the recipient will be paid in).
   return { school: r.school, invoices: r.invoices.filter((i) => i.studentId === studentId && i.currency === r.school.currency) };
 }
@@ -102,17 +127,35 @@ async function existingPayee(userId: string, school: DirectorySchool, studentId:
  * `ownSchoolIdentifiers`). A seeded student ID typed in "Find your school" (the portal's example, the demo script)
  * means the copy's own, so no copy can see or pay another's invoice through it.
  */
-async function ownStudentId(userId: string, studentId: string): Promise<string> {
-  if (!judgeModeActive()) return studentId;
+async function ownStudentId(userId: string, studentId: string): Promise<{ studentId: string; own: boolean }> {
   const id = studentId.trim().toUpperCase();
   const seed = await loadSeedData();
-  const seeded = [seed, ...(seed.personas ?? [])].some((u) => u.payees.some((p) => p.details?.category === "TUITION" && p.details.studentId.toUpperCase() === id));
-  return seeded ? judgeCopyStudentId(id, userId) : studentId;
+  const seededIds = [seed, ...(seed.personas ?? [])].flatMap((u) => u.payees.flatMap((p) => (p.details?.category === "TUITION" ? [p.details.studentId.toUpperCase()] : [])));
+  if (judgeModeActive()) {
+    if (seededIds.includes(id)) return { studentId: judgeCopyStudentId(id, userId), own: true };
+    if (seededIds.some((s) => judgeCopyStudentId(s, userId) === id)) return { studentId: id, own: true };
+  }
+  // Another reviewer's copy: it has the seeded student's date of birth (which the demo script prints), so it is
+  // refused outright, the same way as a wrong date.
+  if (seededIds.some((s) => judgeCopySuffixOf(id, s))) throw notVerified();
+  return { studentId, own: false };
 }
 
-export async function lookup(userId: string, schoolId: string, studentIdRaw: string): Promise<SchoolLookupResponse> {
-  const studentId = await ownStudentId(userId, studentIdRaw);
-  const { school, invoices } = await schoolWithInvoices(schoolId, studentId);
+/** The student's invoices once the school confirmed them (or the judge copy's own, which needs no confirmation). */
+async function confirmedStudent(userId: string, schoolId: string, studentIdRaw: string, dateOfBirth: string | undefined) {
+  const { studentId, own } = await ownStudentId(userId, studentIdRaw);
+  if (own) return { studentId, ...(await schoolWithInvoices(schoolId, studentId)) };
+  if (!dateOfBirth) throw notVerified();
+  const hit = await incrCounter("budget:school-proof", userId, 3_600_000);
+  if (hit.current > SCHOOL_PROOF_TRIES_PER_HOUR) {
+    const minutes = Math.max(1, Math.ceil(hit.ttl / 60_000));
+    throw new HttpProblem(429, "RATE_LIMITED", `Too many tries; try again in ${minutes} minutes`, { reasonCodes: ["RATE_LIMITED"] });
+  }
+  return { studentId, ...(await schoolWithInvoices(schoolId, studentId, dateOfBirth)) };
+}
+
+export async function lookup(userId: string, schoolId: string, studentIdRaw: string, dateOfBirth?: string): Promise<SchoolLookupResponse> {
+  const { studentId, school, invoices } = await confirmedStudent(userId, schoolId, studentIdRaw, dateOfBirth);
   return { school: toSchoolDto(school), invoices: invoices.map(toInvoiceDto), existingPayeeId: (await existingPayee(userId, school, studentId))?.id ?? null };
 }
 
@@ -134,15 +177,14 @@ async function importInvoices(userId: string, payeeId: string, invoices: z.infer
   return created;
 }
 
-export async function linkSchool(userId: string, schoolId: string, studentIdRaw: string): Promise<SchoolLinkResponse> {
-  const studentId = await ownStudentId(userId, studentIdRaw);
-  const { school, invoices } = await schoolWithInvoices(schoolId, studentId);
+export async function linkSchool(userId: string, schoolId: string, studentIdRaw: string, dateOfBirth?: string): Promise<SchoolLinkResponse> {
+  const { studentId, school, invoices } = await confirmedStudent(userId, schoolId, studentIdRaw, dateOfBirth);
   let payee = await existingPayee(userId, school, studentId);
   if (payee) {
     const d = readDetails(payee);
     if (d?.category === "TUITION" && d.portalSchoolId !== school.id) {
       // Added by hand to the same account: remember the school so its portal and invoices are one tap away.
-      payee = await updatePayeeDetails(userId, payee.id, { ...d, portalSchoolId: school.id, term: d.term ?? school.term });
+      payee = await updatePayeeDetails(userId, payee.id, { ...d, term: d.term ?? school.term }, { portalSchoolId: school.id });
     }
   } else {
     const details: RecipientDetails = { category: "TUITION", studentId, term: invoices[0]?.term ?? school.term, portalSchoolId: school.id };

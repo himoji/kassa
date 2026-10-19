@@ -108,3 +108,35 @@ export function useMoneyFromHome() {
     onSettled: () => Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
 }
+
+const RunDuePaymentsBody = z.object({
+  today: z.string(),
+  dueBy: z.string(),
+  results: z.array(
+    z.object({
+      obligationId: z.string(),
+      category: z.string(),
+      dueDate: z.string(),
+      outcome: z.enum(["PROPOSED", "PAID", "PENDING", "TRIED"]),
+      proposalId: z.string().nullable(),
+      decision: z.enum(["AUTO", "ASK", "REFUSE", "HANDOFF"]).nullable(),
+      reasonCodes: z.array(z.string()),
+      paymentStatus: z.string().nullable(),
+    })
+  ),
+});
+export type RunDuePaymentsResponse = z.infer<typeof RunDuePaymentsBody>;
+
+/**
+ * POST /demo/run-due-payments: the scheduler's due-bills pass now, for this user's own account (judge build and dev
+ * sessions). A bill inside a signed mandate is paid without a prompt; anything else waits for the passkey.
+ */
+export function useRunDuePayments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.request("/demo/run-due-payments", { json: {}, schema: RunDuePaymentsBody }),
+    // Bills roll, payments and approvals appear: refresh everything.
+    onSettled: () => qc.invalidateQueries(),
+  });
+}

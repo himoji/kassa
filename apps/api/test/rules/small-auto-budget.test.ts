@@ -13,7 +13,7 @@ import { clock } from "../../src/modules/clock/index.ts";
 import { executeApproval } from "../../src/modules/payments/index.ts";
 import { proposeOrder } from "../../src/modules/rules/index.ts";
 import { setSanctionsListForTests } from "../../src/modules/screening/index.ts";
-import { addPayee, createUserWithPasskey, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
+import { addPayee, addPriorPayment, createUserWithPasskey, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { forgeSignedApproval } from "../helpers/forge.ts";
 import { useTestDb } from "../helpers/db.ts";
 
@@ -23,6 +23,7 @@ async function smartUserWithShop() {
   const { userId, auth } = await createUserWithPasskey({ preset: "SMART", moneyMode: "CAPPED_WALLET" });
   await signBaseRules(userId, auth); // small-auto limit ₸10,000 (DEFAULT_CAPS.smallAutoMinor = 1,000,000)
   const shop = await addPayee(userId, { name: "Corner Shop in Budapest", kind: "MERCHANT", currency: "KZT" });
+  await addPriorPayment(userId, shop.id); // a known shop: the first payment to a payee always asks
   return { userId, auth, shop };
 }
 
@@ -51,7 +52,7 @@ describe("X3 per-day small-auto budget", () => {
       expect(d.decision).toBe("ASK");
       expect(d.reasonCodes).toContain("SMALL_AUTO_BUDGET_EXHAUSTED");
     }
-    expect(await getDb().select().from(payments)).toHaveLength(3);
+    expect(await getDb().select().from(payments)).toHaveLength(4); // 3 today + the earlier one
   });
 
   it("the daily amount budget binds before the count (₸9,000 + ₸9,000, then ₸3,000 > ₸20,000)", async () => {
@@ -76,9 +77,9 @@ describe("X3 per-day small-auto budget", () => {
   it("payments enforces the budget itself: a 4th small-auto approval signed by a buggy rules is refused", async () => {
     const { userId, shop } = await smartUserWithShop();
     for (let i = 0; i < 3; i++) await proposeOrder({ userId, createdBy: "AGENT", payeeId: shop.id, amountMinor: 500_000, currency: "KZT", purpose: `Snack ${i}`, rail: "BANK_TRANSFER" });
-    expect(await getDb().select().from(payments)).toHaveLength(3);
+    expect(await getDb().select().from(payments)).toHaveLength(4); // 3 today + the earlier one
     const { approvalId } = await forgeSignedApproval(shop, { amountMinor: 500_000, currency: "KZT", homeAmountMinor: 500_000 });
     expect((await executeApproval(approvalId)).reasonCodes).toEqual(["SMALL_AUTO_BUDGET_EXHAUSTED"]);
-    expect(await getDb().select().from(payments)).toHaveLength(3);
+    expect(await getDb().select().from(payments)).toHaveLength(4); // 3 today + the earlier one
   });
 });

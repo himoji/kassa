@@ -16,6 +16,7 @@ import { profiles } from "../../db/schema.ts";
 import { ensureWalletProfile, userByKassaId } from "../wallet/service.ts";
 import { bankCall, bankMode, simulateNextWiseState, WiseError, wiseSandboxProfile } from "./bankApi.ts";
 import { MockWorldError } from "./http.ts";
+import { referenceForOrder } from "./reference.ts";
 import type { ExecCtx, Rail, RailResult } from "./types.ts";
 
 /** Wise transfer states → our PaymentStatus (ISO 20022 pain.002 semantics: ACSP→PROCESSING, ACSC→SENT). */
@@ -195,7 +196,9 @@ export const mockBankRail: Rail = {
       }
       throw err;
     }
-    const reference = order.purpose.slice(0, 35);
+    // (2026-10-19) The bill's own reference and the payee's identifiers first, the model-written purpose only after
+    // (rails/reference.ts): a school matches the payment by the invoice reference, which must arrive whole.
+    const reference = await referenceForOrder(ctx.db, order);
     const transfer = await bankCall<{ id: string | number; status?: string }>("POST", `/v1/transfers`, {
       targetAccount: recipient.id,
       quoteUuid: quote.id,

@@ -266,7 +266,7 @@ describe("the planner proposes a conversion; the turn ends with the signed order
     useFakeBank();
   });
 
-  it("propose_order kind CONVERT → an ASK conversion, signedOrder in the tool result, and the order line appended to the reply", async () => {
+  it("propose_order kind CONVERT → an ASK conversion, orderLine in the tool result and on the card (\"Order to sign\"), not repeated in the app's reply", async () => {
     const { userId } = await dana();
     const planner = scriptedPlanner((n) =>
       n === 0
@@ -278,11 +278,15 @@ describe("the planner proposes a conversion; the turn ends with the signed order
     expect(r.ctx.proposals[0]).toMatchObject({ decision: "ASK", reasonCodes: ["CONVERT_OWN_BALANCES"] });
     const line = r.ctx.orderLines![0]!;
     expect(line).toContain("convert from your KZT balance into EUR 2,100.50");
-    // The model's text names the wrong balance; the signed order follows it, verbatim, in the same reply.
+    // (2026-10-19) Not signed yet: worded as an order to sign.
+    expect(line.startsWith("Order to sign: ")).toBe(true);
+    expect(line).not.toContain("Signed order");
+    // The model's text names the wrong balance; the card under the reply carries the order, so the app's reply does
+    // not repeat it as text (it did twice before: the card's block and an appended text part).
     expect(r.text).toContain("from your USD balance");
-    expect(r.text.endsWith(orderFactsText([line]))).toBe(true);
-    const card = r.emitted.find((c) => c.type === "data-proposal") as { data: { kind?: string; orderLine?: string; funding?: { currency: string } } } | undefined;
-    expect(card?.data).toMatchObject({ kind: "CONVERT", orderLine: line, funding: { currency: "KZT" } });
+    expect(r.text).not.toContain(orderFactsText([line]));
+    const card = r.emitted.find((c) => c.type === "data-proposal") as { data: { kind?: string; orderLine?: string; orderFacts?: unknown; funding?: { currency: string } } } | undefined;
+    expect(card?.data).toMatchObject({ kind: "CONVERT", orderLine: line, funding: { currency: "KZT" }, orderFacts: { stance: "TO_SIGN", rail: "CONVERT", linkedAccount: false, conversion: { fromCurrency: "KZT", toCurrency: "EUR", amountMinor: 210_050 } } });
   });
 
   it("a payment without payeeRef is answered with an error, never a proposal", async () => {

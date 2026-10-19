@@ -149,6 +149,20 @@ export function itemsOf(items: unknown[] | undefined): ItemLike[] {
 }
 
 /** Executed history to a payee: count + per-item price and quantity history. */
+/**
+ * (2026-10-19) Completed payments to this payee: payment rows SENT for a proposal of this user to this payee. Read by
+ * code from the database, never from the planner: a payee the user has never completed a payment to is not paid
+ * automatically under the small-auto limit (decide step 9, FIRST_PAYMENT_TO_PAYEE).
+ */
+export async function completedPaymentsToPayee(db: DbOrTx, userId: string, payeeId: string): Promise<number> {
+  const rows = await db
+    .select({ n: sql<string>`count(*)` })
+    .from(payments)
+    .innerJoin(proposals, eq(proposals.id, payments.proposalId))
+    .where(and(eq(payments.userId, userId), eq(proposals.userId, userId), eq(payments.status, "SENT"), sql`${proposals.draft}->>'payeeId' = ${payeeId}`));
+  return Number(rows[0]?.n ?? 0);
+}
+
 export async function payeeHistory(db: DbOrTx, userId: string, payeeId: string) {
   const rows = await db
     .select({ draft: proposals.draft })

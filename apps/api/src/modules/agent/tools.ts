@@ -18,6 +18,7 @@ import {
   GetBudgetInput,
   GetObligationsInput,
   GetPayeeFactsInput,
+  GetPaymentsInput,
   GetProfileSummaryInput,
   GetRoutesInput,
   LogExpenseInput,
@@ -41,11 +42,11 @@ import { historyLines } from "../dataport/notes.ts";
 import { rates, type RateSource } from "../fx/rates.ts";
 import { convertMinor } from "../fx/rational.ts";
 import type { ReaderResult } from "../reader/index.ts";
-import type { AgentPorts, MaxPayableRow, PayeeRow } from "./ports.ts";
+import type { AgentPorts, MaxPayableRow, PayeeRow, PaymentRow } from "./ports.ts";
 import type { RedactContext, Redactor } from "./redact.ts";
 
 /*
- * The planner's 11 tools (spec §9). Every output is redacted (I11) before it can reach the model;
+ * The planner's 11 tools (spec §9), plus read-only ones (READ_TOOLS) and the ask_* UI tools. Every output is redacted (I11) before it can reach the model;
  * payees are only ever exposed as `payee_N` placeholders. `propose_order` (and, for a business, `propose_purchase_order`)
  * are the only tools that create an order or payment (I1); `propose_order` goes to rules.proposeOrder, which decides.
  * Other tools also write, but never move money: `log_expense` records spending (I6) and `read_document` stores the
@@ -140,6 +141,7 @@ export type ToolName =
   | "get_fx_rate"
   | "get_spending_summary"
   | "get_money_history"
+  | "get_payments"
   | "ask_choice"
   | "ask_amount"
   | "ask_budgets"
@@ -147,7 +149,7 @@ export type ToolName =
   | "ask_confirm";
 
 /** Read-only tools added on top of the spec's eleven; never part of proposal gating. */
-export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate", "get_spending_summary", "get_money_history"];
+export const READ_TOOLS: readonly ToolName[] = ["get_fx_rate", "get_spending_summary", "get_money_history", "get_payments"];
 
 /** UI tools: each emits a `data-choices` part and ends the turn (loop.ts stopWhen). */
 export const UI_TOOLS: readonly ToolName[] = ["ask_choice", "ask_amount", "ask_budgets", "ask_date", "ask_confirm"];
@@ -264,6 +266,16 @@ export async function choicesForUser(part: DataChoices, forUser: (s: string) => 
 
 const STATUS_RANK: Record<PayeeRow["status"], number> = { VERIFIED: 0, COOLING: 1, BLOCKED: 2 };
 
+/** One status per order for get_payments: the payment's when there is one, else where the order stands. */
+export function paymentStatusOf(r: Pick<PaymentRow, "decision" | "proposalStatus" | "paymentStatus">): string {
+  if (r.decision === "REFUSE" || r.proposalStatus === "REFUSED") return "REFUSED";
+  if (r.paymentStatus === "SENT") return "SENT";
+  if (r.paymentStatus === "CREATED" || r.paymentStatus === "PROCESSING") return "PROCESSING";
+  if (r.paymentStatus === "FAILED" || r.paymentStatus === "CANCELED") return r.paymentStatus;
+  if (r.proposalStatus === "PENDING_APPROVAL") return "AWAITING_APPROVAL";
+  return r.proposalStatus;
+}
+
 /** The only tool allowed to change state (I1). log_expense only records spending (I6). */
 export const WRITE_TOOLS: readonly ToolName[] = ["propose_order"];
 
@@ -370,9 +382,10 @@ export function buildTools(ctx: ToolContext): ToolSet {
     };
 
   /**
-   * A proposal rules created: recorded for the turn, its card shown, and (2026-10-18) its signed order in one sentence
-   * built from the canonical order (`signedOrder`), which the model must quote and the turn appends verbatim
-   * (turn-summary.ts), so the funding source the user reads is the signed one.
+   * A proposal rules created: recorded for the turn, its card shown, and (2026-10-18) its order in one sentence built
+   * from the canonical order (`orderLine`, worded by decision: "Order to sign: …" for ASK, "Paid under your mandate: …"
+   * for an executed AUTO; none for REFUSE), which the model quotes amounts and the funding balance from. The card shows
+   * the same sentence; channels without cards get it appended to the reply (turn-summary.ts).
    */
   const proposed = async (result: ProposeOrderResult) => {
     ctx.proposals.push(result);
@@ -383,9 +396,9 @@ export function buildTools(ctx: ToolContext): ToolSet {
     const card = await ports.proposalCard(result.proposalId);
     if (card.summary) ctx.emit({ type: "data-proposal", id: result.proposalId, data: card.summary });
     if (card.budgetImpact) ctx.emit({ type: "data-budget-impact", id: `impact-${result.proposalId}`, data: card.budgetImpact });
-    const signedOrder = card.summary?.orderLine ?? null;
-    if (signedOrder && result.decision !== "REFUSE") (ctx.orderLines ??= []).push(signedOrder);
-    return { ...result, signedOrder };
+    const orderLine = result.decision === "REFUSE" ? null : (card.summary?.orderLine ?? null);
+    if (orderLine) (ctx.orderLines ??= []).push(orderLine);
+    return { ...result, orderLine };
   };
 
   const personal = {
@@ -430,16 +443,19 @@ export function buildTools(ctx: ToolContext): ToolSet {
 
     get_obligations: tool({
       description:
-        "Upcoming bills with payee placeholders and verified facts, and whether the wallet can pay each (coverage): COVERED (one balance pays it; fundedFrom), CONVERTIBLE (convert first: conversions lists each CONVERT to propose), SHORTFALL (not even together) or UNKNOWN.",
+        "Upcoming bills with payee placeholders and verified facts. status says where the bill's current period stands: DUE (nothing paid yet), AWAITING_APPROVAL (an order waits for the user's passkey), IN_FLIGHT (approved, payment on its way) or PAID (delivered, paidAt). Only a DUE or AWAITING_APPROVAL bill has coverage: COVERED (one balance pays it; fundedFrom), CONVERTIBLE (convert first: conversions lists each CONVERT to propose), SHORTFALL (not even together) or UNKNOWN. A recurring bill whose period is settled shows nextDueDate.",
       inputSchema: GetObligationsInput,
       execute: safe(async ({ withinDays }) => {
         const payees = await allPayees();
         const obs = await ports.obligations(withinDays);
         const home = (await ports.profile()).homeCurrency;
-        const coverage = ports.obligationCoverage ? await ports.obligationCoverage(obs.map((o) => o.id)).catch(() => null) : null;
+        // (2026-10-19) Paid and in-flight periods are said so, never offered as bills to pay (obligations/status.ts).
+        const states = ports.obligationStates ? await ports.obligationStates(obs).catch(() => null) : null;
+        const coverage = ports.obligationCoverage ? await ports.obligationCoverage(obs.filter((o) => !states?.get(o.id)?.settled).map((o) => o.id)).catch(() => null) : null;
         const rows = [];
         for (const o of obs) {
-          const cov = coverage?.get(o.id);
+          const state = states?.get(o.id);
+          const cov = state?.settled ? undefined : coverage?.get(o.id);
           const p = payees.find((x) => x.id === o.payeeId);
           const row = {
             obligationId: o.id,
@@ -453,6 +469,15 @@ export function buildTools(ctx: ToolContext): ToolSet {
             recurrence: o.recurrence,
             reference: o.reference,
             category: o.category,
+            status: state?.status ?? "DUE",
+            ...(state && state.status !== "DUE"
+              ? {
+                  proposalId: state.proposalId,
+                  ...(state.paymentId ? { paymentId: state.paymentId, paymentStatus: state.paymentStatus } : {}),
+                  ...(state.paidAt ? { paidAt: state.paidAt } : {}),
+                  ...(state.nextDueDate ? { nextDueDate: state.nextDueDate } : {}),
+                }
+              : {}),
             ...(cov
               ? {
                   coverage: cov.coverage,
@@ -467,6 +492,39 @@ export function buildTools(ctx: ToolContext): ToolSet {
           rows.push(withMoney(row, { currency: o.currency, home }));
         }
         return { homeCurrency: home, obligations: rows };
+      }),
+    }),
+
+    get_payments: tool({
+      description:
+        "The user's most recent orders and payments, newest first: status (AWAITING_APPROVAL, PROCESSING, SENT, FAILED, CANCELED, REJECTED, REFUSED, EXPIRED, APPROVED, HANDOFF), amount, payee placeholder, the bill it pays (obligationId, period), how it was approved (MANDATE, SMALL_PAYMENT_LIMIT, PASSKEY) and when. Read-only. Check it before telling the user a bill is unpaid or a payment did not go through.",
+      inputSchema: GetPaymentsInput,
+      execute: safe(async ({ limit }) => {
+        if (!ports.recentPayments) return { error: "PAYMENTS_UNAVAILABLE", message: "Payment history is not available here" };
+        const [rows, home] = await Promise.all([ports.recentPayments(limit ?? 10), ports.profile().then((p) => p.homeCurrency)]);
+        return {
+          homeCurrency: home,
+          payments: rows.map((r) =>
+            withMoney(
+              {
+                proposalId: r.proposalId,
+                kind: r.kind,
+                status: paymentStatusOf(r),
+                ...(r.kind === "CONVERT" ? {} : { payeeRef: ref(r.payeeId) }),
+                amountMinor: r.amountMinor,
+                currency: r.currency,
+                category: r.category,
+                decision: r.decision,
+                approvedBy: r.approvedBy,
+                bill: r.obligationId ? { obligationId: r.obligationId, period: r.obligationPeriod } : null,
+                paymentId: r.paymentId,
+                proposedAt: r.createdAt,
+                ...(r.paymentStatus === "SENT" && r.paymentUpdatedAt ? { deliveredAt: r.paymentUpdatedAt } : {}),
+              },
+              { currency: r.currency },
+            ),
+          ),
+        };
       }),
     }),
 
@@ -664,7 +722,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
 
     propose_order: tool({
       description:
-        "Propose a payment (kind PAY, the default) or a conversion between the user's own balances (kind CONVERT: buy amountMinor of currency from fromCurrency, no payee). The recipient's own reference (a student ID for tuition, a customer number for a bill) is added to the purpose by the server. The rules engine decides AUTO / ASK / HANDOFF / REFUSE (a conversion always asks for the passkey); you never pay. payeeRef must be a payee placeholder. The result's signedOrder is the exact order the user signs: quote the funding balance and amounts only from it.",
+        "Propose a payment (kind PAY, the default) or a conversion between the user's own balances (kind CONVERT: buy amountMinor of currency from fromCurrency, no payee). The recipient's own reference (a student ID for tuition, a customer number for a bill) is added to the purpose by the server. The rules engine decides AUTO / ASK / HANDOFF / REFUSE (a conversion always asks for the passkey); you never pay. payeeRef must be a payee placeholder. The result's orderLine is the order exactly as built (to sign, or already paid under a mandate or the small-payment limit): quote the funding balance and amounts only from it.",
       inputSchema: ProposeOrderInput,
       execute: safe(async (input) => {
         const names = new Map((await allPayees()).map((p) => [p.id, p.name]));

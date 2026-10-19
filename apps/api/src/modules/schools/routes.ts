@@ -16,11 +16,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   }));
 
   app.post("/schools/:id/lookup", { schema: { params: SchoolId, body: SchoolStudentRequest, response: { 200: SchoolLookupResponse } } }, async (req) =>
-    lookup(userIdOf(req), req.params.id, req.body.studentId),
+    lookup(userIdOf(req), req.params.id, req.body.studentId, req.body.dateOfBirth),
   );
 
   app.post("/schools/:id/link", { schema: { params: SchoolId, body: SchoolStudentRequest, response: { 200: SchoolLinkResponse } } }, async (req) =>
-    linkSchool(userIdOf(req), req.params.id, req.body.studentId),
+    linkSchool(userIdOf(req), req.params.id, req.body.studentId, req.body.dateOfBirth),
   );
 
   app.post("/payees/:id/school-invoices", { schema: { params: z.object({ id: z.string().uuid() }), response: { 200: SchoolLinkResponse } } }, async (req) =>

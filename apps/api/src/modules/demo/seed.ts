@@ -42,6 +42,7 @@ import { ledger } from "../ledger/index.ts";
 import { clearDekCache } from "../privacy/keys.ts";
 import { accountHash, encryptAccount, encryptDetails, normalizeAccount } from "../payees/crypto.ts";
 import { DEFAULT_CAPS } from "../users/service.ts";
+import { seedAccountHistory, type SeedHistory } from "./judgeCopy.ts";
 
 type SeedCaps = { perPaymentMinor: number; perDayMinor: number; perMonthMinor: number; smallAutoMinor: number; reserveMinor: number };
 
@@ -86,6 +87,8 @@ export type SeedData = {
   balances?: readonly { currency: string; amountMinor: number }[];
   /** Mandates the user signs during onboarding (never inserted by the seed: they need a passkey signature). */
   mandates?: readonly { label: string; core: MandateCore }[];
+  /** (added 2026-10-19) Simulated account history before the seed day (demo/judgeCopy.ts seedAccountHistory). */
+  history?: SeedHistory;
   /** (added 2026-10-16) Linked cards and bank accounts, inserted ACTIVE (simulated). */
   fundingSources?: readonly { id: string; kind: "CARD" | "BANK"; provider: "STRIPE" | "MOCK_BANK"; institution: string; last4: string; country: string; currency: string; providerRef: string }[];
   user: { id: string; displayName: string; homeCurrency: string; region: "EU" | "CN"; preset: "ASK_ME" | "SMART" | "AUTOPILOT"; moneyMode: "PAY_IN_PLACE" | "CAPPED_WALLET" | "HANDOFF"; createdAt: string };
@@ -333,6 +336,8 @@ export async function seedDatabase(
       transactions: d.transactions.length,
     });
   }
+  // The months before the seed day (simulated, one ledger entry per user that has them).
+  for (const d of [data as SeedUserData, ...personas]) if (d.history) await seedAccountHistory(d.user.id, d.history, new Date(data.seedNow));
   return { userId: u.id, personaUserIds: personas.map((p) => p.user.id) };
 }
 

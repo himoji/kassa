@@ -19,6 +19,7 @@ import { sealPii } from "../privacy/keys.ts";
 import { toHome } from "../money/fx.ts";
 import { updatePaymentStatus } from "../payments/status.ts";
 import { normalizeName } from "../screening/normalize.ts";
+import { debitWalletForCard, type CardDebitOutcome } from "./cardFunding.ts";
 import type { ExecCtx, Rail, RailResult } from "./types.ts";
 
 export const CARD_TTL_MS = 15 * MINUTE_MS;
@@ -108,18 +109,28 @@ export const issuingRail: Rail = {
   },
 };
 
-export type AuthorizationRequest = { cardId: string; amountMinor: number; currency: string; merchantName: string };
+export type AuthorizationRequest = {
+  cardId: string;
+  amountMinor: number;
+  currency: string;
+  merchantName: string;
+  /** The issuer's authorization id (FakeIssuing body / Stripe iauth_...): the wallet debit's idempotency key. */
+  authorizationId?: string | undefined;
+};
 export type AuthorizationDecision = { approved: boolean; reasonCode: ReasonCode | null; paymentId: string | null };
 
 /**
  * Decide an authorization. On approval the card is marked used immediately (single use: a second
- * authorization is declined CARD_ALREADY_USED even before the transaction settles).
+ * authorization is declined CARD_ALREADY_USED even before the transaction settles). (2026-10-19) After every card
+ * check passes, the wallet pays the charge (cardFunding.ts); a balance short of it declines INSUFFICIENT_FUNDS, a bank
+ * failure RAIL_ERROR, and nothing is debited.
  */
 export async function authorizeCardUse(req: AuthorizationRequest): Promise<AuthorizationDecision> {
   const db = getDb();
   const now = clock.now();
   const card = (await db.select().from(issuedCards).where(eq(issuedCards.stripeCardId, req.cardId)))[0];
   let reason: ReasonCode | null = null;
+  let funding: CardDebitOutcome | null = null;
   if (!card) reason = "NO_APPROVAL";
   else if (card.usedAt) reason = "CARD_ALREADY_USED";
   else if (card.canceledAt || card.expiresAt.getTime() <= now.getTime()) reason = "CARD_EXPIRED";
@@ -136,6 +147,23 @@ export async function authorizeCardUse(req: AuthorizationRequest): Promise<Autho
       .where(and(eq(issuedCards.stripeCardId, card.stripeCardId), isNull(issuedCards.usedAt)))
       .returning({ id: issuedCards.stripeCardId });
     if (won.length === 0) reason = "CARD_ALREADY_USED";
+    else {
+      // (2026-10-19) The charge is paid from the user's wallet: approved only once the mock bank has debited it
+      // (idempotent per authorization). Short or failed: declined, and the card is released so it can still be used
+      // before it expires once the wallet covers it.
+      funding = await debitWalletForCard({
+        userId: card.userId,
+        cardId: card.stripeCardId,
+        authorizationId: req.authorizationId ?? `card:${card.stripeCardId}`,
+        amountMinor: req.amountMinor,
+        currency: card.currency,
+      });
+      if (funding.kind === "INSUFFICIENT" || funding.kind === "FAILED") {
+        reason = funding.kind === "INSUFFICIENT" ? "INSUFFICIENT_FUNDS" : "RAIL_ERROR";
+        // This authorization holds the claim (usedAt set above), so no other one can have used the card meanwhile.
+        await db.update(issuedCards).set({ usedAt: null }).where(eq(issuedCards.stripeCardId, card.stripeCardId));
+      }
+    }
   }
   const approved = reason === null;
   await ledger.append("CARD_AUTHORIZATION", {
@@ -148,6 +176,10 @@ export async function authorizeCardUse(req: AuthorizationRequest): Promise<Autho
     ...(card?.userId ? await sealPii(card.userId, { merchantNorm: normalizeMerchant(req.merchantName) }) : { merchantNorm: normalizeMerchant(req.merchantName) }),
     approved,
     reasonCodes: reason ? [reason] : [],
+    ...(req.authorizationId ? { authorizationId: req.authorizationId } : {}),
+    // What left the wallet (the funding balance, converted when it differs from the card currency).
+    ...(funding?.kind === "DEBITED" ? { walletDebit: { currency: funding.currency, amountMinor: funding.amountMinor, replayed: !funding.created } } : {}),
+    ...(funding?.kind === "FAILED" ? { walletDebitError: funding.error } : {}),
   });
   return { approved, reasonCode: reason, paymentId: card?.paymentId ?? null };
 }

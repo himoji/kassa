@@ -17,7 +17,8 @@
     "kek:rotate": "bun scripts/rotate-kek.ts",
     "eval:invoices": "bun scripts/eval-invoices.ts",
     "ledger:anchor": "bun scripts/ledger-anchor.ts",
-    "ledger:anchor:verify": "bun scripts/ledger-anchor-verify.ts"
+    "ledger:anchor:verify": "bun scripts/ledger-anchor-verify.ts",
+    "credit:verify": "bun scripts/credit-verify.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.93",

@@ -24,5 +24,12 @@
   "convertPlan": "Convert {{steps}} first, then pay.",
   "convertStep": "{{amount}} from {{from}}",
   "convertStepJoin": ", ",
-  "convertGeneric": "No single balance pays this, but converting between your balances does. Convert first, then pay."
+  "convertGeneric": "No single balance pays this, but converting between your balances does. Convert first, then pay.",
+  "periodStatus": {
+    "PAID": "Paid {{date}}",
+    "IN_FLIGHT": "Payment pending",
+    "AWAITING_APPROVAL": "Waiting for your approval"
+  },
+  "nextDue": "Next due {{date}}",
+  "inFlightBody": "The payment is on its way; this bill is not counted again."
 }
