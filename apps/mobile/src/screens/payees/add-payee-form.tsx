@@ -12,7 +12,7 @@ import { useCreatePayee } from "@/api/hooks/payees";
 import { errorText } from "@/components/kassa/error-text";
 import { SettingPicker } from "@/components/kassa/native-controls";
 import { Segmented } from "@/components/kassa/segmented";
-import { Box, Button, Card, Icon, Input, Sheet, Text, toast } from "@/components/ui";
+import { Box, Button, Card, Icon, Input, Text, toast } from "@/components/ui";
 import { countryOptions } from "@/lib/countries";
 import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
@@ -57,12 +57,10 @@ const PROBLEM_FIELD: Record<string, FieldKey> = {
  * Each field is checked here as on the server (shared/payeeAccount.ts, shared/recipient.ts), so a typo is caught
  * before the 24-hour cooling period starts.
  */
-export function AddPayeeSheet({
-  visible,
+export function AddPayeeForm({
   onClose: close,
   initialCategory = null,
 }: {
-  visible: boolean;
   onClose: () => void;
   /** Skip the category step (opened from a category tab). */
   initialCategory?: RecipientCategory | null;
@@ -172,9 +170,9 @@ export function AddPayeeSheet({
   const schemeLabel = (s: PayoutScheme) => t(`payees:scheme.${s}.short`);
 
   return (
-    <Sheet visible={visible} onClose={onClose} detents={["full"]}>
+    <>
       {category === null ? (
-        <Box p={5} gap={4}>
+        <Box gap={4}>
           <Box gap={1}>
             <Text variant="heading">{t("payees:add.pickCategory")}</Text>
             <Text variant="caption">{t("payees:add.coolingNote")}</Text>
@@ -185,7 +183,7 @@ export function AddPayeeSheet({
           </Button>
         </Box>
       ) : category === "TUITION" && !manualTuition ? (
-        <Box p={5} gap={4}>
+        <Box gap={4}>
           <Box gap={1}>
             <Text variant="heading">{t("payees:school.title")}</Text>
             <Text variant="caption">{t("payees:school.body")}</Text>
@@ -196,11 +194,8 @@ export function AddPayeeSheet({
           </Button>
         </Box>
       ) : (
-        <Box p={5} gap={4}>
-          <Box gap={1}>
-            <Text variant="heading">{t("payees:add.title")}</Text>
-            <Text variant="caption">{t("payees:add.coolingNote")}</Text>
-          </Box>
+        <Box gap={4}>
+          <Text variant="caption">{t("payees:add.coolingNote")}</Text>
 
           <Pressable
             onPress={() => setCategory(null)}
@@ -378,6 +373,6 @@ export function AddPayeeSheet({
           </Button>
         </Box>
       )}
-    </Sheet>
+    </>
   );
 }

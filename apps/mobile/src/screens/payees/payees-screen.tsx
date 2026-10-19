@@ -1,5 +1,5 @@
 import { suggestedReference, type PayeeDto, type RecipientCategory } from "@kassa/shared";
-import { Link, Stack, useLocalSearchParams } from "expo-router";
+import { type Href, Link, router, Stack, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -11,7 +11,6 @@ import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Box, Card, Icon, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 
-import { AddPayeeSheet } from "./add-payee-sheet";
 import { CATEGORIES, CATEGORY_ICON, ChipRow } from "./recipient-fields";
 
 type Filter = RecipientCategory | "ALL";
@@ -84,7 +83,6 @@ export function PayeesScreen() {
       ? (params.category as RecipientCategory)
       : "ALL"
   );
-  const [adding, setAdding] = useState(false);
 
   return (
     <>
@@ -92,7 +90,11 @@ export function PayeesScreen() {
         options={{
           headerRight: () => (
             <Pressable
-              onPress={() => setAdding(true)}
+              onPress={() =>
+                router.push(
+                  (filter === "ALL" ? "/payees/new" : `/payees/new?category=${filter}`) as Href
+                )
+              }
               accessibilityRole="button"
               accessibilityLabel={t("payees:add.title")}
               style={{
@@ -162,11 +164,6 @@ export function PayeesScreen() {
           }}
         </QueryView>
       </ScrollScreen>
-      <AddPayeeSheet
-        visible={adding}
-        onClose={() => setAdding(false)}
-        initialCategory={filter === "ALL" ? null : filter}
-      />
     </>
   );
 }

@@ -89,6 +89,15 @@ function LiteNavigator() {
             options={{ ...largeTitleOptions, headerShown: true, title: t("payees:title") }}
           />
           <Stack.Screen
+            name="payees/new"
+            options={{
+              ...inlineTitleOptions,
+              headerShown: true,
+              presentation: "modal",
+              title: t("payees:add.title"),
+            }}
+          />
+          <Stack.Screen
             name="payees/[id]"
             options={{ ...inlineTitleOptions, headerShown: true, title: t("payees:detailTitle") }}
           />
