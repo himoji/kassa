@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import { createElement, type ComponentProps } from "react";
 import type { Stack } from "expo-router";
 import { Platform } from "react-native";
 
@@ -33,7 +33,12 @@ export const largeTitleOptions: StackOptions = {
   headerBackButtonDisplayMode: "minimal",
   // Web: the header lines up with the centred content column (ScrollScreen) instead of the window edges.
   ...(process.env.EXPO_OS === "web"
-    ? { header: WebHeader, contentStyle: { width: "100%", maxWidth: 792, alignSelf: "center" } }
+    ? // react-navigation calls `header` as a plain function, so a hook inside it would run in the stack's own
+      // render and change its hook count when a second screen is pushed (React #310). Mount it as an element.
+      {
+        header: (props) => createElement(WebHeader, props),
+        contentStyle: { width: "100%", maxWidth: 792, alignSelf: "center" },
+      }
     : null),
 };
 

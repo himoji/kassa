@@ -200,14 +200,15 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     }
   }
   const recorder = o.record && o.mode === "LIVE" && !o.model && recordedWith !== "replay" ? new StepRecorder() : null;
-  /** The planner model, every call bounded by the budget (timeoutMiddleware is outermost: it bounds retries too). */
+  /** The planner model, every call bounded by the budget (timeoutMiddleware wraps the call and its retries). */
   const bounded = (deadline: (textStarted: boolean) => number): LanguageModel => {
     const middleware: LanguageModelMiddleware[] = [
+      // Outside the timeout: markup it drops is still a chunk the timeout sees, so a model writing a long tool call
+      // as text is not cut off as idle (it was innermost, and such turns ended at the idle cutoff with no answer).
+      toolMarkupMiddleware(),
       timeoutMiddleware({ stepMs: budget.stepMs, idleMs: budget.idleMs, deadline }),
       redactionMiddleware(redactor),
       ...(recorder ? [recorder.middleware()] : []),
-      // Innermost, so the recorder and every caller see the text without tool-call markup.
-      toolMarkupMiddleware(),
     ];
     return typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware });
   };

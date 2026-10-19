@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { useColorScheme } from "react-native";
 
 import { storage } from "@/lib/storage";
@@ -59,5 +60,20 @@ export function useThemeMode(): ThemeMode {
 export function useResolvedMode(): ResolvedMode {
   const mode = useThemeMode();
   const systemScheme = useColorScheme();
+  const hydrated = useHydrated();
+  // Web: the static export is rendered light, and hydration keeps the server's inline colours, so a dark first
+  // client render left light backgrounds under dark-mode text. Light until hydrated, then the real mode.
+  if (process.env.EXPO_OS === "web" && !hydrated) return "light";
   return resolveMode(mode, systemScheme);
+}
+
+const noSubscribe = () => () => {};
+
+/** False while React hydrates server HTML (and on the server), true on every client render after. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false
+  );
 }

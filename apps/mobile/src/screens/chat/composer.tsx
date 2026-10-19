@@ -288,6 +288,21 @@ export function ChatComposer({
             multiline
             maxLength={4000}
             onSubmitEditing={() => onSend(value)}
+            // Web: Enter sends, Shift+Enter adds a line (a multiline input never submits on its own there).
+            onKeyPress={
+              process.env.EXPO_OS === "web"
+                ? (e) => {
+                    const key = e.nativeEvent as unknown as {
+                      key: string;
+                      shiftKey?: boolean;
+                      isComposing?: boolean;
+                    };
+                    if (key.key !== "Enter" || key.shiftKey || key.isComposing) return;
+                    e.preventDefault();
+                    onSend(value);
+                  }
+                : undefined
+            }
             style={{
               flex: 1,
               minHeight: 44,
