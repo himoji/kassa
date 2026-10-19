@@ -23,6 +23,7 @@
     "eval:invoices": "bun run --cwd apps/api eval:invoices",
     "ledger:anchor": "bun run --cwd apps/api ledger:anchor",
     "ledger:anchor:verify": "bun run --cwd apps/api ledger:anchor:verify",
+    "ledger:anchor:keygen": "bun run --cwd apps/api ledger:anchor:keygen",
     "credit:verify": "bun apps/api/scripts/credit-verify.ts",
     "evidence:attacks": "rm -f docs/evidence/attacks.json docs/evidence/naive-baseline.json docs/evidence/tap-confirm-baseline.json && WRITE_EVIDENCE=1 bun run --cwd apps/api vitest run test/attacks test/naive",
     "evidence:live": "bun apps/api/scripts/live-evidence.ts",

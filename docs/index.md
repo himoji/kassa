@@ -38,7 +38,7 @@ features:
     link: /examples/credit-record
     linkText: Issue one
   - title: Everything in the repo
-    details: Self-assessment with tiers T0 to T3 and invariants I1 to I13, GDPR and China compliance mapping, 2,677 tests, sandbox logs and a live-model run.
+    details: Self-assessment with tiers T0 to T3 and invariants I1 to I13, GDPR and China compliance mapping, 2,680 tests, sandbox logs and a live-model run.
     link: /submission/
     linkText: Submission map
 ---

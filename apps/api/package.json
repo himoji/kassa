@@ -18,6 +18,7 @@
     "eval:invoices": "bun scripts/eval-invoices.ts",
     "ledger:anchor": "bun scripts/ledger-anchor.ts",
     "ledger:anchor:verify": "bun scripts/ledger-anchor-verify.ts",
+    "ledger:anchor:keygen": "bun scripts/anchor-keygen.ts",
     "credit:verify": "bun scripts/credit-verify.ts"
   },
   "dependencies": {

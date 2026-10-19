@@ -47,3 +47,6 @@ AGENTS.md
 # documentation site (bun run docs:dev / docs:build)
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Testnet anchor key from `bun run ledger:anchor:keygen`
+.anchor-key

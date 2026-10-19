@@ -52,7 +52,7 @@ A second Vercel project (here `kassa-judge`) with `JUDGE_MODE=true`, `DEMO_ENABL
 - A copy starts with the seeded balances plus this month's money from home (KZT 1,000,000) and a simulated 6-month history (`simulated: true`) that the credit record and the agent read.
 - Its rent, covered by the signed mandate, falls due within the scheduler's 3-day window: the scheduler pays it on the next tick, or at once with Settings → Demo → "Run today's scheduled payments" (`POST /api/demo/run-due-payments`).
 - Settings → Demo → "Parents send money" (`POST /api/demo/money-from-home`) adds KZT 1,000,000, 3 times a day per copy.
-- Optional: `ANCHOR_PRIVATE_KEY` anchors the judge ledger on Sepolia on a schedule ([On-chain anchoring](./on-chain-anchoring.md)).
+- Optional: `ANCHOR_PRIVATE_KEY` anchors the judge ledger on Sepolia on a schedule. `bun run ledger:anchor:keygen` makes the key, then `vercel env add ANCHOR_PRIVATE_KEY production < .anchor-key` and a redeploy ([On-chain anchoring](./on-chain-anchoring.md#turn-it-on-for-a-deployment)).
 
 ## Docker Compose
 

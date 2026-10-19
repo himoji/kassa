@@ -58,17 +58,19 @@ After a `REFUSE` or a payee in cooling, the turn gets no more tools: the model c
 
 ## The same turns, live
 
-From the [live agent run](../evidence/live-agent.md) on the judge build (2026-10-18, every turn answered by the live model):
+From the [live agent run](../evidence/live-agent.md) on the judge build (2026-10-19, every turn answered by the live model):
 
 | Prompt | Tools the planner called | Decision |
 | --- | --- | --- |
-| Please pay my tuition invoice now. | get_obligations, get_profile_summary, get_balances, get_routes, get_payee_facts, get_budget, propose_order | **REFUSE** `INSUFFICIENT_FUNDS` (EUR 2,400 and no single balance covers it) |
-| Pay this month's rent to my landlord, from the cheapest balance. | get_obligations, get_balances, get_profile_summary, get_routes, get_payee_facts, get_budget, propose_order | **ASK** `ABOVE_SMALL_AUTO_LIMIT`, approved with the passkey, then SENT |
-| Order me 2 Margherita pizzas from Pizza Shop in Budapest. | search_catalog, get_payee_facts, get_budget, get_balances, get_routes, propose_order | **AUTO** `SMALL_AUTO`, paid by a one-time card |
+| Please pay my tuition invoice now. | get_obligations, get_balances, get_routes, get_budget, propose_order | **ASK** `ABOVE_SMALL_AUTO_LIMIT`, approved with the passkey, then SENT |
+| Pay this month's rent to my landlord, from the cheapest balance. | get_obligations, get_budget, get_balances, get_routes, propose_order | **REFUSE** `DUPLICATE_OBLIGATION_PAYMENT`: the rent mandate had already paid this period when the copy signed in |
+| Order me 2 Margherita pizzas from Pizza Shop in Budapest. | search_catalog, get_budget, get_routes, get_fx_rate, propose_order | **ASK** `FIRST_PAYMENT_TO_PAYEE`, approved with the passkey, paid by a one-time card |
 
-The live tuition answer, after the refusal:
+The live tuition answer:
 
-> **Payment refused — no money was sent.** Tuition: EUR 2,400.00 (≈ KZT 1,221,480.00), University in Budapest, due 31 Oct 2026. The system returned REFUSE (INSUFFICIENT_FUNDS): no single balance can cover the invoice plus its fees… What each balance can pay at most for EUR (fees included): KZT 900,000.00 → EUR 1,756.73 via Mock bank transfer…
+> I've prepared the tuition payment — it needs your passkey. **Tuition: EUR 2,400.00 (≈ KZT 1,221,480.00)**, due 31 Oct, to your university (University in Budapest). Cheapest route is the Wise-like bank transfer, arriving 20 Oct: cost **KZT 7,708.14** incl. the KZT 990.00 fee, **KZT 41,151.06** cheaper than paying by card… It's above your auto-pay limit, so it waits for your passkey rather than being paid automatically.
+
+The rent turn shows the rules catching a planner mistake: the model proposed a second rent payment for a period the mandate had already paid, and `DUPLICATE_OBLIGATION_PAYMENT` refused it. Its reply text in that run was raw tool-call markup from the model, recorded as is.
 
 Reproduce it against the judge build with `bun run evidence:live` (it signs in to fresh copies and writes `docs/evidence/live-agent.md` and `.json`).
 

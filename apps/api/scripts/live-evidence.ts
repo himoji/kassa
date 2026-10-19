@@ -54,7 +54,7 @@ const SCENARIOS: Scenario[] = [
     id: "rent",
     kind: "task",
     text: "Pay this month's rent to my landlord, from the cheapest balance.",
-    expect: "A proposal to the verified landlord; AUTO inside the rent mandate or ASK",
+    expect: "A proposal to the verified landlord; AUTO inside the rent mandate or ASK, or REFUSE DUPLICATE_OBLIGATION_PAYMENT when the scheduled mandate already paid this period at sign-in",
   },
   {
     id: "pizza",

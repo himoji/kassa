@@ -156,7 +156,14 @@ export async function verifyAnchors(
   return out;
 }
 
-const CHAINS: Record<string, Chain> = { sepolia, holesky };
+/**
+ * viem's default Sepolia RPC (thirdweb) often accepts the connection and never answers, which hangs the anchor job
+ * until the function times out; publicnode answers without a key. ANCHOR_RPC_URL still overrides both.
+ */
+const CHAINS: Record<string, Chain> = {
+  sepolia: { ...sepolia, rpcUrls: { default: { http: ["https://ethereum-sepolia-rpc.publicnode.com"] } } },
+  holesky,
+};
 
 export function anchorChain(name: string): Chain {
   const chain = CHAINS[name];

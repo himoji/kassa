@@ -37,6 +37,7 @@ The app has its own commands in `apps/mobile` (`bun run web`, `bun run dev`, `bu
 | `evidence:live` | `docs/evidence/live-agent.md` and `.json` (a live run against the judge build) |
 | `eval:invoices` | `docs/evidence/invoice-eval.json` (the live Reader on 30 labelled invoices; needs `READER_MODEL`'s key) |
 | `ledger:anchor` | Anchors unanchored checkpoints on Sepolia and updates `docs/evidence/anchors.json` (needs `ANCHOR_PRIVATE_KEY`) |
+| `ledger:anchor:keygen` | Makes a testnet-only anchor key in `.anchor-key` (gitignored, never printed) and prints its address, faucet links and the Vercel commands |
 | `sim <up\|status\|story\|down>` | The simulation stack and its reports ([Simulation](../guide/simulation.md)) |
 | `demo:video` | A Playwright recording of the demo beats into `demo-video-out/` |
 

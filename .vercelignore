@@ -13,3 +13,4 @@ docs/demo/
 !.env.example
 docs/node_modules/
 docs/.vitepress/
+.anchor-key

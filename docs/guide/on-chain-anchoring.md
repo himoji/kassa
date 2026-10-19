@@ -15,6 +15,20 @@ bun run ledger:anchor:verify --no-db               # chain vs. evidence file onl
 bun run ledger:anchor:verify --url https://kassa-judge.vercel.app   # a live deployment's anchors, no database or key
 ```
 
+## Turn it on for a deployment
+
+Four steps, about five minutes. The key never needs to be pasted or printed.
+
+```bash
+bun run ledger:anchor:keygen                                   # writes .anchor-key (gitignored), prints its address and faucet links
+# fund that address with ~0.01 Sepolia ETH from a faucet, then:
+vercel env add ANCHOR_PRIVATE_KEY production < .anchor-key     # in the linked Vercel project (e.g. kassa-judge)
+vercel deploy --prod
+curl -s https://kassa-judge.vercel.app/api/public/anchors      # "scheduled": true; the first anchor lands within ANCHOR_INTERVAL_MINUTES
+```
+
+To anchor once from your own machine instead: `ANCHOR_PRIVATE_KEY=$(cat .anchor-key) bun run ledger:anchor`.
+
 ## Published anchors
 
 The two signed checkpoints of a `bun run sim story` ledger (seq 20 and 40), on Sepolia from `0x0a65C50fe68977eB9b62673446eB9581A000f464`:
@@ -32,7 +46,7 @@ They are listed in [`anchors.json`](https://github.com/himoji/kassa/blob/main/do
 | --- | --- |
 | `ANCHOR_PRIVATE_KEY` | Testnet-only key. Unset: nothing is anchored and `GET /api/public/anchors` says `"scheduled": false` |
 | `ANCHOR_CHAIN` | `sepolia` (default) or `holesky` |
-| `ANCHOR_RPC_URL` | Defaults to the chain's public RPC |
+| `ANCHOR_RPC_URL` | Defaults to `https://ethereum-sepolia-rpc.publicnode.com` on Sepolia (viem's own default often never answers) and the chain's public RPC on Holesky |
 | `ANCHOR_EXPLORER_URL` | Base of the explorer links |
 | `ANCHOR_INTERVAL_MINUTES` | Scheduled anchoring on a deployment: at most one anchor per interval (default 60) |
 
@@ -45,4 +59,4 @@ With `ANCHOR_PRIVATE_KEY` set on a deployment, its scheduler anchors the newest 
 - A checkpoint changed or removed after it was anchored no longer matches its transaction, and a mined transaction cannot be edited. It closes the rollback gap (risk R28 in the [self-assessment](../security/self-assessment.md)) up to the last anchored checkpoint.
 - No money or tokens move (value 0, test gas only), no personal data goes on chain (only the checkpoint hash and key id), and the anchor key is separate from every Kassa signing key.
 
-Code: `apps/api/src/modules/ledger/anchor.ts`, `autoAnchor.ts`, `apps/api/scripts/ledger-anchor.ts`, `ledger-anchor-verify.ts`; tests: `apps/api/test/core/ledger-anchor.test.ts`.
+Code: `apps/api/src/modules/ledger/anchor.ts`, `autoAnchor.ts`, `apps/api/scripts/ledger-anchor.ts`, `ledger-anchor-verify.ts`, `anchor-keygen.ts`; tests: `apps/api/test/core/ledger-anchor.test.ts`.
