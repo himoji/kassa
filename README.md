@@ -63,7 +63,7 @@ bun run ledger:verify  # recomputes the hash chain and checkpoint signatures; ex
 bun run ledger:anchor:verify --no-db   # checks the Sepolia anchors against docs/evidence/anchors.json
 ```
 
-Latest run (2026-10-19): API 1,279 tests in 159 files, mock world 394, shared 61, mobile Jest 946 in 91 suites; 2,680 in all. What each suite asserts: [Test catalogue](docs/reference/tests.md). The attack suite (`bun run evidence:attacks`) gives, over 16 attacks with a model that obeys the attacker: **7 refused, 8 asked, 1 paid** ([details](docs/examples/prompt-injection.md)). `.github/workflows/ci.yml` defines the same checks for GitHub Actions. Actions is paused on this repository because of the account's Actions billing, so the two red runs from 2026-10-13 are billing stops, not test failures; until it is back on, the totals above are from a local `bun run test`.
+Latest run (2026-10-19): API 1,279 tests in 159 files, mock world 394, shared 61, mobile Jest 947 in 91 suites; 2,681 in all. What each suite asserts: [Test catalogue](docs/reference/tests.md). The attack suite (`bun run evidence:attacks`) gives, over 16 attacks with a model that obeys the attacker: **7 refused, 8 asked, 1 paid** ([details](docs/examples/prompt-injection.md)). `.github/workflows/ci.yml` defines the same checks for GitHub Actions. Actions is paused on this repository because of the account's Actions billing, so the two red runs from 2026-10-13 are billing stops, not test failures; until it is back on, the totals above are from a local `bun run test`.
 
 ## Licence
 

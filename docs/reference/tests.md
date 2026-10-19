@@ -15,7 +15,7 @@ Workspace totals from the run of 2026-10-19 (see "Changelog" at the end). Per-fi
 | apps/api | 159 | 1,279 (+1 opt-in live smoke test, skipped) | all pass |
 | apps/mock-world | 12 | 394 | all pass |
 | packages/shared | 8 | 61 | all pass |
-| apps/mobile (jest) | 91 | 946 | all pass |
+| apps/mobile (jest) | 91 | 947 | all pass |
 
 Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incidents A10 to A17, regenerated 2026-10-19). Each case is REFUSED (code stopped it, nothing to approve), ASKED (a passkey prompt on the exact order; nothing moves unless the user approves) or PAID. Worst case per attack: **7 refused, 8 asked, 1 paid** (49 cases: 38 refused, 10 asked, 1 paid). The paid case is A5's handoff variant: a QR swapped inside the wallet after Kassa's check, detected (HANDOFF_PAID_MISMATCH) but not stopped. If the fooled user approves every prompt, the attacker's account is paid in **5 of 16** (A2, A5, A10, A16, A17). Baselines with the same intents: a **chatbot with a confirm tap** and no other checks pays the attacker's account in **11 of 16** when the fooled user taps (16 of 16 make an unwanted payment; with a user who declines, 1 of 16: A3, a forged confirmation); the **no-checks agent** pays **16 of 16** by construction. A9 is refused by its own test; it is not in the baselines.
 
@@ -196,7 +196,7 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 - `docs/evidence/sim/SUMMARY.md` — summary
 
 ## Changelog
-- 2026-10-19 (final): totals re-run (api 159 files / 1,279 tests, 1 opt-in live smoke test skipped; mock-world 12 / 394; shared 8 / 61; mobile 91 / 946; 2,680 in all), now including `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts`. `core/kyc.test.ts` no longer fails when a mock world is already running on port 4001 (`bun run dev`): its 503 case injects an unreachable identity checker instead of relying on the port being free.
+- 2026-10-19 (final): totals re-run (api 159 files / 1,279 tests, 1 opt-in live smoke test skipped; mock-world 12 / 394; shared 8 / 61; mobile 91 / 947; 2,681 in all), now including `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts`. `core/kyc.test.ts` no longer fails when a mock world is already running on port 4001 (`bun run dev`): its 503 case injects an unreachable identity checker instead of relying on the port being free.
 - 2026-10-19 (later): attack evidence split into REFUSED / ASKED / PAID per case (an ASK is a passkey prompt, not a refusal), with a second baseline, chatbot + tap-to-confirm (`test/naive/tap-confirm.ts`); `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts` added. These files are not in the totals of the 2026-10-19 run above.
 - 2026-10-19 (later): totals re-run (api 159 files / 1,278 tests, 1 opt-in live smoke test skipped; mock-world 12 / 393; shared 8 / 60; mobile 91 / 946; 2,677 in all) after the judge round 3 fixes, the locked Stage and mock-world operator screens, and scheduled ledger anchoring. Attack evidence regenerated: unchanged (7 refused, 8 asked, 1 paid).
 - 2026-10-19: totals re-run (api 147 files / 1,189 tests, 1 opt-in live smoke test skipped; mock-world 12 / 375; shared 8 / 59; mobile 91 / 935; 2,558 in all) after the conversion orders, caps at approval, chat turn deadline, voice transcription, durable mock world and credit-record fixes. Same method as below.
