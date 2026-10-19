@@ -196,34 +196,33 @@ function HeroAction({
   md: string;
   onPress: () => void;
 }) {
+  // A plain View takes the third of the row: Pressable's style function is not reliably applied on iOS here.
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: 1,
-        alignItems: "center",
-        gap: 6,
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <View
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: ON_HERO,
-        }}
+    <View style={{ width: "33.333%", alignItems: "center" }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        hitSlop={8}
+        style={{ alignItems: "center", gap: 6 }}
       >
-        <Icon name={sf} fallback={md} size={20} color="#056347" />
-      </View>
-      <Text weight="semibold" numberOfLines={1} style={{ color: ON_HERO, fontSize: 13 }}>
-        {label}
-      </Text>
-    </Pressable>
+        <View
+          style={{
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: ON_HERO,
+          }}
+        >
+          <Icon name={sf} fallback={md} size={22} color="#056347" />
+        </View>
+        <Text weight="semibold" numberOfLines={1} style={{ color: ON_HERO, fontSize: 13 }}>
+          {label}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -330,7 +329,7 @@ function BalanceCard() {
               ))}
             </View>
           ) : null}
-          <Box row style={{ alignSelf: "stretch" }}>
+          <View style={{ flexDirection: "row", width: "100%" }}>
             <HeroAction
               label={t("home:addMoney")}
               sf="plus"
@@ -350,7 +349,7 @@ function BalanceCard() {
               md="currency_exchange"
               onPress={() => router.push("/convert")}
             />
-          </Box>
+          </View>
           {b.rateDate ? (
             <Text style={{ color: ON_HERO_MUTED, fontSize: 12, textAlign: "center" }}>
               {t("home:rateDate", { date: f.date(b.rateDate) })}
