@@ -101,12 +101,26 @@ describe("dev sign-in", () => {
     expect((await login({ demoClaim: true })).status).toBe(409);
   });
 
-  it("/auth/dev/assert also signs for a passkey user's session (the app's Dev button), only while dev sign-in is on", async () => {
+  it("/auth/dev/assert refuses a passkey user's session (no dev claim), and is off while dev sign-in is off", async () => {
     const { userId } = await createUserWithPasskey();
     const off = await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: await bearer(userId), payload: { challenge: "a".repeat(43) } });
     expect(off.statusCode).toBe(404);
     devEnv();
     const h = await bearer(userId);
+    const res = await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: h, payload: { challenge: "a".repeat(43) } });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe("NOT_DEV_SESSION");
+    // The 428 gate still wants the account's own passkey: a token alone cannot approve.
+    const first = await app().inject({ method: "POST", url: "/api/auth/pair/start", headers: h, payload: {} });
+    expect(first.statusCode).toBe(428);
+  });
+
+  it("/auth/dev/assert keeps working for a dev session after a token refresh (the claim is kept)", async () => {
+    devEnv();
+    const login = await app().inject({ method: "POST", url: "/api/auth/dev/login", payload: { client: "native" } });
+    const refresh = await app().inject({ method: "POST", url: "/api/auth/refresh", payload: { refreshToken: login.json().tokens.refreshToken } });
+    expect(refresh.statusCode, refresh.body).toBe(200);
+    const h = { authorization: `Bearer ${refresh.json().accessToken as string}` };
     const sign = async (challenge: string) => (await app().inject({ method: "POST", url: "/api/auth/dev/assert", headers: h, payload: { challenge } })).json().assertion;
     expect((await startPairing(h, sign)).code).toMatch(/^[A-Z2-9]{8}$/);
   });

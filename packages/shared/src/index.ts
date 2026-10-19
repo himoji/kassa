@@ -5,6 +5,8 @@ export * from "./reasonCodes.ts";
 export * from "./reasonText.ts";
 export * from "./jcs.ts";
 export * from "./order.ts";
+// (added 2026-10-18) the signed order in one sentence (chat guard, proposal card)
+export * from "./orderText.ts";
 export * from "./mandate.ts";
 // (added 2026-10-14, Business M0) supplier purchase orders, merchant order items
 export * from "./purchaseOrder.ts";

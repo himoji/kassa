@@ -10,7 +10,7 @@ Five LLM testers, each on an isolated local stack (offline example FX). The test
 | [cn](cn/REPORT.md) | Chinese demos + compromised planner | demos match; 1 BROKEN (rent mandate covers any payment to the landlord) | Bounded: HUF 1,000 to the verified landlord without passkey |
 | [security](security/REPORT.md) | Scenario review C1–C6, S1–S9, T1–T3 | 14 COVERED, 4 WEAK, 0 MISSING; findings F1–F9 | — |
 
-All findings were tracked in a final fix pass and fixed with regression tests; the "Fix status" column below is updated after the pass.
+All findings were tracked in a final fix pass. 42 of the 46 rows below are fixed, each with a regression test; the other 4 (O5, F4, F7, F9) are accepted risks, bounded and recorded in SECURITY.md. The "Status" column is updated after the pass.
 
 ## Fix status
 

@@ -15,5 +15,37 @@
     "UNKNOWN_PAYEE_REF": "Recipient not in your register",
     "UNKNOWN_ITEM": "Item not on the menu",
     "ITEMS_TOTAL_MISMATCH": "Items do not add up to the total"
+  },
+  "links": {
+    "title": "Demo & proof",
+    "footer": "Pages of this Kassa server, opened in the in-app browser. The shop, wallet, school and Stage pages are the simulated outside world of the demo server.",
+    "evidence": {
+      "title": "Evidence room",
+      "subtitle": "16 attacks on AI agents, who decides, sources"
+    },
+    "ledger": {
+      "title": "Ledger check",
+      "subtitle": "Run the tamper-evident ledger verification"
+    },
+    "stage": {
+      "title": "The Stage",
+      "subtitle": "Every scene of the live demo in one place"
+    },
+    "tap": {
+      "title": "Card terminal",
+      "subtitle": "Tap to pay at a simulated shop"
+    },
+    "wallet": {
+      "title": "QR wallet",
+      "subtitle": "The dorm fee's scan-to-pay screen (region CN)"
+    },
+    "till": {
+      "title": "Shop till",
+      "subtitle": "Pizza Shop in Budapest: make a bill, pay it by QR"
+    },
+    "school": {
+      "title": "School portal",
+      "subtitle": "Tuition invoices of the demo student"
+    }
   }
 }

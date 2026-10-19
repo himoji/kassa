@@ -2,7 +2,7 @@
  * Test fixtures: users with real (software) passkeys in BOTH credential tables, payees, signed base rules,
  * signed + effective mandates, stub rails. Everything goes through the same DB the modules use.
  */
-import { jcsHash, mandateHash, normalizeMandateCore, type BaseRulesCore, type MandateCore, type Rail as RailId } from "@kassa/shared";
+import { jcsHash, mandateHash, normalizeMandateCore, SupportedCurrency, type BaseRulesCore, type MandateCore, type Rail as RailId } from "@kassa/shared";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
@@ -23,11 +23,18 @@ export const IBAN_LANDLORD = "HU75109183242065038100000003";
 export const IBAN_UNIVERSITY = "HU83118009905400221700000005";
 export const IBAN_OTHER = "HU03162002169011744200000000";
 
-/** Deterministic offline environment: fallback FX, no wallet balances, stub rails, executor wired. */
+/**
+ * An ample capped wallet: 10,000,000,000 minor units in every supported currency. (2026-10-18) Unknown balances now
+ * refuse bank transfers (BALANCES_UNAVAILABLE), so the offline environment reads a known wallet that covers any test
+ * order; tests about unknown balances set `setBalanceProviderForTests(async () => null)` themselves.
+ */
+export const AMPLE_WALLET = SupportedCurrency.options.map((currency) => ({ currency, amountMinor: 10_000_000_000 }));
+
+/** Deterministic offline environment: fallback FX, an ample known wallet, stub rails, executor wired. */
 export function offlineEnvironment(): { railCalls: { rail: RailId; amountMinor: number }[] } {
   const railCalls: { rail: RailId; amountMinor: number }[] = [];
   useFallbackFxForTests(true);
-  setBalanceProviderForTests(async () => null);
+  setBalanceProviderForTests(async () => AMPLE_WALLET);
   const stub = (id: RailId, status: "PROCESSING" | "SENT" = "PROCESSING"): Rail => ({
     id,
     async execute(order) {

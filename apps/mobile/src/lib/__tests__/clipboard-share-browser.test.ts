@@ -53,6 +53,13 @@ describe("@/lib/browser", () => {
     expect(openURL).toHaveBeenCalledWith("https://example.com");
   });
 
+  it("opens a new tab on web, not expo-web-browser's popup window", async () => {
+    jest.replaceProperty(Platform, "OS", "web");
+    await openUrl("https://example.com/showcase/");
+    expect(openBrowserAsync).not.toHaveBeenCalled();
+    expect(openURL).toHaveBeenCalledWith("https://example.com/showcase/");
+  });
+
   it("hands non-web schemes to Linking", async () => {
     await openUrl("mailto:hi@example.com");
     expect(openBrowserAsync).not.toHaveBeenCalled();

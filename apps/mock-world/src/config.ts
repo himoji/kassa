@@ -46,6 +46,8 @@ const Env = z.object({
   DEMO_ADMIN_TOKEN: z.string().optional(),
   /** (added 2026-10-18) The judge build (same flag as the API): Stage actions that change the shared world are off. */
   JUDGE_MODE: z.enum(["true", "false", "1", "0", ""]).default("false"),
+  /** Set by Vercel on every deployment (production and preview): a deployed build, the control routes are locked. */
+  VERCEL: z.string().optional(),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   NODE_ENV: z.string().default("development"),
 });
@@ -70,6 +72,12 @@ export interface MockWorldConfig {
   demoEnabled: boolean;
   demoAdminToken: string | null;
   judgeMode: boolean;
+  /**
+   * (added 2026-10-18) Deployed build: NODE_ENV=production, JUDGE_MODE or VERCEL. The control routes (bank, wallets,
+   * remittances, reset, outbox, the QR attack switch) then need the Kassa API's signed request or the demo admin
+   * token (access.ts), and the HMAC secret must be a real one. Local development leaves them open.
+   */
+  locked: boolean;
 }
 
 const DEV_SECRET = "dev-only-mock-hmac-secret-change-me";
@@ -81,8 +89,11 @@ function trimSlash(url: string): string {
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): MockWorldConfig {
   const e = Env.parse(env);
   const production = e.NODE_ENV === "production";
-  if (!e.MOCK_HMAC_SECRET && production) {
-    throw new Error("MOCK_HMAC_SECRET is required in production (webhooks must be authenticated, I13)");
+  const judgeMode = e.JUDGE_MODE === "true" || e.JUDGE_MODE === "1";
+  const locked = production || judgeMode || Boolean(e.VERCEL);
+  if ((!e.MOCK_HMAC_SECRET || e.MOCK_HMAC_SECRET === DEV_SECRET) && locked) {
+    // The development default is public (it is in this file): on a deployed build anyone could sign webhooks with it.
+    throw new Error("MOCK_HMAC_SECRET is required on a deployed build (NODE_ENV=production, JUDGE_MODE or VERCEL) and must not be the development default (I13)");
   }
   if (e.ISSUING_PROVIDER === "stripe" && !e.STRIPE_SECRET_KEY?.startsWith("sk_test_")) {
     throw new Error("ISSUING_PROVIDER=stripe needs a test-mode STRIPE_SECRET_KEY (sk_test_...)");
@@ -105,7 +116,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): MockWorldConfi
     logLevel: e.LOG_LEVEL,
     demoEnabled: e.DEMO_ENABLED === "true" || e.DEMO_ENABLED === "1",
     demoAdminToken: e.DEMO_ADMIN_TOKEN || null,
-    judgeMode: e.JUDGE_MODE === "true" || e.JUDGE_MODE === "1",
+    judgeMode,
+    locked,
   };
 }
 

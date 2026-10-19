@@ -3,10 +3,12 @@ import { and, eq, gte, isNull, lte, ne } from "drizzle-orm";
 import type { ForecastResponse, ImportHistory } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
-import { obligations, profiles, transactions, users } from "../../db/schema.ts";
+import { obligations, payees, profiles, transactions, users } from "../../db/schema.ts";
 import { PROFILE_CORE } from "../../db/profile-columns.ts";
 import { clock } from "../clock/index.ts";
 import { walletBalances } from "../rules/facts.ts";
+import { chooseFunding } from "../rules/funding.ts";
+import { billRail } from "../obligations/coverage.ts";
 import { addDays, isoDate } from "./dates.ts";
 import { computeForecast, medianInt, type Flow } from "./forecast.ts";
 import { convertMinor } from "./rational.ts";
@@ -91,7 +93,11 @@ export async function forecastCoverage(userId: string): Promise<ForecastResponse
   const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
   if (!u) throw new Error("user not found");
   const p = (await db.select(PROFILE_CORE).from(profiles).where(eq(profiles.userId, userId)))[0];
-  const obs = await db.select().from(obligations).where(and(eq(obligations.userId, userId), gte(obligations.dueDate, addDays(today, -31))));
+  const obs = await db
+    .select({ o: obligations, payeeKind: payees.kind, payeeAccountHash: payees.accountHash })
+    .from(obligations)
+    .innerJoin(payees, eq(payees.id, obligations.payeeId))
+    .where(and(eq(obligations.userId, userId), gte(obligations.dueDate, addDays(today, -31))));
   const since = new Date(now.getTime() - 31 * 86_400_000);
   const txs = await db
     .select({ currency: transactions.currency, amountMinor: transactions.amountMinor, occurredAt: transactions.occurredAt, source: transactions.source })
@@ -99,13 +105,28 @@ export async function forecastCoverage(userId: string): Promise<ForecastResponse
     .where(and(eq(transactions.userId, userId), isNull(transactions.mergedIntoId), gte(transactions.occurredAt, since), lte(transactions.occurredAt, now), ne(transactions.source, "KASSA_PAYMENT")));
 
   const incomes: Flow[] = (p?.incomes ?? []).map((i) => ({ currency: i.currency, amountMinor: i.amountMinor, date: i.nextDate, cadence: i.cadence }));
+  const balances = await getBalances(userId);
   // Obligations: monthly ones may have a past due date stored (the row is the template); roll forward.
-  const obligationFlows: Flow[] = obs.map((o) => ({
-    currency: o.currency,
-    amountMinor: o.amountMinor,
-    date: o.dueDate,
-    cadence: o.recurrence === "MONTHLY" ? "MONTHLY" : o.recurrence === "TERM" ? "TERM" : "ONCE",
-  }));
+  // (2026-10-18) Each bill is drawn from the balance its bank route will debit (rules/funding.ts, the route GET
+  // /obligations reports): a CNY bill paid from KZT through a converting route lowers KZT (by the route's debit, fees
+  // included), not a CNY balance the user never holds. Before, every bill counted against its own currency, so a bill
+  // GET /obligations showed COVERED appeared here as a shortfall. A bill no single balance pays stays in its own
+  // currency: its shortfall and the conversion suggestion below are then real.
+  const obligationFlows: Flow[] = [];
+  for (const { o, payeeKind, payeeAccountHash } of obs) {
+    const cadence: Flow["cadence"] = o.recurrence === "MONTHLY" ? "MONTHLY" : o.recurrence === "TERM" ? "TERM" : "ONCE";
+    let currency = o.currency;
+    let amountMinor = o.amountMinor;
+    // Only a bank transfer converts on the way; a handoff bill (region CN, money mode Handoff) needs its own currency.
+    if (payeeKind !== "MERCHANT" && payeeAccountHash !== null && balances.length > 0 && billRail(u, payeeKind) === "BANK_TRANSFER") {
+      const f = await chooseFunding({ userId, homeCurrency: u.homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: o.dueDate, balances }).catch(() => null);
+      if (f?.status === "OK" && f.funding.currency !== o.currency) {
+        currency = f.funding.currency;
+        amountMinor = f.funding.estimatedAmountMinor;
+      }
+    }
+    obligationFlows.push({ currency, amountMinor, date: o.dueDate, cadence });
+  }
   const reserves: Record<string, number> = {};
   for (const r of p?.reserveRules.reserves ?? []) reserves[r.currency] = r.minMinor;
   // The imported history (read on its own: a database one migration behind must not fail the forecast).
@@ -115,7 +136,7 @@ export async function forecastCoverage(userId: string): Promise<ForecastResponse
     historyBurn: historyDaily && history ? { [history.homeCurrency]: historyDaily } : undefined,
     today,
     homeCurrency: u.homeCurrency,
-    balances: await getBalances(userId),
+    balances,
     incomes,
     obligations: obligationFlows,
     // Burn = card/notification spend; Kassa payments are obligations already counted above.

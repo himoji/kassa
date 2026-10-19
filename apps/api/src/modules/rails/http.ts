@@ -1,8 +1,12 @@
 /*
  * Small JSON HTTP client for mock-world (base = MOCK_WORLD_URL + "/mock", coordination doc) with a
  * timeout. Tests replace the transport with `setMockWorldTransportForTests`.
+ * Every request carries X-Kassa-Request-Auth (HMAC over method, path and body with MOCK_HMAC_SECRET): deployed builds
+ * of the mock world refuse its control routes (bank, wallets, remittances, reset) without it or the demo admin token
+ * (apps/mock-world/src/access.ts). User-triggered actions therefore always pass through an authenticated API route,
+ * which picks the user's own bank profile from the session.
  */
-import { mockWebhookHeaders } from "@kassa/shared";
+import { MOCK_REQUEST_AUTH_HEADER, mockRequestAuth, mockWebhookHeaders } from "@kassa/shared";
 
 import { env } from "../../env.ts";
 import { clock } from "../clock/index.ts";
@@ -41,8 +45,14 @@ export class MockWorldError extends Error {
   }
 }
 
+/** X-Kassa-Request-Auth for `/mock${path}` (wall time: the mock world checks it against its own real clock). */
+function requestAuth(method: string, path: string, body: unknown): Record<string, string> {
+  const raw = body !== undefined ? JSON.stringify(body) : "";
+  return { [MOCK_REQUEST_AUTH_HEADER]: mockRequestAuth(env().MOCK_HMAC_SECRET, method, `/mock${path}`, raw, Math.floor(clock.realNowMs() / 1000)) };
+}
+
 export async function mockWorld<T = Record<string, unknown>>(method: string, path: string, body?: unknown): Promise<T> {
-  const r = await transport(method, path, body);
+  const r = await transport(method, path, body, requestAuth(method, path, body));
   if (r.status < 200 || r.status >= 300) throw new MockWorldError(`mock-world ${method} ${path} → ${r.status}`, r.status);
   return r.json as T;
 }
@@ -54,7 +64,7 @@ export async function mockWorld<T = Record<string, unknown>>(method: string, pat
  */
 export async function mockWorldSigned<T = Record<string, unknown>>(method: string, path: string, body: unknown): Promise<T> {
   const raw = JSON.stringify(body);
-  const r = await transport(method, path, body, mockWebhookHeaders(env().MOCK_HMAC_SECRET, raw, Math.floor(clock.nowMs() / 1000)));
+  const r = await transport(method, path, body, { ...mockWebhookHeaders(env().MOCK_HMAC_SECRET, raw, Math.floor(clock.nowMs() / 1000)), ...requestAuth(method, path, body) });
   if (r.status < 200 || r.status >= 300) throw new MockWorldError(`mock-world ${method} ${path} → ${r.status}`, r.status);
   return r.json as T;
 }

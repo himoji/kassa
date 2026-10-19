@@ -1,6 +1,6 @@
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 
-import { categoryOfKind, suggestedReference, type BudgetDto, type ImportHistory, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
+import { categoryOfKind, orderFunding, orderLineEn, suggestedReference, type BudgetDto, type CanonicalOrder, type ImportHistory, type BudgetImpact, type CaptureEventResponse, type ForecastResponse, type ProposalSummary, type RouteDto } from "@kassa/shared";
 
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, profiles, proposals, users, type IncomeJson } from "../../db/schema.ts";
@@ -16,10 +16,13 @@ import { clock, isoDate } from "../clock/index.ts";
 import { addDays } from "../fx/dates.ts";
 import { forecastCoverage, getBalances, getRoutes, toHome } from "../fx/index.ts";
 import { getRoutes as rankRoutes } from "../fx/routes.ts";
+import { billRail, coverageOf, type Coverage } from "../obligations/coverage.ts";
 import { accountHash, readDetails } from "../payees/crypto.ts";
+import { walletBalances } from "../rules/facts.ts";
+import { loadUser } from "../users/service.ts";
 import { readDocument, type ReaderResult } from "../reader/index.ts";
 import { payeeHistory } from "../rules/facts.ts";
-import { proposeOrder, type ProposeOrderInput, type ProposeOrderResult } from "../rules/index.ts";
+import { proposeConversion, proposeOrder, type ProposeConversionInput, type ProposeOrderInput, type ProposeOrderResult } from "../rules/index.ts";
 import { maxPayablePerRoute } from "./capacity.ts";
 
 /*
@@ -122,6 +125,11 @@ export interface AgentPorts {
    * never probes get_routes with guessed amounts. Optional: without it get_routes answers routes only.
    */
   maxPayable?(a: { toCurrency: string; dueDate?: string }): Promise<MaxPayableRow[]>;
+  /**
+   * (added 2026-10-18) Coverage of these bills, the same answer GET /obligations gives (obligations/coverage.ts):
+   * COVERED, CONVERTIBLE with its conversion plan, SHORTFALL or UNKNOWN. Optional: fakes may leave it out.
+   */
+  obligationCoverage?(obligationIds: string[]): Promise<Map<string, Coverage>>;
   forecast(): Promise<ForecastResponse>;
   /** This month's spending per category, budgeted or not, against a usual month and monthly income (budget/context.ts). */
   spending(): Promise<SpendContext>;
@@ -135,6 +143,11 @@ export interface AgentPorts {
   accountHashOf(account: string): string;
   /** THE write path (I1). */
   proposeOrder(input: ProposeOrderInput): Promise<ProposeOrderResult>;
+  /**
+   * (added 2026-10-18) A CONVERT order between the user's own balances (rules.proposeConversion: always ASK, the passkey
+   * signs it). Optional so fakes without it answer CONVERT_UNAVAILABLE.
+   */
+  proposeConversion?(input: ProposeConversionInput): Promise<ProposeOrderResult>;
   proposalCard(proposalId: string): Promise<{ summary: ProposalSummary | null; budgetImpact: BudgetImpact | null }>;
   logExpense(input: CaptureInput): Promise<CaptureEventResponse>;
   /** (M5) Present for the DB implementation; the tools use it only when the profile is a BUSINESS account. */
@@ -156,6 +169,21 @@ export async function bindToConversation(userId: string, docId: string, conversa
 
 /** Catalog ids that name a shop's storefront → mock-world storeId. */
 const STOREFRONT_IDS: Record<string, string> = { pizza: "bud", "pizza-shop": "bud", pizzashop: "bud", bud: "bud", sha: "sha", "pizza-shop-sh": "sha" };
+
+/** (2026-10-18) The signed funding binding and the one-sentence signed order, for the proposal card. */
+function cardFunding(order: CanonicalOrder | null): Pick<ProposalSummary, "funding" | "orderLine"> {
+  if (!order) return {};
+  let f: ReturnType<typeof orderFunding> = null;
+  try {
+    f = orderFunding(order);
+  } catch {
+    f = null;
+  }
+  return {
+    ...(f ? { funding: { currency: f.currency, maxAmountMinor: f.maxAmountMinor, routeId: f.routeId, markupBps: f.markupBps } } : {}),
+    orderLine: orderLineEn(order),
+  };
+}
 
 export function dbPorts(userId: string, conversationId: string): AgentPorts {
   const db = getDb();
@@ -233,6 +261,28 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         reference: o.reference,
         category: o.category,
       }));
+    },
+    async obligationCoverage(ids) {
+      const out = new Map<string, Coverage>();
+      if (ids.length === 0) return out;
+      const u = (await db.select({ homeCurrency: users.homeCurrency, preset: users.preset, overrides: users.overrides, region: users.region }).from(users).where(eq(users.id, userId)))[0];
+      if (!u) return out;
+      const rows = await db
+        .select({ id: obligations.id, amountMinor: obligations.amountMinor, currency: obligations.currency, dueDate: obligations.dueDate, payeeKind: payees.kind, payeeAccountHash: payees.accountHash })
+        .from(obligations)
+        .innerJoin(payees, eq(payees.id, obligations.payeeId))
+        .where(and(eq(obligations.userId, userId), inArray(obligations.id, ids)));
+      const balances = await walletBalances(userId);
+      const reserveHomeMinor = (await loadUser(db, userId)).caps.reserveMinor;
+      const now = clock.now();
+      for (const o of rows) {
+        try {
+          out.set(o.id, await coverageOf(o, { userId, homeCurrency: u.homeCurrency, now, balances, rail: billRail(u, o.payeeKind), reserveHomeMinor }));
+        } catch {
+          out.set(o.id, { coverage: "UNKNOWN", bestRoute: null });
+        }
+      }
+      return out;
     },
     async paymentCount(payeeId) {
       return (await payeeHistory(db, userId, payeeId)).count;
@@ -315,6 +365,7 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
     },
     accountHashOf: (account) => accountHash(account),
     proposeOrder: (input) => proposeOrder(input),
+    proposeConversion: (input) => proposeConversion(input),
     async proposalCard(proposalId) {
       const p = (await db.select().from(proposals).where(and(eq(proposals.id, proposalId), eq(proposals.userId, userId))))[0];
       if (!p) return { summary: null, budgetImpact: null };
@@ -334,6 +385,8 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
         homeAmountMinor,
         homeCurrency: u.homeCurrency,
         createdAt: p.createdAt.toISOString(),
+        ...(p.canonicalOrder?.rail === "CONVERT" || p.draft.rail === "CONVERT" ? { kind: "CONVERT" as const } : {}),
+        ...cardFunding(p.canonicalOrder),
       };
       const impact = p.decision === "REFUSE" ? null : await budgetImpact(userId, p.category, homeAmountMinor);
       return { summary, budgetImpact: impact };

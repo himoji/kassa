@@ -152,6 +152,19 @@ export const RouteDto = z.object({
 });
 export type RouteDto = z.infer<typeof RouteDto>;
 
+/**
+ * (added 2026-10-18) One conversion that makes a bill payable: buy `amountMinor` of `toCurrency` from the `fromCurrency`
+ * balance (estimated debit incl. the route's fee and markup), via the bank route `routeId`.
+ */
+export const ConversionPlanStep = z.object({
+  fromCurrency: CurrencyCode,
+  toCurrency: CurrencyCode,
+  amountMinor: PositiveAmountMinor,
+  estimatedDebitMinor: PositiveAmountMinor,
+  routeId: z.string(),
+});
+export type ConversionPlanStep = z.infer<typeof ConversionPlanStep>;
+
 export const ObligationDto = z.object({
   id: Uuid,
   payeeId: Uuid,
@@ -167,8 +180,15 @@ export const ObligationDto = z.object({
   reference: z.string().nullable(),
   category: z.string(),
   bestRoute: RouteDto.nullable(),
-  /** UNKNOWN (added 2026-10-18): balances unknown or the funding check failed; never reported as COVERED. */
-  coverage: z.enum(["COVERED", "SHORTFALL", "UNKNOWN"]),
+  /**
+   * UNKNOWN (added 2026-10-18): balances unknown or the funding check failed; never reported as COVERED.
+   * CONVERTIBLE (added 2026-10-18): no single balance pays the bill, but the user's balances together do: convert first
+   * (`conversions`, each its own passkey-signed CONVERT order), then the bill is paid from its own currency.
+   */
+  coverage: z.enum(["COVERED", "CONVERTIBLE", "SHORTFALL", "UNKNOWN"]),
+  conversions: z.array(ConversionPlanStep).optional(),
+  /** (added 2026-10-18) SHORTFALL because paying would take the wallet below the protected reserve (rules: REFUSE_CAP). */
+  reserveBreached: z.boolean().optional(),
   mandateId: Uuid.nullable(),
 });
 export type ObligationDto = z.infer<typeof ObligationDto>;
@@ -447,6 +467,18 @@ export const ProposalSummary = z.object({
   homeAmountMinor: AmountMinor,
   homeCurrency: CurrencyCode,
   createdAt: IsoDateTime,
+  /** (added 2026-10-18) PAYMENT, or CONVERT (an exchange between the user's own balances). Absent = PAYMENT. */
+  kind: z.enum(["PAYMENT", "CONVERT"]).optional(),
+  /** (added 2026-10-18) The signed funding binding: which balance pays, at most how much (fees included), by which route. */
+  funding: z
+    .object({ currency: CurrencyCode, maxAmountMinor: PositiveAmountMinor, routeId: z.string(), markupBps: z.number().int().nonnegative() })
+    .optional(),
+  /**
+   * (added 2026-10-18) One sentence the server builds from the signed canonical order (amount, payee, funding balance,
+   * maximum debit, route). The chat shows it under the assistant's reply, so the user reads what is signed, not the
+   * model's paraphrase of it.
+   */
+  orderLine: z.string().optional(),
 });
 export type ProposalSummary = z.infer<typeof ProposalSummary>;
 

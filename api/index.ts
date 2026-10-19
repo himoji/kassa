@@ -6,12 +6,15 @@
  * Both Fastify apps listen on loopback inside the instance and each request is proxied to the right one.
  * That keeps everything the plain servers do (cookies, multipart, the streamed agent chat) and lets the API
  * reach the mock world (MOCK_WORLD_URL) and back (API_URL) without leaving the instance. The mock world keeps
- * its state in memory, so it resets on a cold start (see README, "Deploy on Vercel").
+ * its state in the same Postgres database (migration 0024_mock_world_state, apps/mock-world/src/store), so every
+ * instance sees the same balances, transfers, QR codes, orders and school invoices, and a cold start loses nothing.
  *
  * Timers only run while an instance is awake, so the 15 s scheduler and the mock bank tick also run, at
  * most once per interval, after requests (waitUntil keeps the instance alive until they finish).
  */
 import { waitUntil } from "@vercel/functions";
+
+import type { SeedWallet } from "../apps/mock-world/src/store/types.ts";
 
 
 const API_PORT = 4000;
@@ -68,20 +71,21 @@ async function start(): Promise<Instance> {
   const { clock } = await import("../apps/api/src/modules/clock/index.ts");
   const { startScheduler, tick } = await import("../apps/api/src/modules/scheduler/index.ts");
   const { buildServer } = await import("../apps/api/src/server.ts");
-  const { buildMockWorld } = await import("../apps/mock-world/src/app.ts");
+  const { buildMockWorld, seedWallets } = await import("../apps/mock-world/src/app.ts");
   const { loadConfig } = await import("../apps/mock-world/src/config.ts");
 
   const e = env();
-  const mockConfig = { ...loadConfig(), host: "127.0.0.1", port: MOCK_PORT };
-  const mock = await buildMockWorld({ config: mockConfig });
-  await mock.app.listen({ host: "127.0.0.1", port: MOCK_PORT });
-
   // Pending migrations run at cold start (one instance at a time, db/client.ts): a preview build that skipped
-  // db:migrate must not serve 500s from columns its database lacks. MIGRATE_ON_START=false opts out.
+  // db:migrate must not serve 500s from columns its database lacks. MIGRATE_ON_START=false opts out. Before the mock
+  // world starts: its state tables come from a migration too.
   if (process.env.MIGRATE_ON_START !== "false") {
     const { migrateDatabaseUrl } = await import("../apps/api/src/db/client.ts");
     await migrateDatabaseUrl().catch((err: unknown) => console.error("migrate on start failed", err));
   }
+
+  const mockConfig = { ...loadConfig(), host: "127.0.0.1", port: MOCK_PORT };
+  const mock = await buildMockWorld({ config: mockConfig, store: await mockWorldStore(seedWallets()) });
+  await mock.app.listen({ host: "127.0.0.1", port: MOCK_PORT });
   if (e.DEMO_ENABLED) await seedIfEmpty();
   const api = await buildServer();
   await clock.load().catch((err: unknown) => api.log.warn({ err }, "demo_state not readable yet (run bun run db:migrate)"));
@@ -91,11 +95,27 @@ async function start(): Promise<Instance> {
 
   return {
     schedulerTick: e.SCHEDULER_ENABLED ? () => tick(log) : async () => undefined,
-    mockTick: async () => {
-      await Promise.allSettled([mock.bank.tick(), mock.shop.tick()]);
-    },
+    mockTick: () => mock.tick().catch((err: unknown) => console.error("mock world tick failed", err)),
     mockTickMs: mockConfig.bankTickMs,
   };
+}
+
+/**
+ * The mock world's shared state in DATABASE_URL. If its tables are missing (the migration did not run), the mock world
+ * falls back to memory, as before 0024: it works per instance and says so in GET /mock/health ("persistence").
+ */
+async function mockWorldStore(seeds: SeedWallet[]) {
+  const { postgresSqlClient } = await import("../apps/api/src/db/mockWorldSql.ts");
+  const { postgresStore } = await import("../apps/mock-world/src/store/postgres.ts");
+  const { memoryStore } = await import("../apps/mock-world/src/store/memory.ts");
+  const { client, close } = postgresSqlClient(process.env.DATABASE_URL!);
+  try {
+    return await postgresStore(client, seeds);
+  } catch (err) {
+    console.error("kassa: mock-world state tables unavailable, keeping the mock world in memory (per instance)", err);
+    await close().catch(() => undefined);
+    return memoryStore(seeds);
+  }
 }
 
 /**

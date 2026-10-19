@@ -47,10 +47,17 @@ export const OrderItem = z.object({
 });
 export type OrderItem = z.infer<typeof OrderItem>;
 export const ProposeOrderInput = z.object({
-  payeeRef: PlaceholderRef.describe("Payee placeholder from get_obligations / get_payee_facts"),
+  // (2026-10-18) optional only for kind CONVERT; a payment without it is answered with an error.
+  payeeRef: PlaceholderRef.optional().describe("Payee placeholder from get_obligations / get_payee_facts (required to pay; omit for CONVERT)"),
   amountMinor: AmountMinor,
   currency: Currency,
   purpose: z.string().min(1).max(140),
+  // (added 2026-10-18) CONVERT = exchange between the user's own balances (never a payment out; always the passkey).
+  kind: z
+    .enum(["PAY", "CONVERT"])
+    .optional()
+    .describe("PAY (default) pays payeeRef. CONVERT buys amountMinor of currency from the user's own fromCurrency balance (no payee); use it when no single balance covers a bill, then pay the bill"),
+  fromCurrency: Currency.optional().describe("CONVERT only: the balance to convert from; omitted = the cheapest balance that covers it"),
   rail: Rail.optional(),
   items: z.array(OrderItem).max(50).optional(),
   agentRequestedConfirm: z

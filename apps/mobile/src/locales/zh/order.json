@@ -25,5 +25,15 @@
   "signedOrderId": "付款指令 ID",
   "title": "付款",
   "withinMandate": "在您签署的授权范围内",
-  "fundedFromLinked": "{{label}}，最多 {{max}}"
+  "fundedFromLinked": "{{label}}，最多 {{max}}",
+  "convert": {
+    "title": "在您的余额之间换汇",
+    "from": "从您的 {{currency}} 余额",
+    "atMost": "最多 {{max}}",
+    "into": "存入您的 {{currency}} 余额",
+    "route": "路线",
+    "done": "已换汇",
+    "doneBody": "{{amount}} 已存入您的 {{currency}} 余额，来自您的 {{from}} 余额（含手续费最多 {{max}}）。",
+    "failed": "换汇未成功。"
+  }
 }

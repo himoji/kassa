@@ -1,7 +1,6 @@
 import { CreditRecordItem, type CreditRecordExportResponse } from "@kassa/shared";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Linking } from "react-native";
 
 import { useExportCreditRecord } from "@/api/hooks/records";
 import { SimulatedBadge } from "@/components/kassa/badges";
@@ -11,6 +10,7 @@ import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { SettingSwitch } from "@/components/kassa/native-controls";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Card, Text, toast } from "@/components/ui";
+import { openUrl } from "@/lib/browser";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { sharePdf, shareLink, type ShareOutcome } from "@/lib/share-record";
@@ -95,10 +95,9 @@ export function CreditRecordScreen() {
     setSharing(null);
   };
 
+  // In the in-app browser on the phone (a new tab on web): the PDF is a page of our server, not a reason to leave.
   const onOpenPdf = (pdfUrl: string) => {
-    void Linking.openURL(pdfUrl).catch((err: unknown) =>
-      toast.show({ title: errorText(t, err), kind: "error" })
-    );
+    void openUrl(pdfUrl);
   };
 
   return (

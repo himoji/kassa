@@ -1,7 +1,8 @@
 import type { Decision, ProposalSummary } from "@kassa/shared";
 import { router } from "expo-router";
+import { View } from "react-native";
 
-import { Box, Button, Card, Text } from "@/components/ui";
+import { Box, Button, Card, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
 import type { StatusTone } from "@/theme/status";
@@ -19,17 +20,31 @@ export const DECISION_TONE: Record<Decision, StatusTone> = {
 /**
  * Proposal summary card (chat, home). Server fields only; the "Review and sign" button opens the
  * confirmation sheet, which re-fetches the canonical order (I3) - this card is never signed.
+ * (2026-10-18) The signed funding balance and the server's sentence of the signed order (`orderLine`) are shown
+ * as they come, so the balance the user reads is the one the order debits, never the assistant's paraphrase.
  */
 export function ProposalCard({ proposal }: { proposal: ProposalSummary }) {
   const t = useKassaT();
   const f = useFormat();
+  const { colors } = useTheme();
   const canSign = proposal.decision === "ASK" && proposal.status === "PENDING_APPROVAL";
+  const converts = proposal.kind === "CONVERT";
+  // Same-currency funding says nothing the amount does not: only another balance gets its own row.
+  const funding =
+    proposal.funding && proposal.funding.currency !== proposal.currency ? proposal.funding : null;
   return (
     <Card>
       <Box gap={3}>
         <Box row justify="between" align="center" gap={2}>
-          <Text weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }}>
-            {proposal.payeeName}
+          <Text
+            weight="semibold"
+            numberOfLines={1}
+            style={{ flexShrink: 1 }}
+            testID="proposal-title"
+          >
+            {converts
+              ? t("chat:proposalConvertTitle", { currency: proposal.currency })
+              : proposal.payeeName}
           </Text>
           <StatusChip
             tone={DECISION_TONE[proposal.decision]}
@@ -47,8 +62,30 @@ export function ProposalCard({ proposal }: { proposal: ProposalSummary }) {
               })}
             </Text>
           ) : null}
+          {funding ? (
+            <Text variant="caption" weight="semibold" testID="proposal-funding">
+              {t("chat:proposalFunding", {
+                currency: funding.currency,
+                max: f.money(funding.maxAmountMinor, funding.currency),
+              })}
+            </Text>
+          ) : null}
           <Text variant="caption">{t(`common:proposalStatus.${proposal.status}`)}</Text>
         </Box>
+        {proposal.orderLine ? (
+          <View
+            testID="proposal-order-line"
+            style={{
+              gap: 2,
+              paddingLeft: 10,
+              borderLeftWidth: 3,
+              borderLeftColor: colors.brandAccent,
+            }}
+          >
+            <Text variant="caption">{t("chat:proposalSigned")}</Text>
+            <Text selectable>{proposal.orderLine}</Text>
+          </View>
+        ) : null}
         {proposal.decision === "REFUSE" ? <ReasonCodeList codes={proposal.reasonCodes} /> : null}
         {canSign ? (
           <Button onPress={() => router.push(`/order/${proposal.proposalId}`)}>

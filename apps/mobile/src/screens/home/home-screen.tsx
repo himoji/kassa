@@ -247,6 +247,21 @@ function BalanceCard() {
                 {t("home:send")}
               </Button>
             </Box>
+            {/* Exchange between the user's own balances (a passkey-signed CONVERT order). */}
+            <Button
+              variant="outline"
+              onPress={() => router.push("/convert")}
+              leftIcon={
+                <Icon
+                  name="arrow.left.arrow.right"
+                  fallback="currency_exchange"
+                  size={18}
+                  color="foreground"
+                />
+              }
+            >
+              {t("home:convert")}
+            </Button>
           </Box>
         </Card>
       )}

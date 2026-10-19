@@ -196,26 +196,23 @@ describe("second persona Li Wei (D-CN3)", () => {
     for (const route of r.routes) expect(route.fundingCurrency).toBe("CNY");
   });
 
-  it("coverage forecast: EUR and HUF needs funded from CNY", async () => {
+  it("coverage forecast: the HUF rent and EUR tuition are drawn from CNY, a later EUR need converts from CNY", async () => {
     await seedBoth();
     const f = await forecastCoverage(LI_WEI_IDS.user);
     const eur = f.currencies.find((c) => c.currency === "EUR")!;
     const huf = f.currencies.find((c) => c.currency === "HUF")!;
     const cny = f.currencies.find((c) => c.currency === "CNY")!;
-    expect(eur.shortfall).toEqual({ date: "2026-11-10", amountMinor: 275_000 });
-    expect(huf.shortfall).toEqual({ date: "2026-11-05", amountMinor: 7_000_000 });
+    // (2026-10-18) Bills are drawn from the balance their bank route debits (the same route GET /obligations reports and
+    // rules sign): the HUF rent and the EUR tuition, which the HUF and EUR balances cannot pay alone, are paid from CNY
+    // by converting routes, so they are no HUF / EUR shortfall any more (before, the forecast showed EUR 2,750 and
+    // HUF 70,000 needs while the bills page showed the same bills COVERED). The EUR bill the EUR balance pays still
+    // runs it below zero by December: that need converts from CNY.
+    expect(huf.shortfall).toBeNull();
     expect(cny.shortfall).toBeNull();
-    expect(f.suggestions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ fromCurrency: "CNY", toCurrency: "EUR", amountMinor: 275_000 }),
-        // Y4 (cn D-CN3): sized to the first shortfall (to the reserve), not the horizon end.
-        expect.objectContaining({ fromCurrency: "CNY", toCurrency: "HUF", amountMinor: 7_000_000, byDate: "2026-11-05" }),
-      ]),
-    );
-    // Cheapest route per top-up: the large EUR one by the mock bank (fixed fee, low markup), the small HUF one by
-    // the CNY card (no fixed fee).
-    expect(f.suggestions.find((s) => s.toCurrency === "EUR")?.route?.routeId).toBe("cny-mock-bank:CNY");
-    expect(f.suggestions.find((s) => s.toCurrency === "HUF")?.route?.routeId).toBe("cny-card:CNY");
+    expect(eur.shortfall).toEqual({ date: "2026-12-05", amountMinor: 39_470 });
+    expect(cny.points.at(-1)!.balanceMinor).toBeLessThan(cny.points[0]!.balanceMinor);
+    expect(f.suggestions).toEqual([expect.objectContaining({ fromCurrency: "CNY", toCurrency: "EUR", amountMinor: 39_470, byDate: "2026-12-05" })]);
+    expect(f.suggestions[0]?.route?.routeId).toBe("cny-mock-bank:CNY");
   });
 
   it("tuition EUR 3,200 is funded from CNY via the mock bank: ASK, signed max, bank debit", async () => {

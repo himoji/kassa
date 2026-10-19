@@ -25,5 +25,15 @@
   "signedOrderId": "Order ID",
   "title": "Paying",
   "withinMandate": "Within your signed mandate",
-  "fundedFromLinked": "{{label}}, at most {{max}}"
+  "fundedFromLinked": "{{label}}, at most {{max}}",
+  "convert": {
+    "title": "Convert between your balances",
+    "from": "From your {{currency}} balance",
+    "atMost": "at most {{max}}",
+    "into": "Into your {{currency}} balance",
+    "route": "Route",
+    "done": "Converted",
+    "doneBody": "{{amount}} is now in your {{currency}} balance, from your {{from}} balance (at most {{max}} incl. fees).",
+    "failed": "The conversion did not go through."
+  }
 }

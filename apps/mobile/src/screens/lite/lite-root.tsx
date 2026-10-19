@@ -110,6 +110,14 @@ function LiteNavigator() {
             }}
           />
           <Stack.Screen
+            name="convert"
+            options={{
+              ...inlineTitleOptions,
+              headerShown: true,
+              title: t("wallet:convert.title"),
+            }}
+          />
+          <Stack.Screen
             name="cards"
             options={{ ...largeTitleOptions, headerShown: true, title: t("cards:title") }}
           />

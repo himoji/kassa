@@ -35,7 +35,7 @@ export type FundingChoice =
   /** Balances unknown (mock bank unreachable): same-currency route bound, the bank's funds check is the backstop. */
   | { status: "UNKNOWN"; funding: Funding | null };
 
-const bankRails = () => loadRails().rails.filter((r) => r.rail === "BANK_TRANSFER" && r.provider === "MOCK_BANK");
+export const bankRails = () => loadRails().rails.filter((r) => r.rail === "BANK_TRANSFER" && r.provider === "MOCK_BANK");
 
 function maxFor(estimate: number, converts: boolean, balance: number | null): number {
   if (!converts) return estimate;
@@ -60,14 +60,21 @@ export async function chooseFunding(a: {
    * wallet once. Omitted = read here. Ignored with linkedCurrency.
    */
   balances?: WalletBalances | null;
+  /**
+   * (added 2026-10-18) Only these wallet balances may fund it (a CONVERT order: never the target currency itself, and
+   * the user's chosen source when given). Omitted = any balance.
+   */
+  fundingCurrencies?: readonly string[] | undefined;
 }): Promise<FundingChoice> {
   const today = isoDate(a.now);
   const rails = a.linkedCurrency ? bankRails().filter((r) => !r.fundingCurrencies || r.fundingCurrencies.includes(a.linkedCurrency!)) : bankRails();
-  const balances = a.linkedCurrency
+  const read = a.linkedCurrency
     ? [{ currency: a.linkedCurrency, amountMinor: Number.MAX_SAFE_INTEGER }]
     : a.balances !== undefined
       ? a.balances
       : await walletBalances(a.userId);
+  const allowed = a.fundingCurrencies;
+  const balances = read && allowed ? read.filter((b) => allowed.includes(b.currency)) : read;
 
   if (!balances) {
     // Unknown balances: bind the same-currency route (no conversion, so the debit is exact).

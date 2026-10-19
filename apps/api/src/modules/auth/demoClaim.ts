@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
+import { judgeCopyReference, judgeCopyStudentId, judgeCopySuffix } from "../../../../../fixtures/judge-copy.ts";
 import { getDb } from "../../db/client.ts";
 import { demoState, users } from "../../db/schema.ts";
 import { HttpProblem } from "../../http/problem.ts";
@@ -51,10 +52,30 @@ export async function judgeDemoCopy(claim: true | string): Promise<{ userId: str
   if (!ds?.demoUserId) throw new HttpProblem(409, "DEMO_NOT_SEEDED", "Run the seed first");
   const seed = await loadSeedData();
   const userId = randomUUID();
-  const copy = seedUserCopy(claimedSeed(seed, claim), userId);
+  const copy = ownSchoolIdentifiers(seedUserCopy(claimedSeed(seed, claim), userId), userId);
   await insertSeedUserCopy(db, seed.seedNow, copy, claim === true ? "hero" : claim);
   await fundWallet(userId, copy.balances ?? []);
   return { userId, copy };
+}
+
+/**
+ * The copy's own student ID at its school and its own tuition invoice reference (fixtures/judge-copy.ts): the school
+ * portal keeps an invoice's state under them, so with the seeded ones one reviewer's tuition payment would show as
+ * paid in every other copy. The other seeded identifiers (rent and insurance references, customer numbers, accounts)
+ * have no state in the mock world and stay as seeded.
+ */
+export function ownSchoolIdentifiers<T extends SeedAccount>(copy: T, userId: string): T {
+  const suffix = judgeCopySuffix(userId);
+  const tuition = new Set<string>();
+  for (const p of copy.payees) {
+    if (p.details?.category !== "TUITION" || !p.details.studentId) continue;
+    p.details = { ...p.details, studentId: judgeCopyStudentId(p.details.studentId, userId) };
+    tuition.add(p.id);
+  }
+  for (const o of copy.obligations) {
+    if (tuition.has(o.payeeId) && o.reference) o.reference = judgeCopyReference(o.reference, suffix);
+  }
+  return copy;
 }
 
 /**

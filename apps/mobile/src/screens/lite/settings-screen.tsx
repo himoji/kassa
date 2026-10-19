@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { Segmented } from "@/components/kassa/segmented";
+import { DemoProofSection } from "@/components/demo-proof-section";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Icon, Input, Row, Text, toast, useTheme } from "@/components/ui";
 import { confirm } from "@/lib/confirm";
@@ -127,6 +128,7 @@ export function LiteSettingsScreen() {
 
       <ShortcutSetup />
       <VoiceShortcut />
+      <DemoProofSection />
 
       <RowGroup
         title={t("lite:settings.dataMode.title")}

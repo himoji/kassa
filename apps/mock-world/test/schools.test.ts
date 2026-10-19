@@ -38,9 +38,9 @@ afterAll(async () => {
 
 async function payToSchool(w: MockWorld, schoolId: string, amountMinor: number, reference: string) {
   const s = SCHOOLS[schoolId]!;
-  w.bank.topUp(MOCK_BANK_PROFILE_ID, s.currency, amountMinor * 2, randomUUID());
+  await w.bank.topUp(MOCK_BANK_PROFILE_ID, s.currency, amountMinor * 2, randomUUID());
   const quote = await w.bank.createQuote(MOCK_BANK_PROFILE_ID, { sourceCurrency: s.currency, targetCurrency: s.currency, targetAmountMinor: amountMinor });
-  const recipient = w.bank.createRecipient({ currency: s.currency, profile: MOCK_BANK_PROFILE_ID, accountHolderName: s.name, legalType: "BUSINESS", iban: s.iban });
+  const recipient = await w.bank.createRecipient({ currency: s.currency, profile: MOCK_BANK_PROFILE_ID, accountHolderName: s.name, legalType: "BUSINESS", iban: s.iban });
   const { transfer } = await w.bank.createTransfer({ targetAccount: recipient.id, quoteUuid: quote.id, customerTransactionId: randomUUID(), reference, instant: true });
   await w.bank.fund(MOCK_BANK_PROFILE_ID, transfer.id);
   return transfer;

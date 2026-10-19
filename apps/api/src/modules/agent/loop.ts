@@ -1,4 +1,6 @@
-import { isStepCount, streamText, wrapLanguageModel, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, type StopCondition, type ToolSet, type UIMessageChunk } from "ai";
+import { randomUUID } from "node:crypto";
+
+import { isStepCount, streamText, wrapLanguageModel, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, type StepResult, type StopCondition, type ToolSet, type UIMessageChunk } from "ai";
 
 import type { AgentMode } from "@kassa/shared";
 
@@ -6,11 +8,14 @@ import { AiConfigError } from "../ai/errors.ts";
 import { newFallbackState, replayFallbackEnabled, withReplayFallback } from "../ai/fallback.ts";
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
 import { SDK_MAX_RETRIES } from "../ai/retry.ts";
+import { timeoutMiddleware, turnBudget, turnClock, turnTimeoutOf, type TurnBudget } from "./budget.ts";
 import { redactionMiddleware } from "./middleware.ts";
 import type { AgentPorts } from "./ports.ts";
 import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "./replay.ts";
+import { fallbackAnswer, type ProposalOutcome, type ToolOutcome } from "./summary.ts";
+import { orderFactsStream } from "./turn-summary.ts";
 import { buildTools, DRAFT_TOOLS, MAX_TOOL_CALLS, MAX_TOOL_STEPS, UI_TOOLS, WRITE_TOOLS, type ToolContext } from "./tools.ts";
 import type { ReaderResult } from "../reader/index.ts";
 
@@ -18,6 +23,11 @@ import type { ReaderResult } from "../reader/index.ts";
  * One planner turn (spec §9): ≤ 8 tool rounds (MAX_TOOL_STEPS) and ≤ MAX_TOOL_CALLS tool calls, then a final
  * text step. If a tool returns REFUSE or a COOLING payee, the next step gets no tools (explain plainly) and the loop
  * stops. The model's reasoning never reaches the client stream (only its answer text and the cards).
+ *
+ * The turn is also bounded in time (budget.ts): no tool round starts after the wrap-up point, and a model call that
+ * stalls is cut. A turn that was cut, or that ended without answer text (and without a picker on screen), gets one
+ * text-only "final answer" call over the tool results so far; if that fails too, a code-written summary of the tool
+ * results and proposals (summary.ts). Cards a tool emitted before the cut stay on screen: they are written directly.
  */
 
 export interface TurnStore {
@@ -48,6 +58,8 @@ export interface TurnOptions {
    * log_expense stay.
    */
   readOnly?: boolean;
+  /** Time budget overrides (tests); defaults from the environment (budget.ts). */
+  budget?: Partial<TurnBudget>;
 }
 
 /** Tools a read-only turn never gets (TurnOptions.readOnly). */
@@ -69,7 +81,18 @@ export interface TurnSummary {
   stopped: boolean;
   text: string;
   recordedTo: string | null;
+  /**
+   * How the answer was produced: by the tool loop itself, by the final answer call after the loop was cut or ended
+   * without text, or by code (summary.ts) when that call failed too.
+   */
+  answeredBy: "model" | "final-step" | "summary";
+  /** Why the tool loop did not answer by itself (null when it did). */
+  cutoff: "step" | "idle" | "deadline" | "no-text" | "error" | null;
+  elapsedMs: number;
 }
+
+/** Appended to the instructions of the final answer call (and of a tool-loop step that starts after the wrap-up point). */
+export const FINAL_ANSWER_PROMPT = `Time is up for this turn: do not call tools. Answer the user now, in a few short sentences, from the tool results above: what you found, and for each payment proposal created in this turn what it is and its decision (its card is already shown to the user). If something is still unknown, say what to ask next.`;
 
 /** Recordings that belong to other channels (POST /onboarding/message), never picked by the agent chat. */
 const ONBOARDING_ONLY = ["onboarding"];
@@ -117,6 +140,8 @@ export function rehydrateStream(redactor: Redactor, payeeNames: Map<string, stri
 }
 
 export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
+  const budget = turnBudget(o.budget);
+  const clock = turnClock(budget);
   const [history, existing, names, payees, profile] = await Promise.all([o.store.history(), o.store.placeholders(), knownNames(o.ports), o.ports.payees(), o.ports.profile()]);
   // (M5) A BUSINESS account gets the business tool set and prompt section (when the ports provide them).
   const business = profile.accountType === "BUSINESS" && o.ports.business !== undefined;
@@ -170,60 +195,308 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
     }
   }
   const recorder = o.record && o.mode === "LIVE" && !o.model && recordedWith !== "replay" ? new StepRecorder() : null;
-  const middleware: LanguageModelMiddleware[] = [redactionMiddleware(redactor), ...(recorder ? [recorder.middleware()] : [])];
-  const model = typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware });
+  /** The planner model, every call bounded by the budget (timeoutMiddleware is outermost: it bounds retries too). */
+  const bounded = (deadline: (textStarted: boolean) => number): LanguageModel => {
+    const middleware: LanguageModelMiddleware[] = [
+      timeoutMiddleware({ stepMs: budget.stepMs, idleMs: budget.idleMs, deadline }),
+      redactionMiddleware(redactor),
+      ...(recorder ? [recorder.middleware()] : []),
+    ];
+    return typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware });
+  };
+  // A tool-loop call ends by answerBy, the rest is kept for the final answer call; once its answer text is streaming
+  // it may run to the turn's deadline.
+  const model = bounded((textStarted) => (textStarted ? clock.deadline : clock.answerBy));
+  const instructions = [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [READ_ONLY_PROMPT] : [])].join("\n\n");
 
   let stopAtStep: number | null = null;
+  let wrapUpStep: number | null = null;
   const stopAfterExplanation: StopCondition<ToolSet> = ({ steps }) => stopAtStep !== null && steps.length > stopAtStep;
+  const stopAfterWrapUp: StopCondition<ToolSet> = ({ steps }) => wrapUpStep !== null && steps.length > wrapUpStep;
   // A picker (ask_*) is on screen: end the turn and wait for the user's answer.
   const stopForPicker: StopCondition<ToolSet> = () => Boolean(ctx.awaitingUser);
+  // Steps completed before the latest step started (a step cut midway is not one of them), and the loop's error.
+  let completed: { steps: Array<StepResult<ToolSet>>; messages: ModelMessage[] } = { steps: [], messages: [] };
+  let loopError: unknown = null;
+  const inflight = new Set<Promise<unknown>>();
 
   const result = streamText({
     model,
-    instructions: [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [READ_ONLY_PROMPT] : [])].join("\n\n"),
+    instructions,
     messages: [...history, userMsg],
-    tools,
+    tools: trackExecutions(tools, inflight),
     // Live models retry 429 / 5xx themselves (ai/retry.ts: AI_MAX_RETRIES, backoff + jitter, Retry-After).
     maxRetries: SDK_MAX_RETRIES,
-    stopWhen: [isStepCount(MAX_TOOL_STEPS + 1), stopAfterExplanation, stopForPicker],
-    prepareStep: ({ stepNumber }) => {
+    stopWhen: [isStepCount(MAX_TOOL_STEPS + 1), stopAfterExplanation, stopAfterWrapUp, stopForPicker],
+    prepareStep: ({ stepNumber, steps, responseMessages }) => {
+      completed = { steps: [...steps], messages: [...responseMessages] };
       if (ctx.stop.requested && stopAtStep === null) stopAtStep = stepNumber;
+      // Past the wrap-up point no tool round starts: the model answers with what it has.
+      if (stepNumber > 0 && (wrapUpStep !== null || clock.now() >= clock.wrapUpAt)) {
+        wrapUpStep ??= stepNumber;
+        return { activeTools: [], toolChoice: "none" as const, instructions: `${instructions}\n\n${FINAL_ANSWER_PROMPT}` };
+      }
       // After REFUSE / COOLING, once 8 tool rounds are used, or once MAX_TOOL_CALLS tool calls ran: text only.
       const callsUsed = (ctx.toolCalls?.count ?? 0) >= MAX_TOOL_CALLS;
       if (stopAtStep !== null || stepNumber >= MAX_TOOL_STEPS || callsUsed) return { activeTools: [], toolChoice: "none" as const };
       return {};
     },
+    onError: ({ error }) => {
+      loopError ??= error;
+    },
     ...(o.abortSignal ? { abortSignal: o.abortSignal } : {}),
   });
 
-  const payeeNames = new Map(payees.map((p) => [p.id, p.name]));
-  const uiStream = result
-    .toUIMessageStream({
-      sendReasoning: false,
-      // `replay` is known at the start for REPLAY mode, and at the finish when a live turn fell back to a recording.
-      messageMetadata: ({ part }) =>
-        part.type === "start" ? { replay: (o.mode === "REPLAY" || fallback.used) && !o.model } : part.type === "finish" && fallback.used ? { replay: true } : undefined,
-      onError: (e) => (e instanceof Error && "code" in e ? `${(e as { code: string }).code}: ${e.message}` : "The assistant could not answer. Please try again."),
-    })
-    .pipeThrough(rehydrateStream(redactor, payeeNames));
+  const errorText = (e: unknown) => (e instanceof Error && "code" in e ? `${(e as { code: string }).code}: ${e.message}` : "The assistant could not answer. Please try again.");
+  const loopUi = result.toUIMessageStream({
+    sendReasoning: false,
+    // The finish chunk is written below, once the turn has its answer.
+    sendFinish: false,
+    // `replay` is known at the start for REPLAY mode, and at the finish when a live turn fell back to a recording.
+    messageMetadata: ({ part }) => (part.type === "start" ? { replay: (o.mode === "REPLAY" || fallback.used) && !o.model } : undefined),
+    onError: errorText,
+  });
+  const finishChunk = (): UIMessageChunk => ({ type: "finish", ...(fallback.used ? { messageMetadata: { replay: true } } : {}) });
 
-  const done = (async (): Promise<TurnSummary> => {
-    // responseMessages = every step's assistant + tool messages (result.response is the last step only).
-    const [responseMessages, steps, text] = await Promise.all([result.responseMessages, result.steps, result.text]);
-    await o.store.saveMessages([userMsg, ...responseMessages]);
+  const persist = async (messages: ModelMessage[]) => {
+    await o.store.saveMessages([userMsg, ...messages]);
     await o.store.savePlaceholders(redactor.drainNew());
-    const recordedTo = recorder && !fallback.used ? recorder.save(o.scenario ?? redactedText, redactedText, recordedWith) : null;
-    return {
-      steps: steps.length,
-      toolCalls: steps.flatMap((s) => s.toolCalls.map((c) => ({ toolName: c.toolName, input: c.input }))),
-      stopped: stopAtStep !== null,
-      text,
-      recordedTo,
-    };
-  })();
+    return recorder && !fallback.used ? recorder.save(o.scenario ?? redactedText, redactedText, recordedWith) : null;
+  };
+  const summaryOf = (steps: Array<StepResult<ToolSet>>, text: string, recordedTo: string | null, extra: Pick<TurnSummary, "answeredBy" | "cutoff">): TurnSummary => ({
+    steps: steps.length,
+    toolCalls: steps.flatMap((s) => s.toolCalls.map((c) => ({ toolName: c.toolName, input: c.input }))),
+    stopped: stopAtStep !== null,
+    text,
+    recordedTo,
+    ...extra,
+    elapsedMs: clock.now() - clock.startedAt,
+  });
+
+  const run = async (out: ReadableStreamDefaultController<UIMessageChunk>): Promise<TurnSummary> => {
+    const open = new OpenParts();
+    let errorChunk: UIMessageChunk | null = null;
+    let abortChunk: UIMessageChunk | null = null;
+    try {
+      for await (const c of loopUi) {
+        if (c.type === "error") errorChunk = c;
+        else if (c.type === "abort") abortChunk = c;
+        else {
+          open.track(c);
+          out.enqueue(c);
+        }
+      }
+    } catch (e) {
+      // A cut model stream can surface here instead of as an error chunk.
+      loopError ??= e;
+    }
+    const finished = await Promise.all([result.responseMessages, result.steps, result.text]).then(
+      ([messages, steps, text]) => ({ messages, steps, text }),
+      (e: unknown) => {
+        loopError ??= e;
+        return null;
+      },
+    );
+
+    // The client went away: nothing more to say (nor to store, as before).
+    if (o.abortSignal?.aborted) {
+      if (abortChunk) out.enqueue(abortChunk);
+      throw loopError ?? o.abortSignal.reason;
+    }
+    const steps = finished?.steps ?? completed.steps;
+    const timeout = turnTimeoutOf(loopError);
+    if (loopError && !timeout && completed.steps.length === 0 && ctx.proposals.length === 0) {
+      // Nothing ran before the provider failed: the error is the answer (an AI configuration error tells how to fix it).
+      if (errorChunk) out.enqueue(errorChunk);
+      throw loopError;
+    }
+    const cutoff: TurnSummary["cutoff"] = loopError ? (timeout?.kind ?? "error") : !finished!.text.trim() && !ctx.awaitingUser ? "no-text" : null;
+    if (cutoff === null) {
+      out.enqueue(finishChunk());
+      return summaryOf(steps, finished!.text, await persist(finished!.messages), { answeredBy: "model", cutoff: null });
+    }
+
+    // Cut or silent: close what the cut left open, let running tools settle (a proposal may be on its way), answer.
+    open.close(out, "Stopped: this turn ran out of time.");
+    await settle(inflight, Math.min(5_000, Math.max(0, clock.deadline - clock.now())));
+    const prior = finished?.messages ?? completed.messages;
+    const proposals: ProposalOutcome[] = ctx.proposals.map((p) => ({ summary: redactor.redactText(p.summary), decision: p.decision, reasonCodes: p.reasonCodes }));
+    let answer: { text: string; messages: ModelMessage[]; by: TurnSummary["answeredBy"] } | null = null;
+    if (clock.deadline - clock.now() >= Math.min(MIN_FINAL_MS, budget.finalMs / 2)) {
+      const final = await finalAnswerCall(out, {
+        model: bounded(() => clock.deadline),
+        instructions: `${instructions}\n\n${FINAL_ANSWER_PROMPT}${proposalNote(proposals)}`,
+        messages: [...history, userMsg, ...prior],
+        errorText,
+        abortSignal: o.abortSignal,
+      });
+      if (final) answer = { ...final, by: "final-step" };
+    }
+    if (o.abortSignal?.aborted) throw o.abortSignal.reason;
+    if (!answer) {
+      const text = fallbackAnswer(
+        steps.flatMap((s) => s.toolResults.map((r) => ({ toolName: r.toolName, output: r.output }) satisfies ToolOutcome)),
+        proposals,
+        { timedOut: cutoff !== "no-text" },
+      );
+      const id = `summary-${randomUUID()}`;
+      out.enqueue({ type: "text-start", id });
+      out.enqueue({ type: "text-delta", id, delta: text });
+      out.enqueue({ type: "text-end", id });
+      answer = { text, messages: [{ role: "assistant", content: text }], by: "summary" };
+    }
+    out.enqueue(finishChunk());
+    return summaryOf(steps, answer.text, await persist([...prior, ...answer.messages]), { answeredBy: answer.by, cutoff });
+  };
+
+  let resolveDone!: (s: TurnSummary) => void;
+  let rejectDone!: (e: unknown) => void;
+  const done = new Promise<TurnSummary>((resolve, reject) => {
+    resolveDone = resolve;
+    rejectDone = reject;
+  });
   // Avoid unhandled rejections when the caller only consumes the stream; errors surface via the stream.
   done.catch(() => undefined);
-  return { uiStream, done, ctx };
+  const raw = new ReadableStream<UIMessageChunk>({
+    start(out) {
+      void run(out).then(
+        (s) => {
+          out.close();
+          resolveDone(s);
+        },
+        (e: unknown) => {
+          try {
+            out.close();
+          } catch {
+            // already closed
+          }
+          rejectDone(e);
+        },
+      );
+    },
+  });
+
+  const payeeNames = new Map(payees.map((p) => [p.id, p.name]));
+  // (2026-10-18) after rehydration: the signed-order lines are server text with real names (turn-summary.ts).
+  return { uiStream: raw.pipeThrough(rehydrateStream(redactor, payeeNames)).pipeThrough(orderFactsStream(ctx)), done, ctx };
+}
+
+/** Below this much time left, the final answer call is skipped for the code-written summary. */
+const MIN_FINAL_MS = 3_000;
+
+/** Proposals of this turn, for the final answer call (redacted: instructions are not redacted by the middleware). */
+function proposalNote(proposals: readonly ProposalOutcome[]): string {
+  if (proposals.length === 0) return "";
+  return `\n\nPayment proposals created in this turn (each card is shown to the user):\n${proposals.map((p) => `- ${p.summary} Decision: ${p.decision}${p.reasonCodes.length ? ` (${p.reasonCodes.join(", ")})` : ""}.`).join("\n")}`;
+}
+
+/**
+ * One text-only call over the tool results so far (no tools), streamed into `out`. Returns its answer, or null when
+ * it failed, was cut or wrote nothing (anything it left open is closed).
+ */
+async function finalAnswerCall(
+  out: ReadableStreamDefaultController<UIMessageChunk>,
+  a: { model: LanguageModel; instructions: string; messages: ModelMessage[]; errorText: (e: unknown) => string; abortSignal: AbortSignal | undefined },
+): Promise<{ text: string; messages: ModelMessage[] } | null> {
+  let failed = false;
+  const final = streamText({
+    model: a.model,
+    instructions: a.instructions,
+    messages: a.messages,
+    maxRetries: SDK_MAX_RETRIES,
+    stopWhen: isStepCount(1),
+    onError: () => {
+      failed = true;
+    },
+    ...(a.abortSignal ? { abortSignal: a.abortSignal } : {}),
+  });
+  const open = new OpenParts();
+  try {
+    for await (const c of final.toUIMessageStream({ sendStart: false, sendFinish: false, sendReasoning: false, onError: a.errorText })) {
+      if (c.type === "error" || c.type === "abort") continue;
+      open.track(c);
+      out.enqueue(c);
+    }
+  } catch {
+    failed = true;
+  }
+  const r = await Promise.all([final.responseMessages, final.text]).catch(() => null);
+  if (failed || !r || !r[1].trim()) {
+    open.close(out, "Stopped: this turn ran out of time.");
+    return null;
+  }
+  return { text: r[1], messages: r[0] };
+}
+
+/** UI parts a cut stream left open (text, tool calls, the step), so the client does not wait on them forever. */
+class OpenParts {
+  private readonly text = new Set<string>();
+  private readonly tools = new Set<string>();
+  private step = false;
+
+  track(c: UIMessageChunk): void {
+    switch (c.type) {
+      case "text-start":
+        this.text.add(c.id);
+        break;
+      case "text-end":
+        this.text.delete(c.id);
+        break;
+      case "tool-input-start":
+      case "tool-input-available":
+        this.tools.add(c.toolCallId);
+        break;
+      case "tool-input-error":
+      case "tool-output-available":
+      case "tool-output-error":
+      case "tool-output-denied":
+        this.tools.delete(c.toolCallId);
+        break;
+      case "start-step":
+        this.step = true;
+        break;
+      case "finish-step":
+        this.step = false;
+        break;
+    }
+  }
+
+  close(out: ReadableStreamDefaultController<UIMessageChunk>, errorText: string): void {
+    for (const id of this.text) out.enqueue({ type: "text-end", id });
+    for (const toolCallId of this.tools) out.enqueue({ type: "tool-output-error", toolCallId, errorText });
+    if (this.step) out.enqueue({ type: "finish-step" });
+    this.text.clear();
+    this.tools.clear();
+    this.step = false;
+  }
+}
+
+/** Tools whose running executions are kept in `inflight` (a cut turn waits for them before it answers). */
+function trackExecutions(tools: ToolSet, inflight: Set<Promise<unknown>>): ToolSet {
+  return Object.fromEntries(
+    Object.entries(tools).map(([name, t]) => {
+      const run = t.execute;
+      if (!run) return [name, t];
+      const execute: typeof run = (input, options) => {
+        const p = Promise.resolve(run(input, options) as unknown);
+        inflight.add(p);
+        void p.then(
+          () => inflight.delete(p),
+          () => inflight.delete(p),
+        );
+        return p as ReturnType<typeof run>;
+      };
+      return [name, { ...t, execute }];
+    }),
+  );
+}
+
+/** Waits for `pending` to settle, at most `ms`. */
+async function settle(pending: Set<Promise<unknown>>, ms: number): Promise<void> {
+  if (pending.size === 0 || ms <= 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([Promise.allSettled([...pending]), new Promise<void>((resolve) => (timer = setTimeout(resolve, ms)))]);
+  clearTimeout(timer);
 }
 
 export { PLACEHOLDER_RE };

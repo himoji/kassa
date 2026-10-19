@@ -15,5 +15,37 @@
     "UNKNOWN_PAYEE_REF": "收款人不在你的名册中",
     "UNKNOWN_ITEM": "菜单上没有该商品",
     "ITEMS_TOTAL_MISMATCH": "商品金额与总额不符"
+  },
+  "links": {
+    "title": "演示与证明",
+    "footer": "本 Kassa 服务器上的页面，在应用内浏览器中打开。商店、钱包、学校和 Stage 页面是演示服务器模拟的外部世界。",
+    "evidence": {
+      "title": "证据室",
+      "subtitle": "针对 AI 代理的 16 种攻击、由谁决定、来源"
+    },
+    "ledger": {
+      "title": "账本校验",
+      "subtitle": "运行防篡改账本校验"
+    },
+    "stage": {
+      "title": "Stage",
+      "subtitle": "现场演示的所有场景集中在一处"
+    },
+    "tap": {
+      "title": "刷卡终端",
+      "subtitle": "在模拟商店里碰一碰付款"
+    },
+    "wallet": {
+      "title": "二维码钱包",
+      "subtitle": "宿舍费的扫码付款页面（CN 地区）"
+    },
+    "till": {
+      "title": "商店收银台",
+      "subtitle": "布达佩斯披萨店：开单并扫码付款"
+    },
+    "school": {
+      "title": "学校门户",
+      "subtitle": "演示学生的学费账单"
+    }
   }
 }

@@ -15,6 +15,7 @@ import { getDb } from "../../db/client.ts";
 import { profiles } from "../../db/schema.ts";
 import { ensureWalletProfile, userByKassaId } from "../wallet/service.ts";
 import { bankCall, bankMode, simulateNextWiseState, WiseError, wiseSandboxProfile } from "./bankApi.ts";
+import { MockWorldError } from "./http.ts";
 import type { ExecCtx, Rail, RailResult } from "./types.ts";
 
 /** Wise transfer states → our PaymentStatus (ISO 20022 pain.002 semantics: ACSP→PROCESSING, ACSC→SENT). */
@@ -36,12 +37,12 @@ export function mapWiseStatus(status: string): PaymentStatus {
   }
 }
 
-function decimal(amountMinor: number, currency: string): number {
+export function decimal(amountMinor: number, currency: string): number {
   return Number(fromMinor(amountMinor, currency));
 }
 
 /** Wise decimal (number or string) → minor units, rounded to the currency exponent first; null if absent. */
-function minorOf(value: unknown, currency: string): number | null {
+export function minorOf(value: unknown, currency: string): number | null {
   if (typeof value !== "number" && typeof value !== "string") return null;
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
@@ -116,6 +117,25 @@ export async function bankProfileFor(userId: string): Promise<number> {
   return p.id;
 }
 
+/** The balance in `currency` is below `neededMinor` (known balances only; null when it covers it or cannot be read). */
+export async function shortOf(userId: string, currency: string, neededMinor: number | undefined): Promise<{ balanceMinor: number; neededMinor: number } | null> {
+  if (typeof neededMinor !== "number") return null;
+  let balances: WalletBalances;
+  try {
+    balances = await getWalletBalances(userId);
+  } catch {
+    return null;
+  }
+  const balanceMinor = balances.find((b) => b.currency === currency)?.amountMinor ?? 0;
+  return balanceMinor < neededMinor ? { balanceMinor, neededMinor } : null;
+}
+
+/** A funding call the bank refused for insufficient balance (mock bank 422 / Wise transfer.insufficient_funds). */
+export function fundingShort(err: unknown): boolean {
+  if (err instanceof WiseError) return err.code === "transfer.insufficient_funds" || err.status === 422;
+  return err instanceof MockWorldError && err.status === 422;
+}
+
 export const mockBankRail: Rail = {
   id: "BANK_TRANSFER",
   async execute(order: CanonicalOrder, ctx: ExecCtx): Promise<RailResult> {
@@ -148,6 +168,13 @@ export const mockBankRail: Rail = {
         reasonCodes: ["FUNDING_ABOVE_SIGNED_MAX"],
         details: { quoteId: quote.id, quoteSourceAmountMinor: quote.sourceAmountMinor ?? null, signedMaxMinor: funding.maxAmountMinor, fundingCurrency: funding.currency },
       };
+    }
+    // (2026-10-18) The balance the quote debits must be there before a transfer is created: a short balance is
+    // INSUFFICIENT_FUNDS (plain to the user), not an opaque RAIL_ERROR from the bank's funding call. An unreadable
+    // balance leaves the bank's own funds check as the backstop (mapped the same way below).
+    const short = await shortOf(order.userId, sourceCurrency, quote.sourceAmountMinor);
+    if (short) {
+      return { status: "FAILED", railRef: `quote:${quote.id}`, reasonCodes: ["INSUFFICIENT_FUNDS"], details: { quoteId: quote.id, sourceCurrency, ...short } };
     }
     const recipientOpts = { profile, currency: order.currency, holder: order.payeeName, legalType: legalType as LegalType };
     const kassa = decodePayeeAccount(ctx.payee.account).scheme === "KASSA_USER" ? await kassaWalletRecipient(ctx.payee.account, recipientOpts) : null;
@@ -182,6 +209,10 @@ export const mockBankRail: Rail = {
     try {
       funded = await bankCall<{ status?: string; transferState?: string }>("POST", `/v3/profiles/${profile}/transfers/${transfer.id}/payments`, { type: "BALANCE" });
     } catch (err) {
+      // The bank refused funding for want of money (mock bank: 422 transfer.insufficient_funds): nothing was debited.
+      if (fundingShort(err)) {
+        return { status: "FAILED", railRef: String(transfer.id), reasonCodes: ["INSUFFICIENT_FUNDS"], details: { quoteId: quote.id, transferId: transfer.id, sourceCurrency, sourceAmountMinor: quote.sourceAmountMinor ?? null, error: (err as Error).message } };
+      }
       // Wise refuses balance funding with a personal token for EU/UK profiles (PSD2 SCA, HTTP 403). In the sandbox
       // nothing real moves either way, so the transfer is moved on with the sandbox's own simulation instead.
       if (!(wiseMode && err instanceof WiseError && err.status === 403)) throw err;

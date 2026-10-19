@@ -5,7 +5,7 @@
  * Fields: payee display name (the signed order's payeeName), amount in the original and the home currency, rail,
  * and the mandate for T1 mandate payments.
  */
-import { formatMoney, type Rail, type ReasonCode } from "@kassa/shared";
+import { formatMoney, orderConversion, type CanonicalOrder, type OrderRail as Rail, type ReasonCode } from "@kassa/shared";
 import { eq } from "drizzle-orm";
 
 import { getDb } from "../../db/client.ts";
@@ -15,7 +15,8 @@ import { notify } from "../notifications/service.ts";
 type MoneyParam = { amountMinor: number; currency: string };
 
 export type PaymentMessage = {
-  key: "payment.sent" | "payment.failed";
+  /** (2026-10-18) conversion.* for a CONVERT order (the app shows the English text for keys it does not know). */
+  key: "payment.sent" | "payment.failed" | "conversion.done" | "conversion.failed";
   params: {
     payee: string;
     amount: MoneyParam;
@@ -31,6 +32,7 @@ const RAIL_EN: Record<Rail, string> = {
   CARD_ISSUING: "one-time card",
   HANDOFF: "QR wallet (handoff)",
   PAY_IN_PLACE: "pay in place",
+  CONVERT: "conversion between your balances",
 };
 
 function money(m: MoneyParam): string {
@@ -44,6 +46,10 @@ function money(m: MoneyParam): string {
 export function renderPaymentEn(m: PaymentMessage): { title: string; body: string } {
   const p = m.params;
   const amount = p.home.currency !== p.amount.currency ? `${money(p.amount)} (≈ ${money(p.home)})` : money(p.amount);
+  if (m.key === "conversion.done") return { title: `Converted into ${money(p.amount)}`, body: `${money(p.amount)} added to your ${p.amount.currency} balance by a conversion between your own balances (simulated).` };
+  if (m.key === "conversion.failed") {
+    return { title: `Conversion into ${money(p.amount)} not done`, body: `The conversion into ${money(p.amount)} was not done: ${p.reasonCodes.join(", ") || "failed"}. Your balances are unchanged.` };
+  }
   const mandate = p.mandate ? ` under your signed mandate ${p.mandate.id.slice(0, 8)} for ${p.mandate.categories.join(", ")}` : "";
   if (m.key === "payment.sent") {
     return { title: `Payment sent to ${p.payee}`, body: `${amount} to ${p.payee} by ${RAIL_EN[p.rail]}${mandate} (simulated).` };
@@ -67,8 +73,14 @@ export async function notifyPaymentOutcome(paymentId: string, status: "SENT" | "
       const m = (await db.select({ id: mandates.id, categories: mandates.categories }).from(mandates).where(eq(mandates.id, a.mandateId)))[0];
       if (m) mandate = { id: m.id, categories: m.categories };
     }
+    let conversion = false;
+    try {
+      conversion = order ? orderConversion(order as CanonicalOrder) !== null : false;
+    } catch {
+      conversion = false;
+    }
     const msg: PaymentMessage = {
-      key: status === "SENT" ? "payment.sent" : "payment.failed",
+      key: conversion ? (status === "SENT" ? "conversion.done" : "conversion.failed") : status === "SENT" ? "payment.sent" : "payment.failed",
       params: {
         payee: order?.payeeName ?? "payee",
         amount: { amountMinor: pay.amountMinor, currency: pay.currency },

@@ -252,8 +252,8 @@ A second Shortcut lets you talk to Kassa's agent. It records you, sends the reco
 5. **Get Dictionary Value**: `reply` in Contents of URL.
 6. **Speak Text** (or **Show Result**) with the Dictionary Value.
 
-The server sends the audio to `VOICE_MODEL` (default `openrouter:xiaomi/mimo-v2.6-pro`, which takes text, image,
-audio and video) as an OpenRouter `input_audio` part, base64 with its format (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`,
+The server sends the audio to `VOICE_MODEL` (default `openrouter:qwen/qwen3.8-omni-flash`, a Qwen omni model used for speech recognition, which takes
+audio) as an OpenRouter `input_audio` part, base64 with its format (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`,
 `flac`; OpenRouter takes no audio URLs). If the provider refuses m4a, add **Encode Media** (Audio Only, AIFF) after
 Record Audio and send `format` = `aiff`. A recording is at most 3 MB. Instead of audio, `text` (from **Dictate Text**)
 skips the voice model.

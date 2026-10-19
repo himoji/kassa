@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import type { Clock } from "../clock.ts";
+import { type Collection, mapCollection } from "../store/sync.ts";
 
 /*
  * (added 2026-10-16) Identity check (KYC), simulated. Stands in for the identity verification a licensed partner runs
@@ -151,5 +152,10 @@ export class KycDesk {
 
   reset(): void {
     this.log.clear();
+  }
+
+  /** Shared between instances (store/sync.ts). */
+  collections(): Collection[] {
+    return [mapCollection("kyc.check", this.log)];
   }
 }

@@ -35,7 +35,8 @@ export async function updatePaymentStatus(
         updatedAt: clock.now(),
       })
       .where(eq(payments.id, paymentId));
-    if (status === "SENT") {
+    // (2026-10-18) A conversion is an exchange between the user's own balances, not spending: no transaction.
+    if (status === "SENT" && p.rail !== "CONVERT") {
       // A sent Kassa payment is also spending: log it as a KASSA_PAYMENT transaction (spec §6) for budgets.
       const prop = (await tx.select().from(proposals).where(eq(proposals.id, p.proposalId)))[0];
       const merchant = extra.merchantName ?? prop?.canonicalOrder?.payeeName ?? "Kassa payment";

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 
 import { balances, IDS, MOCK_BANK_PROFILE_ID, seed } from "../../../fixtures/seed-data.ts";
+import { accessGuard } from "./access.ts";
 import { BankError, MockBank } from "./bank/bank.ts";
 import { ApiRates, type RateProvider } from "./bank/rates.ts";
 import type { Clock, FetchLike } from "./clock.ts";
@@ -25,6 +26,9 @@ import { schoolRoutes } from "./routes/schools.ts";
 import { supplierPortalRoutes } from "./routes/supplierPortal.ts";
 import { SchoolBook } from "./school/schools.ts";
 import { SupplierBook } from "./supplier/book.ts";
+import { memoryStore } from "./store/memory.ts";
+import { WorldSync } from "./store/sync.ts";
+import type { SeedWallet, WorldStore } from "./store/types.ts";
 import { StageApi } from "./stage/client.ts";
 import { FakeIssuerClient, type Issuer, StripeTestHelperClient } from "./shop/issuer.ts";
 import { ShopOrderBook } from "./shop/orders.ts";
@@ -47,6 +51,21 @@ export interface AppDeps {
   logger?: boolean | { level: string };
   /** Start the background tick that advances bank transfers on the demo clock. Default true. */
   startTicker?: boolean;
+  /**
+   * (added 2026-10-18) Where the state lives: in memory by default; a deployed build passes the Postgres store
+   * (store/postgres.ts, api/index.ts) so every instance sees the same world. Build it with `seedWallets()`.
+   */
+  store?: WorldStore;
+}
+
+/** The wallets the mock bank starts with: Dana's capped wallet and the demo personas'. */
+export function seedWallets(): SeedWallet[] {
+  return [
+    { profileId: MOCK_BANK_PROFILE_ID, aliases: [IDS.user], balances },
+    // Demo personas (seeded by the API with `personas: true`: Li Wei D-CN3, Li Wei in Shanghai, the two pizzerias);
+    // alias = user id and persona key, e.g. `sim mock remittance --profile li-wei`.
+    ...seed.personas.map((p) => ({ profileId: p.mockBankProfileId, aliases: [p.user.id, p.persona], balances: [...p.balances] })),
+  ];
 }
 
 export interface MockWorld {
@@ -63,6 +82,12 @@ export interface MockWorld {
   kyc: KycDesk;
   webhooks: WebhookSink & { outbox?: OutboxEntry[] };
   clock: Clock;
+  /** "memory" or "postgres" (store/types.ts). */
+  persistence: WorldStore["persistence"];
+  /** Shares the books between instances (no-op in memory). */
+  sync: WorldSync;
+  /** Advance bank transfers and the shop autopilot once (with the shared state read before and written after). */
+  tick(): Promise<void>;
 }
 
 async function renderDocuments(): Promise<DocumentCache> {
@@ -82,6 +107,7 @@ async function renderDocuments(): Promise<DocumentCache> {
 export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
   const { config } = deps;
   const app = Fastify({ logger: deps.logger ?? { level: config.logLevel } });
+  const store = deps.store ?? memoryStore(seedWallets());
   const log = (msg: string, data?: Record<string, unknown>) => app.log.warn(data ?? {}, msg);
 
   const clock =
@@ -100,12 +126,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
     webhooks,
     stepMs: config.bankStepMs,
     instant: config.bankInstant,
-    initialBalances: [
-      { profileId: MOCK_BANK_PROFILE_ID, aliases: [IDS.user], balances },
-      // Demo personas (seeded by the API with `personas: true`: Li Wei D-CN3, Li Wei in Shanghai, the two pizzerias);
-      // alias = user id and persona key, e.g. `sim mock remittance --profile li-wei`.
-      ...seed.personas.map((p) => ({ profileId: p.mockBankProfileId, aliases: [p.user.id, p.persona], balances: [...p.balances] })),
-    ],
+    store: store.balances,
   });
   const qr = new QrWallet({ clock, webhooks, publicUrl: config.publicUrl });
   const issuer =
@@ -120,6 +141,38 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
   const kyc = new KycDesk({ clock });
   bank.onPayout((t, account) => schools.onPayout(t, account));
   const docs = await renderDocuments();
+
+  const resetLocal = () => {
+    bank.resetLocal();
+    qr.reset();
+    charges.reset();
+    shop.reset();
+    suppliers.reset();
+    schools.reset();
+    kyc.reset();
+  };
+  const sync = new WorldSync(
+    store.entities,
+    [...bank.collections(), ...qr.collections(), ...charges.collections(), ...shop.collections(), ...suppliers.collections(), ...schools.collections(), ...kyc.collections()],
+    // Reset (or the API's demo reset wiped the tables) elsewhere: seeds here, and the seeded wallets if they are gone.
+    async () => {
+      resetLocal();
+      await store.balances.seed();
+    },
+  );
+  const resetWorld = async () => {
+    resetLocal();
+    await bank.reset();
+    await sync.reset();
+  };
+  // Everything the other instances already did, before the first request.
+  await sync.pull();
+  const tick = () =>
+    sync.around(async () => {
+      for (const r of await Promise.allSettled([bank.tick(), shop.tick()])) {
+        if (r.status === "rejected") log("mock world tick failed", { error: String(r.reason) });
+      }
+    });
 
   app.setErrorHandler((err: unknown, req, reply) => {
     if (err instanceof BankError) {
@@ -146,6 +199,20 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
   await app.register(
     async (r) => {
       r.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: "Not found", code: "NOT_FOUND" }));
+      // Deployed builds: control routes need the Kassa API's signed request or the demo admin token (access.ts).
+      // Added before every route so it covers the child contexts (supplier portal, Stage) too.
+      r.addHook("preHandler", accessGuard(config));
+      // Shared state (deployed builds, store/sync.ts): read what other instances changed before the handler runs, write
+      // what this request changed before the response leaves. A database hiccup is logged; the request still runs.
+      if (sync.enabled) {
+        r.addHook("onRequest", async () => {
+          await sync.pull().catch((err: unknown) => log("mock world state not read", { error: String(err) }));
+        });
+        r.addHook("onSend", async (_req, _reply, payload) => {
+          await sync.push().catch((err: unknown) => log("mock world state not written", { error: String(err) }));
+          return payload;
+        });
+      }
 
       r.get("/health", async () => ({
         ok: true,
@@ -153,22 +220,17 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
         simulated: true,
         issuingProvider: issuer.provider,
         clockSource: clock instanceof DemoClock ? clock.source : "injected",
+        persistence: store.persistence,
         now: (await clock.now()).toISOString(),
       }));
 
-      // Demo reset (the API's POST /demo/reset should call this too).
+      // Demo reset (the API's POST /demo/reset calls this; locked on deployed builds, access.ts).
       r.post("/reset", async () => {
-        bank.reset();
-        qr.reset();
-        charges.reset();
-        shop.reset();
-        suppliers.reset();
-        schools.reset();
-        kyc.reset();
+        await resetWorld();
         return { ok: true, simulated: true };
       });
 
-      // Webhook delivery log: evidence for docs/evidence (spec §19 "mock-bank transfer logs").
+      // Webhook delivery log: evidence for docs/evidence (spec §19 "mock-bank transfer logs"). Admin token on deployed builds.
       r.get("/outbox", async () => ({ entries: webhooks.outbox ?? [], simulated: true }));
 
       r.get("/", async (_req, reply) => {
@@ -190,8 +252,13 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
           ["School directory (JSON)", "/mock/schools"],
           ["University in Budapest payment portal (Dana)", "/mock/schools/budapest/portal?studentId=KZ26-0417"],
           ["Inbox (JSON)", "/mock/inbox"],
-          ["Mock bank transfers (JSON)", "/mock/bank/transfers"],
-          ["Webhook outbox (JSON)", "/mock/outbox"],
+          // Locked on deployed builds (access.ts): listed only where they open.
+          ...(config.locked
+            ? []
+            : ([
+                ["Mock bank transfers (JSON)", "/mock/bank/transfers"],
+                ["Webhook outbox (JSON)", "/mock/outbox"],
+              ] as [string, string][])),
           ...(config.demoEnabled
             ? ([
                 ["Demo Stage (phone screens for the pitch)", "/mock/stage"],
@@ -236,15 +303,7 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
           rates,
           orders: shop,
           suppliers,
-          resetWorld: () => {
-            bank.reset();
-            qr.reset();
-            charges.reset();
-            shop.reset();
-            suppliers.reset();
-            schools.reset();
-            kyc.reset();
-          },
+          resetWorld,
           syncClock: () => {
             if (clock instanceof DemoClock) clock.invalidate();
           },
@@ -256,12 +315,11 @@ export async function buildMockWorld(deps: AppDeps): Promise<MockWorld> {
 
   if (deps.startTicker !== false) {
     const timer = setInterval(() => {
-      bank.tick().catch((err: unknown) => log("bank tick failed", { error: String(err) }));
-      shop.tick().catch((err: unknown) => log("shop autopilot tick failed", { error: String(err) }));
+      tick().catch((err: unknown) => log("mock world tick failed", { error: String(err) }));
     }, config.bankTickMs);
     timer.unref();
     app.addHook("onClose", async () => clearInterval(timer));
   }
 
-  return { app, bank, qr, shop, suppliers, schools, kyc, webhooks, clock };
+  return { app, bank, qr, shop, suppliers, schools, kyc, webhooks, clock, persistence: store.persistence, sync, tick };
 }

@@ -1,12 +1,12 @@
 import type { LanguageModel } from "ai";
 
 import { AiConfigError } from "./errors.ts";
-import { aiMaxRetries, withRetries } from "./retry.ts";
+import { aiMaxRetries, aiStreamMaxRetries, withRetries } from "./retry.ts";
 import { assertProviderKey, createRegistry, parseModelSpec, type Env, type KassaRegistry, type ModelSpec } from "./registry.ts";
 
 /** Spec §3 roles, defaults from docs/DECISIONS.md (provider-agnostic LLM). */
-export const DEFAULT_PLANNER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash";
-export const DEFAULT_READER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash";
+export const DEFAULT_PLANNER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash-1017";
+export const DEFAULT_READER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash-1017";
 
 let cached: { env: Env; registry: KassaRegistry } | null = null;
 
@@ -35,8 +35,8 @@ function resolve(spec: ModelSpec, env: Env): LanguageModel {
   // The registry's inferred id type is a union of literal ids; specs are validated by parseModelSpec.
   const registry = registryFor(env);
   const languageModel = registry.languageModel.bind(registry) as (id: string) => LanguageModel;
-  // 429 / 5xx retries with backoff + jitter (ai/retry.ts); call sites pass maxRetries: 0 to the SDK.
-  return withRetries(languageModel(spec.id), { maxRetries: aiMaxRetries(env) });
+  // 429 / 5xx retries with backoff + jitter (ai/retry.ts; fewer for streamed calls); call sites pass maxRetries: 0 to the SDK.
+  return withRetries(languageModel(spec.id), { maxRetries: aiMaxRetries(env), streamMaxRetries: aiStreamMaxRetries(env) });
 }
 
 /** Planner (agent loop, onboarding). Throws AiConfigError if the provider key is missing. */

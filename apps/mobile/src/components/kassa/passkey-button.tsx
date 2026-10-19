@@ -2,8 +2,9 @@
  * The primary "… with passkey" action. In a dev build against a server with dev sign-in on (GET /auth/demo
  * `devLogin`), a "Dev" button sits right next to it: same action, but the challenge is signed by the server-held dev
  * key (api/passkey-sign `armDevPasskey`, POST /auth/dev/assert) instead of the platform passkey prompt. It shows in
- * dev-login sessions too (dev mode and demo mode), where the main button already signs that way, so the button
- * to press is always the same one.
+ * dev-login sessions only (dev mode and demo mode), where the main button already signs that way, so the button
+ * to press is always the same one. The server refuses the dev key to a session signed in with a real passkey
+ * (403 NOT_DEV_SESSION, security review 2026-10-18), so the button is not offered there.
  */
 import { View } from "react-native";
 
@@ -12,10 +13,12 @@ import { armDevPasskey } from "@/api/passkey-sign";
 import { Box, Button, Icon } from "@/components/ui";
 import type { ButtonProps } from "@/components/ui/types";
 import { useKassaT } from "@/lib/i18n";
+import { useSessionStore } from "@/stores/session";
 
 export function useDevPasskeyAvailable(): boolean {
   const demo = useDemoAvailability();
-  return __DEV__ && demo.data?.devLogin === true;
+  const devSession = useSessionStore((s) => s.dev);
+  return __DEV__ && devSession && demo.data?.devLogin === true;
 }
 
 export function PasskeyButton({

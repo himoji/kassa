@@ -3,7 +3,7 @@
  * history for risk features, local hour. Everything time-based uses the Clock passed in.
  */
 import type { PayeeKind, Rail, Region } from "@kassa/shared";
-import { and, eq, gte, inArray, isNull, lte, notInArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, ne, notInArray, sql } from "drizzle-orm";
 
 import type { DbOrTx } from "../../db/client.ts";
 import { approvals, budgets, payments, proposals, transactions } from "../../db/schema.ts";
@@ -47,8 +47,41 @@ export async function paidHomeSince(db: DbOrTx, userId: string, from: Date): Pro
   const rows = await db
     .select({ total: sql<string>`coalesce(sum(${payments.homeAmountMinor}), 0)` })
     .from(payments)
-    .where(and(eq(payments.userId, userId), notInArray(payments.status, ["FAILED", "CANCELED"]), gte(payments.createdAt, from)));
+    // (2026-10-18) a CONVERT is an exchange between the user's own balances, not a payment out: never caps usage.
+    .where(and(eq(payments.userId, userId), notInArray(payments.status, ["FAILED", "CANCELED"]), ne(payments.rail, "CONVERT"), gte(payments.createdAt, from)));
   return Number(rows[0]?.total ?? 0);
+}
+
+/**
+ * (2026-10-18) Home-currency amount of approved orders that have no payment row yet (in flight between approval and
+ * payments' insert), approved since `from`. `excludeProposalId`: the order being checked itself.
+ */
+export async function inFlightHomeSince(db: DbOrTx, userId: string, from: Date, excludeProposalId?: string): Promise<number> {
+  const rows = await db
+    .select({ total: sql<string>`coalesce(sum((${proposals.canonicalOrder}->>'homeAmountMinor')::bigint), 0)` })
+    .from(proposals)
+    .where(
+      and(
+        eq(proposals.userId, userId),
+        eq(proposals.status, "APPROVED"),
+        gte(proposals.updatedAt, from),
+        sql`${proposals.canonicalOrder} is not null`,
+        sql`${proposals.canonicalOrder}->>'rail' <> 'CONVERT'`,
+        sql`not exists (select 1 from ${payments} where ${payments.proposalId} = ${proposals.id})`,
+        ...(excludeProposalId ? [ne(proposals.id, excludeProposalId)] : []),
+      ),
+    );
+  return Number(rows[0]?.total ?? 0);
+}
+
+/** Caps usage the rules count: live payments plus approved orders still in flight (executed + in-flight). */
+export async function usedHomeSince(db: DbOrTx, userId: string, from: Date, excludeProposalId?: string): Promise<number> {
+  return (await paidHomeSince(db, userId, from)) + (await inFlightHomeSince(db, userId, from, excludeProposalId));
+}
+
+/** The advisory lock payments takes per user around its nonce, cap and payment insert (payments/index.ts step 8). */
+export async function lockUserPayments(tx: DbOrTx, userId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"payments:" + userId}))`);
 }
 
 /**
@@ -185,6 +218,15 @@ export async function reserveBreached(
   if (reserveHomeMinor <= 0) return false;
   const balances = await walletBalances(userId);
   if (!balances) return null;
+  return reserveBreachedFor(balances, homeCurrency, reserveHomeMinor, amountHomeMinor, now);
+}
+
+/**
+ * The reserve rule on given balances (also used on a simulated wallet after conversions, obligations/coverage.ts):
+ * true if paying `amountHomeMinor` leaves the total below the reserve; null if a balance cannot be converted.
+ */
+export async function reserveBreachedFor(balances: WalletBalances, homeCurrency: string, reserveHomeMinor: number, amountHomeMinor: number, now: Date): Promise<boolean | null> {
+  if (reserveHomeMinor <= 0) return false;
   let total = 0;
   for (const b of balances) {
     try {

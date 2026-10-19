@@ -25,5 +25,15 @@
   "signedOrderId": "Тапсырма ID",
   "title": "Төлеу",
   "withinMandate": "Сіз қол қойған мандат шегінде",
-  "fundedFromLinked": "{{label}}, ең көбі {{max}}"
+  "fundedFromLinked": "{{label}}, ең көбі {{max}}",
+  "convert": {
+    "title": "Баланстарыңыз арасында айырбастау",
+    "from": "{{currency}} балансыңыздан",
+    "atMost": "ең көбі {{max}}",
+    "into": "{{currency}} балансыңызға",
+    "route": "Бағыт",
+    "done": "Айырбасталды",
+    "doneBody": "{{amount}} енді {{currency}} балансыңызда, {{from}} балансыңыздан алынды (комиссиясымен ең көбі {{max}}).",
+    "failed": "Айырбас өтпеді."
+  }
 }

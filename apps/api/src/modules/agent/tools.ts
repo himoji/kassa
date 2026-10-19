@@ -46,8 +46,10 @@ import type { RedactContext, Redactor } from "./redact.ts";
 
 /*
  * The planner's 11 tools (spec §9). Every output is redacted (I11) before it can reach the model;
- * payees are only ever exposed as `payee_N` placeholders. `propose_order` is the single write tool
- * (I1) and goes to rules.proposeOrder, which decides. Untrusted documents only arrive via the Reader (I10).
+ * payees are only ever exposed as `payee_N` placeholders. `propose_order` (and, for a business, `propose_purchase_order`)
+ * are the only tools that create an order or payment (I1); `propose_order` goes to rules.proposeOrder, which decides.
+ * Other tools also write, but never move money: `log_expense` records spending (I6) and `read_document` stores the
+ * Reader's result. Untrusted documents only arrive via the Reader (I10).
  */
 
 /** Tool rounds per turn (spec §9: at most 8); the step after the last round is text only (loop.ts prepareStep). */
@@ -111,6 +113,11 @@ export interface ToolContext {
   business?: boolean;
   /** Set when a UI tool (ask_*) emitted a picker: the turn ends and the app waits for the user. */
   awaitingUser?: { choiceId: string } | null;
+  /**
+   * (added 2026-10-18) One sentence per order proposed in this turn, built from its signed canonical order
+   * (shared orderLineEn). Appended after the assistant's reply (turn-summary.ts).
+   */
+  orderLines?: string[];
   /** Tool calls run in this turn (MAX_TOOL_CALLS); `refused` counts calls answered TOOL_CALL_LIMIT. Set by buildTools. */
   toolCalls?: { count: number; refused: number };
 }
@@ -362,6 +369,25 @@ export function buildTools(ctx: ToolContext): ToolSet {
       }
     };
 
+  /**
+   * A proposal rules created: recorded for the turn, its card shown, and (2026-10-18) its signed order in one sentence
+   * built from the canonical order (`signedOrder`), which the model must quote and the turn appends verbatim
+   * (turn-summary.ts), so the funding source the user reads is the signed one.
+   */
+  const proposed = async (result: ProposeOrderResult) => {
+    ctx.proposals.push(result);
+    if (result.decision === "REFUSE" || result.reasonCodes.includes("PAYEE_COOLING")) {
+      ctx.stop.requested = true;
+      ctx.stop.reason = result.decision;
+    }
+    const card = await ports.proposalCard(result.proposalId);
+    if (card.summary) ctx.emit({ type: "data-proposal", id: result.proposalId, data: card.summary });
+    if (card.budgetImpact) ctx.emit({ type: "data-budget-impact", id: `impact-${result.proposalId}`, data: card.budgetImpact });
+    const signedOrder = card.summary?.orderLine ?? null;
+    if (signedOrder && result.decision !== "REFUSE") (ctx.orderLines ??= []).push(signedOrder);
+    return { ...result, signedOrder };
+  };
+
   const personal = {
     get_profile_summary: tool({
       description: "The user's profile: home currency, region, preset, money mode, notification mode and incomes (redacted).",
@@ -403,14 +429,17 @@ export function buildTools(ctx: ToolContext): ToolSet {
     }),
 
     get_obligations: tool({
-      description: "Upcoming bills with payee placeholders and verified facts.",
+      description:
+        "Upcoming bills with payee placeholders and verified facts, and whether the wallet can pay each (coverage): COVERED (one balance pays it; fundedFrom), CONVERTIBLE (convert first: conversions lists each CONVERT to propose), SHORTFALL (not even together) or UNKNOWN.",
       inputSchema: GetObligationsInput,
       execute: safe(async ({ withinDays }) => {
         const payees = await allPayees();
         const obs = await ports.obligations(withinDays);
         const home = (await ports.profile()).homeCurrency;
+        const coverage = ports.obligationCoverage ? await ports.obligationCoverage(obs.map((o) => o.id)).catch(() => null) : null;
         const rows = [];
         for (const o of obs) {
+          const cov = coverage?.get(o.id);
           const p = payees.find((x) => x.id === o.payeeId);
           const row = {
             obligationId: o.id,
@@ -424,6 +453,16 @@ export function buildTools(ctx: ToolContext): ToolSet {
             recurrence: o.recurrence,
             reference: o.reference,
             category: o.category,
+            ...(cov
+              ? {
+                  coverage: cov.coverage,
+                  ...(cov.reserveBreached ? { reserveBreached: true, note: "paying would take the wallet below the user's protected reserve" } : {}),
+                  ...(cov.bestRoute ? { fundedFrom: cov.bestRoute.fundingCurrency, bestRouteId: cov.bestRoute.routeId } : {}),
+                  ...(cov.conversions
+                    ? { conversions: cov.conversions.map((x) => withMoney(x, { perKey: { amountMinor: x.toCurrency, estimatedDebitMinor: x.fromCurrency } })) }
+                    : {}),
+                }
+              : {}),
           };
           rows.push(withMoney(row, { currency: o.currency, home }));
         }
@@ -624,9 +663,27 @@ export function buildTools(ctx: ToolContext): ToolSet {
     }),
 
     propose_order: tool({
-      description: "Propose a payment. The recipient's own reference (a student ID for tuition, a customer number for a bill) is added to the purpose by the server. The rules engine decides AUTO / ASK / HANDOFF / REFUSE; you never pay. payeeRef must be a payee placeholder.",
+      description:
+        "Propose a payment (kind PAY, the default) or a conversion between the user's own balances (kind CONVERT: buy amountMinor of currency from fromCurrency, no payee). The recipient's own reference (a student ID for tuition, a customer number for a bill) is added to the purpose by the server. The rules engine decides AUTO / ASK / HANDOFF / REFUSE (a conversion always asks for the passkey); you never pay. payeeRef must be a payee placeholder. The result's signedOrder is the exact order the user signs: quote the funding balance and amounts only from it.",
       inputSchema: ProposeOrderInput,
       execute: safe(async (input) => {
+        const names = new Map((await allPayees()).map((p) => [p.id, p.name]));
+        const forUser = (s: string) => redactor.rehydrateForUser(s, names);
+        // (2026-10-18) CONVERT: an exchange between the user's own balances, signed with the passkey like any order.
+        if (input.kind === "CONVERT") {
+          if (!ports.proposeConversion) return { error: "CONVERT_UNAVAILABLE", message: "Conversions are not available here" };
+          if (input.fromCurrency === input.currency) return { error: "BAD_CURRENCY", message: "fromCurrency and currency must differ" };
+          const result = await ports.proposeConversion({
+            userId: ports.userId,
+            createdBy: "AGENT",
+            toCurrency: input.currency,
+            amountMinor: input.amountMinor,
+            ...(input.fromCurrency ? { fromCurrency: input.fromCurrency } : {}),
+            purpose: forUser(input.purpose),
+          });
+          return proposed(result);
+        }
+        if (!input.payeeRef) return { error: "PAYEE_REQUIRED", message: "payeeRef is required to pay; use kind CONVERT to convert between the user's own balances" };
         const e = redactor.resolve(input.payeeRef);
         if (!e || e.kind !== "PAYEE") {
           return { error: "UNKNOWN_PAYEE_REF", message: `${input.payeeRef} is not a payee reference from get_obligations / get_payee_facts` };
@@ -651,9 +708,8 @@ export function buildTools(ctx: ToolContext): ToolSet {
         const matching = (await ports.obligations(undefined, { includePast: true })).filter((o) => o.payeeId === payeeId && o.amountMinor === input.amountMinor && o.currency === input.currency);
         const obligation = matching.find((o) => o.dueDate >= today) ?? matching.filter((o) => o.dueDate < today).at(-1);
         // The order is the user's (canonical order, notifications, approval sheet): placeholders written by the
-        // planner are re-hydrated here, so the user never reads "payee_4" (cn note 5). Tool output stays redacted.
-        const names = new Map((await allPayees()).map((p) => [p.id, p.name]));
-        const forUser = (s: string) => redactor.rehydrateForUser(s, names);
+        // planner are re-hydrated here (forUser, above), so the user never reads "payee_4" (cn note 5). Tool output
+        // stays redacted.
         // (M2) A storefront order: the shop's own catalog prices and SKUs become the signed fulfillment.
         const shop = payee && input.items?.length ? await storefrontOrder(ports, payee.name, input.items, input.amountMinor, input.currency) : null;
         if (shop && "error" in shop) return shop;
@@ -675,15 +731,7 @@ export function buildTools(ctx: ToolContext): ToolSet {
           ...(readerChecks ? { readerChecks } : {}),
           ...(checked && checked.docIds.length > 0 ? { sourceDocIds: checked.docIds } : {}),
         });
-        ctx.proposals.push(result);
-        if (result.decision === "REFUSE" || result.reasonCodes.includes("PAYEE_COOLING")) {
-          ctx.stop.requested = true;
-          ctx.stop.reason = result.decision;
-        }
-        const card = await ports.proposalCard(result.proposalId);
-        if (card.summary) ctx.emit({ type: "data-proposal", id: result.proposalId, data: card.summary });
-        if (card.budgetImpact) ctx.emit({ type: "data-budget-impact", id: `impact-${result.proposalId}`, data: card.budgetImpact });
-        return { ...result, readerChecks: readerChecks ?? null };
+        return { ...(await proposed(result)), readerChecks: readerChecks ?? null };
       }, aboutPayee),
     }),
 

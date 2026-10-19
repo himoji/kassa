@@ -4,7 +4,8 @@
   "coverage": {
     "COVERED": "Covered",
     "SHORTFALL": "Short",
-    "UNKNOWN": "Can't check"
+    "UNKNOWN": "Can't check",
+    "CONVERTIBLE": "Convert first"
   },
   "covered45": "Covered for 45 days",
   "dueOn": "Due {{date}} · {{category}}",
@@ -19,5 +20,9 @@
   "upcomingTitle": "Upcoming",
   "shortfallBody": "No single balance can pay this yet. Add {{currency}} from Home, or wait for money from home.",
   "burnHistory": "Counts about {{amount}} a day of spending, from your bank history (the last 30 days have too little to go on).",
-  "burnRecent": "Counts about {{amount}} a day of spending, from the last 30 days."
+  "burnRecent": "Counts about {{amount}} a day of spending, from the last 30 days.",
+  "convertPlan": "Convert {{steps}} first, then pay.",
+  "convertStep": "{{amount}} from {{from}}",
+  "convertStepJoin": ", ",
+  "convertGeneric": "No single balance pays this, but converting between your balances does. Convert first, then pay."
 }

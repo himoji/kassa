@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { HttpError } from "../errors.ts";
 import type { QrPayment, QrWallet } from "../qr/qr.ts";
 import { pizzaCheckout, type ShopDeps } from "../routes/shop.ts";
+import { type Collection, mapCollection } from "../store/sync.ts";
 import type { WebhookSink } from "../webhooks.ts";
 import { PIZZA_MENUS, PIZZA_STORES } from "../world/data.ts";
 import type { StoreId } from "../../../../fixtures/seed-data.ts";
@@ -116,6 +117,11 @@ export class ShopOrderBook {
   reset(): void {
     this.orders.clear();
     this.bills.clear();
+  }
+
+  /** Shared between instances (store/sync.ts). */
+  collections(): Collection[] {
+    return [mapCollection("shop.order", this.orders), mapCollection("shop.bill", this.bills)];
   }
 
   private now(): Promise<Date> {

@@ -3,7 +3,13 @@
  * the first 8 chars of orderHash) - never agent prose - and refuses to sign a tampered order.
  */
 import { describe, expect, it, jest } from "@jest/globals";
-import { orderHash, OrderView, type CanonicalOrder } from "@kassa/shared";
+import {
+  OWN_WALLET_PAYEE_NAME,
+  orderHash,
+  OrderView,
+  ownWalletAccountHash,
+  type CanonicalOrder,
+} from "@kassa/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import type { ReactNode } from "react";
@@ -89,6 +95,45 @@ describe("OrderSheetView", () => {
     expect(screen.getByTestId("order-funding-note")).toHaveTextContent(
       /up to 1% for exchange-rate moves/
     );
+  });
+
+  it("renders a CONVERT order as a conversion between the user's own balances", async () => {
+    const conversion: CanonicalOrder = {
+      ...order,
+      payeeId: order.userId,
+      payeeName: OWN_WALLET_PAYEE_NAME,
+      payeeAccountHash: ownWalletAccountHash(order.userId),
+      amountMinor: 210050,
+      currency: "EUR",
+      rail: "CONVERT",
+      purpose: "Convert KZT to EUR",
+      fundingCurrency: "KZT",
+      fundingAmountMinor: 119500000,
+      fundingRouteId: "kzt-eur-mock",
+      fundingMarkupBps: 50,
+    };
+    const onApprove = jest.fn();
+    await render(
+      wrap(<OrderSheetView view={viewFor(conversion)} onApprove={onApprove} onReject={() => {}} />)
+    );
+    expect(screen.getByTestId("order-convert-title")).toHaveTextContent(
+      "Convert between your balances"
+    );
+    expect(screen.queryByTestId("order-payee")).toBeNull();
+    expect(screen.queryByTestId("order-payee-status")).toBeNull();
+    expect(screen.getByText("From your KZT balance")).toBeTruthy();
+    expect(screen.getByTestId("order-convert-from")).toHaveTextContent(/at most .*1,195,000/);
+    expect(screen.getByText("Into your EUR balance")).toBeTruthy();
+    expect(screen.getByTestId("order-convert-into")).toHaveTextContent(/2,100\.50/);
+    expect(screen.getByTestId("order-convert-route")).toHaveTextContent("kzt-eur-mock");
+    expect(screen.getByTestId("order-rail")).toHaveTextContent("Conversion between your balances");
+    expect(screen.getByTestId("order-funding-note")).toHaveTextContent(
+      /up to 1% for exchange-rate/
+    );
+    expect(screen.queryByTestId("order-funding")).toBeNull();
+    expect(screen.queryByTestId("order-integrity-error")).toBeNull();
+    fireEvent.press(screen.getByText(i18next.t("order:approve")));
+    expect(onApprove).toHaveBeenCalledTimes(1);
   });
 
   it("no funding note without a funding binding", async () => {

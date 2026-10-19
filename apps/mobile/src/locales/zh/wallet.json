@@ -136,5 +136,18 @@
     "paying": "正在向{{name}}支付账单",
     "due": "{{date}} 到期",
     "reference": "参考号 {{reference}}（学校用它来匹配您的付款）"
+  },
+  "convert": {
+    "title": "换汇",
+    "intro": "在您自己的余额之间换汇。在您用通行密钥批准确切的订单之前，资金不会变动。",
+    "from": "从",
+    "cheapest": "最便宜",
+    "cheapestHint": "Kassa 会选择换汇成本最低的余额。",
+    "to": "换成",
+    "amount": "换得金额",
+    "have": "您有 {{amount}}",
+    "submit": "查看换汇",
+    "sameCurrency": "请选择两种不同的货币。",
+    "refused": "Kassa 无法完成此次换汇"
   }
 }

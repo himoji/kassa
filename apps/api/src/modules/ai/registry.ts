@@ -94,6 +94,22 @@ export function assertProviderKey(spec: ModelSpec, env: Env): void {
   }
 }
 
+/**
+ * OpenRouter provider routing (https://openrouter.ai/docs/features/provider-routing), from OPENROUTER_PROVIDER as JSON,
+ * e.g. {"only":["parasail/fp8","baseten"],"allow_fallbacks":false}. Pins which hosts serve the planner and Reader.
+ */
+export function openRouterProvider(env: Env): Record<string, unknown> | undefined {
+  const raw = env.OPENROUTER_PROVIDER?.trim();
+  if (!raw) return undefined;
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+  } catch {
+    // fall through
+  }
+  throw new AiConfigError("AI_PROVIDER_UNKNOWN", `OPENROUTER_PROVIDER must be a JSON object, got ${JSON.stringify(raw.slice(0, 80))}`, {});
+}
+
 export function createRegistry(env: Env) {
   const local = createOpenAICompatible({
     name: "local",
@@ -109,6 +125,7 @@ export function createRegistry(env: Env) {
     baseURL: OPENROUTER_BASE_URL,
     ...(openRouterKey(env) ? { apiKey: openRouterKey(env) } : {}),
     supportsStructuredOutputs: true,
+    ...(openRouterProvider(env) ? { transformRequestBody: (body: Record<string, unknown>) => ({ ...body, provider: openRouterProvider(env) }) } : {}),
   });
   return createProviderRegistry({
     openai: createOpenAI({ apiKey: env.OPENAI_API_KEY }),

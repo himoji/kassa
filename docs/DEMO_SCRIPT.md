@@ -12,7 +12,7 @@ Before recording: `AGENT_MODE=LIVE` with a working key, and check that a chat tu
 
 | Time | Beat | Do | Viewer sees | Point |
 | --- | --- | --- | --- | --- |
-| 0:00–0:20 | Problem | Dana's home screen: money in KZT and USD, bills in HUF and EUR | Balances, bills, budgets in four currencies | Topic C: a student whose money lives in two countries |
+| 0:00–0:20 | Problem | Dana's home screen: money in KZT and USD, bills in HUF and EUR (the seed also has a CNY dorm fee, see the China scene below) | Balances, bills, budgets across her currencies | Topic C: a student whose money lives in two countries |
 | 0:20–1:20 | 1. The agent meets Dana (live AI) | "Try the demo" as Dana, give AI consent; the agent offers to read her bank statements: tap the paperclip and pick two statement PDFs (a Kaspi-style KZT one and a foreign card's), then "Use this history"; talk to the agent about what is missing; review the caps and budgets it drafted; sign them with the passkey; sign the rent mandate it offers | The statements read in seconds: money from home per parent, spending per category, card fees, own transfers left out; the draft prefilled; passkey sheet, rent mandate signed | The AI learns her past from her banks and does the setup; the user signs the limits once |
 | 1:20–2:20 | 2. Money from home pays tuition | `/mock/stage/home`: "Send money" (₸1,000,000 from parents). `/mock/stage/mail`: forward the tuition invoice. In chat: "pay my tuition". Approve with the passkey; on `/mock/stage/bank` press "Fast-forward +1 hour" | Remittance logged, cheapest route with FX cost, reader fields with evidence, exact order, passkey, SENT | Remittances and tuition; a large one-off payment needs the user's signature |
 | 2:20–3:00 | 3. Rent day: the agent pays on its own | `/mock/stage/mail?v=average` "Jump to rent day (+3 days)" | Rent paid to the verified landlord with no prompt; the notice names the mandate | The agent acts as a financial participant inside a signed mandate |
@@ -36,6 +36,10 @@ screen. Output: `kassa-demo.mp4` (with ffmpeg on PATH), `kassa-demo.webm` and `c
 Record with a model key so beat 1 is the live agent: without one the chat answers from the recorded replay, which does
 not know the uploaded statements yet. Add the voiceover over the captions afterwards.
 
+The videos committed in `docs/demo/` (`kassa-demo.mp4`, `kassa-eu.mp4`, `kassa-cn.mp4`) are not this take: they come from the
+2026-10-12 version of the recorder, which filmed an EU story and a China story with the replayed planner and joined them.
+The README section "Demo videos" describes them.
+
 ## Setup (before the pitch)
 
 1. Stack running with `DEMO_ENABLED=true` on both services, and the same `DEMO_ADMIN_TOKEN` and `MOCK_HMAC_SECRET` (`bun run env:setup`).
@@ -56,7 +60,7 @@ The full set of stage scenes, for the in-person final or for questions. Too many
 | 2:00–2:40 | app → `/mock/stage/mail?v=average` → `/mock/stage/bank?v=average` | Forward the tuition invoice; in Kassa ask to pay tuition; approve with passkey; watch Bank App steps (use "Fast-forward +1 hour") | Reader fields with evidence; order ASK; passkey sheet; SENT | Signature over the canonical order (I2, I3); untrusted documents through the Reader (I10) |
 | 2:40–3:00 | `/mock/stage/bank?v=bad` | "Send forged message" | "Kassa rejected a forged bank message" (401) | Webhooks are authenticated (I13) |
 | 3:00–3:30 | `/mock/stage/mail?v=bad` | Forward the lookalike landlord email (new IBAN); ask Kassa about it; then "Jump to rent day (+3 days)" | New payee in 24 h cooling; rent autopay pays the verified landlord | A payee change is a new payee (I7, A2) |
-| 3:30–4:10 | app (Settings: region CN; give the separate PIPL consent when asked) → `/mock/stage/wallet?v=average` | In Kassa pay the Dorm Office in Shanghai ¥1,800; approve; on the Super-App Wallet (simulated, 中文) screen press 确认付款 Pay | Handoff; payment SENT | Agent prepares, you pay (handoff) |
+| 3:30–4:10 | app (Settings: region CN; give the separate PIPL consent when asked) → `/mock/stage/wallet?v=average` | In Kassa pay the Dorm Office in Shanghai ¥1,800 (Dana's seeded monthly dorm fee for an exchange semester in Shanghai; it exists so the China-region handoff can be shown with the hero user); approve; on the Super-App Wallet (simulated, 中文) screen press 确认付款 Pay | Handoff; payment SENT | Agent prepares, you pay (handoff) |
 | 4:10–4:30 | `/mock/stage/wallet?v=bad` | Turn the swap attack on; in Kassa ask to buy a bedding set from Buy Everything Shop from China for ¥349 | REFUSED QR_PAYEE_MISMATCH before signing; the wallet screen shows the code would pay "Unknown Trading Company" | A5 |
 | 4:30–4:45 | `/mock/stage/wallet?v=notify` | "发送到 Kassa Send to Kassa" | Chinese spending notices logged in CNY with ₸ equivalent | I6 |
 | 4:45–5:00 | `/mock/stage/supplier?v=bad` | "Show hidden text" | (explain) The hidden instruction is data; planner cannot pay; unknown account refused | A1, I1, I10 |

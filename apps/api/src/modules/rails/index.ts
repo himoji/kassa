@@ -1,6 +1,7 @@
 /* Rail registry (spec §11). */
-import type { Rail as RailId } from "@kassa/shared";
+import type { OrderRail as RailId } from "@kassa/shared";
 
+import { convertRail } from "./convert.ts";
 import { handoffRail } from "./handoff.ts";
 import { issuingRail } from "./issuing.ts";
 import { mockBankRail } from "./mockBank.ts";
@@ -12,6 +13,8 @@ const RAILS: Record<RailId, Rail> = {
   BANK_TRANSFER: mockBankRail,
   HANDOFF: handoffRail,
   PAY_IN_PLACE: payInPlaceRail,
+  // (2026-10-18) own balance → own balance (Wise balance conversion)
+  CONVERT: convertRail,
 };
 
 let overrides: Partial<Record<RailId, Rail>> = {};

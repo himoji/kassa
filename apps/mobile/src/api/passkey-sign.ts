@@ -4,8 +4,9 @@
  * passkey: the server signs the same challenge with its dev key (POST /auth/dev/assert), and that
  * assertion is returned in the place of a platform one. Every caller (order approval, withPasskeyGate,
  * the other sign-with-passkey mutations) goes through here, so the branch lives only here.
- * Any other session uses the dev assertion only for the next challenge after `armDevPasskey()`: the "Dev"
- * button next to a passkey button (components/kassa/passkey-button), dev builds against a dev-login server.
+ * `armDevPasskey()` (the "Dev" button next to a passkey button, components/kassa/passkey-button) sends the next
+ * challenge to the dev key too; the server answers only dev sessions (403 NOT_DEV_SESSION otherwise), so the button
+ * is offered in dev sessions only.
  */
 import {
   AuthenticationResponseJSON,

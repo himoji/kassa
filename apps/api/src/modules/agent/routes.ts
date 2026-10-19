@@ -8,6 +8,7 @@ import { ownedNotFound } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
 import { isAiConfigError } from "../ai/errors.ts";
 import { currentAgentMode, recordingEnabled } from "../ai/mode.ts";
+import { MAX_VOICE_BYTES, transcribeAudio, VOICE_FORMATS, VoiceError } from "../ai/voice.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { requireAiConsent } from "../privacy/notice.ts";
 import { DocumentError, MAX_DOCUMENT_BYTES, storeDocument } from "../reader/index.ts";
@@ -32,6 +33,7 @@ import { toUIMessages } from "./ui-history.ts";
 /*
  * POST /agent/message → AI SDK v7 UI message stream (text + data-proposal / data-routes /
  * data-budget-impact / data-choices cards, metadata {replay}). POST /agent/documents (multipart) → {docId}.
+ * POST /agent/transcribe {audioBase64, format} → {text} (the mic button; speech to text only, no turn).
  * GET /agent/conversations, GET /agent/conversations/:id/messages: the caller's persisted chats.
  * Every conversation id is claimed by its first request (history.ts claimConversation): another user's id, or the
  * caller's onboarding id, answers 404 like a missing one, and the probe is audited.
@@ -90,7 +92,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           abortSignal: abort.signal,
         });
         writer.merge(turn.uiStream);
-        await turn.done;
+        const s = await turn.done;
+        // Turn latency and how it ended (agent/budget.ts): a cut turn is answered by the final call or by code.
+        req.log.info({ steps: s.steps, toolCalls: s.toolCalls.length, elapsedMs: s.elapsedMs, answeredBy: s.answeredBy, cutoff: s.cutoff }, "agent turn");
       },
       onError: (e) => {
         req.log.error({ err: e }, "agent turn failed");
@@ -184,6 +188,40 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       throw e;
     }
   });
+
+  /*
+   * Speech to text for the chat's mic button (the app, the web app, KassaLite): the recording goes to VOICE_MODEL
+   * (ai/voice.ts) and only the transcript comes back. Nothing is stored and no turn starts here: the app shows the
+   * transcript in the composer and sends it to /agent/message as a normal turn. AI consent is checked by the hook
+   * above, like every agent route.
+   */
+  app.post(
+    "/agent/transcribe",
+    {
+      bodyLimit: Math.ceil((MAX_VOICE_BYTES * 4) / 3) + 64 * 1024,
+      schema: {
+        body: z.object({
+          audioBase64: z.string().min(1).max(Math.ceil((MAX_VOICE_BYTES * 4) / 3) + 64),
+          format: z.enum(VOICE_FORMATS),
+        }),
+        response: { 200: z.object({ text: z.string() }) },
+      },
+    },
+    async (req) => {
+      const audio = req.body.audioBase64.replace(/^data:[^,]*,/, "").replace(/\s+/g, "");
+      if (!audio || !/^[A-Za-z0-9+/]+={0,2}$/.test(audio)) throw new HttpProblem(400, "VOICE_AUDIO_INVALID", "audioBase64 must be base64 audio");
+      const bytes = Math.floor((audio.length * 3) / 4) - (audio.endsWith("==") ? 2 : audio.endsWith("=") ? 1 : 0);
+      if (bytes > MAX_VOICE_BYTES) throw new HttpProblem(413, "VOICE_TOO_LARGE", `Recordings are limited to ${MAX_VOICE_BYTES / (1024 * 1024)} MB`);
+      try {
+        return { text: await transcribeAudio(audio, req.body.format) };
+      } catch (e) {
+        req.log.warn({ err: e }, "chat transcription failed");
+        if (isAiConfigError(e)) throw new HttpProblem(503, e.code, "Voice input is not set up on this server (no voice model key).");
+        if (e instanceof VoiceError && e.status === 400) throw new HttpProblem(422, "VOICE_UNREADABLE", `The voice model could not read this recording (${req.body.format}).`);
+        throw new HttpProblem(502, "VOICE_UNAVAILABLE", "The voice model did not answer. Try again.");
+      }
+    },
+  );
 };
 
 export default routes;

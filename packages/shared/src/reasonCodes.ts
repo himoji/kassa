@@ -14,6 +14,9 @@ export const ReasonCode = z.enum([
   "REFUSE_CAP",
   // (added 2026-10-11, B2) no funding currency × rail covers the order incl. fees by its due date (spec §12)
   "INSUFFICIENT_FUNDS",
+  // (added 2026-10-18) the wallet balances could not be read (bank unreachable), so no funding route can be bound and
+  // nothing is offered for signing (never a guessed same-currency route)
+  "BALANCES_UNAVAILABLE",
   // (added 2026-10-11, B4) the obligation period already has a pending or paid proposal
   "DUPLICATE_OBLIGATION_PAYMENT",
   // (added 2026-10-16) above the KYC threshold (one payment, or a day's top-ups) without a VERIFIED identity check
@@ -28,6 +31,8 @@ export const ReasonCode = z.enum([
   // the mandate's scope (payee, category, amount ≤ the bill, period not settled) → ASK, never AUTO
   "MANDATE_SCOPE_MISMATCH",
   "SMALL_AUTO",
+  // (added 2026-10-18) an exchange between the user's own balances: always asks for the passkey, never AUTO
+  "CONVERT_OWN_BALANCES",
   // (added 2026-10-12, X3) the per-day small-auto budget (count / amount) is used up → ASK
   "SMALL_AUTO_BUDGET_EXHAUSTED",
   "RISK_HIGH",
@@ -112,6 +117,7 @@ export const HARD_REFUSE_CODES = [
   "REFUSE_SANCTIONS",
   "REFUSE_CAP",
   "INSUFFICIENT_FUNDS",
+  "BALANCES_UNAVAILABLE",
   "DUPLICATE_OBLIGATION_PAYMENT",
   "KYC_REQUIRED",
 ] as const satisfies readonly ReasonCode[];

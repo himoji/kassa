@@ -25,5 +25,15 @@
   "signedOrderId": "ID поручения",
   "title": "Оплата",
   "withinMandate": "В рамках подписанного вами мандата",
-  "fundedFromLinked": "{{label}}, не более {{max}}"
+  "fundedFromLinked": "{{label}}, не более {{max}}",
+  "convert": {
+    "title": "Обмен между вашими балансами",
+    "from": "С вашего баланса в {{currency}}",
+    "atMost": "не более {{max}}",
+    "into": "На ваш баланс в {{currency}}",
+    "route": "Маршрут",
+    "done": "Обменяно",
+    "doneBody": "{{amount}} теперь на вашем балансе в {{currency}}, списано с баланса в {{from}} (не более {{max}} с комиссиями).",
+    "failed": "Обмен не прошёл."
+  }
 }

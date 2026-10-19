@@ -8,7 +8,10 @@ import {
   type AgentOutcome,
   ApproveOrderRequest,
   ApproveOrderResponse,
+  ConvertRequest,
   OrderView,
+  OWN_WALLET_PAYEE_NAME,
+  PayPayeeResponse,
   ProposalsResponse,
   ProposalStatus,
   RejectOrderRequest,
@@ -21,7 +24,7 @@ import { getDb } from "../../db/client.ts";
 import { payees, proposals, users } from "../../db/schema.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
 import { clock, DAY_MS } from "../clock/index.ts";
-import { approveOrder, getOrderView, rejectOrder } from "../rules/index.ts";
+import { approveOrder, getOrderView, proposeConversion, rejectOrder } from "../rules/index.ts";
 
 const Params = z.object({ proposalId: z.string().uuid() });
 
@@ -36,6 +39,12 @@ export function agentOutcome(p: { decision: string; status: string }): AgentOutc
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   app.addHook("preHandler", requireUser);
+
+  // (2026-10-18) Convert between the user's own balances: a CONVERT order to sign with the passkey (always ASK).
+  app.post("/conversions", { schema: { body: ConvertRequest, response: { 200: PayPayeeResponse } } }, async (req) => {
+    const r = await proposeConversion({ userId: userIdOf(req), createdBy: "USER", toCurrency: req.body.toCurrency, amountMinor: req.body.amountMinor, fromCurrency: req.body.fromCurrency });
+    return { proposalId: r.proposalId, decision: r.decision, reasonCodes: r.reasonCodes, summary: r.summary };
+  });
 
   app.get("/orders/:proposalId", { schema: { params: Params, response: { 200: OrderView } } }, async (req) =>
     getOrderView(userIdOf(req), req.params.proposalId),
@@ -77,7 +86,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           proposalId: p.id,
           createdBy: p.createdBy as "AGENT" | "SCHEDULER",
           outcome,
-          payeeName: p.canonicalOrder?.payeeName || names.get(p.draft.payeeId) || "",
+          payeeName: p.canonicalOrder?.payeeName || (p.draft.rail === "CONVERT" ? OWN_WALLET_PAYEE_NAME : names.get(p.draft.payeeId)) || "",
           amountMinor: p.draft.amountMinor,
           currency: p.draft.currency,
           reasonCodes: p.reasonCodes,

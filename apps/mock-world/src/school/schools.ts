@@ -2,10 +2,12 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { buildIban, buildRfReference, normalizeIban, toMinor } from "@kassa/shared";
 
+import { judgeCopyReference, judgeCopySuffixOf } from "../../../../fixtures/judge-copy.ts";
 import { ACCOUNTS, LI_WEI_TUITION_REFERENCE, TUITION_REFERENCE } from "../../../../fixtures/seed-data.ts";
 import type { Recipient, Transfer } from "../bank/bank.ts";
 import type { Clock } from "../clock.ts";
 import { HttpError } from "../errors.ts";
+import { type Collection, mapCollection, setCollection } from "../store/sync.ts";
 import type { WebhookSink } from "../webhooks.ts";
 
 /*
@@ -139,7 +141,8 @@ export function searchSchools(q: string): School[] {
 export class SchoolBook {
   /** key `${schoolId}:${studentId}` */
   private readonly invoices = new Map<string, SchoolInvoice>();
-  private readonly unmatched: (SchoolPayment & { schoolId: string })[] = [];
+  /** Payments without a known reference, by transfer id. */
+  private readonly unmatched = new Map<number, SchoolPayment & { schoolId: string }>();
   private readonly seenTransfers = new Set<number>();
 
   constructor(private readonly deps: { clock: Clock; webhooks: WebhookSink }) {
@@ -148,9 +151,18 @@ export class SchoolBook {
 
   reset(): void {
     this.invoices.clear();
-    this.unmatched.length = 0;
+    this.unmatched.clear();
     this.seenTransfers.clear();
     this.seed();
+  }
+
+  /** Shared between instances (store/sync.ts). */
+  collections(): Collection[] {
+    return [
+      mapCollection("school.invoice", this.invoices),
+      mapCollection("school.unmatched", this.unmatched, true),
+      setCollection("school.seenTransfer", this.seenTransfers as Set<string | number>, true),
+    ];
   }
 
   private seed(): void {
@@ -176,6 +188,8 @@ export class SchoolBook {
   async invoicesFor(school: School, studentId: string): Promise<SchoolInvoice[]> {
     const key = `${school.id}:${studentId}`;
     let inv = this.invoices.get(key);
+    if (!inv) inv = this.judgeCopyInvoice(school, studentId);
+    if (inv) this.invoices.set(key, inv);
     if (!inv) {
       const h = createHash("sha256").update(key).digest();
       const steps = Math.floor((school.fee.max - school.fee.min) / school.fee.step) + 1;
@@ -200,8 +214,54 @@ export class SchoolBook {
     return [inv];
   }
 
+  /**
+   * Judge build (fixtures/judge-copy.ts): a copy's student ID (`KZ26-0417-1A2B3C`) has the seeded student's invoice
+   * (amount, due date, term) under the copy's own reference, so copies never share an invoice.
+   */
+  private judgeCopyInvoice(school: School, studentId: string): SchoolInvoice | undefined {
+    for (const s of SEEDED) {
+      if (s.schoolId !== school.id) continue;
+      const suffix = judgeCopySuffixOf(studentId, s.studentId);
+      if (!suffix) continue;
+      return {
+        invoiceId: `INV-${school.code}-${studentId}`,
+        schoolId: school.id,
+        studentId,
+        term: school.term,
+        amountMinor: s.amountMinor,
+        paidMinor: 0,
+        currency: school.currency,
+        dueDate: s.dueDate,
+        reference: judgeCopyReference(s.reference, suffix),
+        status: "OPEN",
+        payments: [],
+      };
+    }
+    return undefined;
+  }
+
   unmatchedFor(schoolId: string): (SchoolPayment & { schoolId: string })[] {
-    return this.unmatched.filter((p) => p.schoolId === schoolId);
+    return [...this.unmatched.values()].filter((p) => p.schoolId === schoolId);
+  }
+
+  /**
+   * The invoice a payment reference names. A judge copy's invoice may not have been looked up on this instance (or at
+   * all) yet: its reference still identifies it. Longest reference first, so a copy's reference (the seeded one's body
+   * plus a suffix) never books against the seeded invoice whose body it contains.
+   */
+  private invoiceForReference(school: School, currency: string, ref: string): SchoolInvoice | undefined {
+    for (const s of SEEDED) {
+      if (s.schoolId !== school.id) continue;
+      const body = s.reference.toUpperCase().replace(/^RF\d{2}/, "");
+      for (const m of ref.matchAll(new RegExp(`RF\\d{2}${body}([0-9A-F]{6})`, "g"))) {
+        if (m[0] !== judgeCopyReference(s.reference, m[1]!)) continue;
+        const studentId = `${s.studentId}-${m[1]!}`;
+        const key = `${school.id}:${studentId}`;
+        if (!this.invoices.has(key)) this.invoices.set(key, this.judgeCopyInvoice(school, studentId)!);
+      }
+    }
+    const candidates = [...this.invoices.values()].filter((i) => i.schoolId === school.id && i.currency === currency);
+    return candidates.sort((a, b) => b.reference.length - a.reference.length).find((i) => ref.includes(compact(i.reference)));
   }
 
   /** Bank listener: a transfer paid out to a school's account is booked against the invoice its reference names. */
@@ -214,9 +274,9 @@ export class SchoolBook {
     const receivedAt = t.history.at(-1)?.at ?? new Date().toISOString();
     const payment: SchoolPayment = { transferId: t.id, amountMinor: t.targetAmountMinor, currency: t.targetCurrency, reference: t.reference, receivedAt };
     const ref = compact(t.reference);
-    const inv = [...this.invoices.values()].find((i) => i.schoolId === school.id && i.currency === t.targetCurrency && ref.includes(compact(i.reference)));
+    const inv = this.invoiceForReference(school, t.targetCurrency, ref);
     if (!inv) {
-      this.unmatched.push({ ...payment, schoolId: school.id });
+      this.unmatched.set(t.id, { ...payment, schoolId: school.id });
       return;
     }
     inv.payments.push(payment);

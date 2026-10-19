@@ -163,7 +163,12 @@ describe("agent loop", () => {
     expect(r.summary.stopped).toBe(true);
     const third = r.model.doStreamCalls[2]!;
     expect(third.tools ?? []).toEqual([]);
-    expect(r.model.doStreamCalls).toHaveLength(3);
+    // The text-only step wrote no text (only a tool call that did not run): one more text-only call for the answer,
+    // and when that writes nothing either, a code-written summary that names the refusal.
+    expect(r.model.doStreamCalls).toHaveLength(4);
+    expect(r.model.doStreamCalls[3]!.tools ?? []).toEqual([]);
+    expect(r.summary).toMatchObject({ answeredBy: "summary", cutoff: "no-text" });
+    expect(textOf(r.chunks)).toContain("refused, no money was sent");
   });
 
   it("a COOLING payee stops the agent too (I7)", async () => {
@@ -182,8 +187,12 @@ describe("agent loop", () => {
   it(`caps the loop at ${MAX_TOOL_STEPS} tool rounds, then forces a text-only step`, async () => {
     const forever: RecordedStep[] = Array.from({ length: 20 }, () => ({ toolCalls: [{ toolName: "get_balances", input: {} }] }));
     const r = await run(forever);
-    expect(r.model.doStreamCalls).toHaveLength(MAX_TOOL_STEPS + 1);
+    // 8 tool rounds, the text-only step, and (as that wrote no text) the final answer call, also without tools.
+    expect(r.model.doStreamCalls).toHaveLength(MAX_TOOL_STEPS + 2);
     expect(r.model.doStreamCalls[MAX_TOOL_STEPS]!.tools ?? []).toEqual([]);
+    expect(r.model.doStreamCalls[MAX_TOOL_STEPS + 1]!.tools ?? []).toEqual([]);
+    expect(r.summary.answeredBy).toBe("summary");
+    expect(textOf(r.chunks)).toContain("Balances: KZT 900,000.00");
   });
 
   it("reader mismatches travel to rules as readerChecks (I10 → rules step 3)", async () => {

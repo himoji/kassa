@@ -40,5 +40,8 @@
   "shareMessage": "我的 Kassa 信用记录，可在此验证：",
   "linkCopied": "链接已复制，可粘贴到任何地方分享。",
   "pdfDownloaded": "PDF 已下载",
-  "shareFailed": "无法分享。请改为从验证页面复制链接。"
+  "shareFailed": "无法分享。请改为从验证页面复制链接。",
+  "incomeMonths": "有资金到账的月份",
+  "requestedPeriod": "申请的期间",
+  "accountOpened": "开户日期"
 }

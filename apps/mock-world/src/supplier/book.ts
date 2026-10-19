@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { InvoiceSpec } from "../../../../fixtures/invoices/source.ts";
 import type { Clock } from "../clock.ts";
+import { type Collection, mapCollection, setCollection, valueCollection } from "../store/sync.ts";
 import { HttpError } from "../errors.ts";
 import { renderInvoice } from "../pdf/invoice.ts";
 import type { WebhookSink } from "../webhooks.ts";
@@ -76,6 +77,15 @@ export class SupplierBook {
     this.orders.clear();
     this.delivered.clear();
     this.seq = 0;
+  }
+
+  /** Shared between instances (store/sync.ts). */
+  collections(): Collection[] {
+    return [
+      mapCollection("supplier.po", this.orders),
+      setCollection("supplier.delivered", this.delivered as Set<string | number>),
+      valueCollection("supplier.invoiceSeq", () => this.seq, (v: number) => (this.seq = Math.max(this.seq, v))),
+    ];
   }
 
   /** A PO from Kassa (already authenticated). Idempotent by purchaseOrderId. */

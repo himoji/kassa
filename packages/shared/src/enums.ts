@@ -100,6 +100,13 @@ export type Tier = z.infer<typeof Tier>;
 export const Rail = z.enum(["CARD_ISSUING", "BANK_TRANSFER", "HANDOFF", "PAY_IN_PLACE"]);
 export type Rail = z.infer<typeof Rail>;
 
+/**
+ * (added 2026-10-18) What an order executes on: a payment rail, or CONVERT (an exchange between the user's own wallet
+ * balances, never money out). `Rail` stays the set a payment may ask for (tool and API inputs).
+ */
+export const OrderRail = z.enum([...Rail.options, "CONVERT"]);
+export type OrderRail = z.infer<typeof OrderRail>;
+
 export const PaymentStatus = z.enum(["CREATED", "PROCESSING", "SENT", "FAILED", "CANCELED"]);
 export type PaymentStatus = z.infer<typeof PaymentStatus>;
 

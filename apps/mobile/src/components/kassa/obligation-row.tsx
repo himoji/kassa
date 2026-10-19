@@ -5,8 +5,17 @@ import { Pressable, View } from "react-native";
 import { Box, Text } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import type { StatusTone } from "@/theme/status";
 
 import { StatusChip } from "./status-chip";
+
+/** Covered, payable after converting between balances, short, or unknown (never shown as covered). */
+const COVERAGE_TONE: Record<ObligationDto["coverage"], StatusTone> = {
+  COVERED: "positive",
+  CONVERTIBLE: "warning",
+  SHORTFALL: "critical",
+  UNKNOWN: "neutral",
+};
 
 /** One upcoming bill: amount, due date, best route, coverage and payee status (spec §16 Home). */
 export function ObligationRow({
@@ -19,6 +28,7 @@ export function ObligationRow({
   const t = useKassaT();
   const f = useFormat();
   const o = obligation;
+  const steps = o.coverage === "CONVERTIBLE" ? (o.conversions ?? []) : [];
   const body = (
     <>
       <Box row justify="between" gap={3}>
@@ -45,16 +55,7 @@ export function ObligationRow({
         </Text>
       ) : null}
       <Box row gap={2} style={{ flexWrap: "wrap" }}>
-        <StatusChip
-          tone={
-            o.coverage === "COVERED"
-              ? "positive"
-              : o.coverage === "UNKNOWN"
-                ? "neutral"
-                : "critical"
-          }
-          label={t(`bills:coverage.${o.coverage}`)}
-        />
+        <StatusChip tone={COVERAGE_TONE[o.coverage]} label={t(`bills:coverage.${o.coverage}`)} />
         {o.payeeAccountMissing ? (
           <StatusChip
             tone="warning"
@@ -80,6 +81,22 @@ export function ObligationRow({
       ) : null}
       {o.coverage === "SHORTFALL" && !o.payeeAccountMissing ? (
         <Text variant="caption">{t("bills:shortfallBody", { currency: o.currency })}</Text>
+      ) : null}
+      {o.coverage === "CONVERTIBLE" && !o.payeeAccountMissing ? (
+        <Text variant="caption" testID={`obligation-convert-plan-${o.id}`}>
+          {steps.length > 0
+            ? t("bills:convertPlan", {
+                steps: steps
+                  .map((s) =>
+                    t("bills:convertStep", {
+                      amount: f.money(s.amountMinor, s.toCurrency),
+                      from: s.fromCurrency,
+                    })
+                  )
+                  .join(t("bills:convertStepJoin")),
+              })
+            : t("bills:convertGeneric")}
+        </Text>
       ) : null}
     </>
   );
@@ -107,6 +124,33 @@ export function ObligationRow({
         accessibilityHint={t("home:addMoney")}
         testID={`obligation-shortfall-${o.id}`}
         onPress={() => router.push({ pathname: "/add-money", params: { currency: o.currency } })}
+        style={style}
+      >
+        {body}
+      </Pressable>
+    );
+  }
+  // No single balance pays it, but converting does: open Convert with the plan's first step (each step is its own
+  // passkey-signed CONVERT order; the bill is paid after, from its own currency).
+  if (o.coverage === "CONVERTIBLE") {
+    const first = steps[0];
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityHint={t("wallet:convert.title")}
+        testID={`obligation-convertible-${o.id}`}
+        onPress={() =>
+          router.push({
+            pathname: "/convert",
+            params: first
+              ? {
+                  fromCurrency: first.fromCurrency,
+                  toCurrency: first.toCurrency,
+                  amountMinor: String(first.amountMinor),
+                }
+              : { toCurrency: o.currency },
+          })
+        }
         style={style}
       >
         {body}

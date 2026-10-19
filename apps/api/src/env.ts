@@ -43,6 +43,8 @@ const EnvSchema = z.object({
   AGENT_MODE: z.enum(["LIVE", "REPLAY"]).default("LIVE"),
   /** OpenRouter key for `openrouter:<model>` (ai/registry.ts). */
   OPENROUTER_API_KEY: z.string().optional(),
+  /** OpenRouter provider routing as JSON, e.g. {"only":["parasail/fp8","baseten"],"allow_fallbacks":false} (ai/registry.ts). */
+  OPENROUTER_PROVIDER: z.string().optional(),
   /** Retries for 429 / 5xx model errors (ai/retry.ts: exponential backoff + jitter, honours Retry-After). */
   AI_MAX_RETRIES: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().min(0).max(20).default(5)),
   /** First structured-output mode to try (ai/structured.ts); unset = native, then auto fallback, cached per model. */
@@ -243,6 +245,12 @@ export function env(): Env {
     stripeEnabled,
     trustProxy: parseTrustProxy(e.TRUST_PROXY),
   };
+  // (security review 2026-10-18) A deployed build (production, or any Vercel deployment: outside production the dev-secret
+  // fallback above would hand it the default) must never sign or accept mock-world traffic with the public development
+  // secret: anyone could forge webhooks and mock-world control requests with it. Fail closed.
+  if ((prod || base.VERCEL) && (!raw.MOCK_HMAC_SECRET || raw.MOCK_HMAC_SECRET === DEV_MOCK_HMAC_SECRET)) {
+    throw new Error("MOCK_HMAC_SECRET is required on a deployed build (NODE_ENV=production or VERCEL) and must not be the development default (bun run env:setup)");
+  }
   if (prod && e.DEMO_ENABLED && (e.DEMO_ADMIN_TOKEN ?? "").length < 32) {
     // Demo admin routes move the clock and reset data: never open, never guessable in production.
     throw new Error("DEMO_ENABLED in production requires DEMO_ADMIN_TOKEN of at least 32 characters (bun run env:setup)");

@@ -3,12 +3,15 @@
  * - fields of the server's `canonicalOrder` (payee, amounts, rail, purpose, expiry),
  * - the server's payee status badge and budget impact,
  * - "Signed order ID" = first 8 characters of the orderHash.
+ * A CONVERT order (an exchange between the user's own balances) reads as one: from which balance, at most how much,
+ * into which balance, by which route; all from `orderConversion` over the same canonical order.
  * It never renders agent prose, the chat transcript or any client-composed description, and it
  * takes the `OrderView` as parsed by the shared zod schema (unknown keys stripped). If the order,
  * its hash and the passkey challenge disagree, Approve is disabled.
  */
 import {
   FUNDING_FX_TOLERANCE_BPS,
+  orderConversion,
   orderFunding,
   type OrderView,
   type PayeeStatus,
@@ -71,6 +74,12 @@ export function OrderSheetView({
   } catch {
     funding = null; // a partial binding never verifies; the integrity check disables Approve
   }
+  let conversion: ReturnType<typeof orderConversion> = null;
+  try {
+    conversion = orderConversion(order);
+  } catch {
+    conversion = null; // a malformed conversion never verifies either; it renders as a plain order
+  }
   const converts = funding !== null && funding.currency !== order.currency;
   // (linked accounts) The signed source id, named from the user's own list (the server's data, not the agent's).
   const sources = useFundingSources();
@@ -84,19 +93,27 @@ export function OrderSheetView({
 
   return (
     <View style={{ flex: 1, padding: 20, gap: 20 }} testID="order-sheet">
-      <Box gap={1}>
-        <Text variant="caption">{t("order:title")}</Text>
-        <Box row align="center" gap={2}>
-          <Text variant="title" testID="order-payee" style={{ flexShrink: 1 }}>
-            {order.payeeName}
+      {conversion ? (
+        <Box gap={1}>
+          <Text variant="title" testID="order-convert-title">
+            {t("order:convert.title")}
           </Text>
         </Box>
-        <StatusChip
-          tone={PAYEE_TONE[view.payeeStatus]}
-          label={t(`payees:status.${view.payeeStatus}`)}
-          testID="order-payee-status"
-        />
-      </Box>
+      ) : (
+        <Box gap={1}>
+          <Text variant="caption">{t("order:title")}</Text>
+          <Box row align="center" gap={2}>
+            <Text variant="title" testID="order-payee" style={{ flexShrink: 1 }}>
+              {order.payeeName}
+            </Text>
+          </Box>
+          <StatusChip
+            tone={PAYEE_TONE[view.payeeStatus]}
+            label={t(`payees:status.${view.payeeStatus}`)}
+            testID="order-payee-status"
+          />
+        </Box>
+      )}
 
       {view.reissuedFromOrderHash ? (
         <Box row gap={2} align="center" testID="order-reissued">
@@ -123,7 +140,30 @@ export function OrderSheetView({
       <Box gap={2}>
         <Field label={t("order:rail")} value={t(`common:rail.${order.rail}`)} testID="order-rail" />
         <Field label={t("order:purpose")} value={order.purpose} testID="order-purpose" />
-        {funding ? (
+        {conversion ? (
+          <Box gap={1}>
+            <Field
+              label={t("order:convert.from", { currency: conversion.fromCurrency })}
+              value={t("order:convert.atMost", {
+                max: f.money(conversion.maxDebitMinor, conversion.fromCurrency),
+              })}
+              testID="order-convert-from"
+            />
+            <Field
+              label={t("order:convert.into", { currency: conversion.toCurrency })}
+              value={f.money(conversion.amountMinor, conversion.toCurrency)}
+              testID="order-convert-into"
+            />
+            <Field
+              label={t("order:convert.route")}
+              value={conversion.routeId}
+              testID="order-convert-route"
+            />
+            <Text variant="caption" testID="order-funding-note">
+              {t("order:fundingMarginNote", { pct: FUNDING_FX_TOLERANCE_BPS / 100 })}
+            </Text>
+          </Box>
+        ) : funding ? (
           <Box gap={1}>
             <Field
               label={t("order:fundedFrom")}

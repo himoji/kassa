@@ -1,5 +1,5 @@
 /* Rail interface (spec §11). */
-import type { CanonicalOrder, PayeeKind, PaymentStatus, Rail as RailId } from "@kassa/shared";
+import type { CanonicalOrder, OrderRail as RailId, PayeeKind, PaymentStatus } from "@kassa/shared";
 
 import type { DbOrTx } from "../../db/client.ts";
 

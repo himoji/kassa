@@ -4,7 +4,8 @@
   "coverage": {
     "COVERED": "资金充足",
     "SHORTFALL": "资金不足",
-    "UNKNOWN": "无法核实"
+    "UNKNOWN": "无法核实",
+    "CONVERTIBLE": "需先换汇"
   },
   "covered45": "未来 45 天资金充足",
   "dueOn": "{{date}} 到期 · {{category}}",
@@ -19,5 +20,9 @@
   "upcomingTitle": "即将到期",
   "shortfallBody": "目前没有任何一个余额足以支付。请在首页添加 {{currency}}，或等待家里汇款。",
   "burnHistory": "按每天约 {{amount}} 的支出计算，数据来自您的银行记录（最近 30 天的数据不足）。",
-  "burnRecent": "按每天约 {{amount}} 的支出计算，数据来自最近 30 天。"
+  "burnRecent": "按每天约 {{amount}} 的支出计算，数据来自最近 30 天。",
+  "convertPlan": "请先{{steps}}，然后付款。",
+  "convertStep": "用 {{from}} 兑换 {{amount}}",
+  "convertStepJoin": "，",
+  "convertGeneric": "没有任何单一余额足以支付，但在您的余额之间换汇后即可支付。请先换汇，然后付款。"
 }

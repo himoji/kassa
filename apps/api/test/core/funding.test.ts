@@ -13,13 +13,15 @@ import { buildMockWorld, type MockWorld } from "../../../mock-world/src/app.ts";
 import { FIXTURE_RATES, type RateProvider, type RateTable } from "../../../mock-world/src/bank/rates.ts";
 import { loadConfig } from "../../../mock-world/src/config.ts";
 import { getDb } from "../../src/db/client.ts";
-import { obligations, payees, payments, proposals, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
+import { obligations, payees, payments, proposals, users, webauthnCredentialsPayments, webauthnCredentialsRules } from "../../src/db/schema.ts";
 import { clock, DAY_MS } from "../../src/modules/clock/index.ts";
 import { loadSeedData, seedDatabase } from "../../src/modules/demo/seed.ts";
 import { setMockWorldTransportForTests } from "../../src/modules/rails/http.ts";
 import { setRailOverridesForTests } from "../../src/modules/rails/index.ts";
-import { setBalanceProviderForTests } from "../../src/modules/rules/facts.ts";
-import { approveOrder, getOrderView, proposeOrder } from "../../src/modules/rules/index.ts";
+import { setBalanceProviderForTests, walletBalances } from "../../src/modules/rules/facts.ts";
+import { approveOrder, getOrderView, proposeConversion, proposeOrder } from "../../src/modules/rules/index.ts";
+import { billRail, coverageOf } from "../../src/modules/obligations/coverage.ts";
+import { loadUser } from "../../src/modules/users/service.ts";
 import { proposeDueObligations } from "../../src/modules/scheduler/index.ts";
 import { addActiveMandate, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
@@ -169,5 +171,96 @@ describe("funding route bound into the signed order (B2)", () => {
     const r = await proposeOrder({ userId: d.userId, createdBy: "AGENT", payeeId: d.landlord.id, amountMinor: 5_000_000, currency: "HUF", purpose: "Deposit top-up", category: "rent" });
     const view = await getOrderView(d.userId, r.proposalId);
     expect(orderFunding(view.canonicalOrder)).toMatchObject({ currency: "HUF", routeId: "huf-mock-bank", markupBps: 0, maxAmountMinor: 5_000_000 });
+  });
+
+  // (2026-10-18) The hero pays tuition from money she holds: no single balance covers EUR 2,400, so the bill is
+  // CONVERTIBLE; each conversion of the plan is a CONVERT order she signs; then the tuition pays from EUR.
+  it("tuition: CONVERTIBLE → sign each planned conversion (real mock bank) → the tuition is signed and paid from EUR", async () => {
+    const d = await seededDana();
+    const u = (await getDb().select().from(users).where(eq(users.id, d.userId)))[0]!;
+    const reserveHomeMinor = (await loadUser(getDb(), d.userId)).caps.reserveMinor;
+    const coverage = async () =>
+      coverageOf(
+        { ...d.tuition, payeeKind: "UNIVERSITY", payeeAccountHash: d.university.accountHash },
+        { userId: d.userId, homeCurrency: u.homeCurrency, now: clock.now(), balances: (await walletBalances(d.userId))!, rail: billRail(u, "UNIVERSITY"), reserveHomeMinor },
+      );
+    // As seeded, converting everything would still leave less than the protected reserve after the tuition: rules would
+    // refuse it (REFUSE_CAP), so the bills page says SHORTFALL (reserve), not CONVERTIBLE.
+    expect(await coverage()).toMatchObject({ coverage: "SHORTFALL", reserveBreached: true });
+    // Money from home: still no single balance pays EUR 2,400, but converting first does.
+    await mw!.app.inject({ method: "POST", url: "/mock/remittance/incoming", payload: { amountMinor: 20_000_000, currency: "KZT" } });
+    const cov = await coverage();
+    expect(cov.coverage).toBe("CONVERTIBLE");
+    for (const step of cov.conversions!) {
+      const c = await proposeConversion({ userId: d.userId, createdBy: "USER", toCurrency: step.toCurrency, amountMinor: step.amountMinor, fromCurrency: step.fromCurrency });
+      expect(c.decision).toBe("ASK");
+      const v = await getOrderView(d.userId, c.proposalId);
+      expect(await approveOrder(d.userId, c.proposalId, d.auth.assert(v.orderHash))).toMatchObject({ paymentStatus: "SENT", reasonCodes: [] });
+    }
+    expect(mw!.bank.listTransfers()).toHaveLength(0); // conversions are no transfers out
+    const eurBefore = await wallet("EUR");
+    expect(eurBefore).toBeGreaterThanOrEqual(240_050);
+    const r = await tuitionProposal(d.userId, d.university.id, d.tuition.id);
+    expect(r.decision).toBe("ASK");
+    const view = await getOrderView(d.userId, r.proposalId);
+    expect(orderFunding(view.canonicalOrder)).toMatchObject({ currency: "EUR", routeId: "eur-mock-bank" });
+    expect(await approveOrder(d.userId, r.proposalId, d.auth.assert(view.orderHash))).toMatchObject({ reasonCodes: [] });
+    expect(mw!.bank.listTransfers()[0]).toMatchObject({ sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 240_000 });
+    expect(await wallet("EUR")).toBe(eurBefore - 240_050);
+  });
+
+  // (2026-10-18) A third judge's run: EUR 300 held, tuition EUR 2,400, and an ASK bound to "EUR 2,400.50 from EUR"
+  // because the balances read had failed and the same-currency route was bound blind. Unknown balances now refuse.
+  it("balances unreadable (bank unreachable): REFUSE BALANCES_UNAVAILABLE after one retry, nothing to sign", async () => {
+    const d = await seededDana();
+    let reads = 0;
+    setBalanceProviderForTests(async () => {
+      reads++;
+      return null;
+    });
+    const r = await tuitionProposal(d.userId, d.university.id, d.tuition.id);
+    expect(r.decision).toBe("REFUSE");
+    expect(r.reasonCodes).toEqual(["BALANCES_UNAVAILABLE"]);
+    expect(reads).toBeGreaterThanOrEqual(2); // funding: read, then one retry (the reserve check reads on its own)
+    const row = (await getDb().select().from(proposals).where(eq(proposals.id, r.proposalId)))[0]!;
+    expect(row.canonicalOrder).toBeNull();
+    // The bill is free again: nothing claimed its period.
+    setBalanceProviderForTests(null);
+    expect((await tuitionProposal(d.userId, d.university.id, d.tuition.id)).reasonCodes).toEqual(["INSUFFICIENT_FUNDS"]);
+  });
+
+  it("a failed balances read followed by a good one (a blip): the retry binds the real route", async () => {
+    const d = await seededDana();
+    await mw!.app.inject({ method: "POST", url: "/mock/remittance/incoming", payload: { amountMinor: 100_000_000, currency: "KZT" } });
+    let first = true;
+    const { getWalletBalances } = await import("../../src/modules/rails/mockBank.ts");
+    setBalanceProviderForTests(async (userId) => {
+      if (first) {
+        first = false;
+        return null;
+      }
+      return getWalletBalances(userId);
+    });
+    const r = await tuitionProposal(d.userId, d.university.id, d.tuition.id);
+    expect(r.decision).toBe("ASK");
+    const view = await getOrderView(d.userId, r.proposalId);
+    expect(orderFunding(view.canonicalOrder)).toMatchObject({ currency: "KZT", routeId: "kzt-mock-bank" });
+  });
+
+  it("the funding balance is gone by execution: FAILED INSUFFICIENT_FUNDS (not RAIL_ERROR), no transfer created, nothing debited", async () => {
+    const d = await seededDana();
+    await mw!.app.inject({ method: "POST", url: "/mock/remittance/incoming", payload: { amountMinor: 100_000_000, currency: "KZT" } });
+    const r = await tuitionProposal(d.userId, d.university.id, d.tuition.id);
+    const view = await getOrderView(d.userId, r.proposalId);
+    // The KZT balance is spent elsewhere after the user saw the order (bank-side, e.g. another channel).
+    const store = (mw!.bank as unknown as { store: { debit(p: number, c: string, a: number): Promise<number | null> } }).store;
+    await store.debit(16000001, "KZT", (await wallet("KZT")) - 1_000);
+    const res = await approveOrder(d.userId, r.proposalId, d.auth.assert(view.orderHash));
+    expect(res.paymentStatus).toBe("FAILED");
+    expect(res.reasonCodes).toEqual(["INSUFFICIENT_FUNDS"]);
+    expect(mw!.bank.listTransfers()).toHaveLength(0);
+    expect(await wallet("KZT")).toBe(1_000);
+    const pay = (await getDb().select().from(payments).where(eq(payments.proposalId, r.proposalId)))[0]!;
+    expect(pay).toMatchObject({ status: "FAILED", reasonCodes: ["INSUFFICIENT_FUNDS"] });
   });
 });

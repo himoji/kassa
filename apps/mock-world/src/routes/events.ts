@@ -69,9 +69,9 @@ export function eventRoutes(
     } catch (err) {
       throw new HttpError(400, "BAD_REQUEST", err instanceof Error ? err.message : "bad amount");
     }
-    const profile = deps.bank.resolveProfile(b.profileId ?? deps.defaultProfileId);
+    const profile = await deps.bank.resolveProfile(b.profileId ?? deps.defaultProfileId);
     const receivedAt = (await deps.clock.now()).toISOString();
-    const balanceAfterMinor = deps.bank.credit(profile, b.currency, amountMinor);
+    const balanceAfterMinor = await deps.bank.credit(profile, b.currency, amountMinor);
     const event = {
       eventId: randomUUID(),
       type: "remittance.incoming",

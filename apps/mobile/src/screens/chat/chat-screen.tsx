@@ -2,7 +2,7 @@ import { useChat } from "@ai-sdk/react";
 import { router, Stack, type Href } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, TextInput, View } from "react-native";
+import { ScrollView, View } from "react-native";
 
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
 import { fetchConversationMessages, useConversations } from "@/api/hooks/chat";
@@ -21,7 +21,7 @@ import { errorText } from "@/components/kassa/error-text";
 import { Markdown } from "@/components/kassa/markdown";
 import { ProposalCard } from "@/components/kassa/proposal-card";
 import { RouteComparison } from "@/components/kassa/route-comparison";
-import { Box, Button, Card, Icon, Loading, Text, toast, useTheme } from "@/components/ui";
+import { Box, Button, Card, Loading, Text, toast, useTheme } from "@/components/ui";
 import { readCachedMessages, writeCachedMessages } from "@/lib/chat-cache";
 import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
@@ -31,8 +31,10 @@ import { useChatHydrated, useChatStore } from "@/stores/chat";
 import { isLiteBuild } from "@/lite/variant";
 import { HeaderButtons } from "@/navigation/header-buttons";
 
+import { ChatComposer } from "./composer";
 import { consentNeeded } from "./consent";
 import { ConsentCard } from "./consent-card";
+import { waitingOnModel } from "./progress";
 
 const SUGGESTIONS = ["chat:suggest.tuition", "chat:suggest.budget", "chat:suggest.log"] as const;
 /** KassaLite cannot approve payments (no passkey): questions about spending instead. */
@@ -248,7 +250,6 @@ function ChatSession({
   server: KassaUIMessage[] | undefined;
 }) {
   const t = useKassaT();
-  const { colors } = useTheme();
   const lite = isLiteBuild();
   const newConversation = useChatStore((s) => s.newConversation);
   // What the session started with (cache or server); `server` is compared against it below.
@@ -352,60 +353,13 @@ function ChatSession({
       <ChatLayout
         inTabs
         composer={
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "flex-end",
-              gap: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              backgroundColor: colors.background,
-            }}
-          >
-            <TextInput
-              value={input}
-              onChangeText={setInput}
-              placeholder={t("chat:placeholder")}
-              placeholderTextColor={colors.mutedForeground}
-              accessibilityLabel={t("chat:inputA11y")}
-              multiline
-              maxLength={4000}
-              onSubmitEditing={() => send(input)}
-              style={{
-                flex: 1,
-                minHeight: 44,
-                maxHeight: 140,
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-                borderRadius: 22,
-                backgroundColor: colors.muted,
-                color: colors.foreground,
-                fontSize: 16,
-              }}
-            />
-            <Pressable
-              onPress={() => (busy ? void stop() : send(input))}
-              accessibilityRole="button"
-              accessibilityLabel={busy ? t("chat:stop") : t("chat:send")}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: colors.brandAccent,
-              }}
-            >
-              <Icon
-                name={busy ? "stop.fill" : "arrow.up"}
-                fallback={busy ? "stop" : "arrow_upward"}
-                size={20}
-                color="primaryForeground"
-              />
-            </Pressable>
-          </View>
+          <ChatComposer
+            value={input}
+            onChangeText={setInput}
+            onSend={send}
+            onStop={() => void stop()}
+            busy={busy}
+          />
         }
       >
         <ScrollView
@@ -444,7 +398,9 @@ function ChatSession({
               />
             ))
           )}
-          {status === "submitted" ? <Text variant="caption">{t("chat:thinking")}</Text> : null}
+          {status === "submitted" || (status === "streaming" && waitingOnModel(messages.at(-1))) ? (
+            <Text variant="caption">{t("chat:thinking")}</Text>
+          ) : null}
           {error && consentNeeded(error) ? (
             <ConsentCard need={consentNeeded(error)!} onGiven={() => void regenerate()} />
           ) : error ? (

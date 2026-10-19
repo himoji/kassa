@@ -386,6 +386,11 @@ describe("decide: step 1b duplicate obligation period (B4)", () => {
 });
 
 describe("decide: step 4b funding (B2)", () => {
+  it("(2026-10-18) bank transfer with unreadable balances → BALANCES_UNAVAILABLE, even inside a mandate; other rails are not affected", () => {
+    expect(decide({ ...base(), balancesUnknown: true, mandate: { id: "m" } })).toMatchObject({ decision: "REFUSE", reasonCodes: ["BALANCES_UNAVAILABLE"] });
+    expect(decide({ ...base(), balancesUnknown: true, rail: "CARD_ISSUING" }).decision).not.toBe("REFUSE");
+  });
+
   it("bank transfer with no covering funding route → INSUFFICIENT_FUNDS before caps and mandate", () => {
     const r = decide({ ...base(), fundingAvailable: false, mandate: { id: "m" }, caps: { ...base().caps, amountHomeMinor: 999_000_000 } });
     expect(r).toMatchObject({ decision: "REFUSE", reasonCodes: ["INSUFFICIENT_FUNDS"] });

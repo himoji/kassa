@@ -1,6 +1,5 @@
 import { suggestedReference, type PayeeDto, type RecipientDetails } from "@kassa/shared";
 import { router, useLocalSearchParams } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 
 import { KassaApiError } from "@/api/errors";
@@ -15,6 +14,7 @@ import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { RowGroup } from "@/components/row-group";
 import { Box, Button, Card, EmptyState, Icon, Row, Text, toast } from "@/components/ui";
+import { openUrl } from "@/lib/browser";
 import { confirm } from "@/lib/confirm";
 import { haptics } from "@/lib/haptics";
 import { useFormat } from "@/lib/format";
@@ -161,10 +161,7 @@ function PayeeDetail({ payee, replaced }: { payee: PayeeDto; replaced: PayeeDto 
             </Button>
           ) : null}
           {portalUrl ? (
-            <Button
-              variant="outline"
-              onPress={() => void WebBrowser.openBrowserAsync(portalUrl).catch(() => {})}
-            >
+            <Button variant="outline" onPress={() => void openUrl(portalUrl)}>
               {t("payees:actions.openPortal")}
             </Button>
           ) : null}

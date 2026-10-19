@@ -11,7 +11,7 @@
  *    approval issued before the order expired          → ORDER_EXPIRED
  *  5 user not frozen; payee unchanged (account hash) and not blocked/cooling-before-time
  *  6 T2: assertion verified against webauthn_credentials_payments (live counter)
- *    T1: mandate active+effective+in scope+period usage, and its assertion over mandateHash; (X1) the order's
+ *    T1: mandate active+effective+in scope, and its assertion over mandateHash (period usage: step 8, under the lock); (X1) the order's
  *        signed obligation link re-checked against the obligation (payee, category, amount ≤ bill, period);
  *        or (no mandate) the passkey-signed base rules and the small-auto limit they contain
  *    (M5) an order that settles a purchase order: poHash recomputed from the stored core == the stored poHash, the
@@ -21,6 +21,7 @@
  *  8a (added 2026-10-16) above the KYC threshold (home currency, own conversion) without a VERIFIED identity check,
  *    every rail but HANDOFF                            → KYC_REQUIRED
  *  8 [tx, per-user advisory lock] nonce inserted into used_nonces (PK) → NONCE_USED;
+ *    (2026-10-18) a mandate's period maximum (checkMandatePeriod), under the same lock as the insert;
  *    own daily cap per user in the HOME currency, all currencies summed and converted by payments itself (X2,
  *    injected fx port) → PAYMENTS_DAILY_CAP (rolls the nonce back); (X3) small-auto per-day budget →
  *    SMALL_AUTO_BUDGET_EXHAUSTED; payment row CREATED
@@ -30,8 +31,21 @@
  *    source (re-checked here before the nonce: the user's, ACTIVE, in fundingCurrency → FUNDING_SOURCE_UNAVAILABLE)
  *    into the wallet; a declined pull fails the payment before any payout (FUNDING_PULL_DECLINED).
  */
-import { CanonicalOrder, jcs, jcsHash, mandateHash, orderHash, poHash, type MandateCore, type PaymentStatus, type ReasonCode } from "@kassa/shared";
-import { and, eq, gte, notInArray, sql } from "drizzle-orm";
+import {
+  CanonicalOrder,
+  jcs,
+  jcsHash,
+  mandateHash,
+  orderConversion,
+  orderHash,
+  ownWalletAccountHash,
+  OWN_WALLET_PAYEE_NAME,
+  poHash,
+  type MandateCore,
+  type PaymentStatus,
+  type ReasonCode,
+} from "@kassa/shared";
+import { and, eq, gte, ne, notInArray, sql } from "drizzle-orm";
 import { verify } from "node:crypto";
 
 import { getDb, type DbOrTx } from "../../db/client.ts";
@@ -44,11 +58,11 @@ import { pullIntoWallet, PullDeclined } from "../funding-sources/pull.ts";
 import { activeFundingSource } from "../funding-sources/store.ts";
 import { kycStatusOf } from "../kyc/status.ts";
 import { accountHash, decryptAccount } from "../payees/crypto.ts";
-import { railFor } from "../rails/index.ts";
+import { railFor, type ExecCtx } from "../rails/index.ts";
 import { rulesPublicKey } from "../rules/publicKey.ts";
 import { screenName } from "../screening/index.ts";
 import { verifyPaymentsAssertion } from "./credentials.ts";
-import { checkMandateScope } from "./mandateScope.ts";
+import { checkMandatePeriod, checkMandateScope } from "./mandateScope.ts";
 import { notifyPaymentOutcome } from "./notify.ts";
 import { updatePaymentStatus } from "./status.ts";
 
@@ -157,7 +171,8 @@ async function verifyBaseRules(db: DbOrTx, order: CanonicalOrder, now: Date): Pr
   return { limitMinor: limit, currency: caps.currency, orderMinor: amountInLimitCurrency };
 }
 
-async function verifyMandate(db: DbOrTx, order: CanonicalOrder, now: Date): Promise<void> {
+/** The mandate row a T1 order runs under, verified (hash, scope, stored assertion); its period cap is checked under the lock. */
+async function verifyMandate(db: DbOrTx, order: CanonicalOrder, now: Date): Promise<typeof mandates.$inferSelect> {
   const m = (await db.select().from(mandates).where(eq(mandates.id, order.mandateId!)))[0];
   if (!m || m.userId !== order.userId) refuse("MANDATE_INACTIVE", "mandate not found");
   if (!m.userAssertion) refuse("MANDATE_INACTIVE", "mandate was never signed");
@@ -191,6 +206,7 @@ async function verifyMandate(db: DbOrTx, order: CanonicalOrder, now: Date): Prom
     challengeReason: "BAD_SIGNATURE",
   });
   if (!check.ok) refuse(check.reason, `mandate assertion: ${check.detail}`);
+  return m;
 }
 
 /**
@@ -264,30 +280,46 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     if (recomputed !== a.orderHash) refuse("ORDER_HASH_MISMATCH", "stored order does not hash to the signed orderHash");
     if (order.proposalId !== a.proposalId) refuse("ORDER_HASH_MISMATCH", "approval/order proposal mismatch");
     if (a.issuedAt.getTime() > Date.parse(order.expiresAt)) refuse("ORDER_EXPIRED", "approval issued after the order expired");
+    // (2026-10-18) A CONVERT order: an exchange between the user's own balances (orderHash above already rejected any
+    // other shape: own wallet only, funding binding, no mandate / bill / items / PO / linked account).
+    const conversion = orderConversion(order);
     // 5
     const u = (await db.select().from(users).where(eq(users.id, order.userId)))[0];
     if (!u) refuse("NO_APPROVAL", "user not found");
     if (u.frozenAt) refuse("REFUSE_FROZEN", "user frozen");
-    const payee = (await db.select().from(payees).where(eq(payees.id, order.payeeId)))[0];
-    if (!payee || payee.userId !== order.userId || payee.accountHash !== order.payeeAccountHash || payee.status === "BLOCKED" || payee.archivedAt !== null) {
-      refuse("REFUSE_UNVERIFIED_PAYEE", "payee missing, changed, blocked or removed");
-    }
-    // A payee captured without account details (onboarding) is never payable, whatever the order says.
-    if (payee.accountEnc === null || payee.accountHash === null) refuse("REFUSE_UNVERIFIED_PAYEE", "payee has no account details");
-    // A12 (AIXBT-style row writes): the account the rail will pay must decrypt for THIS payee row (v2 AAD binds the
-    // payee id) and hash to the account hash the order signed. A ciphertext copied from another row fails here.
-    let payeeAccount: string;
-    try {
-      payeeAccount = decryptAccount(payee.userId, payee.accountEnc, payee.id);
-    } catch {
-      refuse("REFUSE_UNVERIFIED_PAYEE", "payee account does not belong to this payee row");
-    }
-    if (accountHash(payeeAccount) !== order.payeeAccountHash) refuse("REFUSE_UNVERIFIED_PAYEE", "payee account does not match the signed account hash");
-    if (payee.status === "COOLING" && (a.tier === "T1" || !payee.coolingUntil || payee.coolingUntil.getTime() > now.getTime())) {
-      refuse("REFUSE_UNVERIFIED_PAYEE", "cooling payee: T2 only, after coolingUntil (I7)");
+    let railPayee: ExecCtx["payee"];
+    let screenNames: string[];
+    if (conversion) {
+      // Payments' own reading: the credited wallet is the signing user's own, and only the passkey (T2) converts.
+      if (order.payeeId !== u.id || order.payeeAccountHash !== ownWalletAccountHash(u.id)) refuse("REFUSE_UNVERIFIED_PAYEE", "a conversion credits only the user's own wallet");
+      if (a.tier !== "T2") refuse("NO_APPROVAL", "a conversion needs the user's passkey over the order (T2)");
+      railPayee = { id: u.id, name: OWN_WALLET_PAYEE_NAME, kind: "OWN_ACCOUNT", account: "" };
+      screenNames = [];
+    } else {
+      const payee = (await db.select().from(payees).where(eq(payees.id, order.payeeId)))[0];
+      if (!payee || payee.userId !== order.userId || payee.accountHash !== order.payeeAccountHash || payee.status === "BLOCKED" || payee.archivedAt !== null) {
+        refuse("REFUSE_UNVERIFIED_PAYEE", "payee missing, changed, blocked or removed");
+      }
+      // A payee captured without account details (onboarding) is never payable, whatever the order says.
+      if (payee.accountEnc === null || payee.accountHash === null) refuse("REFUSE_UNVERIFIED_PAYEE", "payee has no account details");
+      // A12 (AIXBT-style row writes): the account the rail will pay must decrypt for THIS payee row (v2 AAD binds the
+      // payee id) and hash to the account hash the order signed. A ciphertext copied from another row fails here.
+      let payeeAccount: string;
+      try {
+        payeeAccount = decryptAccount(payee.userId, payee.accountEnc, payee.id);
+      } catch {
+        refuse("REFUSE_UNVERIFIED_PAYEE", "payee account does not belong to this payee row");
+      }
+      if (accountHash(payeeAccount) !== order.payeeAccountHash) refuse("REFUSE_UNVERIFIED_PAYEE", "payee account does not match the signed account hash");
+      if (payee.status === "COOLING" && (a.tier === "T1" || !payee.coolingUntil || payee.coolingUntil.getTime() > now.getTime())) {
+        refuse("REFUSE_UNVERIFIED_PAYEE", "cooling payee: T2 only, after coolingUntil (I7)");
+      }
+      railPayee = { id: payee.id, name: payee.name, kind: payee.kind, account: payeeAccount };
+      screenNames = [order.payeeName, payee.name];
     }
     // 6
     let smallAuto: SmallAutoLimit | null = null;
+    let mandate: typeof mandates.$inferSelect | null = null;
     if (a.tier === "T2") {
       const check = await verifyPaymentsAssertion(db, {
         userId: order.userId,
@@ -299,7 +331,7 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
       if (!check.ok) refuse(check.reason, check.detail);
     } else if (order.mandateId) {
       if (a.mandateId !== order.mandateId) refuse("MANDATE_INACTIVE", "approval/order mandate mismatch");
-      await verifyMandate(db, order, now);
+      mandate = await verifyMandate(db, order, now);
     } else {
       smallAuto = await verifyBaseRules(db, order, now);
     }
@@ -309,8 +341,8 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     if (order.fundingSourceId && (!source || source.currency !== order.fundingCurrency || order.rail !== "BANK_TRANSFER")) {
       refuse("FUNDING_SOURCE_UNAVAILABLE", "the signed linked account is removed, someone else's or in another currency");
     }
-    // 7 (X4) every rail; both the signed name and the payee's current name.
-    for (const name of new Set([order.payeeName, payee.name])) {
+    // 7 (X4) every rail; both the signed name and the payee's current name. (A conversion pays no one: nothing to screen.)
+    for (const name of new Set(screenNames)) {
       const s = screenName(name);
       if (s.hit) refuse("REFUSE_SANCTIONS", `screening hit ${s.entryId} (${s.score.toFixed(3)})`);
     }
@@ -321,7 +353,8 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
     // 8a (KYC) payments' own re-check, before the nonce: above the threshold (payments' own conversion; unconvertible
     // means 0, fail closed) Kassa pays out only for a user whose latest identity check is VERIFIED. Handoff is paid
     // in the user's own wallet.
-    if (order.rail !== "HANDOFF") {
+    // A conversion pays nothing out (the user's own balances), so it is not gated either.
+    if (order.rail !== "HANDOFF" && !conversion) {
       const e = env();
       let kycThreshold = 0;
       try {
@@ -343,10 +376,16 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
         .select({ amountMinor: payments.amountMinor, currency: payments.currency, tier: approvals.tier, mandateId: approvals.mandateId })
         .from(payments)
         .innerJoin(approvals, eq(approvals.id, payments.approvalId))
-        .where(and(eq(payments.userId, order.userId), notInArray(payments.status, ["FAILED", "CANCELED"]), gte(payments.createdAt, utcDayStart(now))));
+        // (2026-10-18) conversions are exchanges between the user's own balances, not money out: outside the cap.
+        .where(and(eq(payments.userId, order.userId), notInArray(payments.status, ["FAILED", "CANCELED"]), ne(payments.rail, "CONVERT"), gte(payments.createdAt, utcDayStart(now))));
       let usedHome = 0;
       for (const p of today) usedHome += await ownHome(p.amountMinor, p.currency, u.homeCurrency, now, "PAYMENTS_DAILY_CAP");
-      if (usedHome + orderHome > cap) refuse("PAYMENTS_DAILY_CAP", `payments daily cap reached (${usedHome} + ${orderHome} > ${cap} ${u.homeCurrency})`);
+      if (!conversion && usedHome + orderHome > cap) refuse("PAYMENTS_DAILY_CAP", `payments daily cap reached (${usedHome} + ${orderHome} > ${cap} ${u.homeCurrency})`);
+      // T1 under a mandate: its period maximum, read under the same lock as the insert below (2026-10-18).
+      if (mandate) {
+        const period = await checkMandatePeriod(tx, mandate, order, now);
+        if (!period.ok) refuse(period.reason, period.detail);
+      }
       // X3: small-auto (T1 without mandate) per-day budget, enforced here independently of rules (I2), in the
       // currency of the signed small-auto limit.
       if (smallAuto) {
@@ -415,7 +454,7 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
         paymentId,
         approvalId: a.id,
         now,
-        payee: { id: payee.id, name: payee.name, kind: payee.kind, account: payeeAccount },
+        payee: railPayee,
       });
       status = result.status;
       reasonCodes = (result.reasonCodes ?? []) as ReasonCode[];
@@ -431,6 +470,24 @@ export async function executeApproval(approvalId: string): Promise<ExecuteResult
         .where(eq(payments.id, paymentId));
       // SENT goes through the common transition so the KASSA_PAYMENT transaction is recorded.
       if (status === "SENT") await updatePaymentStatus(paymentId, "SENT", { source: `rail:${order.rail}` });
+      // (2026-10-18) the exchange itself, in the ledger: what left which balance and what arrived where.
+      if (conversion && status === "SENT") {
+        const d = result.details ?? {};
+        await ledger.append("WALLET_CONVERTED", {
+          userId: order.userId,
+          proposalId: order.proposalId,
+          paymentId,
+          routeId: conversion.routeId,
+          sourceCurrency: conversion.fromCurrency,
+          sourceAmountMinor: d.sourceAmountMinor ?? null,
+          signedMaxMinor: conversion.maxDebitMinor,
+          targetCurrency: conversion.toCurrency,
+          targetAmountMinor: d.targetAmountMinor ?? conversion.amountMinor,
+          quoteId: d.quoteId ?? null,
+          rate: d.rate ?? null,
+          railRef: result.railRef,
+        });
+      }
     } catch (err) {
       status = "FAILED";
       reasonCodes = [err instanceof PullDeclined ? "FUNDING_PULL_DECLINED" : "RAIL_ERROR"];

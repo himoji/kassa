@@ -1,13 +1,13 @@
 /**
  * Speech to text for the voice Shortcut (POST /capture/voice): one chat completion with the recording as an
  * OpenRouter `input_audio` part (base64; OpenRouter takes no audio URLs). VOICE_MODEL picks the model, default
- * Xiaomi MiMo-V2.6-Pro (text, image, audio and video in). Only the transcript leaves this module: the agent turn that
+ * Qwen3.8-Omni-Flash (an omni model used here for speech recognition). Only the transcript leaves this module: the agent turn that
  * follows runs on the planner as usual, with its redaction, so the voice model sees the audio and nothing else.
  */
 import { AiConfigError } from "./errors.ts";
 import { OPENROUTER_BASE_URL, openRouterKey, parseModelSpec, type Env } from "./registry.ts";
 
-export const DEFAULT_VOICE_MODEL = "openrouter:xiaomi/mimo-v2.6-pro";
+export const DEFAULT_VOICE_MODEL = "openrouter:qwen/qwen3.8-omni-flash";
 
 /** Formats OpenRouter names for `input_audio`; iOS Record Audio makes m4a, Encode Media can make aiff. */
 export const VOICE_FORMATS = ["m4a", "aac", "mp3", "wav", "aiff", "ogg", "flac"] as const;
@@ -18,7 +18,8 @@ export const MAX_VOICE_BYTES = 3 * 1024 * 1024;
 
 const PROMPT =
   "Transcribe this voice note exactly, in the language spoken. Answer with the transcript only: no quotes, no notes. " +
-  "If nothing intelligible is said, answer with an empty string.";
+  "If nothing intelligible is said, answer with an empty string. Words you may hear: Kassa, tenge, forint, euro, yuan, KZT, HUF, EUR, " +
+  "USD, CNY, tuition, IBAN, Kaspi, mandate, passkey.";
 
 export function voiceSpec(env: Env = process.env) {
   const v = env.VOICE_MODEL?.trim() || DEFAULT_VOICE_MODEL;

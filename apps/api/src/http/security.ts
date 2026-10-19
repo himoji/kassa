@@ -88,10 +88,14 @@ export const RATE_LIMITED_ROUTES: Readonly<Record<string, Tier>> = {
   "POST /api/demo/stage/shortcut-token": "auth",
   "POST /api/demo/stage/settlement": "auth",
   "POST /api/demo/stage/document": "auth",
+  // (added 2026-10-18) a reviewer's own "money from home" (judge build / dev sessions): no tapping it in a loop
+  "POST /api/demo/money-from-home": "sensitive",
   "POST /api/orders/:proposalId/approve": "sensitive",
   "POST /api/merchant-bills/:billId/propose": "sensitive",
   "POST /api/capture/shortcut": "sensitive",
   "POST /api/capture/voice": "sensitive",
+  // (added 2026-10-19) the chat's mic button: each call is a paid voice-model request
+  "POST /api/agent/transcribe": "sensitive",
   "POST /api/unfreeze": "sensitive",
   "POST /api/privacy/erase": "sensitive",
   "GET /api/privacy/export": "sensitive",

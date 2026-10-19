@@ -1,6 +1,6 @@
 /*
  * Payments' OWN mandate scope check (spec §7 T1): active + effective + validity window, order inside
- * scope (payee, category, currency, per-payment cap) and period usage. Deliberately independent of
+ * scope (payee, category, currency, per-payment cap); period usage is checkMandatePeriod, run under payments' lock. Deliberately independent of
  * mandates/scope.ts used by rules (I2: a logic bug in one must not be shared by the other).
  * (X1) The order must carry a signed obligation link (obligationId + period) to a bill of this user and payee,
  * in the order's currency, for its current period, amount ≤ the bill, category (the obligation's, read here) in
@@ -63,6 +63,20 @@ export async function checkMandateScope(
   }
   if (m.currency !== order.currency) return { ok: false, reason: "MANDATE_OUT_OF_SCOPE", detail: "currency differs" };
   if (order.amountMinor > m.maxPerPaymentMinor) return { ok: false, reason: "MANDATE_OUT_OF_SCOPE", detail: "above per-payment max" };
+  return { ok: true };
+}
+
+/**
+ * The mandate's period maximum: live payments under this mandate in its current period plus this order. Runs inside
+ * payments' locked transaction (payments/index.ts step 8, per-user advisory lock), right before the payment row is
+ * inserted, so two mandate payments executing at once cannot both pass it (2026-10-18; it ran before the lock).
+ */
+export async function checkMandatePeriod(
+  db: DbOrTx,
+  m: typeof mandates.$inferSelect,
+  order: CanonicalOrder,
+  now: Date,
+): Promise<{ ok: true } | { ok: false; reason: ReasonCode; detail: string }> {
   const used = await db
     .select({ total: sql<string>`coalesce(sum(${payments.amountMinor}), 0)` })
     .from(payments)

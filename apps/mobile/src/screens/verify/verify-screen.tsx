@@ -52,25 +52,56 @@ export function VerifyScreen() {
                 title={t("credit:issuedAt")}
                 trailing={<Text selectable>{f.dateTime(data.issuedAt)}</Text>}
               />
-              <Row
-                title={t("credit:billsOnTime")}
-                trailing={
-                  <Text selectable>
-                    {t("credit:billsOnTimeValue", {
-                      paid: data.summary.billsPaidOnTime,
-                      total: data.summary.billsTotal,
-                    })}
-                  </Text>
-                }
-              />
+              {data.requestedPeriod &&
+              (data.requestedPeriod.from !== data.period.from ||
+                data.requestedPeriod.to !== data.period.to) ? (
+                <Row
+                  title={t("credit:requestedPeriod")}
+                  trailing={
+                    <Text selectable>
+                      {t("credit:periodRange", {
+                        from: f.date(data.requestedPeriod.from),
+                        to: f.date(data.requestedPeriod.to),
+                      })}
+                    </Text>
+                  }
+                />
+              ) : null}
+              {data.accountOpenedOn ? (
+                <Row
+                  title={t("credit:accountOpened")}
+                  trailing={<Text selectable>{f.date(data.accountOpenedOn)}</Text>}
+                />
+              ) : null}
+              {data.summary.billsTotal !== undefined ? (
+                <Row
+                  title={t("credit:billsOnTime")}
+                  trailing={
+                    <Text selectable>
+                      {t("credit:billsOnTimeValue", {
+                        paid: data.summary.billsPaidOnTime ?? 0,
+                        total: data.summary.billsTotal,
+                      })}
+                    </Text>
+                  }
+                />
+              ) : null}
               <Row
                 title={t("credit:monthsCovered")}
                 trailing={<Text selectable>{String(data.summary.monthsCovered)}</Text>}
               />
-              <Row
-                title={t("credit:regularIncome")}
-                trailing={<Text selectable>{String(data.summary.regularIncomeMonths)}</Text>}
-              />
+              {data.summary.incomeMonths !== undefined ? (
+                <Row
+                  title={t("credit:incomeMonths")}
+                  trailing={<Text selectable>{String(data.summary.incomeMonths)}</Text>}
+                />
+              ) : null}
+              {data.summary.regularIncomeMonths !== undefined ? (
+                <Row
+                  title={t("credit:regularIncome")}
+                  trailing={<Text selectable>{String(data.summary.regularIncomeMonths)}</Text>}
+                />
+              ) : null}
               <Row
                 title={t("credit:included")}
                 trailing={

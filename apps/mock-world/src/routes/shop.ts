@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { FastifyInstance } from "fastify";
 import { formatMoney } from "@kassa/shared";
 import { z } from "zod";
@@ -5,6 +7,7 @@ import { z } from "zod";
 import type { Clock } from "../clock.ts";
 import { HttpError, parseWith } from "../errors.ts";
 import { esc, page } from "../html.ts";
+import { type Collection, mapCollection } from "../store/sync.ts";
 import type { AuthorizationResult, Issuer } from "../shop/issuer.ts";
 import { PIZZA_MENUS, PIZZA_STORES, type PizzaStore, STORE_ALIASES } from "../world/data.ts";
 import type { StoreId } from "../../../../fixtures/seed-data.ts";
@@ -39,9 +42,19 @@ export interface Charge {
 }
 
 export class ChargeLog {
-  readonly charges: Charge[] = [];
+  /** Keyed so instances can share the log (store/sync.ts); read in time order through `charges`. */
+  private readonly byKey = new Map<string, Charge>();
+  get charges(): Charge[] {
+    return [...this.byKey.values()].sort((a, b) => a.at.localeCompare(b.at));
+  }
+  add(c: Charge): void {
+    this.byKey.set(`${c.at}|${randomUUID()}`, c);
+  }
   reset(): void {
-    this.charges.length = 0;
+    this.byKey.clear();
+  }
+  collections(): Collection[] {
+    return [mapCollection("shop.charge", this.byKey)];
   }
 }
 
@@ -84,7 +97,7 @@ export async function pizzaCheckout(deps: ShopDeps, body: z.infer<typeof Checkou
     },
   });
   const at = (await deps.clock.now()).toISOString();
-  deps.log.charges.push({ at, storeId, cardId: body.cardId, amountMinor, currency: store.currency, result });
+  deps.log.add({ at, storeId, cardId: body.cardId, amountMinor, currency: store.currency, result });
   return {
     httpStatus: result.approved ? 200 : result.reasonCode === "ISSUER_UNAVAILABLE" ? 502 : 402,
     body: {

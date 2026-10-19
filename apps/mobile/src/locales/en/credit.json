@@ -26,7 +26,7 @@
     "12m": "12 months"
   },
   "periodRange": "{{from}} to {{to}}",
-  "regularIncome": "Months with regular income",
+  "regularIncome": "Months with regular income (declared)",
   "sha256": "SHA-256",
   "share": "Share link",
   "title": "Credit record",
@@ -40,5 +40,8 @@
   "shareMessage": "My Kassa credit record. Check it here:",
   "linkCopied": "Link copied. Paste it anywhere to share.",
   "pdfDownloaded": "PDF downloaded",
-  "shareFailed": "Could not share. Copy the link from the verification page instead."
+  "shareFailed": "Could not share. Copy the link from the verification page instead.",
+  "incomeMonths": "Months with money received",
+  "requestedPeriod": "Requested period",
+  "accountOpened": "Account opened"
 }

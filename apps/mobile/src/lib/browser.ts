@@ -3,11 +3,12 @@
  *
  * `openUrl` shows http(s) links in the in-app browser (SFSafariViewController /
  * Custom Tabs) and hands everything else (`mailto:`, `tel:`, custom schemes) to
- * the OS. `openExternal` always leaves the app. Both swallow errors into crash
- * reporting.
+ * the OS. On web it opens a new tab (expo-web-browser would open a sized popup
+ * window there). `openExternal` always leaves the app. Both swallow errors into
+ * crash reporting.
  */
 import * as WebBrowser from "expo-web-browser";
-import { Linking } from "react-native";
+import { Linking, Platform } from "react-native";
 
 import { crash } from "@/lib/crash";
 
@@ -24,7 +25,7 @@ export async function openExternal(url: string): Promise<void> {
 }
 
 export async function openUrl(url: string): Promise<void> {
-  if (!isWebUrl(url)) {
+  if (!isWebUrl(url) || Platform.OS === "web") {
     await openExternal(url);
     return;
   }

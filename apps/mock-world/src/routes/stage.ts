@@ -41,7 +41,7 @@ export interface StageDeps {
   orders: ShopOrderBook;
   suppliers: SupplierBook;
   /** Resets the mock world's own in-memory state (bank, QR wallet, charges). */
-  resetWorld: () => void;
+  resetWorld: () => Promise<void>;
   /** Drops the cached demo-clock offset so the next read follows a clock move this server just made. */
   syncClock: () => void;
 }
@@ -514,7 +514,7 @@ export function stageRoutes(app: FastifyInstance, deps: StageDeps): void {
       case "reset": {
         const r = await deps.api.demo("reset");
         // The API's reset also calls POST /mock/reset; do it here too in case the API cannot reach us.
-        deps.resetWorld();
+        await deps.resetWorld();
         deps.api.reset();
         deps.syncClock();
         pendingDcc = null;

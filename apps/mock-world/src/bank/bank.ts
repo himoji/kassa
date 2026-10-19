@@ -3,14 +3,17 @@ import { randomUUID } from "node:crypto";
 import { convertMinor, crossRate, isSupportedCurrency, normalizeIban, parseRate, validatePayeeAccount, type PayeeAccountFields } from "@kassa/shared";
 
 import type { Clock } from "../clock.ts";
+import type { BalanceStore, SeedWallet } from "../store/types.ts";
+import { type Collection, mapCollection } from "../store/sync.ts";
 import type { WebhookSink } from "../webhooks.ts";
 import type { RailRoute, RateProvider } from "./rates.ts";
 import { mockBankRoute } from "./rates.ts";
 
 /*
  * Mock bank with Wise-shaped resources (spec §11, §17): quotes, recipient accounts, transfers,
- * balance funding and per-currency balances for Dana's capped wallet. In-memory only; resets on
- * restart and on POST /mock/reset.
+ * balance funding and per-currency balances for Dana's capped wallet. Balances live in a BalanceStore (memory
+ * locally, Postgres on a deployed build, store/types.ts); quotes, recipients and transfers are plain maps that
+ * store/sync.ts shares between instances. Reset by POST /mock/reset.
  *
  * Deviation from Wise's wire format, on purpose (spec §0 "integer minor units everywhere"): money
  * fields are `...Minor` integers instead of Wise's decimal `sourceAmount`/`value`. Rates stay
@@ -22,8 +25,9 @@ import { mockBankRoute } from "./rates.ts";
  *     --> funds_converted (fundedAt + step) --> outgoing_payment_sent (fundedAt + 2*step)
  * Each transition emits one signed webhook, in order, even if a clock jump crosses several.
  *
- * Concurrency: every mutating method awaits the clock/rates first and then checks and mutates
- * synchronously, so two concurrent requests cannot both pass a check (Node runs one turn at a time).
+ * Concurrency: money moves through the store's atomic credit/debit (a debit only succeeds if the balance covers it,
+ * across instances too). Transfer bookkeeping is checked and mutated without an await in between where it matters
+ * (Node runs one turn at a time); across instances last writer wins per entity.
  */
 
 export const TRANSFER_STATES = ["incoming_payment_waiting", "processing", "funds_converted", "outgoing_payment_sent"] as const;
@@ -117,6 +121,24 @@ export interface Transfer {
   simulated: true;
 }
 
+/** (added 2026-10-18) Wise balance movement of type CONVERSION (POST /v2/profiles/:p/balance-movements), minor units. */
+export interface BalanceMovement {
+  id: number;
+  type: "CONVERSION";
+  state: "COMPLETED";
+  profile: number;
+  quoteId: string;
+  customerTransactionId: string;
+  createdTime: string;
+  sourceAmountMinor: number;
+  targetAmountMinor: number;
+  sourceAmount: { valueMinor: number; currency: string };
+  targetAmount: { valueMinor: number; currency: string };
+  rate: string;
+  fee: { totalMinor: number; currency: string };
+  simulated: true;
+}
+
 export interface QuoteInput {
   sourceCurrency: string;
   targetCurrency: string;
@@ -170,11 +192,11 @@ export interface BankOptions {
   rates: RateProvider;
   webhooks: WebhookSink;
   stepMs: number;
-  /** `aliases`: other ids accepted for the same profile (e.g. the Kassa user UUID the API sends). */
-  initialBalances: { profileId: number; aliases?: string[]; balances: { currency: string; amountMinor: number }[] }[];
-  /** First id for accounts/transfers. Default derives from start time so ids do not repeat across restarts. */
-  idStart?: number;
+  /** Wallets, balances and ids (store/memory.ts or store/postgres.ts). */
+  store: BalanceStore;
 }
+
+export type { SeedWallet };
 
 /** units of `to` per unit of `from`, worsened by markup: mid / (1 + m). */
 function effectiveRate(mid: string, markupBps: number, scale = 8): string {
@@ -191,82 +213,70 @@ export class MockBank {
   private readonly quotes = new Map<string, Quote>();
   private readonly recipients = new Map<number, Recipient>();
   private readonly transfers = new Map<number, Transfer>();
-  private readonly byCustomerTxId = new Map<string, number>();
-  private readonly quoteUsedBy = new Map<string, number>();
-  private balances = new Map<number, Map<string, number>>();
-  private readonly aliases = new Map<string, number>();
-  /** Test top-ups by reference (idempotent: a retried tap adds the money once). */
-  private readonly topUps = new Map<string, { profile: number; currency: string; amountMinor: number; balanceAfterMinor: number }>();
-  private nextId: number;
+  /** (2026-10-18) Own-balance conversions by customerTransactionId (idempotency key; the API sends the proposal id). */
+  private readonly conversions = new Map<string, BalanceMovement>();
+  private readonly store: BalanceStore;
   /** Told about every transfer the moment it is paid out (the school portals match tuition payments this way). */
   private readonly payoutListeners: ((t: Transfer, account: Recipient | undefined) => void)[] = [];
 
   constructor(private readonly opts: BankOptions) {
-    this.nextId = opts.idStart ?? 50_000_000 + (Math.floor(Date.now() / 1000) % 10_000_000) * 10;
-    for (const p of opts.initialBalances) {
-      this.aliases.set(String(p.profileId), p.profileId);
-      for (const a of p.aliases ?? []) this.aliases.set(a.toLowerCase(), p.profileId);
-    }
-    this.resetBalances();
+    this.store = opts.store;
   }
 
-  private resetBalances(): void {
-    this.balances = new Map(
-      this.opts.initialBalances.map((p) => [p.profileId, new Map(p.balances.map((b) => [b.currency, b.amountMinor]))]),
-    );
+  /** The maps store/sync.ts shares between instances. */
+  collections(): Collection[] {
+    return [
+      mapCollection("bank.quote", this.quotes),
+      mapCollection("bank.recipient", this.recipients, true),
+      mapCollection("bank.transfer", this.transfers, true),
+      mapCollection("bank.conversion", this.conversions),
+    ];
   }
 
   onPayout(fn: (t: Transfer, account: Recipient | undefined) => void): void {
     this.payoutListeners.push(fn);
   }
 
-  /** Forget all quotes, recipients and transfers and restore seed balances. Ids keep increasing. */
-  reset(): void {
+  /** Forget quotes, recipients and transfers (this instance's copies; store/sync.ts handles the shared rows). */
+  resetLocal(): void {
     this.quotes.clear();
     this.recipients.clear();
     this.transfers.clear();
-    this.byCustomerTxId.clear();
-    this.quoteUsedBy.clear();
-    this.topUps.clear();
-    this.resetBalances();
+    this.conversions.clear();
+  }
+
+  /** Forget all quotes, recipients and transfers and restore seed balances. Ids keep increasing. */
+  async reset(): Promise<void> {
+    this.resetLocal();
+    await this.store.reset();
   }
 
   /**
    * Open an empty wallet for a new user under a given profile id (the API derives and stores it). Idempotent, so the
-   * API can call it again after this in-memory bank restarted.
+   * API can call it again any time.
    */
-  openWallet(profileId: number, aliases: string[] = []): { profileId: number; created: boolean } {
+  async openWallet(profileId: number, aliases: string[] = []): Promise<{ profileId: number; created: boolean }> {
     if (!Number.isSafeInteger(profileId) || profileId <= 0) throw new BankError(422, "NOT_VALID", "profileId must be a positive integer", "profileId");
-    const created = !this.balances.has(profileId);
-    if (created) this.balances.set(profileId, new Map());
-    this.aliases.set(String(profileId), profileId);
-    for (const a of aliases) this.aliases.set(a.toLowerCase(), profileId);
+    const created = await this.store.openWallet(profileId, aliases);
     return { profileId, created };
   }
 
   /** Test money in (a simulated wallet tap or a Stripe test charge already made by the API). Idempotent by reference. */
-  topUp(profile: number, currency: string, amountMinor: number, reference: string): { balanceAfterMinor: number; created: boolean } {
-    const seen = this.topUps.get(reference);
-    if (seen) {
-      if (seen.profile !== profile || seen.currency !== currency || seen.amountMinor !== amountMinor) {
-        throw new BankError(409, "topup.idempotency_conflict", "reference already used for a different top-up", "reference");
-      }
-      return { balanceAfterMinor: seen.balanceAfterMinor, created: false };
-    }
-    const balanceAfterMinor = this.credit(profile, currency, amountMinor);
-    this.topUps.set(reference, { profile, currency, amountMinor, balanceAfterMinor });
-    return { balanceAfterMinor, created: true };
+  async topUp(profile: number, currency: string, amountMinor: number, reference: string): Promise<{ balanceAfterMinor: number; created: boolean }> {
+    checkCredit(currency, amountMinor);
+    const r = await this.store.topUp(reference, profile, currency, amountMinor);
+    if (r.kind === "conflict") throw new BankError(409, "topup.idempotency_conflict", "reference already used for a different top-up", "reference");
+    if (r.kind === "no_wallet") throw new BankError(404, "profile.not_found", `Unknown profile ${profile}`);
+    return { balanceAfterMinor: r.balanceAfterMinor, created: r.created };
   }
 
-  private wallet(profile: number): Map<string, number> {
-    const w = this.balances.get(profile);
-    if (!w) throw new BankError(404, "profile.not_found", `Unknown profile ${profile}`);
-    return w;
+  private async requireWallet(profile: number): Promise<void> {
+    if (!(await this.store.hasWallet(profile))) throw new BankError(404, "profile.not_found", `Unknown profile ${profile}`);
   }
 
   /** Canonical numeric profile id for a path/body value (number, numeric string or alias). */
-  resolveProfile(raw: string | number): number {
-    const id = this.aliases.get(String(raw).toLowerCase());
+  async resolveProfile(raw: string | number): Promise<number> {
+    const id = await this.store.resolve(String(raw));
     if (id === undefined) throw new BankError(404, "profile.not_found", `Unknown profile ${raw}`);
     return id;
   }
@@ -274,7 +284,7 @@ export class MockBank {
   // ---------- Quotes ----------
 
   async createQuote(profile: number, input: QuoteInput): Promise<Quote> {
-    this.wallet(profile);
+    await this.requireWallet(profile);
     const { sourceCurrency: src, targetCurrency: tgt } = input;
     for (const [path, c] of [
       ["sourceCurrency", src],
@@ -351,12 +361,12 @@ export class MockBank {
 
   // ---------- Recipients ----------
 
-  createRecipient(input: RecipientInput): Recipient {
-    this.wallet(input.profile);
+  async createRecipient(input: RecipientInput): Promise<Recipient> {
+    await this.requireWallet(input.profile);
     if (!isSupportedCurrency(input.currency)) throw new BankError(422, "NOT_VALID", `Unsupported currency ${input.currency}`, "currency");
     const account: RecipientAccount = input.account ?? { type: "iban", iban: input.iban };
     if (account.type === "kassa_wallet") {
-      if (!this.balances.has(account.walletProfile)) throw new BankError(422, "NOT_VALID", "Unknown wallet", "details.walletProfile");
+      if (!(await this.store.hasWallet(account.walletProfile))) throw new BankError(422, "NOT_VALID", "Unknown wallet", "details.walletProfile");
       if (account.walletProfile === input.profile) throw new BankError(422, "NOT_VALID", "A wallet cannot pay itself", "details.walletProfile");
     } else {
       // ISO 13616 + MOD 97-10 for IBANs, Luhn for UnionPay, the ABA checksum, and the currency each type pays out in.
@@ -369,7 +379,7 @@ export class MockBank {
     const { type, ...fields } = account;
     const details = type === "iban" ? { iban: normalizeIban(account.iban) } : fields;
     const r: Recipient = {
-      id: this.nextId++,
+      id: await this.store.nextId(),
       profile: input.profile,
       accountHolderName: input.accountHolderName,
       type,
@@ -393,10 +403,11 @@ export class MockBank {
 
   async createTransfer(input: TransferInput): Promise<{ transfer: Transfer; created: boolean }> {
     const now = await this.opts.clock.now();
+    const id = await this.store.nextId();
     // From here on: synchronous checks + mutation.
-    const existingId = this.byCustomerTxId.get(input.customerTransactionId);
-    if (existingId !== undefined) {
-      const t = this.transfers.get(existingId)!;
+    const existing = this.transferByCustomerTxId(input.customerTransactionId);
+    if (existing) {
+      const t = existing;
       if (t.quoteUuid !== input.quoteUuid || t.targetAccount !== input.targetAccount) {
         throw new BankError(409, "transfer.idempotency_conflict", "customerTransactionId already used for a different transfer");
       }
@@ -405,7 +416,7 @@ export class MockBank {
     const quote = this.quotes.get(input.quoteUuid);
     if (!quote) throw new BankError(404, "quote.not_found", `Unknown quote ${input.quoteUuid}`, "quoteUuid");
     if (Date.parse(quote.expirationTime) <= now.getTime()) throw new BankError(422, "quote.expired", "Quote has expired", "quoteUuid");
-    if (this.quoteUsedBy.has(quote.id)) throw new BankError(422, "quote.already_used", "Quote already used by another transfer", "quoteUuid");
+    if (this.quoteUsed(quote.id)) throw new BankError(422, "quote.already_used", "Quote already used by another transfer", "quoteUuid");
     const account = this.recipients.get(input.targetAccount);
     if (!account) throw new BankError(404, "account.not_found", `Unknown account ${input.targetAccount}`, "targetAccount");
     if (account.profile !== quote.profile) throw new BankError(422, "NOT_VALID", "Account and quote belong to different profiles", "targetAccount");
@@ -413,7 +424,7 @@ export class MockBank {
       throw new BankError(422, "NOT_VALID", "Account currency does not match the quote target currency", "targetAccount");
     }
     const t: Transfer = {
-      id: this.nextId++,
+      id,
       profile: quote.profile,
       user: quote.profile,
       targetAccount: account.id,
@@ -438,9 +449,11 @@ export class MockBank {
     };
     quote.status = "ACCEPTED";
     this.transfers.set(t.id, t);
-    this.byCustomerTxId.set(t.customerTransactionId, t.id);
-    this.quoteUsedBy.set(quote.id, t.id);
     return { transfer: t, created: true };
+  }
+
+  private transferByCustomerTxId(customerTransactionId: string): Transfer | undefined {
+    return this.listTransfers().find((t) => t.customerTransactionId === customerTransactionId);
   }
 
   /** POST /v3/profiles/:p/transfers/:id/payments {type: BALANCE}. */
@@ -454,24 +467,84 @@ export class MockBank {
     if (t.fundedAt !== null || t.status !== "incoming_payment_waiting") {
       throw new BankError(409, "transfer.already_funded", "Transfer is already funded");
     }
-    const wallet = this.wallet(profile);
-    const available = wallet.get(t.sourceCurrency) ?? 0;
-    if (available < t.sourceAmountMinor) {
+    await this.requireWallet(profile);
+    const balanceTransactionId = await this.store.nextId();
+    // Claimed before the debit's await, so a concurrent fund call on this instance sees it as funded.
+    t.fundedAt = now.toISOString();
+    const after = await this.store.debit(profile, t.sourceCurrency, t.sourceAmountMinor);
+    if (after === null) {
+      t.fundedAt = null;
       throw new BankError(422, "transfer.insufficient_funds", "Insufficient balance", undefined, {
         type: "BALANCE",
         status: "REJECTED",
         errorCode: "transfer.insufficient_funds",
       });
     }
-    wallet.set(t.sourceCurrency, available - t.sourceAmountMinor);
-    t.fundedAt = now.toISOString();
-    this.transition(t, "processing", now.getTime());
+    await this.transition(t, "processing", now.getTime());
     if (t.instant) {
       // Instant payout: converted and sent at once (each state still gets its webhook, in order).
-      this.transition(t, "funds_converted", now.getTime());
-      this.transition(t, "outgoing_payment_sent", now.getTime());
+      await this.transition(t, "funds_converted", now.getTime());
+      await this.transition(t, "outgoing_payment_sent", now.getTime());
     }
-    return { type: "BALANCE", status: "COMPLETED", errorCode: null, balanceTransactionId: this.nextId++, transferState: t.status };
+    return { type: "BALANCE", status: "COMPLETED", errorCode: null, balanceTransactionId, transferState: t.status };
+  }
+
+  /** A quote pays one transfer or converts once. */
+  private quoteUsed(quoteId: string): boolean {
+    return this.listTransfers().some((x) => x.quoteUuid === quoteId) || [...this.conversions.values()].some((c) => c.quoteId === quoteId);
+  }
+
+  // ---------- Conversions (own balance → own balance) ----------
+
+  /**
+   * (added 2026-10-18) Wise POST /v2/profiles/:p/balance-movements {quoteId}: convert between the profile's own
+   * balances at one of its quotes. The quote's sourceAmountMinor (fee and markup included) leaves sourceCurrency through
+   * the store's covers-checked debit, then its targetAmountMinor arrives in targetCurrency. Short of the source amount:
+   * 422 transfer.insufficient_funds and nothing moves. A quote converts (or pays) once; idempotent per
+   * customerTransactionId.
+   */
+  async convert(profile: number, input: { quoteId: string; customerTransactionId: string }): Promise<BalanceMovement> {
+    const now = await this.opts.clock.now();
+    const seen = this.conversions.get(input.customerTransactionId);
+    if (seen) {
+      if (seen.quoteId !== input.quoteId || seen.profile !== profile) {
+        throw new BankError(409, "conversion.idempotency_conflict", "customerTransactionId already used for a different conversion", "customerTransactionId");
+      }
+      return seen;
+    }
+    const quote = this.quotes.get(input.quoteId);
+    if (!quote || quote.profile !== profile) throw new BankError(404, "quote.not_found", `Unknown quote ${input.quoteId}`, "quoteId");
+    if (Date.parse(quote.expirationTime) <= now.getTime()) throw new BankError(422, "quote.expired", "Quote has expired", "quoteId");
+    if (this.quoteUsed(quote.id)) throw new BankError(422, "quote.already_used", "Quote already used", "quoteId");
+    if (quote.sourceCurrency === quote.targetCurrency) throw new BankError(422, "NOT_VALID", "A conversion is between two currencies", "quoteId");
+    await this.requireWallet(profile);
+    const id = await this.store.nextId();
+    const m: BalanceMovement = {
+      id,
+      type: "CONVERSION",
+      state: "COMPLETED",
+      profile,
+      quoteId: quote.id,
+      customerTransactionId: input.customerTransactionId,
+      createdTime: now.toISOString(),
+      sourceAmountMinor: quote.sourceAmountMinor,
+      targetAmountMinor: quote.targetAmountMinor,
+      sourceAmount: { valueMinor: quote.sourceAmountMinor, currency: quote.sourceCurrency },
+      targetAmount: { valueMinor: quote.targetAmountMinor, currency: quote.targetCurrency },
+      rate: quote.rate,
+      fee: { totalMinor: quote.fee.totalMinor, currency: quote.fee.currency },
+      simulated: true,
+    };
+    // Claimed before the debit's await (like fund()), so a concurrent call on this instance sees the quote as used.
+    this.conversions.set(input.customerTransactionId, m);
+    const after = await this.store.debit(profile, quote.sourceCurrency, quote.sourceAmountMinor);
+    if (after === null) {
+      this.conversions.delete(input.customerTransactionId);
+      throw new BankError(422, "transfer.insufficient_funds", "Insufficient balance", undefined, { type: "BALANCE", status: "REJECTED", errorCode: "transfer.insufficient_funds" });
+    }
+    await this.store.credit(profile, quote.targetCurrency, quote.targetAmountMinor);
+    quote.status = "ACCEPTED";
+    return m;
   }
 
   async getTransfer(id: number): Promise<Transfer> {
@@ -499,20 +572,20 @@ export class MockBank {
       while (idx < target) {
         idx++;
         // The transition "happened" at its scheduled demo time, not when we noticed it.
-        this.transition(t, TRANSFER_STATES[idx]!, fundedAt + (idx - 1) * this.opts.stepMs);
+        await this.transition(t, TRANSFER_STATES[idx]!, fundedAt + (idx - 1) * this.opts.stepMs);
         changed++;
       }
     }
     return changed;
   }
 
-  private transition(t: Transfer, next: TransferState, atMs: number): void {
+  private async transition(t: Transfer, next: TransferState, atMs: number): Promise<void> {
     const previous = t.status;
     const at = new Date(atMs).toISOString();
     t.status = next;
     t.history.push({ state: next, at });
     const account = this.recipients.get(t.targetAccount);
-    if (next === "outgoing_payment_sent" && account?.type === "kassa_wallet") this.deliverToWallet(t, account, at);
+    if (next === "outgoing_payment_sent" && account?.type === "kassa_wallet") await this.deliverToWallet(t, account, at);
     // Wise `transfers#state-change` (schema 2.0.0) plus a `kassa` block with minor-unit details.
     this.opts.webhooks.send("bank", {
       data: {
@@ -548,9 +621,9 @@ export class MockBank {
   }
 
   /** Kassa → Kassa: the money lands in the other wallet, and its owner is told (remittance webhook, wallet.received). */
-  private deliverToWallet(t: Transfer, account: Recipient, at: string): void {
+  private async deliverToWallet(t: Transfer, account: Recipient, at: string): Promise<void> {
     const target = (account.details as unknown as { walletProfile: number }).walletProfile;
-    const balanceAfterMinor = this.credit(target, t.targetCurrency, t.targetAmountMinor);
+    const balanceAfterMinor = await this.credit(target, t.targetCurrency, t.targetAmountMinor);
     this.opts.webhooks.send("remittance", {
       eventId: randomUUID(),
       type: "wallet.received",
@@ -581,9 +654,10 @@ export class MockBank {
       simulated: true;
     }[]
   > {
-    const wallet = this.wallet(profile);
+    const wallet = await this.store.balances(profile);
+    if (!wallet) throw new BankError(404, "profile.not_found", `Unknown profile ${profile}`);
     const now = (await this.opts.clock.now()).toISOString();
-    return [...wallet.entries()].map(([currency, valueMinor], i) => ({
+    return wallet.map(([currency, valueMinor], i) => ({
       id: profile * 100 + i,
       currency,
       type: "STANDARD" as const,
@@ -597,13 +671,16 @@ export class MockBank {
   }
 
   /** Incoming money (remittance from home). Returns the new balance. */
-  credit(profile: number, currency: string, amountMinor: number): number {
-    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) throw new BankError(422, "NOT_VALID", "amountMinor must be a positive integer");
-    if (!isSupportedCurrency(currency)) throw new BankError(422, "NOT_VALID", `Unsupported currency ${currency}`, "currency");
-    const wallet = this.wallet(profile);
-    const next = (wallet.get(currency) ?? 0) + amountMinor;
+  async credit(profile: number, currency: string, amountMinor: number): Promise<number> {
+    checkCredit(currency, amountMinor);
+    const next = await this.store.credit(profile, currency, amountMinor);
+    if (next === null) throw new BankError(404, "profile.not_found", `Unknown profile ${profile}`);
     if (!Number.isSafeInteger(next)) throw new BankError(422, "NOT_VALID", "Balance overflow");
-    wallet.set(currency, next);
     return next;
   }
+}
+
+function checkCredit(currency: string, amountMinor: number): void {
+  if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) throw new BankError(422, "NOT_VALID", "amountMinor must be a positive integer");
+  if (!isSupportedCurrency(currency)) throw new BankError(422, "NOT_VALID", `Unsupported currency ${currency}`, "currency");
 }

@@ -32,7 +32,8 @@ const QuoteBody = z.object({
   sourceAmount: Decimal.nullish(),
   targetAmount: Decimal.nullish(),
   routeId: z.string().min(1).max(64).optional(),
-  payOut: z.literal("BANK_TRANSFER").optional(),
+  // BALANCE (added 2026-10-18): a quote for a conversion into the profile's own balance (balance-movements).
+  payOut: z.enum(["BANK_TRANSFER", "BALANCE"]).optional(),
   preferredPayIn: z.literal("BALANCE").optional(),
 });
 
@@ -91,7 +92,7 @@ function wiseParse<S extends z.ZodType>(schema: S, value: unknown): z.infer<S> {
 
 export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
   app.post("/v3/profiles/:p/quotes", async (req, reply) => {
-    const p = bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
+    const p = await bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
     const body = wiseParse(QuoteBody, req.body);
     const sourceAmountMinor = body.sourceAmountMinor ?? (body.sourceAmount != null ? minorFrom(body.sourceAmount, body.sourceCurrency) : undefined);
     const targetAmountMinor = body.targetAmountMinor ?? (body.targetAmount != null ? minorFrom(body.targetAmount, body.targetCurrency) : undefined);
@@ -106,7 +107,7 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
   });
 
   app.get("/v3/profiles/:p/quotes/:id", async (req) => {
-    const p = bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
+    const p = await bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
     const { id } = wiseParse(z.object({ id: z.string().uuid() }), req.params);
     return bank.getQuote(p, id);
   });
@@ -116,11 +117,11 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
     const { legalType, ...fields } = body.details;
     const account =
       body.type === "kassa_wallet"
-        ? { type: "kassa_wallet" as const, walletProfile: bank.resolveProfile((fields as { walletProfile: number | string }).walletProfile) }
+        ? { type: "kassa_wallet" as const, walletProfile: await bank.resolveProfile((fields as { walletProfile: number | string }).walletProfile) }
         : ({ type: body.type, ...fields } as RecipientAccount);
     return bank.createRecipient({
       currency: body.currency,
-      profile: bank.resolveProfile(body.profile),
+      profile: await bank.resolveProfile(body.profile),
       accountHolderName: body.accountHolderName,
       legalType,
       account,
@@ -147,7 +148,7 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
   app.post("/v3/profiles/:p/transfers/:id/payments", async (req) => {
     const { p, id } = wiseParse(ProfileParam.extend({ id: z.coerce.number().int().positive() }), req.params);
     wiseParse(FundBody, req.body);
-    return bank.fund(bank.resolveProfile(p), id);
+    return bank.fund(await bank.resolveProfile(p), id);
   });
 
   app.get("/v1/transfers/:id", async (req) => {
@@ -155,8 +156,15 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
     return bank.getTransfer(id);
   });
 
+  // (added 2026-10-18) Wise balance conversion: own balance → own balance at a quote of this profile.
+  app.post("/v2/profiles/:p/balance-movements", async (req) => {
+    const p = await bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
+    const body = wiseParse(z.object({ quoteId: z.string().uuid(), customerTransactionId: z.string().min(1).max(64) }), req.body);
+    return bank.convert(p, body);
+  });
+
   app.get("/v4/profiles/:p/balances", async (req) => {
-    const p = bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
+    const p = await bank.resolveProfile(wiseParse(ProfileParam, req.params).p);
     const q = wiseParse(z.object({ types: z.string().optional() }), req.query);
     if (q.types !== undefined && !q.types.split(",").includes("STANDARD")) return [];
     return bank.listBalances(p);
@@ -170,8 +178,8 @@ export function bankRoutes(app: FastifyInstance, bank: MockBank): void {
 
   app.post("/bank/top-ups", async (req) => {
     const body = wiseParse(z.object({ profileId: z.union([z.number().int().positive(), z.string().min(1).max(64)]), currency: Currency, amountMinor: Minor, reference: z.string().min(8).max(64) }), req.body);
-    const profile = bank.resolveProfile(body.profileId);
-    return { profileId: profile, currency: body.currency, amountMinor: body.amountMinor, ...bank.topUp(profile, body.currency, body.amountMinor, body.reference), simulated: true };
+    const profile = await bank.resolveProfile(body.profileId);
+    return { profileId: profile, currency: body.currency, amountMinor: body.amountMinor, ...(await bank.topUp(profile, body.currency, body.amountMinor, body.reference)), simulated: true };
   });
 
   // Demo helpers (not part of Wise's API).

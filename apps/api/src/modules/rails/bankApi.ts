@@ -52,11 +52,11 @@ export function setWiseTransportForTests(t: WiseTransport | null): void {
   wiseProfile = null;
 }
 
-async function wise<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function wise<T>(method: string, path: string, body?: unknown, extraHeaders: Record<string, string> = {}): Promise<T> {
   const e = env();
   const url = `${e.WISE_API_URL.replace(/\/$/, "")}${path}`;
   const r = await wiseTransport(method, url, {
-    headers: { authorization: `Bearer ${e.WISE_SANDBOX_TOKEN}`, accept: "application/json", ...(body !== undefined ? { "content-type": "application/json" } : {}) },
+    headers: { authorization: `Bearer ${e.WISE_SANDBOX_TOKEN}`, accept: "application/json", ...(body !== undefined ? { "content-type": "application/json" } : {}), ...extraHeaders },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (r.status < 200 || r.status >= 300) {
@@ -66,9 +66,12 @@ async function wise<T>(method: string, path: string, body?: unknown): Promise<T>
   return r.json as T;
 }
 
-/** One request to the active bank. */
-export async function bankCall<T = Record<string, unknown>>(method: string, path: string, body?: unknown): Promise<T> {
-  return bankMode() === "wise-sandbox" ? wise<T>(method, path, body) : mockWorld<T>(method, path, body);
+/**
+ * One request to the active bank. `wiseHeaders` go to the Wise sandbox only (e.g. Wise's X-idempotence-uuid); the mock
+ * bank takes its idempotency key in the body.
+ */
+export async function bankCall<T = Record<string, unknown>>(method: string, path: string, body?: unknown, wiseHeaders?: Record<string, string>): Promise<T> {
+  return bankMode() === "wise-sandbox" ? wise<T>(method, path, body, wiseHeaders) : mockWorld<T>(method, path, body);
 }
 
 let wiseProfile: number | null = null;

@@ -103,5 +103,6 @@
       "DECLINED": "You declined",
       "OTHER": "Not sent"
     }
-  }
+  },
+  "convert": "Convert"
 }

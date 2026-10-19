@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { getDb } from "../../src/db/client.ts";
 import { rateLimitCounters } from "../../src/db/schema.ts";
-import { resetEnvCache, setEnvForTests, env } from "../../src/env.ts";
+import { DEV_MOCK_HMAC_SECRET, resetEnvCache, setEnvForTests, env } from "../../src/env.ts";
 import { PUBLIC_ROUTES, registeredRoutes } from "../../src/http/security.ts";
 import { mintAccessTokenForTests, mintSessionCookieForTests, SESSION_COOKIE } from "../../src/modules/auth/session.ts";
 import { demoTokenMatches } from "../../src/modules/demo/routes.ts";
@@ -312,5 +312,24 @@ describe("demo admin hardening", () => {
     expect(env().DEMO_ENABLED).toBe(true);
     setEnvForTests({ ...keys, NODE_ENV: "production", DEMO_ENABLED: "false", DEMO_ADMIN_TOKEN: "" });
     expect(env().DEMO_ENABLED).toBe(false);
+  });
+
+  it("a deployed build (production or Vercel) refuses a missing or development-default MOCK_HMAC_SECRET", () => {
+    const keys = {
+      RULES_SIGNING_KEY: env().RULES_SIGNING_KEY,
+      RULES_PUBLIC_KEY: "MCowBQYDK2VwAyEA" + "A".repeat(43) + "=",
+      LEDGER_CHECKPOINT_KEY: env().LEDGER_CHECKPOINT_KEY,
+      ACCOUNT_ENC_KEY: env().ACCOUNT_ENC_KEY,
+      USER_KEK: env().USER_KEK,
+      SESSION_SECRET: env().SESSION_SECRET,
+    };
+    setEnvForTests({ ...keys, NODE_ENV: "production", MOCK_HMAC_SECRET: DEV_MOCK_HMAC_SECRET });
+    expect(() => env()).toThrow(/MOCK_HMAC_SECRET/);
+    setEnvForTests({ ...keys, NODE_ENV: "development", VERCEL: "1", MOCK_HMAC_SECRET: "" });
+    expect(() => env()).toThrow(/MOCK_HMAC_SECRET/);
+    setEnvForTests({ ...keys, NODE_ENV: "development", VERCEL: "1", MOCK_HMAC_SECRET: DEV_MOCK_HMAC_SECRET });
+    expect(() => env()).toThrow(/development default/);
+    setEnvForTests({ ...keys, NODE_ENV: "development", VERCEL: "1", MOCK_HMAC_SECRET: "m".repeat(32) });
+    expect(env().MOCK_HMAC_SECRET).toBe("m".repeat(32));
   });
 });

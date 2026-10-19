@@ -1,4 +1,5 @@
 import {
+  ConvertRequest,
   PayPayeeRequest,
   PayPayeeResponse,
   TopUpRequest,
@@ -41,6 +42,19 @@ export function usePayPayee() {
         json: PayPayeeRequest.parse(body),
         schema: PayPayeeResponse,
       }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.proposalsPending }),
+  });
+}
+
+/**
+ * POST /conversions: proposes an exchange between the user's own balances (a CONVERT order, always ASK). The order
+ * sheet signs it with the passkey; approving it refreshes the balances (useApproveOrder).
+ */
+export function useConvert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ConvertRequest) =>
+      api.request("/conversions", { json: ConvertRequest.parse(body), schema: PayPayeeResponse }),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.proposalsPending }),
   });
 }

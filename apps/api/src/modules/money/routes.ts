@@ -18,11 +18,12 @@ import { ownedNotFound } from "../../http/audit.ts";
 import { toTransactionDto } from "./transaction-dto.ts";
 import { HttpProblem, notFound } from "../../http/problem.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
-import { clock, DAY_MS, isoDate } from "../clock/index.ts";
+import { clock } from "../clock/index.ts";
 import { setTransactionCategory } from "../capture/index.ts";
 import { toHome, type HomeAmount } from "./fx.ts";
 import { walletBalances } from "../rules/facts.ts";
-import { chooseFunding } from "../rules/funding.ts";
+import { billRail, coverageOf, type Coverage } from "../obligations/coverage.ts";
+import { loadUser } from "../users/service.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE_MANDATE_STATUSES = new Set<string>(["ACTIVE", "PENDING_EFFECTIVE"]);
@@ -91,7 +92,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   app.get("/obligations", { schema: { response: { 200: ObligationsResponse } } }, async (req) => {
     const userId = userIdOf(req);
     const db = getDb();
-    const [user] = await db.select({ homeCurrency: users.homeCurrency }).from(users).where(eq(users.id, userId));
+    const [user] = await db.select({ homeCurrency: users.homeCurrency, preset: users.preset, overrides: users.overrides, region: users.region }).from(users).where(eq(users.id, userId));
     if (!user) throw notFound("user");
     const homeCurrency = user.homeCurrency;
     const now = clock.now();
@@ -125,28 +126,19 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const activeMandates = userMandates.filter((m) => ACTIVE_MANDATE_STATUSES.has(m.status));
 
     const obligationDtos: ObligationDto[] = [];
-    // Coverage the way the rules check it before a bank transfer (rules/funding.ts): can one wallet balance pay this
-    // bill, with fees, in time? Checked for bills due in the next 45 days; "Covered" on Home then means "Pay" works.
-    // The route that check picks (cheapest by home-currency cost, spec §12 optimizer) is the bill's best route.
-    // Unknown balances or a failed check are UNKNOWN, never COVERED. The wallet is read once for the whole list;
-    // FX quotes come from the rates service's daily cache.
-    const horizon = isoDate(new Date(now.getTime() + 45 * DAY_MS));
+    // Coverage (obligations/coverage.ts, shared with the planner's get_obligations): COVERED when one balance pays the
+    // bill with fees in time (the route rules will sign is its best route), CONVERTIBLE with the conversions that make it
+    // payable, SHORTFALL, or UNKNOWN (never COVERED) when balances cannot be read. The wallet is read once for the list.
     let balances: Awaited<ReturnType<typeof walletBalances>> = null;
     let balancesRead = false;
-    const planOf = async (o: (typeof rows)[number]): Promise<Pick<ObligationDto, "coverage" | "bestRoute">> => {
-      if (o.payeeKind === "MERCHANT" || o.payeeAccountHash === null || o.dueDate > horizon) return { coverage: "COVERED", bestRoute: null };
+    const reserveHomeMinor = (await loadUser(db, userId)).caps.reserveMinor;
+    const planOf = async (o: (typeof rows)[number]): Promise<Coverage> => {
       try {
         if (!balancesRead) {
           balancesRead = true;
           balances = await walletBalances(userId);
         }
-        if (!balances) return { coverage: "UNKNOWN", bestRoute: null };
-        const f = await chooseFunding({ userId, homeCurrency, amountMinor: o.amountMinor, currency: o.currency, now, dueDate: o.dueDate, balances });
-        if (f.status === "NONE") return { coverage: "SHORTFALL", bestRoute: null };
-        if (f.status === "UNKNOWN") return { coverage: "UNKNOWN", bestRoute: null };
-        const { amountInFundingMinor: _a, totalDebitFundingMinor: _t, ...route } = f.route;
-        const direct = route.fundingCurrency === o.currency ? { noConversion: true, balanceCovers: true } : {};
-        return { coverage: "COVERED", bestRoute: { ...route, ...direct } };
+        return await coverageOf(o, { userId, homeCurrency, now, balances, rail: billRail(user, o.payeeKind), reserveHomeMinor });
       } catch (err) {
         req.log.warn({ err, obligationId: o.id }, "obligation coverage check failed");
         return { coverage: "UNKNOWN", bestRoute: null };

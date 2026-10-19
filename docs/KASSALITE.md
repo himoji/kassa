@@ -17,6 +17,8 @@ What is in it (since 2026-10-15 it matches the web app for everything that does 
 - **Send** and **Add money**, from your Kassa balance or a linked card or bank, with the live quote.
 - **Linked accounts** (the list; **Link a card** / **Link a bank account** open that form on the web app, which confirms it with the passkey and sends you back), **Your data** (export) and **Credit record**, from Settings.
 - Face ID lock, Shortcut install, data shown (Real or Simulated), server URL, updates, sign out.
+- **Voice in the chat** (since 2026-10-19): the mic in the composer records (AAC .m4a, expo-audio), POST `/api/agent/transcribe` turns it into text, and the transcript is sent as a normal chat turn after a short pause (tap **Edit** to change it first). Needs a KassaLite built after expo-audio was added (it also carries the microphone permission); on an older build the mic is simply hidden. The web app records in the browser and sends 16 kHz WAV.
+- **Demo & proof** (Settings): the evidence room, the ledger check and, on a demo server, the Stage, the card terminal, the QR wallet, the shop till and the school portal, opened in the in-app browser.
 
 Not in it, by design: anything that signs with a passkey (approving a payment, linking a card or bank, confirming a recipient, changing rules and budgets, backup codes), remote push (KassaLite notifies when it is open or comes to the foreground, the Shortcut itself shows the instant banner), Apple Pay inside the app, passkey sign-in. Those steps hand off to the web app (see Approvals).
 

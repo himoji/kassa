@@ -86,5 +86,31 @@
     "deleteTitle": "删除此聊天？",
     "deleteBody": "“{{title}}”及其全部内容将从 Kassa 中删除。由它产生的付款会保留各自的记录。",
     "deleted": "聊天已删除"
-  }
+  },
+  "voice": {
+    "start": "语音输入消息",
+    "done": "停止并转成文字",
+    "cancel": "取消录音",
+    "listening": "正在听…",
+    "recordingA11y": "正在录音，输入音量",
+    "transcribing": "正在把语音转成文字…",
+    "sendingSoon": "即将发送。要先修改，请点“编辑”。",
+    "edit": "编辑",
+    "errors": {
+      "title": "语音输入",
+      "denied": "Kassa 无法使用麦克风。请在“设置”中允许（浏览器中：在网站设置里允许），然后重试。",
+      "unavailable": "此设备或浏览器无法在这里录音。请改为输入文字。",
+      "failed": "录音失败。请重试。",
+      "notSetUp": "此服务器未配置语音输入（没有语音模型密钥）。请改为输入文字。",
+      "consent": "请先接受 AI 告知：发送一条文字消息，Kassa 会显示该告知。",
+      "unreadable": "语音模型无法识别这段录音。请离麦克风近一点再试。",
+      "tooLong": "录音太长。请控制在一分钟以内。",
+      "model": "语音模型没有响应。请重试。",
+      "rateLimited": "一分钟内录音次数过多。请稍等后重试。",
+      "nothingHeard": "Kassa 没有听到内容。请离麦克风近一点再试。"
+    }
+  },
+  "proposalConvertTitle": "换汇为 {{currency}}",
+  "proposalFunding": "从您的 {{currency}} 余额 · 最多 {{max}}",
+  "proposalSigned": "您签署的内容"
 }

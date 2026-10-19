@@ -11,10 +11,13 @@ import type { Env } from "./registry.ts";
  *   - delay: Retry-After / retry-after-ms when present and ≤ 60 s (RFC 9110 §10.2.3), else exponential
  *     backoff with "equal jitter" (base·2ⁿ, half fixed + half random, capped), AWS Architecture Blog
  *     "Exponential Backoff and Jitter" (2015);
- *   - only the request is retried (doGenerate / opening doStream); a stream that fails midway is not.
+ *   - only the request is retried (doGenerate / opening doStream); a stream that fails midway is not;
+ *   - a streamed call (the chat planner) retries at most AI_STREAM_MAX_RETRIES times (default 2): the user is
+ *     watching and the turn has a time budget (agent/budget.ts), so five retries with backoff would only spend it.
  */
 
 export const DEFAULT_AI_MAX_RETRIES = 5;
+export const DEFAULT_AI_STREAM_MAX_RETRIES = 2;
 export const RETRY_BASE_DELAY_MS = 1000;
 export const RETRY_MAX_DELAY_MS = 20_000;
 const MAX_RETRY_AFTER_MS = 60_000;
@@ -27,6 +30,14 @@ export function aiMaxRetries(env: Env = process.env): number {
   if (!raw) return DEFAULT_AI_MAX_RETRIES;
   const n = Number(raw);
   return Number.isInteger(n) && n >= 0 ? Math.min(n, 20) : DEFAULT_AI_MAX_RETRIES;
+}
+
+/** Retries of a streamed call (never more than aiMaxRetries). */
+export function aiStreamMaxRetries(env: Env = process.env): number {
+  const raw = env.AI_STREAM_MAX_RETRIES?.trim();
+  const n = raw ? Number(raw) : NaN;
+  const stream = Number.isInteger(n) && n >= 0 ? Math.min(n, 20) : DEFAULT_AI_STREAM_MAX_RETRIES;
+  return Math.min(stream, aiMaxRetries(env));
 }
 
 /** The provider error behind an SDK error (RetryError keeps the last attempt's error). */
@@ -67,6 +78,8 @@ export function backoffDelayMs(attempt: number, error: unknown, random: () => nu
 
 export interface RetryOptions {
   maxRetries?: number;
+  /** Cap for streamed calls (default aiStreamMaxRetries()); the lower of this and maxRetries applies. */
+  streamMaxRetries?: number;
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   random?: () => number;
   onRetry?: (info: { attempt: number; delayMs: number; error: unknown }) => void;
@@ -86,8 +99,8 @@ const defaultSleep = (ms: number, signal?: AbortSignal) =>
     signal?.addEventListener("abort", onAbort, { once: true });
   });
 
-async function withRetry<T>(call: () => PromiseLike<T>, signal: AbortSignal | undefined, o: RetryOptions): Promise<T> {
-  const max = o.maxRetries ?? aiMaxRetries();
+async function withRetry<T>(call: () => PromiseLike<T>, signal: AbortSignal | undefined, o: RetryOptions, stream = false): Promise<T> {
+  const max = stream ? Math.min(o.maxRetries ?? aiMaxRetries(), o.streamMaxRetries ?? aiStreamMaxRetries()) : (o.maxRetries ?? aiMaxRetries());
   const sleep = o.sleep ?? defaultSleep;
   for (let attempt = 0; ; attempt++) {
     try {
@@ -105,7 +118,7 @@ export function retryMiddleware(o: RetryOptions = {}): LanguageModelMiddleware {
   return {
     specificationVersion: "v4",
     wrapGenerate: ({ doGenerate, params }) => withRetry(doGenerate, params.abortSignal, o),
-    wrapStream: ({ doStream, params }) => withRetry(doStream, params.abortSignal, o),
+    wrapStream: ({ doStream, params }) => withRetry(doStream, params.abortSignal, o, true),
   };
 }
 

@@ -25,10 +25,11 @@ import { SoftAuthenticator } from "./soft-authenticator.ts";
  * carrying `dev: true`. The app's two modes pick the account: dev mode (`fresh`) makes a brand-new user every time,
  * so onboarding starts from scratch; demo mode (`demoClaim`, as in the demo-claim registration) enters a seeded demo
  * persona without a platform passkey. Approvals still go through the normal WebAuthn checks: POST /auth/dev/assert signs the 428
- * challenge with a server-held key. Dev sessions use it for every approval; any other session (a real passkey user)
- * only when the app's "Dev" button next to a passkey button asks for it, and the key is then registered on that
- * account too. KassaLite sessions never get it (they never get passkey-gated rights). Nothing else in the passkey
- * verification changes.
+ * challenge with a server-held key, for dev sessions only (session claim `dev: true`, set by POST /auth/dev/login and
+ * kept on refresh). A session that signed in with a real passkey is refused (403 NOT_DEV_SESSION): otherwise a stolen
+ * access token alone could approve payments on that account wherever dev sign-in is on (security review 2026-10-18;
+ * the app's "Dev" button therefore shows in dev sessions only). KassaLite sessions never get it (they never get
+ * passkey-gated rights). Nothing else in the passkey verification changes.
  *
  * Guards, all required: the routes are not registered when NODE_ENV=production; each request also needs
  * DEMO_ENABLED and DEV_LOGIN, and RP_ID must be localhost, a *.trycloudflare.com quick tunnel or PHONE_HOST.
@@ -190,13 +191,14 @@ const devRoutes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  // A WebAuthn assertion over a 428 challenge, signed by the caller's server-held dev passkey (not for KassaLite).
+  // A WebAuthn assertion over a 428 challenge, signed by the caller's server-held dev passkey: dev sessions only.
   app.post(
     "/auth/dev/assert",
     { preHandler: requireUser, schema: { body: z.object({ challenge: z.string().min(16).max(256) }) } },
     async (req) => {
       assertAllowed();
       if (req.session?.scope === "lite") throw new HttpProblem(403, "LITE_SESSION", "A KassaLite device cannot approve");
+      if (req.session?.dev !== true) throw new HttpProblem(403, "NOT_DEV_SESSION", "Only a dev sign-in session can use the server-held dev passkey");
       const e = env();
       const key = await devKeyFor(userIdOf(req));
       return { assertion: key.assert(req.body.challenge, { origin: e.PUBLIC_ORIGIN, rpId: e.RP_ID }) };

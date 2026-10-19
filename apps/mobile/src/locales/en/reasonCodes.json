@@ -254,5 +254,13 @@
   "PO_ABOVE_FORECAST": {
     "label": "Larger than forecast",
     "text": "This purchase order is much larger than your stock forecast suggests, so it needs your passkey."
+  },
+  "BALANCES_UNAVAILABLE": {
+    "label": "Balances unavailable",
+    "text": "Kassa could not read your wallet balances just now, so it cannot check which balance pays this. Nothing was sent; try again in a moment."
+  },
+  "CONVERT_OWN_BALANCES": {
+    "label": "Between your balances",
+    "text": "This exchanges money between your own balances. Kassa always asks for your passkey before converting."
   }
 }

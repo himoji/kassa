@@ -11,6 +11,7 @@ import {
   type DemoScenario,
 } from "@kassa/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 
 import { env } from "@/lib/env";
 
@@ -85,5 +86,25 @@ export function useDemoCooling() {
         api.request("/demo/cooling", { json: { enabled, ...proof }, schema: DemoCoolingResponse })
       ),
     onSettled: () => qc.invalidateQueries({ queryKey: keys.me }),
+  });
+}
+
+const MoneyFromHomeResponse = z.object({
+  currency: z.string(),
+  amountMinor: z.number().int(),
+  balanceAfterMinor: z.number().int(),
+  simulated: z.literal(true),
+});
+
+/**
+ * POST /demo/money-from-home: parents send money to this user's own wallet (simulated). The judge build and dev
+ * sign-in sessions only; the server picks the wallet from the session. Not a demo admin call.
+ */
+export function useMoneyFromHome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.request("/demo/money-from-home", { json: {}, schema: MoneyFromHomeResponse }),
+    onSettled: () => Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
 }

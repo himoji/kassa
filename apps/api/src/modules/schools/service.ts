@@ -14,10 +14,13 @@ import { type RecipientDetails, type SchoolDto, type SchoolInvoiceDto, type Scho
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { judgeCopyStudentId } from "../../../../../fixtures/judge-copy.ts";
 import { getDb } from "../../db/client.ts";
 import { obligations, payees, payments } from "../../db/schema.ts";
 import { conflict, HttpProblem, notFound } from "../../http/problem.ts";
+import { judgeModeActive } from "../auth/dev.ts";
 import { clock, isoDate } from "../clock/index.ts";
+import { loadSeedData } from "../demo/seed.ts";
 import { ledger } from "../ledger/index.ts";
 import { notify } from "../notifications/service.ts";
 import { createObligation } from "../obligations/service.ts";
@@ -94,7 +97,21 @@ async function existingPayee(userId: string, school: DirectorySchool, studentId:
   });
 }
 
-export async function lookup(userId: string, schoolId: string, studentId: string): Promise<SchoolLookupResponse> {
+/**
+ * Judge build: every reviewer has a private copy of a seeded persona with its own student ID (auth/demoClaim.ts
+ * `ownSchoolIdentifiers`). A seeded student ID typed in "Find your school" (the portal's example, the demo script)
+ * means the copy's own, so no copy can see or pay another's invoice through it.
+ */
+async function ownStudentId(userId: string, studentId: string): Promise<string> {
+  if (!judgeModeActive()) return studentId;
+  const id = studentId.trim().toUpperCase();
+  const seed = await loadSeedData();
+  const seeded = [seed, ...(seed.personas ?? [])].some((u) => u.payees.some((p) => p.details?.category === "TUITION" && p.details.studentId.toUpperCase() === id));
+  return seeded ? judgeCopyStudentId(id, userId) : studentId;
+}
+
+export async function lookup(userId: string, schoolId: string, studentIdRaw: string): Promise<SchoolLookupResponse> {
+  const studentId = await ownStudentId(userId, studentIdRaw);
   const { school, invoices } = await schoolWithInvoices(schoolId, studentId);
   return { school: toSchoolDto(school), invoices: invoices.map(toInvoiceDto), existingPayeeId: (await existingPayee(userId, school, studentId))?.id ?? null };
 }
@@ -117,7 +134,8 @@ async function importInvoices(userId: string, payeeId: string, invoices: z.infer
   return created;
 }
 
-export async function linkSchool(userId: string, schoolId: string, studentId: string): Promise<SchoolLinkResponse> {
+export async function linkSchool(userId: string, schoolId: string, studentIdRaw: string): Promise<SchoolLinkResponse> {
+  const studentId = await ownStudentId(userId, studentIdRaw);
   const { school, invoices } = await schoolWithInvoices(schoolId, studentId);
   let payee = await existingPayee(userId, school, studentId);
   if (payee) {

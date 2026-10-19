@@ -12,6 +12,7 @@ import { approveOrder, getOrderView, proposeOrder, registerExecutor } from "../.
 import { setSanctionsListForTests } from "../../src/modules/screening/index.ts";
 import { addActiveMandate, addObligation, addPayee, createUserWithPasskey, IBAN_UNIVERSITY, offlineEnvironment, signBaseRules } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
+import { forgeSignedApproval } from "../helpers/forge.ts";
 
 const t = useTestDb();
 
@@ -103,15 +104,13 @@ describe("payments verification", () => {
   it("enforces its own daily cap per user in the home currency, summed across currencies (I5, X2)", async () => {
     setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "150000000" }); // ₸1.5M
     try {
-      // €2,400 ≈ ₸1.344M (fallback rate). Both orders are approved before either executes, so rules saw no usage
-      // and only payments' own cap stands between them.
+      // €2,400 ≈ ₸1.344M (fallback rate). The first is approved but not executed; rules now count it as in flight
+      // (2026-10-18), so the second is signed only by a rules logic bug. Payments' own cap stands between them.
       const a = await approvedButNotExecuted();
       const landlord = await addPayee(a.userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "HUF" });
       const r2 = await proposeOrder({ userId: a.userId, createdBy: "USER", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent" }); // ≈ ₸259,200
-      const v2 = await getOrderView(a.userId, r2.proposalId);
-      registerExecutor(null);
-      const second = await approveOrder(a.userId, r2.proposalId, a.auth.assert(v2.orderHash));
-      offlineEnvironment();
+      expect(r2.reasonCodes).toEqual(["REFUSE_CAP", "PAYMENTS_DAILY_CAP"]);
+      const second = await forgeSignedApproval(landlord, { amountMinor: 18_000_000, currency: "HUF", homeAmountMinor: 25_920_000, tier: "T2", sign: (h) => a.auth.assert(h) });
       expect((await executeApproval(a.approvalId)).status).toBe("PROCESSING");
       // Different currency (HUF after EUR): the day's total in KZT is over the cap.
       expect((await executeApproval(second.approvalId)).reasonCodes).toEqual(["PAYMENTS_DAILY_CAP"]);

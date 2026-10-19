@@ -1,11 +1,11 @@
-import * as Linking from "expo-linking";
 import { Fragment, useMemo, type ReactNode } from "react";
 import { Text as RnText, View, type TextStyle } from "react-native";
 import { Renderer, useMarkdown } from "react-native-marked";
 
 import { useTheme } from "@/components/ui";
+import { openUrl } from "@/lib/browser";
 
-/** Links open through expo-linking (the library's default handler uses react-native's Linking). */
+/** Links open with `openUrl`: web pages in the in-app browser (a new tab on web), other schemes in their app. */
 class LinkRenderer extends Renderer {
   link(
     children: string | ReactNode[],
@@ -19,7 +19,7 @@ class LinkRenderer extends Renderer {
         selectable
         accessibilityRole="link"
         accessibilityLabel={title || "Link"}
-        onPress={() => void Linking.openURL(href).catch(() => {})}
+        onPress={() => void openUrl(href)}
         style={styles}
       >
         {children}

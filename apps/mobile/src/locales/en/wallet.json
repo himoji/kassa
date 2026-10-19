@@ -136,5 +136,18 @@
     "paying": "Paying a bill to {{name}}",
     "due": "Due {{date}}",
     "reference": "Reference {{reference}} (the school matches your payment with it)"
+  },
+  "convert": {
+    "title": "Convert",
+    "intro": "Exchange money between your own balances. Nothing moves until you approve the exact order with your passkey.",
+    "from": "From",
+    "cheapest": "Cheapest",
+    "cheapestHint": "Kassa picks the balance that converts at the lowest cost.",
+    "to": "Into",
+    "amount": "Amount to receive",
+    "have": "You have {{amount}}",
+    "submit": "Review conversion",
+    "sameCurrency": "Choose two different currencies.",
+    "refused": "Kassa can't convert this"
   }
 }

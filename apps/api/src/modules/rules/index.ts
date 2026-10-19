@@ -7,6 +7,12 @@
 import {
   Fulfillment,
   formatMoney,
+  isoMoney,
+  isSupportedCurrency,
+  orderLineEn,
+  ownWalletAccountHash,
+  OWN_WALLET_PAYEE_NAME,
+  SupportedCurrency,
   itemsHash as computeItemsHash,
   orderHash as computeOrderHash,
   reasonsSentenceEn,
@@ -37,18 +43,19 @@ import { notify } from "../notifications/service.ts";
 import { readDetails } from "../payees/crypto.ts";
 import { screenName } from "../screening/index.ts";
 import { effectiveOf, loadUser } from "../users/service.ts";
-import { decide, type DecideResult } from "./decide.ts";
+import { capBreaches, decide, type DecideResult } from "./decide.ts";
 import {
   categoryRemaining,
   chooseRail,
   dayStartUtc,
   itemsOf,
   localHour,
+  lockUserPayments,
   monthStartUtc,
-  paidHomeSince,
   payeeHistory,
   reserveBreached,
   smallAutoUsedSince,
+  usedHomeSince,
   zoneFor,
 } from "./facts.ts";
 import { activeFundingSource } from "../funding-sources/store.ts";
@@ -276,8 +283,42 @@ async function runExecutor(proposalId: string, userId: string, approvalId: strin
 
 /** Thrown inside the proposal transaction when another proposal claimed the obligation period first (B4). */
 class SettlementTaken extends Error {}
+/** Thrown inside the proposal transaction when an AUTO order no longer fits the caps under the payments lock. */
+class CapRace extends Error {}
 
-export async function proposeOrder(input: ProposeOrderInput, internal: { duplicateObligation?: boolean } = {}): Promise<ProposeOrderResult> {
+/**
+ * (2026-10-18) Decide step 5 again, at the moment an order is approved (T2 passkey or AUTO), under the per-user advisory
+ * lock payments takes around its own cap and payment insert. Usage counts live payments AND approved orders still in
+ * flight, so two orders proposed under the cap one by one cannot both be approved past it (proposal-time facts cannot
+ * see each other). Returns the refusal codes, or null when the caps still hold. Must run inside `tx` before the order
+ * is marked APPROVED; the lock is released when `tx` commits, after which this order counts as in flight.
+ * The protected reserve is not re-read here (wallet balance, checked at proposal time; the bank's funds check backs it).
+ */
+async function capsStillHold(tx: DbOrTx, userId: string, order: CanonicalOrder, now: Date, excludeProposalId?: string): Promise<ReasonCode[] | null> {
+  // A conversion moves money between the user's own balances: outside the payment caps (CONVERT, 2026-10-18).
+  if (order.rail === "CONVERT") return null;
+  await lockUserPayments(tx, userId);
+  const { user, caps } = await loadUser(tx, userId);
+  const amountHomeMinor =
+    order.homeCurrency === user.homeCurrency ? order.homeAmountMinor : (await toHome(order.amountMinor, order.currency, user.homeCurrency, now)).amountMinor;
+  const usedToday = await usedHomeSince(tx, userId, dayStartUtc(now), excludeProposalId);
+  const usedMonth = await usedHomeSince(tx, userId, monthStartUtc(now), excludeProposalId);
+  const { capHit, paymentsCapHit } = capBreaches({
+    amountHomeMinor,
+    perPaymentHomeMinor: caps.perPaymentMinor,
+    dailyHomeMinor: caps.perDayMinor,
+    monthlyHomeMinor: caps.perMonthMinor,
+    usedTodayHomeMinor: usedToday,
+    usedThisMonthHomeMinor: usedMonth,
+    reserveBreached: null,
+    paymentsDailyHomeMinor: await paymentsCapInHome(user.homeCurrency, now),
+  });
+  if (capHit) return ["REFUSE_CAP"];
+  if (paymentsCapHit) return ["REFUSE_CAP", "PAYMENTS_DAILY_CAP"];
+  return null;
+}
+
+export async function proposeOrder(input: ProposeOrderInput, internal: { duplicateObligation?: boolean; capRace?: boolean } = {}): Promise<ProposeOrderResult> {
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
     throw new HttpProblem(400, "BAD_AMOUNT", "amountMinor must be a positive integer (minor units)");
   }
@@ -341,15 +382,21 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   // B2: funding route for bank transfers (spec §12), bound into the signed order below.
   let funding: FundingChoice | null = null;
   if (rail === "BANK_TRANSFER" && payee && !duplicateObligation) {
-    funding = await chooseFunding({ userId: user.id, homeCurrency: user.homeCurrency, amountMinor: input.amountMinor, currency: input.currency, now, dueDate: period ?? input.dueDate, linkedCurrency: source?.currency });
+    const choose = () => chooseFunding({ userId: user.id, homeCurrency: user.homeCurrency, amountMinor: input.amountMinor, currency: input.currency, now, dueDate: period ?? input.dueDate, linkedCurrency: source?.currency });
+    funding = await choose();
+    // (2026-10-18) Balances unreadable: read once more (a bank blip), then refuse (BALANCES_UNAVAILABLE, decide 4b).
+    // A guessed same-currency binding is never signed: it let an order the wallet cannot cover reach the passkey.
+    if (funding.status === "UNKNOWN") funding = await choose();
   }
-  const signedFunding = funding && funding.status !== "NONE" ? funding.funding : null;
+  const balancesUnknown = funding?.status === "UNKNOWN";
+  const signedFunding = funding && funding.status === "OK" ? funding.funding : null;
 
   // I9 / X4: screen the payee on every rail (card, handoff, pay-in-place, bank).
   const screening = payee ? screenName(payee.name) : { hit: false as const, score: 0 };
   const [usedToday, usedMonth, reserve, mandate, history, remaining, smallAutoToday] = await Promise.all([
-    paidHomeSince(db, user.id, dayStartUtc(now)),
-    paidHomeSince(db, user.id, monthStartUtc(now)),
+    // (2026-10-18) executed + in flight (approved, not yet a payment row)
+    usedHomeSince(db, user.id, dayStartUtc(now)),
+    usedHomeSince(db, user.id, monthStartUtc(now)),
     // Paid from a linked account, the wallet's reserve is not touched.
     source ? Promise.resolve(false) : reserveBreached(user.id, user.homeCurrency, caps.reserveMinor, home.amountMinor, now),
     payee
@@ -413,6 +460,7 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     baseRulesSigned: profile.baseRulesAssertion !== null && profile.baseRulesHash !== null,
     duplicateObligation,
     fundingAvailable: funding === null ? null : funding.status !== "NONE",
+    balancesUnknown,
     kycRequired,
   });
   // (M5) A supplier invoice is always paid with the owner's passkey (T2): never AUTO, never under a mandate; an
@@ -532,13 +580,18 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
         if (!claimed) throw new SettlementTaken();
       }
       if (result.decision === "AUTO" && order && hash) {
+        // (2026-10-18) the caps again under the payments lock, counting orders approved since the facts were read.
+        if (await capsStillHold(tx, user.id, order, now, proposalId)) throw new CapRace();
         approvalId = await issueApproval(tx, { proposalId, orderHash: hash, tier: "T1", userAssertion: null, mandateId: result.mandateId });
         await ledger.append("APPROVAL_ISSUED", { userId: user.id, proposalId, approvalId, tier: "T1", mandateId: result.mandateId, orderHash: hash }, tx);
       }
     });
   } catch (err) {
     // Lost the race for the period: nothing was written; decide again as a duplicate (REFUSE).
-    if (err instanceof SettlementTaken && !internal.duplicateObligation) return proposeOrder(input, { duplicateObligation: true });
+    if (err instanceof SettlementTaken && !internal.duplicateObligation) return proposeOrder(input, { ...internal, duplicateObligation: true });
+    // Another order was approved in between: decide again with it counted (step 5 then refuses REFUSE_CAP).
+    if (err instanceof CapRace && !internal.capRace) return proposeOrder(input, { ...internal, capRace: true });
+    if (err instanceof CapRace) throw new HttpProblem(409, "REFUSE_CAP", "This payment no longer fits your limits", { reasonCodes: ["REFUSE_CAP"] });
     throw err;
   }
 
@@ -584,6 +637,143 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
   };
 }
 
+// ---------- proposeConversion (2026-10-18) ----------
+
+export type ProposeConversionInput = {
+  userId: string;
+  createdBy: "AGENT" | "USER";
+  /** Buy this much of `toCurrency` (minor units)... */
+  amountMinor: number;
+  toCurrency: string;
+  /** ...from this balance; omitted = the cheapest balance that covers it (route optimizer). */
+  fromCurrency?: string | undefined;
+  purpose?: string | undefined;
+};
+
+/**
+ * An exchange between the user's own wallet balances (spec §12 "Convert"), as a CONVERT canonical order: buy
+ * `amountMinor` of `toCurrency` from the `fromCurrency` balance, at most `fundingAmountMinor` debited, via a bank route
+ * the optimizer picks (fee and markup in the signed maximum). No money leaves the user, so it is outside the payment
+ * caps, the small-auto limit, mandates and screening; it is always ASK (T2, the passkey over the order), never AUTO, and
+ * refused when frozen, when no balance covers it (INSUFFICIENT_FUNDS) or when the balances cannot be read
+ * (BALANCES_UNAVAILABLE). Payments re-checks the shape (own wallet only) and the bank quote against the signed maximum.
+ */
+export async function proposeConversion(input: ProposeConversionInput): Promise<ProposeOrderResult> {
+  if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) {
+    throw new HttpProblem(400, "BAD_AMOUNT", "amountMinor must be a positive integer (minor units)");
+  }
+  for (const c of [input.toCurrency, input.fromCurrency]) {
+    if (c !== undefined && !isSupportedCurrency(c)) throw new HttpProblem(400, "BAD_CURRENCY", `${c} is not a currency the wallet holds`);
+  }
+  if (input.fromCurrency === input.toCurrency) throw new HttpProblem(400, "BAD_CURRENCY", "Convert between two different currencies");
+  const db = getDb();
+  const now = clock.now();
+  const { user } = await loadUser(db, input.userId);
+  const home = await toHome(input.amountMinor, input.toCurrency, user.homeCurrency, now);
+  const purpose = (input.purpose?.trim() || `Convert ${input.fromCurrency ? `${input.fromCurrency} ` : ""}to ${input.toCurrency}`).slice(0, 140);
+
+  let codes: ReasonCode[];
+  let funding: FundingChoice | null = null;
+  if (user.frozenAt !== null) {
+    codes = ["REFUSE_FROZEN"];
+  } else {
+    const fundingCurrencies = input.fromCurrency ? [input.fromCurrency] : SupportedCurrency.options.filter((c) => c !== input.toCurrency);
+    const choose = () => chooseFunding({ userId: user.id, homeCurrency: user.homeCurrency, amountMinor: input.amountMinor, currency: input.toCurrency, now, fundingCurrencies });
+    funding = await choose();
+    if (funding.status === "UNKNOWN") funding = await choose();
+    codes = funding.status === "UNKNOWN" ? ["BALANCES_UNAVAILABLE"] : funding.status === "NONE" ? ["INSUFFICIENT_FUNDS"] : ["CONVERT_OWN_BALANCES"];
+  }
+  const decision: Decision = funding?.status === "OK" ? "ASK" : "REFUSE";
+
+  const proposalId = randomUUID();
+  let order: CanonicalOrder | null = null;
+  let hash: string | null = null;
+  if (decision === "ASK" && funding?.status === "OK") {
+    order = {
+      v: 1,
+      proposalId,
+      userId: user.id,
+      payeeId: user.id,
+      payeeName: OWN_WALLET_PAYEE_NAME,
+      payeeAccountHash: ownWalletAccountHash(user.id),
+      amountMinor: input.amountMinor,
+      currency: input.toCurrency,
+      rail: "CONVERT",
+      purpose,
+      homeAmountMinor: home.amountMinor,
+      homeCurrency: user.homeCurrency,
+      mandateId: null,
+      nonce: newNonce(),
+      expiresAt: addMs(now, ORDER_TTL_MS).toISOString(),
+      fundingCurrency: funding.funding.currency,
+      fundingAmountMinor: funding.funding.maxAmountMinor,
+      fundingRouteId: funding.funding.routeId,
+      fundingMarkupBps: funding.funding.markupBps,
+    };
+    hash = computeOrderHash(order); // also checks the conversion shape (orderConversion)
+  }
+  const draft: ProposalDraftJson = { payeeId: user.id, amountMinor: input.amountMinor, currency: input.toCurrency, purpose, rail: "CONVERT", category: CONVERSION_CATEGORY, ...(input.fromCurrency ? { fromCurrency: input.fromCurrency } : {}) };
+  await db.transaction(async (tx) => {
+    await tx.insert(proposals).values({
+      id: proposalId,
+      userId: user.id,
+      createdBy: input.createdBy,
+      draft,
+      decision,
+      reasonCodes: codes,
+      riskScore: 0,
+      canonicalOrder: order,
+      orderHash: hash,
+      status: statusFor(decision),
+      category: CONVERSION_CATEGORY,
+      obligationId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ledger.append(
+      "PROPOSAL_CREATED",
+      {
+        userId: user.id,
+        proposalId,
+        createdBy: input.createdBy,
+        kind: "CONVERT",
+        decision,
+        reasonCodes: codes,
+        riskScore: 0,
+        orderHash: hash,
+        amountMinor: input.amountMinor,
+        currency: input.toCurrency,
+        rail: "CONVERT",
+        fx: { rate: home.rate, rateDate: home.rateDate, source: home.source },
+        funding: order ? { currency: order.fundingCurrency, maxAmountMinor: order.fundingAmountMinor, routeId: order.fundingRouteId, markupBps: order.fundingMarkupBps, estimatedAmountMinor: funding?.status === "OK" ? funding.funding.estimatedAmountMinor : undefined } : undefined,
+      },
+      tx,
+    );
+  });
+  const summary = conversionSummary(decision, codes, order, input);
+  await notify(user.id, {
+    kind: decision === "ASK" ? "ORDER_NEEDS_APPROVAL" : "ORDER_REFUSED",
+    title: decision === "ASK" ? "Review and sign" : "Conversion refused",
+    body: summary,
+    data: { proposalId, decision, reasonCodes: codes },
+  });
+  return { proposalId, decision, reasonCodes: codes, riskScore: 0, summary };
+}
+
+/** Budget category of a conversion (an exchange, not spending: no budget covers it). */
+export const CONVERSION_CATEGORY = "conversion";
+
+function conversionSummary(decision: Decision, codes: ReasonCode[], order: CanonicalOrder | null, input: ProposeConversionInput): string {
+  if (order) return `Needs your passkey approval: ${orderLineEn(order)} ${reasonsSentenceEn(codes)}`;
+  let want: string;
+  try {
+    want = isoMoney(input.amountMinor, input.toCurrency);
+  } catch {
+    want = `${input.amountMinor} ${input.toCurrency} (minor units)`;
+  }
+  return `Refused: converting into ${want}${input.fromCurrency ? ` from your ${input.fromCurrency} balance` : ""}. ${reasonsSentenceEn(codes)}`;
+}
+
 // ---------- order view / approve / reject (T2) ----------
 
 async function loadOwnProposal(db: DbOrTx, userId: string, proposalId: string) {
@@ -627,6 +817,8 @@ async function buildOrderView(db: DbOrTx, userId: string, p: typeof proposals.$i
     throw new HttpProblem(409, p.reasonCodes[0] ?? "REFUSED", "This order was refused and has nothing to sign", { reasonCodes: p.reasonCodes });
   }
   const payee = (await db.select().from(payees).where(eq(payees.id, p.canonicalOrder.payeeId)))[0];
+  // (2026-10-18) a CONVERT order credits the user's own wallet (no payee row), checked in orderConversion.
+  const ownWallet = p.canonicalOrder.rail === "CONVERT" && p.canonicalOrder.payeeId === userId && p.canonicalOrder.payeeAccountHash === ownWalletAccountHash(userId);
   const now = clock.now();
   const remaining = await categoryRemaining(db, userId, p.category, now);
   const { user } = await loadUser(db, userId);
@@ -657,7 +849,7 @@ async function buildOrderView(db: DbOrTx, userId: string, p: typeof proposals.$i
     orderHash: p.orderHash,
     webauthnOptions: pending ? await assertionOptions(db, userId, p.orderHash) : null,
     budgetImpact,
-    payeeStatus: payee?.status ?? "BLOCKED",
+    payeeStatus: ownWallet ? ("VERIFIED" as const) : (payee?.status ?? "BLOCKED"),
     decision: p.decision,
     reasonCodes: p.reasonCodes,
     status: p.status,
@@ -709,13 +901,20 @@ export async function approveOrder(userId: string, proposalId: string, assertion
     const view = await buildOrderView(db, userId, await ensureHandoffCheck(db, refreshed), p.orderHash);
     throw new HttpProblem(410, "ORDER_EXPIRED", "This order expired. Review the re-issued order and sign it again.", { reasonCodes: ["ORDER_EXPIRED"], details: view });
   }
-  // Payee state may have changed since the draft (blocked, or replaced): re-check.
-  const payee = (await db.select().from(payees).where(eq(payees.id, p.canonicalOrder.payeeId)))[0];
-  if (!payee || payee.status === "BLOCKED" || payee.archivedAt !== null || payee.accountHash !== p.canonicalOrder.payeeAccountHash) {
-    throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Recipient changed, blocked or removed", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
-  }
-  if (payee.status === "COOLING" && (!payee.coolingUntil || payee.coolingUntil.getTime() > clock.nowMs())) {
-    throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Payee is still cooling", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING"] });
+  if (p.canonicalOrder.rail === "CONVERT") {
+    // (2026-10-18) a conversion credits only the signing user's own wallet (no payee row to re-check).
+    if (p.canonicalOrder.payeeId !== userId || p.canonicalOrder.payeeAccountHash !== ownWalletAccountHash(userId)) {
+      throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "A conversion can only credit your own wallet", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
+    }
+  } else {
+    // Payee state may have changed since the draft (blocked, or replaced): re-check.
+    const payee = (await db.select().from(payees).where(eq(payees.id, p.canonicalOrder.payeeId)))[0];
+    if (!payee || payee.status === "BLOCKED" || payee.archivedAt !== null || payee.accountHash !== p.canonicalOrder.payeeAccountHash) {
+      throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Recipient changed, blocked or removed", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE"] });
+    }
+    if (payee.status === "COOLING" && (!payee.coolingUntil || payee.coolingUntil.getTime() > clock.nowMs())) {
+      throw new HttpProblem(409, "REFUSE_UNVERIFIED_PAYEE", "Payee is still cooling", { reasonCodes: ["REFUSE_UNVERIFIED_PAYEE", "PAYEE_COOLING"] });
+    }
   }
 
   const check = await verifyRulesAssertion(db, { userId, assertion, expectedChallenge: p.orderHash, challengeReason: "ORDER_HASH_MISMATCH" });
@@ -725,7 +924,13 @@ export async function approveOrder(userId: string, proposalId: string, assertion
   }
 
   let approvalId = "";
+  const held: { codes: ReasonCode[] | null } = { codes: null };
   await db.transaction(async (tx) => {
+    // (2026-10-18) Caps re-checked under the payments lock, counting live payments and other approved orders in flight
+    // (two pending orders that each fit cannot both be approved past the cap). Nothing is written when they no longer
+    // hold; the order stays pending (it can be approved once the cap allows it, e.g. tomorrow, or after a raise).
+    held.codes = await capsStillHold(tx, userId, p.canonicalOrder!, clock.now());
+    if (held.codes) return;
     // Guard against double approval racing: only one PENDING → APPROVED transition wins.
     const updated = await tx
       .update(proposals)
@@ -742,6 +947,10 @@ export async function approveOrder(userId: string, proposalId: string, assertion
     });
     await ledger.append("APPROVAL_ISSUED", { userId, proposalId, approvalId, tier: "T2", orderHash: p.orderHash, credentialId: check.credentialId }, tx);
   });
+  if (held.codes) {
+    await ledger.append("APPROVAL_DENIED", { userId, proposalId, reasonCodes: held.codes, detail: "caps re-checked at approval (executed + in-flight orders)" });
+    throw new HttpProblem(409, "REFUSE_CAP", "Approving this now would go over one of your limits, counting payments already approved. Nothing was paid.", { reasonCodes: held.codes });
+  }
 
   const exec = await runExecutor(proposalId, userId, approvalId);
   return { approvalId, tier: "T2", paymentId: exec.paymentId, paymentStatus: exec.status, reasonCodes: exec.reasonCodes, ...(exec.deliveredInMs !== undefined ? { deliveredInMs: exec.deliveredInMs } : {}) };

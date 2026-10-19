@@ -27,7 +27,8 @@ describe("PasskeyButton", () => {
     useSessionStore.getState().setDev(false);
   });
 
-  it("dev build + dev sign-in server: the Dev button arms the dev passkey, then runs the same action", async () => {
+  it("dev build + dev sign-in session: the Dev button arms the dev passkey, then runs the same action", async () => {
+    await act(async () => useSessionStore.getState().setDev(true));
     await renderButton();
     await fireEvent.press(screen.getByText("Dev"));
     expect(mockArm).toHaveBeenCalledTimes(1);
@@ -44,9 +45,8 @@ describe("PasskeyButton", () => {
     expect(screen.queryByText("Dev")).toBeNull();
   });
 
-  it("dev-login sessions (dev mode and demo mode) keep the Dev button too", async () => {
-    await act(async () => useSessionStore.getState().setDev(true));
+  it("no Dev button in a session signed in with a real passkey (the server refuses it: NOT_DEV_SESSION)", async () => {
     await renderButton();
-    expect(screen.getByText("Dev")).toBeTruthy();
+    expect(screen.queryByText("Dev")).toBeNull();
   });
 });

@@ -9,9 +9,12 @@
  *    (COOLING after coolingUntil is usable in T2 only → forces ASK with PAYEE_COOLING)
  *  3 reader mismatch on amount or account → REFUSE_SOURCE_MISMATCH
  *  4 screening hit (X4: every rail, not only bank transfers) → REFUSE_SANCTIONS
- *  4b (added, B2) bank transfer with no funding route that covers it (spec §12) → INSUFFICIENT_FUNDS
+ *  4b (added, B2) bank transfer with no funding route that covers it (spec §12) → INSUFFICIENT_FUNDS;
+ *     (2026-10-18) wallet balances unreadable → BALANCES_UNAVAILABLE (fail closed: no guessed route is ever signed)
  *  5 caps / protected reserve → REFUSE_CAP under every preset (no "within 2×" ask since 2026-10-14); (X2) the payments module's
- *    own daily cap on today's home-currency usage → REFUSE_CAP + PAYMENTS_DAILY_CAP (hard, payments would refuse)
+ *    own daily cap on today's home-currency usage → REFUSE_CAP + PAYMENTS_DAILY_CAP (hard, payments would refuse).
+ *    (2026-10-18) Usage = live payments + approved orders still in flight; the same check runs again at approval time
+ *    under the per-user payments lock (rules/index.ts capsStillHold), so two pending orders cannot both pay past a cap.
  *  6 region CN or money mode HANDOFF → HANDOFF
  *  6b (added 2026-10-16) above the KYC threshold without a VERIFIED identity check → KYC_REQUIRED (every preset)
  *  7 matching active mandate and preset ≠ ASK_ME → AUTO (T1); the draft must be linked server-side to a bill in
@@ -77,6 +80,11 @@ export type DecideFacts = {
   /** (added, B2) bank transfers: false = no funding currency × rail covers the order incl. fees by the due date. */
   fundingAvailable?: boolean | null;
   /**
+   * (added 2026-10-18) bank transfers from the wallet: the balances could not be read, so no funding route can be
+   * checked. Refused (BALANCES_UNAVAILABLE) rather than binding a guessed same-currency route the bank may not cover.
+   */
+  balancesUnknown?: boolean;
+  /**
    * (added 2026-10-16, KYC) The order is above the KYC threshold (home currency) and the user's latest identity check
    * is not VERIFIED. Undefined = not checked.
    */
@@ -119,26 +127,19 @@ export function decide(f: DecideFacts): DecideResult {
   if (f.screeningHit) return refuse("REFUSE_SANCTIONS");
   // 4b
   if (f.rail === "BANK_TRANSFER" && f.fundingAvailable === false) return refuse("INSUFFICIENT_FUNDS");
+  if (f.rail === "BANK_TRANSFER" && f.balancesUnknown === true) return refuse("BALANCES_UNAVAILABLE");
 
   // 5
   const c = f.caps;
-  const breaches: { total: number; cap: number }[] = [];
-  if (c.amountHomeMinor > c.perPaymentHomeMinor) breaches.push({ total: c.amountHomeMinor, cap: c.perPaymentHomeMinor });
-  if (c.usedTodayHomeMinor + c.amountHomeMinor > c.dailyHomeMinor) {
-    breaches.push({ total: c.usedTodayHomeMinor + c.amountHomeMinor, cap: c.dailyHomeMinor });
-  }
-  if (c.usedThisMonthHomeMinor + c.amountHomeMinor > c.monthlyHomeMinor) {
-    breaches.push({ total: c.usedThisMonthHomeMinor + c.amountHomeMinor, cap: c.monthlyHomeMinor });
-  }
+  const { capHit, paymentsCapHit } = capBreaches(c);
   const capRefusal = (): DecideResult => (f.triggerOrigin ? refuse("REFUSE_CAP", "TRIGGER_ORIGIN") : refuse("REFUSE_CAP"));
   // (X2) payments would refuse this anyway (PAYMENTS_DAILY_CAP): refuse before signing, never "ASK within 2×" then
   // refused after the passkey (p3 O1). Checked after the rules' own hard refusals so their codes stay unchanged.
-  const paymentsCapHit = c.paymentsDailyHomeMinor !== undefined && c.usedTodayHomeMinor + c.amountHomeMinor > c.paymentsDailyHomeMinor;
   const paymentsCapRefusal = (): DecideResult =>
     f.triggerOrigin ? refuse("REFUSE_CAP", "PAYMENTS_DAILY_CAP", "TRIGGER_ORIGIN") : refuse("REFUSE_CAP", "PAYMENTS_DAILY_CAP");
   // A cap is a hard limit under every preset (T3): above it the order is refused, and the user raises the cap with a
   // passkey-signed settings change instead. (Until 2026-10-14 SMART asked within 2× the cap; SECURITY.md §2 T3.)
-  if (breaches.length > 0 || c.reserveBreached === true) {
+  if (capHit) {
     // A7 (spec §19): a trigger-originated draft over the caps is refused WITH the anomaly flag.
     return capRefusal();
   }
@@ -196,6 +197,20 @@ export function decide(f: DecideFacts): DecideResult {
   const b = f.smallAutoBudget;
   if (b && (b.usedCount + 1 > b.maxCount || b.usedHomeMinor + c.amountHomeMinor > b.maxHomeMinor)) return ask(["SMALL_AUTO_BUDGET_EXHAUSTED"], f);
   return { decision: "AUTO", reasonCodes: ["SMALL_AUTO"], tier: "T1", mandateId: null };
+}
+
+/**
+ * Step 5's arithmetic, shared with the approval-time re-check (rules/index.ts `capsStillHold`): `capHit` = a rules cap
+ * (per payment, day, month) or the protected reserve; `paymentsCapHit` = the payments module's own daily cap (X2).
+ */
+export function capBreaches(c: CapCheck): { capHit: boolean; paymentsCapHit: boolean } {
+  const capHit =
+    c.amountHomeMinor > c.perPaymentHomeMinor ||
+    c.usedTodayHomeMinor + c.amountHomeMinor > c.dailyHomeMinor ||
+    c.usedThisMonthHomeMinor + c.amountHomeMinor > c.monthlyHomeMinor ||
+    c.reserveBreached === true;
+  const paymentsCapHit = c.paymentsDailyHomeMinor !== undefined && c.usedTodayHomeMinor + c.amountHomeMinor > c.paymentsDailyHomeMinor;
+  return { capHit, paymentsCapHit };
 }
 
 function ask(codes: ReasonCode[], f: DecideFacts): DecideResult {

@@ -66,3 +66,40 @@ export function verifyMockWebhook(
   if (Math.abs(Math.floor(nowSeconds) - ts) > windowSeconds) return { ok: false, code: "WEBHOOK_REPLAY_WINDOW" };
   return { ok: true };
 }
+
+/*
+ * Kassa API → mock world requests (deployed builds lock the mock world's control routes, apps/mock-world/src/access.ts):
+ *   X-Kassa-Request-Auth: t=<unix seconds>,s=<hex(HMAC-SHA256(MOCK_HMAC_SECRET, "kassa-request:v1\n<t>\n<METHOD>\n<path>\n<body>"))>
+ * `path` is the request target as received (with the /mock prefix and the query string); `body` is the JSON text sent
+ * (JSON.stringify of the payload, "" without a body). The domain prefix keeps these signatures apart from webhook
+ * signatures (`<t>.<body>`), so neither can be replayed as the other. Same 5-minute window, real (wall) time.
+ */
+export const MOCK_REQUEST_AUTH_HEADER = "x-kassa-request-auth";
+
+function requestMac(secret: string, timestamp: number, method: string, path: string, body: string): string {
+  if (!secret) throw new Error("mockRequestAuth: empty secret");
+  return bytesToHex(hmac(sha256, utf8ToBytes(secret), utf8ToBytes(`kassa-request:v1\n${timestamp}\n${method.toUpperCase()}\n${path}\n${body}`)));
+}
+
+/** The X-Kassa-Request-Auth value for one request. */
+export function mockRequestAuth(secret: string, method: string, path: string, body: string, nowSeconds: number): string {
+  const ts = Math.floor(nowSeconds);
+  return `t=${ts},s=${requestMac(secret, ts, method, path, body)}`;
+}
+
+/** True when `header` is a valid X-Kassa-Request-Auth for this method, path and body inside the window. */
+export function verifyMockRequestAuth(
+  secret: string,
+  header: string | undefined,
+  method: string,
+  path: string,
+  body: string,
+  nowSeconds: number,
+  windowSeconds: number = MOCK_WEBHOOK_WINDOW_SECONDS,
+): boolean {
+  const m = /^t=(\d{1,12}),s=([0-9a-f]{64})$/.exec(header?.trim() ?? "");
+  if (!m) return false;
+  const ts = Number(m[1]);
+  if (Math.abs(Math.floor(nowSeconds) - ts) > windowSeconds) return false;
+  return timingSafeEqualHex(requestMac(secret, ts, method, path, body), m[2]!);
+}

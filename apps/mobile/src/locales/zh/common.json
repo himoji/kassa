@@ -72,7 +72,8 @@
     "CARD_ISSUING": "一次性卡",
     "BANK_TRANSFER": "银行转账",
     "HANDOFF": "转交（您自行付款）",
-    "PAY_IN_PLACE": "现场付款"
+    "PAY_IN_PLACE": "现场付款",
+    "CONVERT": "在您的余额之间换汇"
   },
   "retry": "重试",
   "simulated": "模拟",

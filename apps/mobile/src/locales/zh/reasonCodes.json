@@ -254,5 +254,13 @@
   "PO_ABOVE_FORECAST": {
     "label": "高于预测",
     "text": "此采购订单远大于您的库存预测，因此需要您的通行密钥。"
+  },
+  "BALANCES_UNAVAILABLE": {
+    "label": "无法读取余额",
+    "text": "Kassa 暂时无法读取您的钱包余额，因此无法确认由哪个余额支付。未发出任何款项，请稍后重试。"
+  },
+  "CONVERT_OWN_BALANCES": {
+    "label": "在您的余额之间",
+    "text": "这是在您自己的余额之间换汇。换汇前 Kassa 始终会要求您的通行密钥。"
   }
 }

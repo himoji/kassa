@@ -4,4 +4,4 @@ export { createRegistry, parseModelSpec, assertProviderKey, PROVIDER_IDS, PROVID
 export type { ModelSpec, ProviderId, Env } from "./registry.ts";
 export { generateStructured, cachedStructuredMode, resetStructuredCapabilityCache, structuredModeOverride, EXTRACT_TOOL_NAME, STRUCTURED_MODES } from "./structured.ts";
 export type { StructuredMode, StructuredResult } from "./structured.ts";
-export { aiMaxRetries, withRetries, retryMiddleware, backoffDelayMs, SDK_MAX_RETRIES, DEFAULT_AI_MAX_RETRIES } from "./retry.ts";
+export { aiMaxRetries, aiStreamMaxRetries, withRetries, retryMiddleware, backoffDelayMs, SDK_MAX_RETRIES, DEFAULT_AI_MAX_RETRIES, DEFAULT_AI_STREAM_MAX_RETRIES } from "./retry.ts";

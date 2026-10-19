@@ -557,15 +557,27 @@ export const CreditRecordVerifyResponse = z.object({
   verifyId: z.string(),
   valid: z.boolean(),
   issuedAt: IsoDateTime,
+  /** Bundle version: 1 = before 2026-10-18 (declared income, unclamped period); 2 = evidenced figures only. */
+  version: z.number().int().positive().optional(),
+  /** The period the figures cover: v2 clamps the request to [account opened, issue day]. */
   period: z.object({ from: IsoDate, to: IsoDate }),
+  /** v2: the period the holder asked for (differs from `period` when it was clamped). */
+  requestedPeriod: z.object({ from: IsoDate, to: IsoDate }).optional(),
+  /** v2: the day the account was opened; nothing before it is covered. */
+  accountOpenedOn: IsoDate.optional(),
   /** Initials or masked name only. */
   holder: z.string(),
   items: z.array(CreditRecordItem),
+  /** Only the figures of the selected items (v2): BILLS → bills*, INCOME → incomeMonths. */
   summary: z.object({
-    billsPaidOnTime: z.number().int().nonnegative(),
-    billsTotal: z.number().int().nonnegative(),
     monthsCovered: z.number().int().nonnegative(),
-    regularIncomeMonths: z.number().int().nonnegative(),
+    billsPaidOnTime: z.number().int().nonnegative().optional(),
+    /** Bill periods that fell due in the period. */
+    billsTotal: z.number().int().nonnegative().optional(),
+    /** Calendar months with incoming money Kassa recorded (money from home, transfers from Kassa users). */
+    incomeMonths: z.number().int().nonnegative().optional(),
+    /** v1 records only: declared income, not evidence. */
+    regularIncomeMonths: z.number().int().nonnegative().optional(),
   }),
   sha256: z.string(),
   keyId: z.string(),
@@ -844,3 +856,17 @@ export const PayPayeeResponse = z.object({
   deliveredInMs: z.number().int().nonnegative().optional(),
 });
 export type PayPayeeResponse = z.infer<typeof PayPayeeResponse>;
+
+/**
+ * (added 2026-10-18) POST /conversions: exchange between the user's own wallet balances. Buys `amountMinor` of
+ * `toCurrency` from `fromCurrency` (omitted: the cheapest balance that covers it, route optimizer). It comes back as a
+ * CONVERT order to sign with the passkey (always ASK); the response has the PayPayeeResponse shape.
+ */
+export const ConvertRequest = z
+  .object({
+    toCurrency: CurrencyCode,
+    amountMinor: PositiveAmountMinor,
+    fromCurrency: CurrencyCode.optional(),
+  })
+  .refine((r) => r.fromCurrency !== r.toCurrency, { message: "fromCurrency and toCurrency must differ", path: ["fromCurrency"] });
+export type ConvertRequest = z.infer<typeof ConvertRequest>;

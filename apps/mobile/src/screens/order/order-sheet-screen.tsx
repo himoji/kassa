@@ -1,4 +1,4 @@
-import type { ApproveOrderResponse } from "@kassa/shared";
+import { orderConversion, type ApproveOrderResponse, type OrderConversion } from "@kassa/shared";
 import * as Linking from "expo-linking";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import { QueryView } from "@/components/kassa/query-view";
 import { StatusChip } from "@/components/kassa/status-chip";
 import { PayInPlace } from "@/components/pay/pay-in-place";
 import { Box, Button, Text, toast, useTheme } from "@/components/ui";
+import { useFormat } from "@/lib/format";
 import { haptics } from "@/lib/haptics";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { useKassaT } from "@/lib/i18n";
@@ -23,6 +24,7 @@ import { OrderSheetView } from "./order-sheet-view";
 /** order/[proposalId] - native form sheet (presentation set in the root layout). */
 export function OrderSheetScreen() {
   const t = useKassaT();
+  const f = useFormat();
   const { colors } = useTheme();
   // `from=lite`: opened from KassaLite (its approval link); after approving, send the person back there.
   const { proposalId = "", from } = useLocalSearchParams<{ proposalId: string; from?: string }>();
@@ -43,6 +45,8 @@ export function OrderSheetScreen() {
     currency: string;
     payeeName: string;
   } | null>(null);
+  // (2026-10-18) A conversion between the user's own balances that went through: what arrived, from where.
+  const [converted, setConverted] = useState<OrderConversion | null>(null);
   // (M2/M3) A merchant order (signed itemsHash): after approval the sheet stays open on the shop's status timeline.
   const [tracking, setTracking] = useState(false);
   const shopOrder = useShopOrderOfProposal(proposalId, { poll: tracking });
@@ -54,10 +58,35 @@ export function OrderSheetScreen() {
     setError(null);
     try {
       const result = await approve.mutateAsync(query.data);
+      let conversion: OrderConversion | null = null;
+      try {
+        conversion = orderConversion(query.data.canonicalOrder);
+      } catch {
+        conversion = null; // the integrity check already refused a malformed conversion before signing
+      }
+      // A conversion runs at approval: if the exchange failed, say so here (nothing to hand off or track).
+      if (
+        conversion &&
+        !fromLite &&
+        (result.paymentStatus === "FAILED" || result.paymentStatus === "CANCELED")
+      ) {
+        haptics.error();
+        const code = result.reasonCodes[0];
+        setError(
+          code
+            ? `${t("order:convert.failed")} ${t(`reasonCodes:${code}.text`)}`
+            : t("order:convert.failed")
+        );
+        return;
+      }
       haptics.success();
       if (fromLite) {
         // KassaLite shows the outcome; this page only sends the person back (the auth session closes on it).
         setBackToLite(true);
+        return;
+      }
+      if (conversion && result.paymentStatus === "SENT") {
+        setConverted(conversion);
         return;
       }
       const rail = query.data.canonicalOrder.rail;
@@ -157,7 +186,22 @@ export function OrderSheetScreen() {
           <StatusChip tone="positive" label={t("order:approvedChip")} />
           <Text variant="caption">{t("shop:timelineHint")}</Text>
         </Box>
-      ) : tracking ? null : delivered ? (
+      ) : tracking ? null : converted ? (
+        <Box p={5} gap={4} testID="order-converted">
+          <StatusChip tone="positive" label={t("order:convert.done")} />
+          <Text>
+            {t("order:convert.doneBody", {
+              amount: f.money(converted.amountMinor, converted.toCurrency),
+              currency: converted.toCurrency,
+              from: converted.fromCurrency,
+              max: f.money(converted.maxDebitMinor, converted.fromCurrency),
+            })}
+          </Text>
+          <Button size="lg" onPress={close}>
+            {t("common:close")}
+          </Button>
+        </Box>
+      ) : delivered ? (
         <Box p={5} gap={4}>
           <DeliveredReceipt
             deliveredInMs={delivered.result.deliveredInMs}

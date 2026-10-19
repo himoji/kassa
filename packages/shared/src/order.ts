@@ -14,7 +14,9 @@ export const CanonicalOrder = z.object({
   payeeAccountHash: z.string(), // sha256 of normalized account details, base64url
   amountMinor: z.number().int().positive(),
   currency: z.string().length(3),
-  rail: z.enum(["CARD_ISSUING", "BANK_TRANSFER", "HANDOFF", "PAY_IN_PLACE"]),
+  // (added 2026-10-18) CONVERT: an exchange between the user's OWN wallet balances (never a payment out). Adding an enum
+  // value keeps every existing order's JCS bytes and hash. Its shape is fixed by `orderConversion` below.
+  rail: z.enum(["CARD_ISSUING", "BANK_TRANSFER", "HANDOFF", "PAY_IN_PLACE", "CONVERT"]),
   purpose: z.string().max(140),
   homeAmountMinor: z.number().int(), // display only, also signed
   homeCurrency: z.string().length(3),
@@ -58,6 +60,7 @@ export function orderHash(order: CanonicalOrder): string {
   const parsed = CanonicalOrder.parse(order);
   orderFunding(parsed); // all-or-none funding fields: a partial binding is never hashed (or signed)
   orderObligation(parsed); // all-or-none obligation link (X1)
+  orderConversion(parsed); // a CONVERT order is own wallet → own wallet with a funding binding, nothing else
   if (parsed.fundingSourceId !== undefined && parsed.fundingCurrency === undefined) {
     throw new RangeError("canonical order: fundingSourceId needs the funding binding");
   }
@@ -99,4 +102,38 @@ export function orderObligation(order: CanonicalOrder): OrderObligation | null {
   if (present === 0) return null;
   if (present !== 2) throw new RangeError("canonical order: obligationId and obligationPeriod must be both present or both absent");
   return { obligationId: order.obligationId!, period: order.obligationPeriod! };
+}
+
+/**
+ * (added 2026-10-18) The account hash that stands for the user's own Kassa wallet in a CONVERT order (payeeAccountHash).
+ * Not a payee row: rules and payments both recompute it from the user id, so a conversion can only ever credit the
+ * signing user's own wallet.
+ */
+export function ownWalletAccountHash(userId: string): string {
+  return jcsHash({ v: 1, kind: "KASSA_WALLET", userId });
+}
+
+/** Payee name a CONVERT order shows and signs (the user's own wallet). */
+export const OWN_WALLET_PAYEE_NAME = "Your Kassa wallet";
+
+export type OrderConversion = { fromCurrency: string; maxDebitMinor: number; toCurrency: string; amountMinor: number; routeId: string; markupBps: number };
+
+/**
+ * (added 2026-10-18) A CONVERT order's exchange, or null for every other rail. Throws when a CONVERT order is not exactly
+ * "buy `amountMinor` of `currency` from the user's own `fundingCurrency` balance, debiting at most `fundingAmountMinor`":
+ * payee = the user's own wallet (payeeId = userId, payeeAccountHash = ownWalletAccountHash(userId)), the full funding
+ * binding in another currency, and no mandate, bill, items, purchase order or linked account.
+ */
+export function orderConversion(order: CanonicalOrder): OrderConversion | null {
+  if (order.rail !== "CONVERT") return null;
+  const f = orderFunding(order);
+  if (!f) throw new RangeError("canonical order: a conversion needs the funding binding");
+  if (f.currency === order.currency) throw new RangeError("canonical order: a conversion is between two different currencies");
+  if (order.payeeId !== order.userId || order.payeeAccountHash !== ownWalletAccountHash(order.userId)) {
+    throw new RangeError("canonical order: a conversion credits only the user's own wallet");
+  }
+  if (order.mandateId !== null || order.obligationId !== undefined || order.obligationPeriod !== undefined || order.itemsHash !== undefined || order.purchaseOrderId !== undefined || order.fundingSourceId !== undefined) {
+    throw new RangeError("canonical order: a conversion carries no mandate, bill, items, purchase order or linked account");
+  }
+  return { fromCurrency: f.currency, maxDebitMinor: f.maxAmountMinor, toCurrency: order.currency, amountMinor: order.amountMinor, routeId: f.routeId, markupBps: f.markupBps };
 }

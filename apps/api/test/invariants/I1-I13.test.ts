@@ -20,6 +20,7 @@ import { loadSanctions, setSanctionsListForTests } from "../../src/modules/scree
 import { verifyExtraction } from "../../src/modules/reader/reader.ts";
 import { ledger } from "../../src/modules/ledger/index.ts";
 import { ledgerOf, ledgerWithReason } from "../helpers/attacks.ts";
+import { forgeSignedApproval } from "../helpers/forge.ts";
 import { bearer, useTestApp } from "../helpers/app.ts";
 import { addPayee, createUserWithPasskey, IBAN_OTHER, IBAN_UNIVERSITY, offlineEnvironment } from "../helpers/fixtures.ts";
 import { useTestDb } from "../helpers/db.ts";
@@ -119,19 +120,25 @@ describe("I5 Independent cap", () => {
   });
 
   // Deeper: test/core/payments.test.ts ("enforces its own daily cap … across currencies (I5, X2)"), test/core/payments-cap.test.ts.
-  it("payments refuses an order over its own daily cap (PAYMENTS_DAILY_CAP) in the home currency across currencies, although rules allowed it", async () => {
+  it("payments refuses an order over its own daily cap (PAYMENTS_DAILY_CAP) in the home currency across currencies, even when a rules bug signs it", async () => {
     setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "150000000" }); // ₸1.5M; €2,400 ≈ ₸1.344M; HUF 180,000 ≈ ₸259,200
     try {
       const { userId, auth } = await createUserWithPasskey();
       const university = await addPayee(userId, { name: "University in Budapest", kind: "UNIVERSITY", currency: "EUR", account: IBAN_UNIVERSITY });
       const landlord = await addPayee(userId, { name: "Landlord in Budapest", kind: "LANDLORD", currency: "HUF" });
-      // Both proposed and signed before anything is paid: rules see no usage and allow both.
+      // Both proposed before anything is paid: rules see no usage and offer both for signing.
       const first = await proposeOrder({ userId, createdBy: "AGENT", payeeId: university.id, amountMinor: 240_000, currency: "EUR", purpose: "Tuition" });
       const second = await proposeOrder({ userId, createdBy: "AGENT", payeeId: landlord.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent" });
+      expect(second.decision).toBe("ASK");
       const v1 = await getOrderView(userId, first.proposalId);
       const v2 = await getOrderView(userId, second.proposalId);
       expect((await approveOrder(userId, first.proposalId, auth.assert(v1.orderHash))).paymentStatus).toBe("PROCESSING");
-      expect((await approveOrder(userId, second.proposalId, auth.assert(v2.orderHash))).reasonCodes).toEqual(["PAYMENTS_DAILY_CAP"]);
+      // (2026-10-18) rules re-check the caps at approval, counting the payment just made: refused before signing.
+      await expect(approveOrder(userId, second.proposalId, auth.assert(v2.orderHash))).rejects.toMatchObject({ status: 409, code: "REFUSE_CAP" });
+      // A rules logic bug that signs it anyway: payments' own cap (I5) still refuses, nothing is paid.
+      const forged = await forgeSignedApproval(landlord, { amountMinor: 18_000_000, currency: "HUF", homeAmountMinor: 25_920_000, tier: "T2", sign: (h) => auth.assert(h) });
+      expect((await executeApproval(forged.approvalId)).reasonCodes).toEqual(["PAYMENTS_DAILY_CAP"]);
+      expect(await getDb().select().from(payments)).toHaveLength(1);
     } finally {
       setEnvForTests({ PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000" });
     }

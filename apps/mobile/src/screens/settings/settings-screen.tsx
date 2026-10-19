@@ -11,7 +11,9 @@ import {
 import { router } from "expo-router";
 import { useState } from "react";
 
+import { useDemoAvailability } from "@/api/hooks/auth";
 import { useMe } from "@/api/hooks/me";
+import { DemoProofSection } from "@/components/demo-proof-section";
 import { RowGroup } from "@/components/row-group";
 import { SettingPicker, SettingSwitch } from "@/components/kassa/native-controls";
 import { QueryView } from "@/components/kassa/query-view";
@@ -64,6 +66,8 @@ function SettingsBody({ me }: { me: MeResponse }) {
   const [advanced, setAdvanced] = useState(customised);
   const themeMode = useThemeMode();
   const language = useLanguagePreference();
+  // The judge build has no admin token: its Demo panel holds the reviewer's own actions (money from home).
+  const judgeBuild = useDemoAvailability().data?.judgeMode === true;
 
   const setOverride = <K extends keyof SettingsOverrides>(key: K, value: string) =>
     void apply({
@@ -287,7 +291,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
           subtitle={t("evidence:settingsHint")}
           onPress={() => router.push("/evidence")}
         />
-        {env.DEMO_ADMIN_TOKEN || __DEV__ ? (
+        {env.DEMO_ADMIN_TOKEN || __DEV__ || judgeBuild ? (
           <Row
             leading={<Icon name="wand.and.stars" fallback="science" size={20} color="foreground" />}
             title={t("demo:title")}
@@ -322,6 +326,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
           }}
         />
       </RowGroup>
+      <DemoProofSection />
     </>
   );
 }

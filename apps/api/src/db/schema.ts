@@ -25,7 +25,7 @@ import {
   ProposalCreatedBy,
   ProposalStatus,
   PurchaseOrderStatus,
-  Rail,
+  OrderRail,
   Recurrence,
   Region,
   RuleChangeDirection,
@@ -79,7 +79,8 @@ export const proposalCreatedByEnum = pgEnum("proposal_created_by", tuple(Proposa
 export const proposalStatusEnum = pgEnum("proposal_status", tuple(ProposalStatus.options));
 export const decisionEnum = pgEnum("decision", tuple(Decision.options));
 export const tierEnum = pgEnum("tier", tuple(Tier.options));
-export const railEnum = pgEnum("rail", tuple(Rail.options));
+// (2026-10-18) OrderRail = the payment rails plus CONVERT (own balance → own balance).
+export const railEnum = pgEnum("rail", tuple(OrderRail.options));
 export const paymentStatusEnum = pgEnum("payment_status", tuple(PaymentStatus.options));
 export const deviceKindEnum = pgEnum("device_kind", tuple(DeviceKind.options));
 export const agentModeEnum = pgEnum("agent_mode", tuple(AgentMode.options));
@@ -583,7 +584,10 @@ export const ruleChanges = pgTable(
 );
 
 export type ProposalDraftJson = {
+  /** The payee; for a CONVERT order (rail "CONVERT", 2026-10-18) the user's own id (their wallet). */
   payeeId: string;
+  /** (added 2026-10-18) CONVERT: the balance the user asked to convert from (omitted = cheapest). */
+  fromCurrency?: string;
   amountMinor: number;
   currency: string;
   purpose: string;

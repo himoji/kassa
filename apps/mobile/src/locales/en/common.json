@@ -72,7 +72,8 @@
     "CARD_ISSUING": "One-time card",
     "BANK_TRANSFER": "Bank transfer",
     "HANDOFF": "Handoff (you pay)",
-    "PAY_IN_PLACE": "Pay in place"
+    "PAY_IN_PLACE": "Pay in place",
+    "CONVERT": "Conversion between your balances"
   },
   "retry": "Try again",
   "simulated": "Simulated",

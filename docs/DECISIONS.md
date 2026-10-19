@@ -29,8 +29,8 @@ Deviations from `docs/spec/TECH_SPEC.md` (spec §0: date, problem, choice). Newe
   model) without code changes, and replay must not depend on one vendor's wire format.
 - **Choice:** Vercel AI SDK (`ai`) with a provider registry. Models are chosen by env strings
   `provider:model`, provider one of `openrouter`, `openai`, `google`, `local` (any OpenAI-compatible
-  endpoint at `LOCAL_BASE_URL`, e.g. Ollama). Defaults: `PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`,
-  `READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash`. Replay (`AGENT_MODE=REPLAY`) serves recordings through the
+  endpoint at `LOCAL_BASE_URL`, e.g. Ollama). Defaults: `PLANNER_MODEL=openrouter:deepseek/deepseek-v4.1-flash-1017`,
+  `READER_MODEL=openrouter:deepseek/deepseek-v4.1-flash-1017`. Replay (`AGENT_MODE=REPLAY`) serves recordings through the
   AI SDK mock model, so it is provider-independent. Providers without tool calling or vision return an
   error code for the affected feature.
 
@@ -885,3 +885,25 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - **Not done / honest limits:** no document authenticity, issuer data, real liveness, PEP screening or ongoing due
   diligence; REVIEW is never resolved (SECURITY.md R37). Jurisdiction mapping: COMPLIANCE.md §12. The Kazakh,
   Russian and Chinese strings of the new screen need a native read like the rest of the app.
+
+## 2026-10-18 — Convert between own balances (CONVERT orders); caps at approval; funding fails closed
+
+- **Problem:** a blind judge found (1) no way to pay EUR tuition from money held in KZT/USD/HUF: no single balance
+  covered it and nothing could convert; (2) chat text naming a funding balance (EUR) other than the signed one (HUF);
+  (3) caps checked only at proposal time (two pending orders under a cap could both be approved past it; a mandate's
+  period maximum was read before the payments lock); (4) GET /obligations COVERED vs a forecast shortfall for the same
+  CNY bill; (5) unreadable balances binding a guessed same-currency route that the wallet could not cover.
+- **Choice:** (1) a `CONVERT` canonical order (rail `CONVERT`, payee = the user's own wallet,
+  `ownWalletAccountHash(userId)`, the existing funding binding as source and signed maximum). `orderHash` refuses any
+  other shape. Always ASK (passkey), never AUTO; outside the payment caps, mandates, small-auto and screening (no money
+  leaves the user). Executed with Wise's balance conversion (`POST /v2/profiles/:p/balance-movements`, added to the
+  mock bank); ledger `WALLET_CONVERTED`; no spending transaction. Bills report `CONVERTIBLE` with the conversions that
+  make them payable from their own currency, and `SHORTFALL` with `reserveBreached` when paying would cross the
+  protected reserve. Multi-source funding inside one payment was not chosen: one payment would become several bank
+  transfers with partial-failure states. (2) Every proposal carries `orderLine`, one sentence built from the signed
+  order; the chat appends it after the reply and the card shows it. (3) Rules re-check caps when an order is approved
+  (T2 or AUTO) under the per-user payments advisory lock, counting live payments plus approved orders in flight;
+  payments checks the mandate period maximum inside its locked transaction. (4) Both views use the rail rules will
+  choose: bank-transfer bills are drawn from the balance their route debits (the bank converts), handoff bills need
+  their own currency. (5) Unknown balances: read again once, then REFUSE `BALANCES_UNAVAILABLE`; a funding shortfall
+  at execution is `INSUFFICIENT_FUNDS`, not `RAIL_ERROR`.

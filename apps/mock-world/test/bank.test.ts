@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { BankError, MockBank, TRANSFER_STATES } from "../src/bank/bank.ts";
 import { FIXTURE_RATES, StaticRates } from "../src/bank/rates.ts";
 import { ManualClock } from "../src/clock.ts";
+import { MemoryBalanceStore } from "../src/store/memory.ts";
 import { RecordingSink } from "../src/webhooks.ts";
 
 const PROFILE = 16_000_001;
@@ -27,17 +28,19 @@ function makeCtx(): Ctx {
     rates: new StaticRates(),
     webhooks: sink,
     stepMs: STEP_MS,
-    idStart: 1000,
-    initialBalances: [
-      {
-        profileId: PROFILE,
-        aliases: [ALIAS],
-        balances: [
-          { currency: "EUR", amountMinor: 30_000 },
-          { currency: "KZT", amountMinor: 90_000_000 },
-        ],
-      },
-    ],
+    store: new MemoryBalanceStore(
+      [
+        {
+          profileId: PROFILE,
+          aliases: [ALIAS],
+          balances: [
+            { currency: "EUR", amountMinor: 30_000 },
+            { currency: "KZT", amountMinor: 90_000_000 },
+          ],
+        },
+      ],
+      1000,
+    ),
   });
   return { clock, sink, bank };
 }
@@ -55,7 +58,7 @@ function recipientFor(bank: MockBank, iban = IBAN) {
 /** A same-currency EUR quote (9600 target, fee 50) plus a recipient and a transfer on it. */
 async function createFundableTransfer(ctx: Ctx) {
   const quote = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 9600 });
-  const recipient = recipientFor(ctx.bank);
+  const recipient = await recipientFor(ctx.bank);
   const { transfer } = await ctx.bank.createTransfer({
     targetAccount: recipient.id,
     quoteUuid: quote.id,
@@ -68,15 +71,6 @@ async function createFundableTransfer(ctx: Ctx) {
 interface SentBody {
   data: { current_state: string; previous_state: string; occurred_at: string };
   event_type: string;
-}
-
-function captureError(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw");
 }
 
 function sentBodies(sink: RecordingSink): SentBody[] {
@@ -219,7 +213,7 @@ describe("funding and balances", () => {
 
   it("rejects funding with 422 transfer.insufficient_funds and leaves the balance unchanged", async () => {
     const quote = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "EUR", targetAmountMinor: 240_000 });
-    const recipient = recipientFor(ctx.bank);
+    const recipient = await recipientFor(ctx.bank);
     const { transfer } = await ctx.bank.createTransfer({
       targetAccount: recipient.id,
       quoteUuid: quote.id,
@@ -239,7 +233,7 @@ describe("funding and balances", () => {
   it("reset() restores the seeded EUR balance", async () => {
     const { transfer } = await createFundableTransfer(ctx);
     await ctx.bank.fund(PROFILE, transfer.id);
-    ctx.bank.reset();
+    await ctx.bank.reset();
     const [eur] = (await ctx.bank.listBalances(PROFILE)).filter((b) => b.currency === "EUR");
     expect(eur!.amount.valueMinor).toBe(30_000);
   });
@@ -253,7 +247,7 @@ describe("transfer creation", () => {
 
   it("is idempotent on customerTransactionId for the same quote and account", async () => {
     const quote = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 9600 });
-    const recipient = recipientFor(ctx.bank);
+    const recipient = await recipientFor(ctx.bank);
     const customerTransactionId = randomUUID();
     const first = await ctx.bank.createTransfer({ targetAccount: recipient.id, quoteUuid: quote.id, customerTransactionId, reference: "r" });
     const second = await ctx.bank.createTransfer({ targetAccount: recipient.id, quoteUuid: quote.id, customerTransactionId, reference: "r" });
@@ -265,7 +259,7 @@ describe("transfer creation", () => {
   it("rejects a reused customerTransactionId with a different quote with 409", async () => {
     const q1 = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 9600 });
     const q2 = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 9600 });
-    const recipient = recipientFor(ctx.bank);
+    const recipient = await recipientFor(ctx.bank);
     const customerTransactionId = randomUUID();
     await ctx.bank.createTransfer({ targetAccount: recipient.id, quoteUuid: q1.id, customerTransactionId, reference: "r" });
     await expect(
@@ -275,7 +269,7 @@ describe("transfer creation", () => {
 
   it("rejects an expired quote with 422 quote.expired", async () => {
     const quote = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 9600 });
-    const recipient = recipientFor(ctx.bank);
+    const recipient = await recipientFor(ctx.bank);
     ctx.clock.advance(31 * 60_000);
     await expect(
       ctx.bank.createTransfer({ targetAccount: recipient.id, quoteUuid: quote.id, customerTransactionId: randomUUID(), reference: "r" }),
@@ -289,17 +283,57 @@ describe("recipients and profiles", () => {
     ctx = makeCtx();
   });
 
-  it("rejects an IBAN with a wrong check digit with 422", () => {
+  it("rejects an IBAN with a wrong check digit with 422", async () => {
     const bad = IBAN.slice(0, -1) + (IBAN.endsWith("9") ? "8" : "9");
-    const err = captureError(() => recipientFor(ctx.bank, bad));
+    const err = await recipientFor(ctx.bank, bad).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(BankError);
     expect((err as BankError).status).toBe(422);
   });
 
-  it("resolves the profile alias case-insensitively and throws 404 for unknown ids", () => {
-    expect(ctx.bank.resolveProfile("C83D27E3-4E03-570F-8FEA-87DB32399C12")).toBe(PROFILE);
-    const err = captureError(() => ctx.bank.resolveProfile("999"));
+  it("resolves the profile alias case-insensitively and throws 404 for unknown ids", async () => {
+    expect(await ctx.bank.resolveProfile("C83D27E3-4E03-570F-8FEA-87DB32399C12")).toBe(PROFILE);
+    const err = await ctx.bank.resolveProfile("999").catch((e: unknown) => e);
     expect(err).toBeInstanceOf(BankError);
     expect((err as BankError).status).toBe(404);
+  });
+});
+
+describe("(2026-10-18) conversions between a wallet's own balances (POST /v2/profiles/:p/balance-movements)", () => {
+  let ctx: Ctx;
+  const balance = async (currency: string) => (await ctx.bank.listBalances(PROFILE)).find((b) => b.currency === currency)?.amount.valueMinor ?? 0;
+  beforeEach(() => {
+    ctx = makeCtx();
+  });
+
+  it("KZT → EUR at a quote: the quote's source amount (fee and markup in it) leaves KZT, its target lands in EUR", async () => {
+    const q = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "EUR", targetAmountMinor: 100_000, routeId: "kzt-mock-bank" });
+    const m = await ctx.bank.convert(PROFILE, { quoteId: q.id, customerTransactionId: "p-1" });
+    expect(m).toMatchObject({ type: "CONVERSION", state: "COMPLETED", sourceAmountMinor: q.sourceAmountMinor, targetAmountMinor: 100_000 });
+    expect(await balance("KZT")).toBe(90_000_000 - q.sourceAmountMinor);
+    expect(await balance("EUR")).toBe(130_000);
+    // Same key again: the same movement, nothing moves twice.
+    expect(await ctx.bank.convert(PROFILE, { quoteId: q.id, customerTransactionId: "p-1" })).toEqual(m);
+    expect(await balance("EUR")).toBe(130_000);
+    // The quote is spent: neither another conversion nor a transfer can use it.
+    await expect(ctx.bank.convert(PROFILE, { quoteId: q.id, customerTransactionId: "p-2" })).rejects.toMatchObject({ status: 422, code: "quote.already_used" });
+    const r = await recipientFor(ctx.bank);
+    await expect(ctx.bank.createTransfer({ targetAccount: r.id, quoteUuid: q.id, customerTransactionId: "t-1", reference: "x" })).rejects.toMatchObject({ code: "quote.already_used" });
+  });
+
+  it("short of the source amount: 422 transfer.insufficient_funds and both balances unchanged; the key stays free", async () => {
+    const q = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "EUR", targetAmountMinor: 200_000, routeId: "kzt-mock-bank" });
+    await expect(ctx.bank.convert(PROFILE, { quoteId: q.id, customerTransactionId: "p-3" })).rejects.toMatchObject({ status: 422, code: "transfer.insufficient_funds" });
+    expect(await balance("KZT")).toBe(90_000_000);
+    expect(await balance("EUR")).toBe(30_000);
+  });
+
+  it("only this profile's quotes, between two currencies, and a key cannot be reused for another quote", async () => {
+    const same = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "EUR", targetCurrency: "EUR", targetAmountMinor: 1_000 });
+    await expect(ctx.bank.convert(PROFILE, { quoteId: same.id, customerTransactionId: "p-4" })).rejects.toBeInstanceOf(BankError);
+    await expect(ctx.bank.convert(PROFILE, { quoteId: randomUUID(), customerTransactionId: "p-5" })).rejects.toMatchObject({ status: 404 });
+    const a = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "EUR", targetAmountMinor: 1_000, routeId: "kzt-mock-bank" });
+    const b = await ctx.bank.createQuote(PROFILE, { sourceCurrency: "KZT", targetCurrency: "EUR", targetAmountMinor: 1_000, routeId: "kzt-mock-bank" });
+    await ctx.bank.convert(PROFILE, { quoteId: a.id, customerTransactionId: "p-6" });
+    await expect(ctx.bank.convert(PROFILE, { quoteId: b.id, customerTransactionId: "p-6" })).rejects.toMatchObject({ status: 409 });
   });
 });

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import type { Clock } from "../clock.ts";
+import { type Collection, mapCollection, valueCollection } from "../store/sync.ts";
 import type { WebhookSink } from "../webhooks.ts";
 import { QR_MERCHANTS, SWAPPED_QR_PAYEE } from "../world/data.ts";
 import { buildEmvPayload } from "./emv.ts";
@@ -70,6 +71,11 @@ export class QrWallet {
   reset(): void {
     this.payments.clear();
     this.swapAll = false;
+  }
+
+  /** Shared between instances (store/sync.ts). */
+  collections(): Collection[] {
+    return [mapCollection("qr.payment", this.payments), valueCollection("qr.swapAll", () => this.swapAll, (v: boolean) => (this.swapAll = v))];
   }
 
   async create(input: CreateQrInput): Promise<QrPayment> {

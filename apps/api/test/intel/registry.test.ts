@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isAiConfigError } from "../../src/modules/ai/errors.ts";
 import { getPlannerModel, getReaderModel, plannerSpec, readerSpec, readerSupportsVision } from "../../src/modules/ai/models.ts";
-import { parseModelSpec } from "../../src/modules/ai/registry.ts";
+import { openRouterProvider, parseModelSpec } from "../../src/modules/ai/registry.ts";
 
 const codeOf = (fn: () => unknown) => {
   try {
@@ -28,8 +28,8 @@ describe("provider registry: provider:model strings", () => {
   });
 
   it("defaults and bare model ids map to openrouter", () => {
-    expect(plannerSpec({}).id).toBe("openrouter:deepseek/deepseek-v4.1-flash");
-    expect(readerSpec({}).id).toBe("openrouter:deepseek/deepseek-v4.1-flash");
+    expect(plannerSpec({}).id).toBe("openrouter:deepseek/deepseek-v4.1-flash-1017");
+    expect(readerSpec({}).id).toBe("openrouter:deepseek/deepseek-v4.1-flash-1017");
     expect(plannerSpec({ PLANNER_MODEL: "deepseek/deepseek-v4.1-flash" }).id).toBe("openrouter:deepseek/deepseek-v4.1-flash");
   });
 
@@ -73,5 +73,17 @@ describe("provider registry: provider:model strings", () => {
     // LOCAL_API_KEY is accepted only when LOCAL_BASE_URL already points at OpenRouter.
     expect(codeOf(() => getPlannerModel({ PLANNER_MODEL: "openrouter:x/y", LOCAL_BASE_URL: "https://openrouter.ai/api/v1", LOCAL_API_KEY: "k" }))).toBeNull();
     expect(codeOf(() => getPlannerModel({ PLANNER_MODEL: "openrouter:x/y", LOCAL_BASE_URL: "http://localhost:11434/v1", LOCAL_API_KEY: "k" }))).toBe("AI_PROVIDER_KEY_MISSING");
+  });
+});
+
+describe("OPENROUTER_PROVIDER", () => {
+  it("parses a JSON object, unset is undefined, anything else throws", () => {
+    expect(openRouterProvider({})).toBeUndefined();
+    expect(openRouterProvider({ OPENROUTER_PROVIDER: '{"only":["parasail/fp8","baseten"],"allow_fallbacks":false}' })).toEqual({
+      only: ["parasail/fp8", "baseten"],
+      allow_fallbacks: false,
+    });
+    expect(() => openRouterProvider({ OPENROUTER_PROVIDER: '["baseten"]' })).toThrow();
+    expect(() => openRouterProvider({ OPENROUTER_PROVIDER: "baseten" })).toThrow();
   });
 });

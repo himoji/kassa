@@ -247,6 +247,16 @@ const baseConfig = ({ config: base }: { config: Partial<ExpoConfig> }): ExpoConf
     ["@stripe/stripe-react-native", { enableGooglePay: false }],
     // Lite: Face ID lock (NSFaceIDUsageDescription).
     ["expo-local-authentication", { faceIDPermission: "Allow KassaLite to unlock with Face ID." }],
+    // The chat's mic button (NSMicrophoneUsageDescription, Android RECORD_AUDIO). Both variants; recording only
+    // while the person holds the chat open, so no background audio mode.
+    [
+      "expo-audio",
+      {
+        microphonePermission: `Allow ${LITE ? "KassaLite" : config.app.name} to hear what you ask in the chat. The recording is turned into text and not kept.`,
+        enableBackgroundPlayback: false,
+        enableBackgroundRecording: false,
+      },
+    ],
     // iOS 27: adopt the UIScene life cycle (see the plugin header).
     "./plugins/with-scene-lifecycle.js",
     // Lite: the "Log Payment in Kassa" Shortcuts action (App Intent; see the plugin header).
