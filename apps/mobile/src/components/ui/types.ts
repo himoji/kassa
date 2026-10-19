@@ -178,6 +178,8 @@ export interface InputProps {
   returnKeyType?: ReturnKeyTypeOptions;
   /** Return key pressed (single-line fields). */
   onSubmitEditing?: () => void;
+  /** Focus left the field (show its error only once the user moves on). */
+  onBlur?: () => void;
   /** Keep the keyboard up on return (when submitting moves focus to the next field). Default: blur. */
   submitBehavior?: SubmitBehavior;
   autoCorrect?: boolean;

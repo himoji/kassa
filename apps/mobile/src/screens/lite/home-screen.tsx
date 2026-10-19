@@ -135,6 +135,8 @@ function DeckCard({
     <View
       style={{
         width,
+        // A web row would otherwise shrink a card whose text can ellipsize (the All card) below the others.
+        flexShrink: 0,
         height: CARD_HEIGHT,
         borderRadius: 24,
         overflow: "hidden",
@@ -198,6 +200,13 @@ function HeroAction({
   );
 }
 
+/** The big amount steps down for long figures, so "KZT 1,234,567.89" fits a phone-width card whole. */
+export function amountSize(text: string): number {
+  if (text.length <= 12) return 34;
+  if (text.length <= 15) return 30;
+  return 26;
+}
+
 /** Spending this month across everything, what the budgets leave, and the three money actions. */
 function AllCard({ width }: { width: number }) {
   const t = useKassaT();
@@ -208,6 +217,7 @@ function AllCard({ width }: { width: number }) {
   const left =
     list.reduce((s, b) => s + b.limitHomeMinor, 0) - list.reduce((s, b) => s + b.spentHomeMinor, 0);
   const daysLeft = list[0]?.daysLeft ?? insights?.month.daysLeft;
+  const total = insights ? f.money(insights.totalMinor, insights.homeCurrency) : "—";
   const line = [
     budgets && list.length > 0
       ? t("lite:home.leftInBudgets", { amount: f.money(left, budgets.homeCurrency) })
@@ -231,13 +241,13 @@ function AllCard({ width }: { width: number }) {
           numberOfLines={1}
           style={{
             color: ON_HERO,
-            fontSize: 34,
+            fontSize: amountSize(total),
             lineHeight: 40,
             letterSpacing: -0.8,
             fontVariant: ["tabular-nums"],
           }}
         >
-          {insights ? f.money(insights.totalMinor, insights.homeCurrency) : "—"}
+          {total}
         </Text>
         {line ? (
           <Text numberOfLines={1} style={{ color: ON_HERO_MUTED, fontSize: 13 }}>
@@ -403,6 +413,7 @@ function AddCardPage({ width }: { width: number }) {
       onPress={() => router.push("/cards?add=1" as Href)}
       style={{
         width,
+        flexShrink: 0,
         height: CARD_HEIGHT,
         borderRadius: 24,
         borderWidth: 2,

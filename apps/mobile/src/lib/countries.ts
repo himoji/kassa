@@ -267,3 +267,8 @@ export function countryOptions(): { value: string; label: string }[] {
   }));
   return [...featured, ...rest];
 }
+
+/** The English name of an ISO country code, or null when the code isn't a country. */
+export function countryName(code: string): string | null {
+  return COUNTRIES.find(([c]) => c === code)?.[1] ?? null;
+}

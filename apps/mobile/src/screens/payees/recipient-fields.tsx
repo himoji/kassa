@@ -230,22 +230,40 @@ export function formToDetails(
   return { ok: true, details: parsed.data };
 }
 
-/** The inputs a category asks for. */
+/** The details a category can't do without (stay visible in the add form); everything else is optional. */
+export const REQUIRED_DETAILS: Partial<Record<RecipientCategory, keyof DetailsForm>> = {
+  TUITION: "studentId",
+  BILLS: "customerNumber",
+};
+
+/**
+ * The inputs a category asks for. `part` splits them for the add form: "required" is the field the category can't
+ * do without (no hint, to keep the step short), "optional" the rest (shorter hints); "all" (the edit sheet) both.
+ */
 export function RecipientDetailsFields({
   category,
   form,
   onChange,
   errorFor,
+  onTouch,
+  part = "all",
 }: {
   category: RecipientCategory;
   form: DetailsForm;
   onChange: (patch: Partial<DetailsForm>) => void;
   errorFor: (field: keyof DetailsForm) => string | undefined;
+  /** A field lost focus. */
+  onTouch?: (field: keyof DetailsForm) => void;
+  part?: "all" | "required" | "optional";
 }) {
   const t = useKassaT();
   const hint = (key: string) => <Text variant="caption">{t(`payees:details.${key}`)}</Text>;
+  const required = part !== "optional";
+  const optional = part !== "required";
+  const blur = (field: keyof DetailsForm) => (onTouch ? () => onTouch(field) : undefined);
 
   if (category === "PEOPLE") {
+    if (!optional) return null;
     return (
       <Box gap={3}>
         <View style={{ marginHorizontal: -16 }}>
@@ -264,20 +282,24 @@ export function RecipientDetailsFields({
           label={t("payees:details.note")}
           value={form.note}
           onChangeText={(v) => onChange({ note: v })}
+          onBlur={blur("note")}
           placeholder={t("payees:details.notePlaceholder")}
           error={errorFor("note")}
+          testID="recipient-note"
         />
         <Box gap={1}>
           <Input
             label={t("payees:details.purposeCode")}
             value={form.purposeCode}
             onChangeText={(v) => onChange({ purposeCode: v })}
+            onBlur={blur("purposeCode")}
             keyboardType="number-pad"
             maxLength={3}
             placeholder={form.relationship === "EMPLOYEE" ? "311" : "119"}
             error={errorFor("purposeCode")}
+            testID="recipient-purpose-code"
           />
-          {hint("purposeCodeHint")}
+          {hint(part === "all" ? "purposeCodeHint" : "purposeCodeShort")}
         </Box>
       </Box>
     );
@@ -285,40 +307,50 @@ export function RecipientDetailsFields({
   if (category === "TUITION") {
     return (
       <Box gap={3}>
-        <Box gap={1}>
-          <Input
-            label={t("payees:details.studentId")}
-            value={form.studentId}
-            onChangeText={(v) => onChange({ studentId: v })}
-            autoCapitalize="characters"
-            error={errorFor("studentId")}
-            testID="recipient-student-id"
-          />
-          {hint("studentIdHint")}
-        </Box>
-        <Box gap={1}>
-          <Input
-            label={t("payees:details.portalUrl")}
-            value={form.portalUrl}
-            onChangeText={(v) => onChange({ portalUrl: v })}
-            autoCapitalize="none"
-            keyboardType="url"
-            placeholder="https://"
-            error={errorFor("portalUrl")}
-          />
-          {hint("portalUrlHint")}
-        </Box>
-        <Input
-          label={t("payees:details.term")}
-          value={form.term}
-          onChangeText={(v) => onChange({ term: v })}
-          placeholder={t("payees:details.termPlaceholder")}
-          error={errorFor("term")}
-        />
+        {required ? (
+          <Box gap={1}>
+            <Input
+              label={t("payees:details.studentId")}
+              value={form.studentId}
+              onChangeText={(v) => onChange({ studentId: v })}
+              onBlur={blur("studentId")}
+              autoCapitalize="characters"
+              error={errorFor("studentId")}
+              testID="recipient-student-id"
+            />
+            {optional ? hint("studentIdHint") : null}
+          </Box>
+        ) : null}
+        {optional ? (
+          <>
+            <Box gap={1}>
+              <Input
+                label={t("payees:details.portalUrl")}
+                value={form.portalUrl}
+                onChangeText={(v) => onChange({ portalUrl: v })}
+                onBlur={blur("portalUrl")}
+                autoCapitalize="none"
+                keyboardType="url"
+                placeholder="https://"
+                error={errorFor("portalUrl")}
+              />
+              {hint("portalUrlHint")}
+            </Box>
+            <Input
+              label={t("payees:details.term")}
+              value={form.term}
+              onChangeText={(v) => onChange({ term: v })}
+              onBlur={blur("term")}
+              placeholder={t("payees:details.termPlaceholder")}
+              error={errorFor("term")}
+            />
+          </>
+        ) : null}
       </Box>
     );
   }
   if (category === "RENT") {
+    if (!optional) return null;
     return (
       <Box gap={3}>
         <Box gap={1}>
@@ -326,6 +358,7 @@ export function RecipientDetailsFields({
             label={t("payees:details.rentReference")}
             value={form.reference}
             onChangeText={(v) => onChange({ reference: v })}
+            onBlur={blur("reference")}
             error={errorFor("reference")}
           />
           {hint("rentReferenceHint")}
@@ -335,6 +368,7 @@ export function RecipientDetailsFields({
             label={t("payees:details.dueDay")}
             value={form.dueDay}
             onChangeText={(v) => onChange({ dueDay: v.replace(/\D/g, "") })}
+            onBlur={blur("dueDay")}
             keyboardType="number-pad"
             maxLength={2}
             error={errorFor("dueDay")}
@@ -347,40 +381,53 @@ export function RecipientDetailsFields({
   if (category === "BILLS") {
     return (
       <Box gap={3}>
-        <View style={{ marginHorizontal: -16 }}>
-          <SettingPicker
-            label={t("payees:details.billType")}
-            value={form.billType}
-            options={BillType.options.map((b) => ({ value: b, label: t(`payees:billType.${b}`) }))}
-            onChange={(b) => onChange({ billType: b })}
-            testID="recipient-bill-type"
-          />
-        </View>
-        <Box gap={1}>
+        {optional ? (
+          <View style={{ marginHorizontal: -16 }}>
+            <SettingPicker
+              label={t("payees:details.billType")}
+              value={form.billType}
+              options={BillType.options.map((b) => ({
+                value: b,
+                label: t(`payees:billType.${b}`),
+              }))}
+              onChange={(b) => onChange({ billType: b })}
+              testID="recipient-bill-type"
+            />
+          </View>
+        ) : null}
+        {required ? (
+          <Box gap={1}>
+            <Input
+              label={t("payees:details.customerNumber")}
+              value={form.customerNumber}
+              onChangeText={(v) => onChange({ customerNumber: v })}
+              onBlur={blur("customerNumber")}
+              autoCapitalize="characters"
+              error={errorFor("customerNumber")}
+              testID="recipient-customer-number"
+            />
+            {optional ? hint("customerNumberHint") : null}
+          </Box>
+        ) : null}
+        {optional ? (
           <Input
-            label={t("payees:details.customerNumber")}
-            value={form.customerNumber}
-            onChangeText={(v) => onChange({ customerNumber: v })}
-            autoCapitalize="characters"
-            error={errorFor("customerNumber")}
-            testID="recipient-customer-number"
+            label={t("payees:details.billReference")}
+            value={form.reference}
+            onChangeText={(v) => onChange({ reference: v })}
+            onBlur={blur("reference")}
+            error={errorFor("reference")}
           />
-          {hint("customerNumberHint")}
-        </Box>
-        <Input
-          label={t("payees:details.billReference")}
-          value={form.reference}
-          onChangeText={(v) => onChange({ reference: v })}
-          error={errorFor("reference")}
-        />
+        ) : null}
       </Box>
     );
   }
+  if (!optional) return null;
   return (
     <Input
       label={t("payees:details.shopNote")}
       value={form.note}
       onChangeText={(v) => onChange({ note: v })}
+      onBlur={blur("note")}
       error={errorFor("note")}
     />
   );

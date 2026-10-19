@@ -48,6 +48,18 @@
       "RENT": "Landlord or dorm, as on their account",
       "BILLS": "Company name",
       "SHOPS": "Shop name"
+    },
+    "coolingShort": "New recipients can be paid after 24 hours.",
+    "moreDetails": "More details (optional)",
+    "place": "{{country}} · {{currency}}",
+    "editPlace": "Edit",
+    "schemeNote": {
+      "IBAN": "In Europe (SEPA) a name and IBAN are enough.",
+      "CN_ALIPAY": "Paid to their Alipay balance, in CNY.",
+      "CN_UNIONPAY": "Paid to the account behind their UnionPay card, in CNY.",
+      "US_ACH": "Both numbers are printed on a US check.",
+      "KASSA_USER": "Their ID is in Settings. Arrives in minutes.",
+      "OTHER": "For QR handoffs. Bank transfers can't reach it."
     }
   },
   "coolingEndsIn": "Can be paid in {{remaining}}",
@@ -152,7 +164,8 @@
     "customerNumber": "Customer or account number",
     "customerNumberHint": "Printed on your bill. The company matches your payment by it.",
     "billReference": "Reference (if the bill asks for one)",
-    "shopNote": "Note"
+    "shopNote": "Note",
+    "purposeCodeShort": "Kazakh banks ask for it: 311 wages, 119 family."
   },
   "relationship": {
     "FAMILY": "Family",

@@ -48,6 +48,18 @@
       "RENT": "房东或宿舍（与其账户名一致）",
       "BILLS": "公司名称",
       "SHOPS": "店铺名称"
+    },
+    "coolingShort": "新收款人 24 小时后才能付款。",
+    "moreDetails": "更多信息（选填）",
+    "place": "{{country}} · {{currency}}",
+    "editPlace": "修改",
+    "schemeNote": {
+      "IBAN": "在欧洲（SEPA），姓名和 IBAN 即可。",
+      "CN_ALIPAY": "以人民币付到对方的支付宝余额。",
+      "CN_UNIONPAY": "以人民币付到对方银联卡对应的账户。",
+      "US_ACH": "两个号码都印在美国支票上。",
+      "KASSA_USER": "Kassa ID 在“设置”中，几分钟内到账。",
+      "OTHER": "用于扫码付款，银行转账无法到达。"
     }
   },
   "coolingEndsIn": "{{remaining}} 后可付款",
@@ -152,7 +164,8 @@
     "customerNumber": "客户号或账户号",
     "customerNumberHint": "印在您的账单上。公司用它来匹配您的付款。",
     "billReference": "参考号（如账单要求）",
-    "shopNote": "备注"
+    "shopNote": "备注",
+    "purposeCodeShort": "哈萨克斯坦银行要求填写：311 为工资，119 为给家人。"
   },
   "relationship": {
     "FAMILY": "家人",

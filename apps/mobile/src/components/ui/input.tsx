@@ -23,6 +23,7 @@ export function Input({
   ref,
   returnKeyType,
   onSubmitEditing,
+  onBlur,
   submitBehavior,
   autoCorrect,
   autoComplete,
@@ -60,6 +61,7 @@ export function Input({
           editable={editable}
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmitEditing ? () => onSubmitEditing() : undefined}
+          onBlur={onBlur ? () => onBlur() : undefined}
           submitBehavior={submitBehavior}
           autoCorrect={autoCorrect}
           autoComplete={autoComplete}

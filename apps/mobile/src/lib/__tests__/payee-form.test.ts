@@ -3,6 +3,7 @@ import { describe, expect, it } from "@jest/globals";
 import {
   checkPayeeForm,
   EMPTY_PAYEE_FIELDS,
+  ibanCountry,
   schemesAndChoice,
   usualCurrency,
 } from "@/lib/payee-form";
@@ -13,6 +14,15 @@ describe("add-payee form", () => {
     expect(usualCurrency("CN")).toBe("CNY");
     expect(usualCurrency("US")).toBe("USD");
     expect(usualCurrency("BR")).toBeNull();
+    expect(usualCurrency("GB")).toBe("GBP");
+  });
+
+  it("reads the country from an IBAN's first two letters once they are a country", () => {
+    expect(ibanCountry("hu42 1177 3016")).toBe("HU");
+    expect(ibanCountry("KZ86125KZT5004100100")).toBe("KZ");
+    expect(ibanCountry("H")).toBeNull();
+    expect(ibanCountry("XX12")).toBeNull();
+    expect(ibanCountry("12HU")).toBeNull();
   });
 
   it("offers Alipay first in China and keeps a still-valid choice", () => {
