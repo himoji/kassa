@@ -11,7 +11,7 @@
 | [`ledger-verify.json`](https://github.com/himoji/kassa/blob/main/docs/evidence/ledger-verify.json) | Hash chain and checkpoint verification of the simulated story run (57 entries, 2 checkpoints, ok) | `bun run ledger:verify` |
 | [`anchors.json`](https://github.com/himoji/kassa/blob/main/docs/evidence/anchors.json) | The two checkpoints anchored on Sepolia, with transaction hashes and explorer links | `bun run ledger:anchor` |
 | [`story.json`](https://github.com/himoji/kassa/blob/main/docs/evidence/story.json) | An earlier run of the same business story (55 entries) | `bun run sim story` |
-| [`invoice-eval.json`](https://github.com/himoji/kassa/blob/main/docs/evidence/invoice-eval.json) | The live Reader on 30 labelled invoices: exact-match rate per field, latency. Produced on `deepseek-v4.1-flash`; the current default has not been re-evaluated | `bun run eval:invoices` |
+| [`invoice-eval.json`](https://github.com/himoji/kassa/blob/main/docs/evidence/invoice-eval.json) | The live Reader on 30 labelled invoices: exact-match rate per field, latency. Produced on `deepseek-v4.1-flash` on 2026-10-17; the current default has not been re-evaluated. Its six wrong-but-verified values (the student's own name as payee, an invoice number or a "no reference" note as the reference) all fail the stricter checks added on 2026-10-18 (`test/intel/reader-plausibility.test.ts`) | `bun run eval:invoices` |
 | [`sim/`](./sim/SUMMARY.md) | Persona and attacker simulation reports and their findings; `sim/tuition-e2e.json` is the student tuition run (12 entries, verified) | `bun run sim` |
 
 ## How to check them

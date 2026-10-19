@@ -9,7 +9,7 @@ import { newFallbackState, replayFallbackEnabled, withReplayFallback } from "../
 import { getPlannerModel, plannerSpec } from "../ai/models.ts";
 import { SDK_MAX_RETRIES } from "../ai/retry.ts";
 import { timeoutMiddleware, turnBudget, turnClock, turnTimeoutOf, type TurnBudget } from "./budget.ts";
-import { redactionMiddleware } from "./middleware.ts";
+import { redactionMiddleware, toolMarkupMiddleware } from "./middleware.ts";
 import type { AgentPorts } from "./ports.ts";
 import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
@@ -206,6 +206,8 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
       timeoutMiddleware({ stepMs: budget.stepMs, idleMs: budget.idleMs, deadline }),
       redactionMiddleware(redactor),
       ...(recorder ? [recorder.middleware()] : []),
+      // Innermost, so the recorder and every caller see the text without tool-call markup.
+      toolMarkupMiddleware(),
     ];
     return typeof base === "string" ? base : wrapLanguageModel({ model: base as Exclude<LanguageModel, string>, middleware });
   };

@@ -12,10 +12,10 @@ Workspace totals from the run of 2026-10-19 (see "Changelog" at the end). Per-fi
 ## Summary
 | Workspace | Files | Tests | Result |
 |---|---|---|---|
-| apps/api | 159 | 1,279 (+1 opt-in live smoke test, skipped) | all pass |
+| apps/api | 160 | 1,286 (+1 opt-in live smoke test, skipped) | all pass |
 | apps/mock-world | 12 | 394 | all pass |
 | packages/shared | 8 | 61 | all pass |
-| apps/mobile (jest) | 91 | 947 | all pass |
+| apps/mobile (jest) | 92 | 951 | all pass |
 
 Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incidents A10 to A17, regenerated 2026-10-19). Each case is REFUSED (code stopped it, nothing to approve), ASKED (a passkey prompt on the exact order; nothing moves unless the user approves) or PAID. Worst case per attack: **7 refused, 8 asked, 1 paid** (49 cases: 38 refused, 10 asked, 1 paid). The paid case is A5's handoff variant: a QR swapped inside the wallet after Kassa's check, detected (HANDOFF_PAID_MISMATCH) but not stopped. If the fooled user approves every prompt, the attacker's account is paid in **5 of 16** (A2, A5, A10, A16, A17). Baselines with the same intents: a **chatbot with a confirm tap** and no other checks pays the attacker's account in **11 of 16** when the fooled user taps (16 of 16 make an unwanted payment; with a user who declines, 1 of 16: A3, a forged confirmation); the **no-checks agent** pays **16 of 16** by construction. A9 is refused by its own test; it is not in the baselines.
 
@@ -89,7 +89,7 @@ Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incident
 | funding.test.ts | funding route bound into the signed order; INSUFFICIENT_FUNDS before signing | 5 passed | I2, I3 |
 | ledger.test.ts | hash chain, checkpoints, tamper, forgery, concurrency | 7 passed | I12 |
 | ledger-head.test.ts | signed ledger head: tail truncation, re-hashed tail, deleted head (X6) | 6 passed | I12 |
-| ledger-anchor.test.ts | testnet anchoring of checkpoints: memo format, anchor once, verify against chain and ledger, rewritten checkpoint, missing or foreign transaction, signed self-transaction; (2026-10-19) scheduled anchoring: newest checkpoint only, once, recorded in the ledger and listed publicly; a rewritten checkpoint stops it (ledgered once); off without a key, one anchor per interval | 8 passed | I12, R28 |
+| ledger-anchor.test.ts | testnet anchoring of checkpoints: memo format, anchor once, verify against chain and ledger, rewritten checkpoint, missing or foreign transaction, signed self-transaction; (2026-10-19) scheduled anchoring: newest checkpoint only, once, recorded in the ledger and listed publicly; a rewritten checkpoint stops it (ledgered once); off without a key, one anchor per interval; the public list says when the anchor account has no test ETH for gas | 9 passed | I12, R28 |
 | obligation-settlement.test.ts | no double payment per obligation period | 8 passed | idempotency |
 | order-expiry.test.ts | expired orders are re-issued, never re-signed; 410 ORDER_EXPIRED (X8) | 3 passed | I3, I4 |
 | orders-onboarding.test.ts | canonical order over HTTP; expiry; BOLA | 5 passed | I3 |
@@ -123,7 +123,7 @@ Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incident
 | payment-notes.test.ts | notification after a tap: place and city (coordinates rounded, dropped after retention), payment processor moved aside, budget context, cards learned from taps | added after 2026-10-12 | UX; retention |
 | insights.test.ts | `GET /insights/spending` (month by category and day vs last and usual month) and `GET /transactions/:id`; another user's purchase 404 | added after 2026-10-12 | OWASP API1 |
 | plan-advice.test.ts | `POST /plan/advice`: trims flexible budgets so a savings goal fits; no trims when it already fits | added after 2026-10-12 | planning |
-| schema-behind.test.ts | a database one migration behind still serves the core screens; `/health` says the schema is behind | added after 2026-10-12 | availability |
+| schema-behind.test.ts | a database one migration behind still serves the core screens; `/health` says the schema is behind; (2026-10-19) applied migrations are counted by hash, so a row left by an earlier build shows as `extra`, not as applied | added after 2026-10-12 | availability |
 
 ## Rules, screening
 | File | Flow | Actual | Maps to |
@@ -150,6 +150,7 @@ Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incident
 | fx-rates.test.ts, fx-routes.test.ts, forecast-fees.test.ts | rates, route optimizer, coverage forecast, fee x-ray | 18 / 9 / 18 passed |
 | forecast-routes-y4.test.ts | top-up suggestion covers the first shortfall; same-currency routes (Y4) | 4 passed |
 | budget-pace.test.ts, integration.test.ts, onboarding-replay.test.ts, record.test.ts, registry.test.ts, search-catalog-ref.test.ts, cn-recordings.test.ts | budgets, cross-module flows, replay, provider registry | 7 / 3 / 2 / 2 / 6 / 3 / 5 passed |
+| agent-tool-markup.test.ts | tool-call markup a model writes as text (DeepSeek DSML, the live run's "rent" reply) never reaches the user, however the stream is cut; a reply that was only markup is answered by the final-answer call | added 2026-10-19 (5 tests) |
 | agent-turn-hygiene.test.ts | amounts shown to the model in major units; bounded turns (largest payable amount per route); reasoning never streamed; picker cards show names and masked accounts while the model's input stays redacted | added after 2026-10-12 |
 | ai-retry.test.ts | 429 / 5xx retries with exponential backoff and jitter, `Retry-After` honoured, 400 / 401 not retried, streaming calls retried | added after 2026-10-12 |
 | ai-structured.test.ts | structured output on any provider: native, then one forced schema-carrier tool call, then JSON text; one retry on invalid output; the Reader keeps I10 without structured output | added after 2026-10-12 |
@@ -196,6 +197,7 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 - `docs/evidence/sim/SUMMARY.md` — summary
 
 ## Changelog
+- 2026-10-19 (after the three-judge review): totals re-run (api 160 files / 1,286 tests, 1 opt-in live smoke test skipped; mock-world 12 / 394; shared 8 / 61; mobile 92 / 951; 2,692 in all). New: `agent-tool-markup.test.ts` (tool-call markup stripped from model text), a schema-status case in `schema-behind.test.ts` and an anchor-signer case in `ledger-anchor.test.ts`. The mobile count was 951 already; the earlier 947 was stale.
 - 2026-10-19 (final): totals re-run (api 159 files / 1,279 tests, 1 opt-in live smoke test skipped; mock-world 12 / 394; shared 8 / 61; mobile 91 / 947; 2,681 in all), now including `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts`. `core/kyc.test.ts` no longer fails when a mock world is already running on port 4001 (`bun run dev`): its 503 case injects an unreachable identity checker instead of relying on the port being free.
 - 2026-10-19 (later): attack evidence split into REFUSED / ASKED / PAID per case (an ASK is a passkey prompt, not a refusal), with a second baseline, chatbot + tap-to-confirm (`test/naive/tap-confirm.ts`); `evidence-outcomes.test.ts`, `tap-confirm-baseline.test.ts` and `dataport/sample-statements.test.ts` added. These files are not in the totals of the 2026-10-19 run above.
 - 2026-10-19 (later): totals re-run (api 159 files / 1,278 tests, 1 opt-in live smoke test skipped; mock-world 12 / 393; shared 8 / 60; mobile 91 / 946; 2,677 in all) after the judge round 3 fixes, the locked Stage and mock-world operator screens, and scheduled ledger anchoring. Attack evidence regenerated: unchanged (7 refused, 8 asked, 1 paid).

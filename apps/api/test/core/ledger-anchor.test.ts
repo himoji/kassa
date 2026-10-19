@@ -160,6 +160,17 @@ describe("ledger anchoring", () => {
     expect(pub.anchors).toEqual([expect.objectContaining({ seq: 40, ledgerHeadHash: recorded[0]!.headHash })]);
   });
 
+  it("public list: says when the anchor account cannot pay the gas (2026-10-19)", async () => {
+    await appendEntries(25);
+    const broke = { ...fakeChain(), balance: async () => 0n };
+    expect((await publicAnchors(broke)).signer).toEqual({ balanceWei: "0", funded: false, note: expect.stringContaining("no test ETH") });
+    const funded = { ...fakeChain(), balance: async () => 10n ** 16n };
+    expect((await publicAnchors(funded)).signer).toEqual({ balanceWei: "10000000000000000", funded: true, note: null });
+    const down = { ...fakeChain(), balance: async () => Promise.reject(new Error("rpc down")) };
+    expect((await publicAnchors(down)).signer).toMatchObject({ funded: null, note: expect.stringContaining("ANCHOR_RPC_URL") });
+    expect((await publicAnchors(null)).signer).toBeNull();
+  });
+
   it("scheduled: a checkpoint rewritten after anchoring stops it, ledgered once", async () => {
     await appendEntries(25);
     const chain = fakeChain();

@@ -20,6 +20,18 @@ describe("a database one migration behind", () => {
     offlineEnvironment();
   });
 
+  // First: the next test removes a journal row for good.
+  it("counts this code's migrations by hash: a row left by an earlier build is extra, not applied (2026-10-19)", async () => {
+    const health = async () => (await app().inject({ method: "GET", url: "/api/health" })).json().schema as Record<string, unknown>;
+    const before = await health();
+    expect(before).toEqual({ status: "current", applied: before.expected, expected: before.expected });
+    // The public demo showed "applied 28, expected 27": one migration recorded twice (renumbered before it merged).
+    await getDb().execute(sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) SELECT hash, created_at + 1 FROM drizzle.__drizzle_migrations ORDER BY id DESC LIMIT 1`);
+    await getDb().execute(sql`INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('stale', 1)`);
+    expect(await health()).toEqual({ status: "current", applied: before.expected, expected: before.expected, extra: 2 });
+    await getDb().execute(sql`DELETE FROM drizzle.__drizzle_migrations WHERE id IN (SELECT id FROM drizzle.__drizzle_migrations ORDER BY id DESC LIMIT 2)`);
+  });
+
   it("still serves the core screens, and /health says it is behind", async () => {
     const { userId } = await createUserWithPasskey();
     const headers = await bearer(userId);

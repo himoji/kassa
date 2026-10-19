@@ -82,12 +82,27 @@ export async function autoAnchorTick(client: AnchorClient | null = configuredCli
   return anchorNewestCheckpoint(client);
 }
 
+/** How long the public list waits for the signer's balance before it reports it as unknown. */
+const BALANCE_TIMEOUT_MS = 3_000;
+
+/**
+ * (2026-10-19) The anchor account pays the gas: with no test ETH every scheduled anchor fails and the list stays empty
+ * with no sign of why. The public list says whether the account can pay (null: the RPC did not answer in time).
+ */
+async function signerStatus(client: AnchorClient): Promise<{ balanceWei: string | null; funded: boolean | null; note: string | null }> {
+  if (!client.balance) return { balanceWei: null, funded: null, note: null };
+  const balance = await Promise.race([client.balance().catch(() => null), new Promise<null>((r) => setTimeout(() => r(null), BALANCE_TIMEOUT_MS).unref?.())]);
+  if (balance === null) return { balanceWei: null, funded: null, note: "The chain's RPC did not answer; set ANCHOR_RPC_URL to a reliable endpoint." };
+  const funded = balance > 0n;
+  return { balanceWei: balance.toString(), funded, note: funded ? null : `The anchor account ${client.account} has no test ETH for gas, so scheduled anchors cannot be sent until it is funded.` };
+}
+
 /** GET /api/public/anchors: what was anchored, where, and whether this deployment anchors on a schedule. */
-export async function publicAnchors() {
+export async function publicAnchors(client: AnchorClient | null = configuredClient()) {
   const e = env();
   const chain = anchorChain(e.ANCHOR_CHAIN);
   const db = getDb();
-  const [anchors, checkpoints] = await Promise.all([anchorsInLedger(db), listCheckpoints(db)]);
+  const [anchors, checkpoints, signer] = await Promise.all([anchorsInLedger(db), listCheckpoints(db), client ? signerStatus(client) : null]);
   const onChain = anchors.filter((a) => a.chainId === chain.id);
   return {
     domain: ANCHOR_DOMAIN,
@@ -96,6 +111,7 @@ export async function publicAnchors() {
     scheduled: Boolean(e.ANCHOR_PRIVATE_KEY),
     account: e.ANCHOR_PRIVATE_KEY ? privateKeyToAccount(e.ANCHOR_PRIVATE_KEY as Hex).address : null,
     intervalMinutes: e.ANCHOR_INTERVAL_MINUTES,
+    signer,
     latestCheckpoint: checkpoints.at(-1) ?? null,
     // Newest first; each with the ledger's current checkpoint at that seq, so a reader can compare it with the chain.
     anchors: onChain

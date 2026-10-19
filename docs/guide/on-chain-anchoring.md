@@ -52,7 +52,7 @@ They are listed in [`anchors.json`](https://github.com/himoji/kassa/blob/main/do
 
 ## Scheduled anchoring
 
-With `ANCHOR_PRIVATE_KEY` set on a deployment, its scheduler anchors the newest signed checkpoint at most once per `ANCHOR_INTERVAL_MINUTES`. That checkpoint's hash covers every entry before it, so one transaction per interval anchors the whole ledger so far. A checkpoint rewritten after it was anchored stops the job (`LEDGER_ANCHOR_CONFLICT`). `GET /api/public/anchors` lists the anchors with explorer links.
+With `ANCHOR_PRIVATE_KEY` set on a deployment, its scheduler anchors the newest signed checkpoint at most once per `ANCHOR_INTERVAL_MINUTES`. That checkpoint's hash covers every entry before it, so one transaction per interval anchors the whole ledger so far. A checkpoint rewritten after it was anchored stops the job (`LEDGER_ANCHOR_CONFLICT`). `GET /api/public/anchors` lists the anchors with explorer links. Its `signer` field says whether the anchor account can pay the gas: `"funded": false` with a note means the account has no test ETH, so every scheduled anchor fails and the list stays empty until it is funded; `"funded": null` means the RPC did not answer (set `ANCHOR_RPC_URL`).
 
 ## What it proves, and what it does not
 

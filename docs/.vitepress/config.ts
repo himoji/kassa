@@ -40,6 +40,7 @@ export default withMermaid(
       {
         text: "Guide",
         items: [
+          { text: "Check it in ten minutes", link: "/submission/walkthrough" },
           { text: "Introduction", link: "/guide/introduction" },
           { text: "Quickstart", link: "/guide/quickstart" },
           { text: "Run locally", link: "/guide/run-locally" },
@@ -48,6 +49,12 @@ export default withMermaid(
           { text: "Deploy", link: "/guide/deploy" },
           { text: "On-chain anchoring", link: "/guide/on-chain-anchoring" },
           { text: "Sandbox payments", link: "/guide/sandbox-payments" },
+        ],
+      },
+      {
+        text: "Beyond Topic C",
+        collapsed: true,
+        items: [
           { text: "KassaLite (iPhone)", link: "/guide/kassalite" },
           { text: "iPhone Shortcuts", link: "/guide/shortcuts" },
           { text: "Over-the-air updates", link: "/guide/ota-updates" },
@@ -112,6 +119,7 @@ export default withMermaid(
         text: "Submission",
         collapsed: true,
         items: [
+          { text: "Check it in ten minutes", link: "/submission/walkthrough" },
           { text: "Checklist map", link: "/submission/" },
           { text: "Demo videos", link: "/submission/demo-videos" },
           { text: "Pitch script", link: "/submission/pitch" },

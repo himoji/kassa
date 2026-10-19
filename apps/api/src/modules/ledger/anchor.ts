@@ -53,6 +53,8 @@ export interface AnchorClient {
   send(data: Hex): Promise<{ txHash: Hex; blockNumber: number }>;
   /** The input data of a mined transaction, or null if the chain does not know it. */
   inputOf(txHash: Hex): Promise<Hex | null>;
+  /** The anchor account's balance in wei (it pays the gas). */
+  balance?(): Promise<bigint>;
 }
 
 export function anchorMemo(cp: CheckpointRef): string {
@@ -214,5 +216,6 @@ export function viemAnchorClient(opts: {
       return { txHash, blockNumber: Number(receipt.blockNumber) };
     },
     inputOf: reader.inputOf,
+    balance: () => pub.getBalance({ address: account.address }),
   };
 }

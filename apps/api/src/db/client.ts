@@ -16,6 +16,7 @@ import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import { drizzle as drizzlePostgres } from "drizzle-orm/postgres-js";
 import { migrate as migratePostgres } from "drizzle-orm/postgres-js/migrator";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -160,21 +161,35 @@ const MIGRATION_LOCK = 0x6b61737361;
 
 /** Migrations in the repository (drizzle's journal). */
 export function expectedMigrations(): number {
-  const journal = JSON.parse(readFileSync(join(MIGRATIONS_DIR, "meta", "_journal.json"), "utf8")) as { entries: unknown[] };
-  return journal.entries.length;
+  return migrationHashes().length;
+}
+
+/** Each journal migration's hash as drizzle records it: sha256 of the .sql file (drizzle-orm/migrator readMigrationFiles). */
+function migrationHashes(): string[] {
+  const journal = JSON.parse(readFileSync(join(MIGRATIONS_DIR, "meta", "_journal.json"), "utf8")) as { entries: { tag: string }[] };
+  return journal.entries.map((e) => createHash("sha256").update(readFileSync(join(MIGRATIONS_DIR, `${e.tag}.sql`), "utf8")).digest("hex"));
 }
 
 /**
  * Whether the database has every migration this code expects (GET /api/health): "behind" means a deploy skipped
  * `db:migrate`, and endpoints that read the newest columns will fail until it runs.
+ *
+ * (2026-10-19) `applied` counts this code's migrations found in the database, by hash, not the database's rows: a row
+ * left by an earlier build (a migration renumbered before it merged was recorded twice) showed as "applied 28,
+ * expected 27". Such rows are reported apart as `extra`.
  */
-export async function schemaStatus(): Promise<{ status: "current" | "behind" | "unknown"; applied: number | null; expected: number }> {
-  const expected = expectedMigrations();
+export async function schemaStatus(): Promise<{ status: "current" | "behind" | "unknown"; applied: number | null; expected: number; extra?: number }> {
+  const hashes = migrationHashes();
+  const expected = hashes.length;
   try {
-    const r = await getDb().execute(sql`select count(*)::int as n from drizzle.__drizzle_migrations`);
-    const rows = (Array.isArray(r) ? r : (r as { rows: unknown[] }).rows) as { n: number }[];
-    const applied = Number(rows[0]?.n ?? 0);
-    return { status: applied >= expected ? "current" : "behind", applied, expected };
+    const r = await getDb().execute(sql`select hash from drizzle.__drizzle_migrations`);
+    const rows = (Array.isArray(r) ? r : (r as { rows: unknown[] }).rows) as { hash: string }[];
+    const inDb = new Set(rows.map((row) => row.hash));
+    const applied = hashes.filter((h) => inDb.has(h)).length;
+    const extra = rows.length - applied;
+    // A migration file edited after it ran no longer matches its row; the row count still shows it ran.
+    const status = applied === expected || rows.length >= expected ? "current" : "behind";
+    return { status, applied, expected, ...(extra > 0 ? { extra } : {}) };
   } catch {
     return { status: "unknown", applied: null, expected };
   }
