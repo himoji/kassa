@@ -411,7 +411,7 @@ function Alerts() {
 }
 
 /** Pay by what it is for: one shortcut per recipient category, then all recipients. */
-function PayTo() {
+export function PayTo() {
   const t = useKassaT();
   const { colors } = useTheme();
   return (

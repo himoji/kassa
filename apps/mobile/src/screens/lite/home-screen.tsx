@@ -16,7 +16,6 @@ import { useSpendingInsights } from "@/api/hooks/insights";
 import { useMe } from "@/api/hooks/me";
 import {
   useAgentActivity,
-  useBalances,
   useBudgets,
   useCardFees,
   useCards,
@@ -24,7 +23,6 @@ import {
   usePendingProposals,
 } from "@/api/hooks/money";
 import { usePayees } from "@/api/hooks/payees";
-import { SimulatedBadge } from "@/components/kassa/badges";
 import { FreezeButton } from "@/components/kassa/freeze-button";
 import { ObligationRow } from "@/components/kassa/obligation-row";
 import { ProposalCard } from "@/components/kassa/proposal-card";
@@ -38,6 +36,7 @@ import { haptics } from "@/lib/haptics";
 import { useKassaT } from "@/lib/i18n";
 import { useDataMode, visibleCaptures } from "@/lite/data-mode";
 import { useRecentCaptures } from "@/lite/use-recent-captures";
+import { PayTo } from "@/screens/home/home-screen";
 import { CaptureRow, cardName, sortCaptures } from "@/screens/lite/activity-screen";
 import { statusColor, type StatusTone } from "@/theme/status";
 
@@ -201,7 +200,6 @@ function AllCard({ width }: { width: number }) {
   const f = useFormat();
   const insights = useSpendingInsights().data;
   const budgets = useBudgets().data;
-  const simulated = useBalances().data?.simulated ?? false;
   const list = budgets?.budgets ?? [];
   const left =
     list.reduce((s, b) => s + b.limitHomeMinor, 0) - list.reduce((s, b) => s + b.spentHomeMinor, 0);
@@ -223,7 +221,6 @@ function AllCard({ width }: { width: number }) {
               ? t("lite:home.spentIn", { month: f.monthName(insights.month.start) })
               : t("lite:home.spentThisMonth")}
           </Text>
-          {simulated ? <SimulatedBadge /> : null}
         </Box>
         <Text
           variant="title"
@@ -1026,6 +1023,9 @@ export function LiteHomeScreen() {
             })}
           </ScrollView>
         </View>
+
+        {/* Quick pay: the same five recipient groups as the full Home. */}
+        <PayTo />
 
         {page.kind === "all" ? (
           <AllDetails captures={captures} onMore={() => goTo(kassaIndex)} />
