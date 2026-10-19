@@ -9,7 +9,7 @@
  *    emails, phone numbers become placeholders; the server keeps the map).
  *  - Reader: the raw text/image of a document the user uploaded or a message to parse. It has no tools and no
  *    memory and its output is schema-checked against the source (I10); it needs the raw text to extract the
- *    amount and account, so documents are NOT redacted before the Reader (documented in docs/PRIVACY.md).
+ *    amount and account, so documents are NOT redacted before the Reader (documented in docs/security/privacy.md).
  */
 import type { AiNotice, Region } from "@kassa/shared";
 import type { FastifyRequest } from "fastify";
@@ -37,7 +37,7 @@ function info(spec: () => ModelSpec): AiNotice["planner"] {
 }
 
 /**
- * Region line (docs/DECISIONS.md 2026-10-12 "Per-region AI notice", 2026-10-12 "PIPL separate consent"). CN: PIPL
+ * Region line (docs/architecture/decisions.md 2026-10-12 "Per-region AI notice", 2026-10-12 "PIPL separate consent"). CN: PIPL
  * (Personal Information Protection Law of the PRC) Art. 38–39 — personal information leaving mainland China is a
  * cross-border transfer that needs the person to be told the recipient and to give separate consent (Art. 39).
  * Kassa asks for it separately (POST /privacy/pipl-consent); without it the AI routes answer 403

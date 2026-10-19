@@ -107,7 +107,7 @@ if (noTunnel) {
     KASSA_APP_URL: tunnel.url,
     DEMO_ENABLED: process.env.DEMO_ENABLED ?? "true",
     // Dev sign-in (a server-held test passkey) over a public tunnel lets anyone with the URL approve payments as the
-    // dev user, so it is off unless asked for: DEV_LOGIN=true bun run dev:all (SECURITY.md §7.0).
+    // dev user, so it is off unless asked for: DEV_LOGIN=true bun run dev:all (docs/security/self-assessment.md §7.0).
     ...(process.env.DEV_LOGIN === "true" ? { DEV_LOGIN: "true" } : {}),
   };
   writeFileSync(

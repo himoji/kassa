@@ -1,5 +1,5 @@
 /*
- * Attack inputs for A10..A17, the real-world incidents recreated against Kassa (docs/SECURITY.md §6). Plain data and
+ * Attack inputs for A10..A17, the real-world incidents recreated against Kassa (docs/security/self-assessment.md §6). Plain data and
  * pure helpers only, with no imports from src/: both the guarded tests (test/attacks/A10..A17) and the naive harness
  * (test/naive/harness.ts, which must not import the guarded modules) use the same attacker texts, accounts and amounts.
  * Attacker accounts are the fictitious attacker IBANs in fixtures/seed-data.ts (valid check digits, no real bank).

@@ -6,7 +6,7 @@ import { createProviderRegistry } from "ai";
 import { AiConfigError } from "./errors.ts";
 
 /*
- * Provider-agnostic model registry (docs/DECISIONS.md 2026-10-10 "Provider-agnostic LLM via the Vercel
+ * Provider-agnostic model registry (docs/architecture/decisions.md 2026-10-10 "Provider-agnostic LLM via the Vercel
  * AI SDK"). Models are addressed as `provider:model`; the registry splits on the FIRST `:` so local
  * model ids such as `local:llama3.1:8b` work.
  */

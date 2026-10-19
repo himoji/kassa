@@ -82,7 +82,7 @@ function LiteNavigator() {
               sheetCornerRadius: 24,
             }}
           />
-          {/* The full app's screens (docs/KASSALITE.md "What is in it"); approving and other passkey steps open the
+          {/* The full app's screens (docs/guide/kassalite.md "What is in it"); approving and other passkey steps open the
               web app (428 approveInWebApp). */}
           <Stack.Screen
             name="payees/index"

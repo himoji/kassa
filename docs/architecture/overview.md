@@ -1,8 +1,8 @@
 # Architecture
 
-Kassa separates three things that most finance agents mix together: **drafting** (the AI), **deciding** (plain code), and **moving money** (signed approvals only). This document describes the parts, how a request travels through them, the three core algorithms, the data model, and the AI layer. Security controls are in [SECURITY.md](SECURITY.md); privacy in [PRIVACY.md](PRIVACY.md).
+Kassa separates three things that most finance agents mix together: **drafting** (the AI), **deciding** (plain code), and **moving money** (signed approvals only). This document describes the parts, how a request travels through them, the three core algorithms, the data model, and the AI layer. Security controls are in [security/self-assessment.md](../security/self-assessment.md); privacy in [security/privacy.md](../security/privacy.md).
 
-Source of truth: [docs/spec/TECH_SPEC.md](spec/TECH_SPEC.md) (how). Deviations are logged with dates in [DECISIONS.md](DECISIONS.md).
+Source of truth: [docs/architecture/tech-spec.md](./tech-spec.md) (how). Deviations are logged with dates in [architecture/decisions.md](./decisions.md).
 
 ## 1. System parts
 
@@ -248,7 +248,7 @@ Tests: `apps/api/test/rules/risk.test.ts` (16 tests: median, weights sum, featur
 | 2 | Payee missing, blocked, or cooling before `coolingUntil` | REFUSE (`REFUSE_UNVERIFIED_PAYEE`). Cooling after the window is usable only with a passkey (ASK, `PAYEE_COOLING`) |
 | 3 | Reader marks amount or account unverified | REFUSE (`REFUSE_SOURCE_MISMATCH`) |
 | 4 | Screening hit, on every rail (bank transfer, card, wallet, QR) | REFUSE (`REFUSE_SANCTIONS`) |
-| 5 | Per-payment, daily or monthly cap, or reserve breached | REFUSE (`REFUSE_CAP`) under every preset, never an ASK (the "within 2× the cap" ask was removed on 2026-10-14, DECISIONS.md). To pay more, the user first raises the cap with the passkey |
+| 5 | Per-payment, daily or monthly cap, or reserve breached | REFUSE (`REFUSE_CAP`) under every preset, never an ASK (the "within 2× the cap" ask was removed on 2026-10-14, architecture/decisions.md). To pay more, the user first raises the cap with the passkey |
 | 6 | Region CN, or money mode HANDOFF | HANDOFF |
 | 7 | Active, effective mandate covers the order, and preset is not Ask me | AUTO (T1) |
 | 8 | Ask me; Autopilot without mandate; Smart with R ≥ 0.5 | ASK (T2) |
@@ -269,7 +269,7 @@ orderHash = base64url(sha256(utf8(JCS(order))))              // RFC 8785 JCS, RF
 - The rules module verifies the assertion, then signs an approval `{orderHash, tier, issuedAt, expiresAt = +5 min, keyId}` with Ed25519 (`RULES_SIGNING_KEY`, RFC 8032) over `JCS(approval)` (`rules/signing.ts`).
 - The payments module recomputes `orderHash` from the stored canonical order and checks the approval signature with `RULES_PUBLIC_KEY` (`payments/index.ts`).
 - Expired pending orders are re-issued with a new nonce, expiry and hash. The old hash can never be approved.
-- The app recomputes the hash before any passkey prompt and refuses to sign on a mismatch (defence in depth, `DECISIONS.md` 2026-10-11).
+- The app recomputes the hash before any passkey prompt and refuses to sign on a mismatch (defence in depth, `architecture/decisions.md` 2026-10-11).
 
 Golden vectors for `orderHash` and `mandateHash` are committed in `packages/shared/test/order.test.ts` and `packages/shared/test/mandate.test.ts`.
 
@@ -294,7 +294,7 @@ Tables are defined in `apps/api/src/db/schema.ts` (spec §6, plus additions) and
 
 Models are addressed as `provider:model` in `PLANNER_MODEL` and `READER_MODEL`. The registry is built on the Vercel AI SDK (`ai`) provider registry (`apps/api/src/modules/ai/registry.ts`). Providers: `openrouter`, `openai`, `google`, and `local` (any OpenAI-compatible endpoint, for example Ollama or LM Studio). The registry splits on the first `:`, so `local:llama3.1:8b` is valid.
 
-Providers that do not support tool calling or image input return an error code for the affected feature (for example `AI_VISION_UNSUPPORTED`). The spec named one vendor SDK directly; the AI SDK was chosen so that providers can change without code changes (`DECISIONS.md`, 2026-10-10).
+Providers that do not support tool calling or image input return an error code for the affected feature (for example `AI_VISION_UNSUPPORTED`). The spec named one vendor SDK directly; the AI SDK was chosen so that providers can change without code changes (`architecture/decisions.md`, 2026-10-10).
 
 ### 7.2 Planner loop
 
@@ -353,7 +353,7 @@ The planner's behaviour in replay is therefore fixed, which is what makes the de
 | Errors | RFC 9457 (problem details) |
 | Encryption | NIST SP 800-38D (AES-GCM), RFC 5869 (HKDF for the PAN reference key) |
 
-The full list, with the reasoning, is in `DECISIONS.md` (standards-first rule, 2026-10-10).
+The full list, with the reasoning, is in `architecture/decisions.md` (standards-first rule, 2026-10-10).
 
 ## 11. Known deviations from the spec
 
@@ -368,4 +368,4 @@ The full list, with the reasoning, is in `DECISIONS.md` (standards-first rule, 2
 | Route cost with late-arrival penalty | Late routes excluded, no penalty term | Simpler and deterministic | Section 4.1 |
 | Single Postgres | PGlite by default, Postgres when `DATABASE_URL` is set | No Docker needed for local use | DECISIONS 2026-10-11 |
 
-Known limitations of the current build are listed in [SECURITY.md](SECURITY.md), section 7.
+Known limitations of the current build are listed in [security/self-assessment.md](../security/self-assessment.md), section 7.

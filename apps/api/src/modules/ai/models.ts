@@ -4,7 +4,7 @@ import { AiConfigError } from "./errors.ts";
 import { aiMaxRetries, aiStreamMaxRetries, withRetries } from "./retry.ts";
 import { assertProviderKey, createRegistry, parseModelSpec, type Env, type KassaRegistry, type ModelSpec } from "./registry.ts";
 
-/** Spec §3 roles, defaults from docs/DECISIONS.md (provider-agnostic LLM). */
+/** Spec §3 roles, defaults from docs/architecture/decisions.md (provider-agnostic LLM). */
 export const DEFAULT_PLANNER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash-1017";
 export const DEFAULT_READER_MODEL = "openrouter:deepseek/deepseek-v4.1-flash-1017";
 

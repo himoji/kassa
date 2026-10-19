@@ -58,10 +58,10 @@ const EnvSchema = z.object({
   /** Stripe Issuing balance/card currency (EU accounts: EUR). Charges in other currencies are converted by Stripe. */
   STRIPE_ISSUING_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("EUR"),
   // Spec §20 example is ₸500,000, but the hero tuition (€2,400 ≈ ₸1.3–1.4M) would then always be refused
-  // by payments (I5). Default ₸2,000,000; see docs/DECISIONS.md 2026-10-11.
+  // by payments (I5). Default ₸2,000,000; see docs/architecture/decisions.md 2026-10-11.
   PAYMENTS_DAILY_CAP_HOME_MINOR: z.coerce.number().int().positive().default(200_000_000),
   // (cap currency) PAYMENTS_DAILY_CAP_HOME_MINOR is a fixed amount in this reference currency; each user gets it converted to
-  // their home currency, rounded down, fail-closed. See docs/DECISIONS.md 2026-10-12.
+  // their home currency, rounded down, fail-closed. See docs/architecture/decisions.md 2026-10-12.
   PAYMENTS_DAILY_CAP_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("KZT"),
   // (X3, security review F2) Per-day small-auto budget (T1 without a mandate): at most this many payments per UTC
   // day, and at most MULTIPLE × the signed small-auto limit in total. Beyond it: ASK SMALL_AUTO_BUDGET_EXHAUSTED.
@@ -69,7 +69,7 @@ const EnvSchema = z.object({
   SMALL_AUTO_DAILY_AMOUNT_MULTIPLE: z.coerce.number().int().min(0).default(3),
   // (added 2026-10-16, KYC) A payment above this amount, or a day's top-ups above it, needs a VERIFIED identity check
   // (KYC_REQUIRED). Defined in KYC_THRESHOLD_CURRENCY (default EUR 1,000.00) and converted to each user's home
-  // currency, rounded down; unconvertible means 0 (every payment needs it, fail closed). See docs/DECISIONS.md.
+  // currency, rounded down; unconvertible means 0 (every payment needs it, fail closed). See docs/architecture/decisions.md.
   KYC_THRESHOLD_MINOR: z.coerce.number().int().min(0).default(100_000),
   KYC_THRESHOLD_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("EUR"),
   DEMO_ENABLED: bool,

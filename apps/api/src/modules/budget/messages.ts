@@ -2,7 +2,7 @@ import { formatMoney, type BudgetPace } from "@kassa/shared";
 
 /*
  * Notification messages as structured `{key, params}` so the app localises them with i18next
- * (docs/DECISIONS.md "i18n via i18next"); the server also stores an English rendering in
+ * (docs/architecture/decisions.md "i18n via i18next"); the server also stores an English rendering in
  * notifications.title/body for logs and the web toast. Money params are {amountMinor, currency}
  * (formatted client-side with formatMoney); percentages are integers.
  */

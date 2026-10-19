@@ -36,7 +36,7 @@ const ANDROID_BODY =
 
 /**
  * Settings → "Payment taps → Kassa": mint a device token (shown once), copy the endpoint, and follow the steps for
- * the phone (docs/SHORTCUT_SETUP.md): iPhone, the Shortcuts Transaction trigger for Apple Pay taps in shops plus a
+ * the phone (docs/guide/shortcuts.md): iPhone, the Shortcuts Transaction trigger for Apple Pay taps in shops plus a
  * Message trigger for the bank SMS that online and in-app Apple Pay leave; Android, an automation app forwarding
  * Google Wallet, Samsung Wallet, Alipay, WeChat Pay and bank notifications. Revoke tokens. Capture only logs (I6).
  */

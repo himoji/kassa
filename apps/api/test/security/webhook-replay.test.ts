@@ -1,5 +1,5 @@
 /*
- * I13 webhook hardening beyond HMAC (RUNBOOK S3, S9; SECURITY.md R5, R6):
+ * I13 webhook hardening beyond HMAC (RUNBOOK S3, S9; docs/security/self-assessment.md R5, R6):
  * - a valid signed mock webhook replayed inside the 5-minute window is refused (409 WEBHOOK_REPLAYED, ledgered);
  *   the seen-signature store is purged by the scheduler once entries are outside the window;
  * - malicious mock-bank status sequences (unknown state, another user's profile, backwards moves, a move after

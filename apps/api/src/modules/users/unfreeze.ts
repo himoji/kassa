@@ -1,5 +1,5 @@
 /*
- * Unfreeze (docs/DECISIONS.md 2026-10-11: freeze is instant, unfreeze is a loosening — I8).
+ * Unfreeze (docs/architecture/decisions.md 2026-10-11: freeze is instant, unfreeze is a loosening — I8).
  *
  * POST /unfreeze: the first call answers HTTP 428 PASSKEY_REQUIRED with a challenge = jcsHash(core), where
  * core = {v, kind:"UNFREEZE", userId, frozenAt, nonce} (the nonce makes every request's challenge unique, so an

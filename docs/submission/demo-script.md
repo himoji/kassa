@@ -1,6 +1,6 @@
 # Demo script (five beats, target 5 minutes or less)
 
-Committed video: [`docs/demo/kassa-demo.mp4`](demo/kassa-demo.mp4) (3:28; also split as `kassa-eu.mp4`, 1:20, and `kassa-cn.mp4`, 2:08). It is not a cut-down of this script: it is an earlier take (the 2026-10-12 recorder, replayed planner) that films different scenes: an EU story (café tap logged, pizza order paid with no prompt inside Dana's signed rules, QR till, ledger check) and a China story (QR wallet handoff, purchase order signed with the passkey, swapped-invoice attack refused). The five beats below are not in it. See "Recording the video automatically" below.
+Committed video: [`docs/demo/kassa-demo.mp4`](https://github.com/himoji/kassa/blob/main/docs/demo/kassa-demo.mp4) (3:28; also split as `kassa-eu.mp4`, 1:20, and `kassa-cn.mp4`, 2:08). It is not a cut-down of this script: it is an earlier take (the 2026-10-12 recorder, replayed planner) that films different scenes: an EU story (café tap logged, pizza order paid with no prompt inside Dana's signed rules, QR till, ledger check) and a China story (QR wallet handoff, purchase order signed with the passkey, swapped-invoice attack refused). The five beats below are not in it. See "Recording the video automatically" below.
 
 The theme is "AI as a Financial Participant", so the video shows the agent doing the work, and the limits that keep it safe.
 
@@ -24,9 +24,9 @@ Before recording: `AGENT_MODE=LIVE` with a working key, and check that a chat tu
 
 Optional beat, linked accounts and the school portal (about 40 s, replaces part of beat 2): open University in Budapest under Recipients, tap "Pay this invoice", pick From → Visa •4242 (seeded, already linked), approve with the passkey. The receipt reads "Delivered in 0.1 s" (simulated payout). Open the school portal from the recipient (the link signs Dana in; opened any other way, e.g. `/mock/schools/budapest/portal?studentId=KZ26-0417`, the portal asks for the student ID and date of birth: Dana's is 2005-03-14): the invoice shows Paid, and Kassa notifies "University in Budapest received your tuition". Point: money arrives in seconds from a card or bank you already have, and the school confirms it. To show linking itself, Settings → Linked accounts → Link a bank → Kaspi with the code from the bank's note.
 
-Sample statements for beat 1 (fictitious year of Dana's money, see [fixtures/statements/README.md](../fixtures/statements/README.md)): expected result "Нұрлан С.: money came in 8 of 12 months (9 of 12 with the HUF file), ₸90,000–₸370,000, plan with the average", the scholarship regular, rent to Landlord in Budapest as a monthly bill, transfers between her own accounts left out.
+Sample statements for beat 1 (fictitious year of Dana's money, see [fixtures/statements/README.md](https://github.com/himoji/kassa/blob/main/fixtures/statements/README.md)): expected result "Нұрлан С.: money came in 8 of 12 months (9 of 12 with the HUF file), ₸90,000–₸370,000, plan with the average", the scholarship regular, rent to Landlord in Budapest as a monthly bill, transfers between her own accounts left out.
 
-Optional if time allows: a real Apple Pay tap logged through KassaLite ([KASSALITE.md](KASSALITE.md)), or the China QR handoff (scenes 3:30 to 4:30 below).
+Optional if time allows: a real Apple Pay tap logged through KassaLite ([guide/kassalite.md](../guide/kassalite.md)), or the China QR handoff (scenes 3:30 to 4:30 below).
 
 If Dana's onboarding was already done on this database, press "Reset demo" first. To show the mandate without onboarding, sign it from the landlord's payee screen.
 
@@ -75,7 +75,7 @@ Setup: `bun run phone` starts the one-origin proxy (`/api` → API :4000, `/mock
 
 Devices (all on `https://HOST`):
 
-- iPhone 1: Dana (the seeded hero, "Try the demo") in Safari, plus the real Apple Pay Shortcut automation from [SHORTCUT_SETUP.md](SHORTCUT_SETUP.md).
+- iPhone 1: Dana (the seeded hero, "Try the demo") in Safari, plus the real Apple Pay Shortcut automation from [guide/shortcuts.md](../guide/shortcuts.md).
 - iPhone 2: the pizzeria owner (persona `pizzeria-bud`, or `pizzeria-sha` for the Shanghai beats) in Safari, and a second tab on `/mock/shop/bud/till`.
 - Mac: `/mock/shop/bud/kitchen`, `/mock/shop/sha/kitchen`, `/mock/supplier/c/portal` (Shanghai supplier; `a` is Budapest, `b`/`d` are the cooling attackers) and `/mock/stage`.
 - Android emulator: Li Wei in Shanghai (persona `li-wei-cn`, region CN) in the browser.

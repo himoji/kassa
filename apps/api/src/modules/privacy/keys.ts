@@ -6,7 +6,7 @@
  *   AES-256-GCM(KEK, DEK, AAD = "kassa:dek:v1:" + userId), so a wrapped key cannot be moved to another user.
  *   (AES-GCM wrapping instead of RFC 3394 AES-KW: one primitive in the codebase, authenticated, and the AAD binds
  *   the owner.) `user_keys.kek_id` names the KEK of each row. A KMS provider would implement the same interface
- *   (docs/SECURITY.md R15); `setKeyProvider` installs it.
+ *   (docs/security/self-assessment.md R15); `setKeyProvider` installs it.
  * - Rotation (scripts/rotate-kek.ts, `rewrapUserKeys`): every row is re-wrapped from the old KEK to the new one in
  *   one transaction; DEKs and so every sealed ciphertext stay the same. While USER_KEK_PREVIOUS is set, the env
  *   provider still unwraps rows of the previous KEK, so the API can run on the new KEK before the re-wrap.

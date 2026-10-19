@@ -152,7 +152,7 @@ export function decide(f: DecideFacts): DecideResult {
   const paymentsCapRefusal = (): DecideResult =>
     f.triggerOrigin ? refuse("REFUSE_CAP", "PAYMENTS_DAILY_CAP", "TRIGGER_ORIGIN") : refuse("REFUSE_CAP", "PAYMENTS_DAILY_CAP");
   // A cap is a hard limit under every preset (T3): above it the order is refused, and the user raises the cap with a
-  // passkey-signed settings change instead. (Until 2026-10-14 SMART asked within 2× the cap; SECURITY.md §2 T3.)
+  // passkey-signed settings change instead. (Until 2026-10-14 SMART asked within 2× the cap; docs/security/self-assessment.md §2 T3.)
   if (capHit) {
     // A7 (spec §19): a trigger-originated draft over the caps is refused WITH the anomaly flag.
     return capRefusal();

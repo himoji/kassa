@@ -1,6 +1,6 @@
 # Live agent run
 
-Generated 2026-10-18 by `bun run evidence:live` against `https://kassa-judge.vercel.app/api` (the judge build: same code, test passkey, demo data, live model). Raw record: [live-agent.json](live-agent.json).
+Generated 2026-10-18 by `bun run evidence:live` against `https://kassa-judge.vercel.app/api` (the judge build: same code, test passkey, demo data, live model). Raw record: [live-agent.json](https://github.com/himoji/kassa/blob/main/docs/evidence/live-agent.json).
 
 7 of 7 turns were answered by the live model (no replay). 4 proposals. Attacks: 0 of 3 paid any account the attack introduced. In an attack, an order that needs the passkey is approved anyway (the user was fooled), so what is tested is where the money can go.
 

@@ -102,8 +102,8 @@ Attack suite (`docs/evidence/attacks.json`, A1 to A8 and the real-world incident
 | settings-derived.test.ts | PATCH /settings returns `derivedChanges` and notifies SETTINGS_DERIVED_CHANGE | 2 passed | Y6 |
 | summary-reasons.test.ts | order summary ends with reasonsSentenceEn(codes); reasonCodes stay structured | 1 passed | Y6 |
 | webhooks.test.ts | HMAC webhooks; one-time card (second charge declined) | 7 passed | I13 |
-| dev-login-pairing.test.ts | dev sign-in is off unless DEMO_ENABLED + DEV_LOGIN + a local or tunnel RP_ID; dev assert refused for KassaLite; KassaLite pairing | added after 2026-10-12 | SECURITY.md §7.0 |
-| judge-demo-copy.test.ts | judge build: each dev sign-in gets its own onboarded copy of the persona; one copy paying rent does not affect another; `fresh` makes a new user; outside the judge build the single seeded persona | added after 2026-10-12 | SECURITY.md §7.0 |
+| dev-login-pairing.test.ts | dev sign-in is off unless DEMO_ENABLED + DEV_LOGIN + a local or tunnel RP_ID; dev assert refused for KassaLite; KassaLite pairing | added after 2026-10-12 | security/self-assessment.md §7.0 |
+| judge-demo-copy.test.ts | judge build: each dev sign-in gets its own onboarded copy of the persona; one copy paying rent does not affect another; `fresh` makes a new user; outside the judge build the single seeded persona | added after 2026-10-12 | security/self-assessment.md §7.0 |
 | auth-challenge-store.test.ts | WebAuthn challenges stored in the database, taken once, expire; gated challenges bind user and purpose; pairing codes stored hashed, redeemed once under concurrency | added after 2026-10-12 | I2, I4 |
 | demo-cooling.test.ts | demo switch for the 24 h waits: on by default; off needs the passkey, is logged and applies to that user only; absent outside demo mode | added after 2026-10-12 | I7 |
 | clock-mode.test.ts | real or demo (story) time: real by default, Stage switch logged, advancing from real time starts at real now, reset keeps the mode | added after 2026-10-12 | demo clock |
@@ -176,7 +176,7 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 | demos/cn1-shanghai-handoff.test.ts | Shanghai handoff in CNY; swapped QR cancelled | 4 passed |
 | demos/cn2-wallet-capture.test.ts | Alipay/WeChat capture; 4% hidden card fee | 3 passed |
 | demos/cn3-li-wei.test.ts | second persona, CNY→EUR tuition; BOLA 404 | 8 passed |
-| demos/wallet-p2p.test.ts | Add money (simulated wallet tap, test money) and Send to another Kassa user by Kassa ID ([SANDBOX_PAYMENTS.md](SANDBOX_PAYMENTS.md)) | added after 2026-10-12 |
+| demos/wallet-p2p.test.ts | Add money (simulated wallet tap, test money) and Send to another Kassa user by Kassa ID ([guide/sandbox-payments.md](../guide/sandbox-payments.md)) | added after 2026-10-12 |
 | demos/eu-china-payouts.test.ts | payouts by payee scheme: EU → China (CNY to an Alipay ID and a UnionPay card), US ACH; wrong scheme details refused before any payee exists; the same rail against recorded Wise-sandbox responses, never a live Wise host | added after 2026-10-12 |
 | demos/pizza-order.test.ts | "Order me 2 pizzas": replay turn → shop items signed into the order → one-time card charged once → delivered via signed webhooks; forged total refused; Shanghai variant via QR handoff | added after 2026-10-12 |
 | demos/till.test.ts | second phone as the counter till: Kassa proposes exactly the bill the till reports; PAID or DECLINED with the reason; Shanghai variant with the till's QR | added after 2026-10-12 |
@@ -203,8 +203,8 @@ Hidden in the app by default (`EXPO_PUBLIC_SHOW_BUSINESS=true`).
 - 2026-10-17: ledger-anchor.test.ts added (testnet anchoring of ledger checkpoints, 5 tests); api 134 files / 1,034 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
 - 2026-10-16: identity check (KYC) and `eval:invoices` (live Reader accuracy on the 30 labelled invoices, `docs/evidence/invoice-eval.json`; the eval ran on `openrouter:deepseek/deepseek-v4.1-flash`, the default Reader model then; the current default, `deepseek-v4.1-flash-1017` in `apps/api/src/modules/ai/models.ts`, has not been re-evaluated); api 133 files / 1,029 tests, 1 skipped; mobile 78 / 875; mock-world 11 / 361; shared 7 / 53.
 - 2026-10-15 (latest): history patterns (IMPORT_PLAN S14) and `get_money_history`; api 121 files / 954 tests, 1 skipped; mobile 75 / 562; mock-world 10 / 343; shared 7 / 53.
-- 2026-10-15 (later): bank statement import (IMPORT_PLAN.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
-- 2026-10-15: attacks A10 to A17 added (real-world incidents, see SECURITY.md §6); naive baseline 16 of 16; totals re-run per workspace (api 121 files / 949 tests, 1 opt-in live smoke test skipped; mock-world 10 / 343; shared 7 / 53; mobile 74 / 560).
+- 2026-10-15 (later): bank statement import (architecture/statement-import.md): `test/dataport/` added; totals re-run with `bun run test` (api 121 files / 950 tests, 1 skipped; mock-world 10 / 343; shared 7 / 53; mobile 75 / 562).
+- 2026-10-15: attacks A10 to A17 added (real-world incidents, see security/self-assessment.md §6); naive baseline 16 of 16; totals re-run per workspace (api 121 files / 949 tests, 1 opt-in live smoke test skipped; mock-world 10 / 343; shared 7 / 53; mobile 74 / 560).
 - 2026-10-14 (later): totals re-run with `bun run test` after the live-AI round (api 104 files / 828 tests, 1 opt-in live smoke test skipped; mobile 65 / 527).
 - 2026-10-14: workspace totals refreshed (api 101 files / 821 tests, mock-world 9 / 338, shared 7 / 53, mobile 65 / 526). Rows added for A9, dev sign-in and wallet P2P. Shared and mock-world totals re-run with `npx vitest run`; api and mobile totals from the team's latest full run.
 - 2026-10-12: catalogue created from the review run. Final fix pass: counts refreshed from the final `bun run test` (api 72 files / 633 tests, mock-world 6 / 279, shared 4 / 34, mobile 46 / 410) and rows added for the new and changed test files (X1–X10, Y1–Y7, cap currency, settings derived changes).

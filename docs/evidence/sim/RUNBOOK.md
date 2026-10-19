@@ -1,6 +1,6 @@
 # Sim runbook (LLM personas and security reviewers)
 
-> For human readers: this file is the brief given to the AI testers (LLM agents) that played the personas. Kassa's own model calls were replayed in these runs, so they test the product's guards, not its live planner. Results: [SUMMARY.md](SUMMARY.md).
+> For human readers: this file is the brief given to the AI testers (LLM agents) that played the personas. Kassa's own model calls were replayed in these runs, so they test the product's guards, not its live planner. Results: [SUMMARY.md](./SUMMARY.md).
 
 Kassa's own model calls are replayed and no app runs in this test. You (an LLM agent) play the user, the planner, and when asked,
 the Reader. You drive Kassa only through `bun run sim …` (run from the repo root) and decide from its JSON
@@ -152,7 +152,7 @@ Write `docs/evidence/sim/<id>.md` (steps, expected, actual, PASS/FAIL, ledger sl
 
 ## 5. Scenario catalogue
 
-Invariants I1–I13: `docs/spec/TECH_SPEC.md` §2. Attacks A1–A8: §19.
+Invariants I1–I13: `docs/architecture/tech-spec.md` §2. Attacks A1–A8: §19.
 
 ### Personas (CLI, ordinary user actions only)
 

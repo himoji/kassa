@@ -1,5 +1,5 @@
 /*
- * Records the demo video (docs/DEMO_SCRIPT.md, five beats) as one continuous take of the real web app, with captions
+ * Records the demo video (docs/submission/demo-script.md, five beats) as one continuous take of the real web app, with captions
  * on screen and a chapter list. Passkeys are real WebAuthn ceremonies against Chromium's virtual authenticator, so
  * nothing is faked: the same clicks a person makes. Everything shown is the demo's simulated data.
  *

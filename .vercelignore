@@ -11,3 +11,5 @@ docs/demo/
 # Local secrets: never part of a CLI upload (Vercel env vars hold the deployed values).
 .env*
 !.env.example
+docs/node_modules/
+docs/.vitepress/

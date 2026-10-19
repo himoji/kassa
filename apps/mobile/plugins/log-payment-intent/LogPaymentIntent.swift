@@ -1,4 +1,4 @@
-// KassaLite's "Log Payment in Kassa" Shortcuts action (docs/KASSALITE.md, "Shortcut setup").
+// KassaLite's "Log Payment in Kassa" Shortcuts action (docs/guide/kassalite.md, "Shortcut setup").
 //
 // Copied into the app target by plugins/with-log-payment-intent.js. It must live in the app target itself, not
 // in a pod: Xcode extracts App Intents metadata from the app's own Swift module only. App Intents need no

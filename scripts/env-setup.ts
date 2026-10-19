@@ -62,11 +62,11 @@ const ROOT_KEYS: Entry[] = [
   { key: "STRIPE_WEBHOOK_SECRET", example: "whsec_..." },
   { key: "STRIPE_PUBLISHABLE_KEY", example: "pk_test_..." },
   { key: "STRIPE_ISSUING_CURRENCY", example: "", comment: "currency of the Stripe Issuing balance (e.g. EUR)" },
-  { key: "WISE_SANDBOX_TOKEN", example: "", comment: "optional: Wise sandbox token; bank payouts then go to Wise's sandbox (docs/SANDBOX_PAYMENTS.md)" },
+  { key: "WISE_SANDBOX_TOKEN", example: "", comment: "optional: Wise sandbox token; bank payouts then go to Wise's sandbox (docs/guide/sandbox-payments.md)" },
   { key: "WISE_PROFILE_ID", example: "", comment: "optional: sandbox profile id; defaults to the token's first profile" },
   { key: "WISE_API_URL", example: "", comment: "optional: Wise sandbox base URL (default https://api.sandbox.transferwise.tech); live hosts are refused" },
   { key: "ISSUING_PROVIDER", example: "fake", comment: "stripe | fake (fake is used whenever Stripe keys are absent)" },
-  { key: "PAYMENTS_DAILY_CAP_HOME_MINOR", example: "200000000", comment: "₸2,000,000 — see docs/DECISIONS.md (spec's ₸500,000 refuses the hero tuition)" },
+  { key: "PAYMENTS_DAILY_CAP_HOME_MINOR", example: "200000000", comment: "₸2,000,000 — see docs/architecture/decisions.md (spec's ₸500,000 refuses the hero tuition)" },
   { key: "PAYMENTS_DAILY_CAP_CURRENCY", example: "KZT", comment: "reference currency of PAYMENTS_DAILY_CAP_HOME_MINOR" },
   { key: "SMALL_AUTO_DAILY_MAX_COUNT", example: "3", comment: "small-auto (T1 without mandate) payments per UTC day; then ASK SMALL_AUTO_BUDGET_EXHAUSTED" },
   { key: "SMALL_AUTO_DAILY_AMOUNT_MULTIPLE", example: "3", comment: "small-auto total per day = this × the signed small-auto limit" },
@@ -88,7 +88,7 @@ const ROOT_KEYS: Entry[] = [
   { key: "RETENTION_DAYS_CAPTURED_TEXT", example: "90", comment: "raw merchant text of captured purchases" },
 ];
 
-/** Example values that were deliberately changed (docs/DECISIONS.md). */
+/** Example values that were deliberately changed (docs/architecture/decisions.md). */
 const EXAMPLE_OVERRIDES: Record<string, string> = { PAYMENTS_DAILY_CAP_HOME_MINOR: "200000000" };
 
 const MOBILE_KEYS: Entry[] = [

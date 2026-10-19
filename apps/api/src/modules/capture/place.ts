@@ -9,7 +9,7 @@ import type { PlaceJson } from "../../db/schema.ts";
  *  - `cleanMerchant`: card statements print the payment processor in front of the shop ("SQ *BLUE BOTTLE",
  *    "SUMUP *CAFE FREI", "ZETTLE_*BISTRO"); the shop is what people recognise, so the processor is moved aside.
  *  - `PlaceJson`: what is kept on the transaction. Coordinates are rounded to 3 decimals (about 100 m): enough to
- *    tell two shops apart, not enough to track a person to a doorstep (data minimisation, docs/PRIVACY.md).
+ *    tell two shops apart, not enough to track a person to a doorstep (data minimisation, docs/security/privacy.md).
  * Location text is untrusted like any other capture text: it is shown and stored, never followed.
  */
 

@@ -1,5 +1,5 @@
 /**
- * KassaLite "Log Payment in Kassa" App Intent (config plugin; docs/KASSALITE.md, "Shortcut setup").
+ * KassaLite "Log Payment in Kassa" App Intent (config plugin; docs/guide/kassalite.md, "Shortcut setup").
  *
  * Copies `log-payment-intent/LogPaymentIntent.swift` into the iOS app folder and adds it to the app target's
  * sources. It goes into the app target, not a local Expo module: Xcode's "Extract App Intents Metadata" step only

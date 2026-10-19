@@ -4,7 +4,7 @@
  * - exportUserData: Art. 15 (access) + Art. 20 (portability): every row about the user, decrypted (payee
  *   accounts, sealed ledger fields), plus the Art. 15(1) processing information.
  * - eraseUser: Art. 17 by deletion + crypto-shredding. What is erased vs retained is listed in ERASED/RETAINED
- *   (and docs/PRIVACY.md). Payment records are retained under Art. 17(3)(b) (legal record-keeping, e.g.
+ *   (and docs/security/privacy.md). Payment records are retained under Art. 17(3)(b) (legal record-keeping, e.g.
  *   AMLD (EU) 2015/849 Art. 40: 5 years) — reduced to amounts, dates, statuses, hashes and signatures; the
  *   counterparty names, accounts and purpose texts in them are overwritten. The ledger keeps every entry (the
  *   hash chain still verifies); its personal fields are ciphertext under the shredded key.

@@ -130,7 +130,7 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
     }
     case "money-from-home":
       // A ₸1,000,000 transfer from the parents, sent early for tuition: the seeded wallet cannot fund
-      // €2,400 from any single balance (B2, docs/DECISIONS.md 2026-10-11 "demo story").
+      // €2,400 from any single balance (B2, docs/architecture/decisions.md 2026-10-11 "demo story").
       return { mock: await mockWorld("POST", "/remittance/incoming", { userId, amountMinor: 100_000_000, currency: "KZT" }).catch((e: Error) => ({ error: e.message })) };
     case "pos-low-dough":
       // The Budapest pizzeria's till reports dough balls running low. Shape = mock-world PosBody (routes/events.ts):
@@ -164,7 +164,7 @@ async function trigger(scenario: DemoScenario): Promise<Record<string, unknown>>
 }
 
 /**
- * Demo Stage (mock-world /mock/stage, docs/DECISIONS.md 2026-10-13 "Demo Stage"): the "outside world" acts for the
+ * Demo Stage (mock-world /mock/stage, docs/architecture/decisions.md 2026-10-13 "Demo Stage"): the "outside world" acts for the
  * demo user the way a device or a statement would. Same admin token as the triggers; each route reuses the user-facing
  * code path (Shortcut device token, settlement reconcile, document store) and, like every trigger, only logs or
  * stores: nothing here proposes, approves or pays (I6).

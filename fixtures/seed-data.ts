@@ -3,7 +3,7 @@
  * `seed.personas`). Pure data: no I/O, deterministic. Track A's apps/api/scripts/seed.ts inserts it;
  * apps/mock-world reads balances and payee accounts from it.
  *
- * Conventions (docs/DECISIONS.md standards-first rule):
+ * Conventions (docs/architecture/decisions.md standards-first rule):
  * - Money: integer minor units + ISO 4217 code; exponents from @kassa/shared CURRENCY_EXPONENTS
  *   (HUF = 2 per ISO 4217, so HUF 180,000 = 18_000_000 minor units).
  * - Ids: RFC 9562 UUIDv5, see fixtures/uuid.ts (`seedId(name)`); literal values are asserted
@@ -714,7 +714,7 @@ const liWeiBalances: SeedBalance[] = [
 ];
 
 const liWeiCards: SeedCard[] = [
-  // CardKind has no CNY member; MULTI = a home-bank debit card that also pays abroad (docs/DECISIONS.md).
+  // CardKind has no CNY member; MULTI = a home-bank debit card that also pays abroad (docs/architecture/decisions.md).
   { id: LI_WEI_IDS.cards.cny, userId: LI_WEI_IDS.user, label: "Home bank CNY debit card (example)", last4: "3388", billingCurrency: "CNY", kind: "MULTI" },
   { id: LI_WEI_IDS.cards.local, userId: LI_WEI_IDS.user, label: "Local HUF/EUR card (example)", last4: "1542", billingCurrency: "HUF", kind: "LOCAL_HUF" },
 ];
@@ -835,7 +835,7 @@ export const liWei = {
 
 // ---------- Kassa Business: two pizzerias (M0) + Li Wei in Shanghai ----------
 /*
- * One merchant codebase, two tenants (docs/DECISIONS.md "Kassa Business"):
+ * One merchant codebase, two tenants (docs/architecture/decisions.md "Kassa Business"):
  * - `pizzeria-bud`: Pizza Shop in Budapest (HUF, region EU, Europe/Budapest), mock-world storeId "bud". Pays its
  *   suppliers by BANK_TRANSFER from a capped wallet. Comfortably stocked, but stock is trending down.
  * - `pizzeria-sha`: Pizza Shop in Shanghai (CNY, region CN, Asia/Shanghai), storeId "sha". Pays through QR HANDOFF.

@@ -6,7 +6,7 @@ import type { Env } from "./registry.ts";
 import { apiCallErrorOf, SDK_MAX_RETRIES } from "./retry.ts";
 
 /*
- * Structured output that works with any provider (docs/DECISIONS.md 2026-10-11 "Structured output
+ * Structured output that works with any provider (docs/architecture/decisions.md 2026-10-11 "Structured output
  * capability strategy"). Modes, tried in this order:
  *   native — the provider's structured output (`response_format` json_schema; AI SDK Output.object);
  *   tool   — ONE forced call (toolChoice {type:"tool"}) of a single schema-carrier tool whose input schema

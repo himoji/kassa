@@ -4,7 +4,7 @@
  *  - v2 (A12, 2026-10-15): AAD = "kassa:payee:v2:" + userId + ":" + payeeId. A ciphertext cannot be moved to another
  *    user, nor to another payee row of the same user: someone who can write rows cannot re-point a verified payee at
  *    an account copied from a cooling one. Written whenever the payee id is known.
- *  - v1 (legacy): AAD = "kassa:payee:v1:" + userId. Still read; not bound to its row (docs/SECURITY.md R30).
+ *  - v1 (legacy): AAD = "kassa:payee:v1:" + userId. Still read; not bound to its row (docs/security/self-assessment.md R30).
  * Recipient details use their own AAD ("kassa:payee-details:v1:" + userId), so a details ciphertext can never be
  * swapped in as an account.
  */

@@ -33,7 +33,9 @@
     "dev:tunnel": "bun scripts/dev-tunnel.ts",
     "lite:ios": "bun scripts/lite.ts",
     "ota": "bun scripts/ota.ts",
-    "vercel-build": "bun scripts/vercel-build.ts"
+    "vercel-build": "bun scripts/vercel-build.ts",
+    "docs:dev": "bun install --cwd docs && bun run --cwd docs dev",
+    "docs:build": "bun install --cwd docs && bun run --cwd docs build"
   },
   "devDependencies": {
     "@eslint/js": "^9",

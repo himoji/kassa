@@ -122,7 +122,7 @@ function receivedFields(body: Record<string, unknown>): ShortcutCheckJson["field
   };
 }
 
-/** The Shortcut shows `nudge` (or `nudgeTitle` + `nudgeBody`) as its notification (docs/SHORTCUT_SETUP.md); the rest is the usual capture result. */
+/** The Shortcut shows `nudge` (or `nudgeTitle` + `nudgeBody`) as its notification (docs/guide/shortcuts.md); the rest is the usual capture result. */
 const ShortcutCaptureResponse = CaptureEventResponse.extend({ nudge: z.string(), nudgeTitle: z.string(), nudgeBody: z.string() });
 
 function recentPlace(p: PlaceJson): { name?: string; kind?: string; where?: string } {

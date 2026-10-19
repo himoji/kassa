@@ -16,7 +16,7 @@ const APP_ROOT = typeof __dirname !== "undefined" ? __dirname : import.meta.dirn
 const VARIANT = (process.env.APP_VARIANT ?? "dev") as Variant;
 
 /**
- * KassaLite (docs/KASSALITE.md): a build signed with a free Apple ID (Personal Team). Free teams cannot use
+ * KassaLite (docs/guide/kassalite.md): a build signed with a free Apple ID (Personal Team). Free teams cannot use
  * Push Notifications, Associated Domains, Apple Pay, Sign in with Apple ... so this variant carries none of
  * those entitlements, no Stripe and no passkeys, and its routes come from `src/app-lite`.
  */

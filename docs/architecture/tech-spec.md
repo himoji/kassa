@@ -1,15 +1,15 @@
 # Kassa: Technical Spec and Decisions
 
-> The spec written before the build started (2026-10-10). The build follows it, with every deviation dated in [DECISIONS.md](../DECISIONS.md): bun instead of pnpm, the Vercel AI SDK instead of a single vendor SDK, an Expo app. [ARCHITECTURE.md](../ARCHITECTURE.md) and [TESTS.md](../TESTS.md) describe what exists.
+> The spec written before the build started (2026-10-10). The build follows it, with every deviation dated in [architecture/decisions.md](./decisions.md): bun instead of pnpm, the Vercel AI SDK instead of a single vendor SDK, an Expo app. [architecture/overview.md](./overview.md) and [reference/tests.md](../reference/tests.md) describe what exists.
 
-Build spec for the FinTechathon 2026 entry (Topic C). Audience: an engineer or coding agent building the frontend and backend. This file is the source of truth for **how** to build. The product plan ([Kassa — Build Plan.md](Kassa%20—%20Build%20Plan.md)) is the source of truth for **what** and **why**.
+Build spec for the FinTechathon 2026 entry (Topic C). Audience: an engineer or coding agent building the frontend and backend. This file is the source of truth for **how** to build. The product plan ([architecture/build-plan.md](./build-plan.md)) is the source of truth for **what** and **why**.
 
 Deadline: feature freeze **Oct 17**, submission **Oct 20, 12:00 Budapest** (hard deadline 17:59 Budapest = 23:59 Beijing).
 
 ## 0. How to use this spec
 
 - Read sections 1–3 before writing code. The invariants in section 2 are non-negotiable; every one has a test.
-- Decisions in section 3 are made. Don't swap a library or pattern without a concrete blocker. If you hit one, write it in `DECISIONS.md` (date, problem, choice) and continue.
+- Decisions in section 3 are made. Don't swap a library or pattern without a concrete blocker. If you hit one, write it in `architecture/decisions.md` (date, problem, choice) and continue.
 - Don't add scope. Anything not listed here is out of scope (section 22).
 - Amounts are **integer minor units** everywhere (`amountMinor`), plus an ISO 4217 currency code. Never floats for money.
 - All time goes through the `Clock` service (section 15), never `Date.now()` directly, so the demo clock works.
@@ -109,7 +109,7 @@ kassa/
   packages/
     shared/              # zod schemas, CanonicalOrder, enums, money utils, currency exponents
   fixtures/              # seed data, invoices (30 labelled), notification samples, sanctions sample, agent recordings
-  docs/                  # TESTS.md, SECURITY.md, DECISIONS.md, evidence/
+  docs/                  # reference/tests.md, security/self-assessment.md, architecture/decisions.md, evidence/
   docker-compose.yml  Caddyfile  .env.example  README.md
 ```
 
@@ -580,7 +580,7 @@ All outgoing webhooks are HMAC-signed. Every page shows a "Simulated" banner.
 - **Naive baseline** (test-only): `test/naive/` executes the agent's raw intent directly through a stub rail without rules, for the same A1–A8. It records how many attacks paid.
 - **Scenario runs:** built as the sim CLI instead: `bun run sim` drives the API and mock world over HTTP with soft passkeys (`docs/evidence/sim/RUNBOOK.md`); `sim story` writes `docs/evidence/story.json`, and persona and attacker runs are in `docs/evidence/sim/`. Attack results: `bun run evidence:attacks`.
 - **Invoice accuracy:** `bun run eval:invoices` runs the live Reader (`READER_MODEL`) on the 30 labelled invoices and writes the exact-match rate per field, wrong values the evidence check still verified, and latency to `docs/evidence/invoice-eval.json`.
-- **Results table and evidence bundle:** not built as separate scripts; `docs/TESTS.md` and `docs/evidence/` are updated from the runs above and `bun run ledger:verify`.
+- **Results table and evidence bundle:** not built as separate scripts; `docs/reference/tests.md` and `docs/evidence/` are updated from the runs above and `bun run ledger:verify`.
 - **CI:** GitHub Actions runs lint, typecheck, unit, invariants and attacks on every push (replay mode, no API keys needed). Badge in the README.
 
 ## 20. Configuration (`.env.example`)
@@ -622,7 +622,7 @@ MOCK_WORLD_URL=http://mock-world:4001
 | Oct 15 | Mandates + rule changes (I7, I8); handoff rail | Capture parsers, dedupe, categorize, settlement + fee x-ray; personal-data reduction hardened | Demo panel, notification simulator, handoff screen |
 | Oct 16 | Attack suite A1–A8, naive baseline, ledger:verify | Money from home flow, credit-record export, replay recordings | Credit record + verify page; **rough video** |
 | Oct 17 | **Freeze.** Scenario runs (10 each), evidence | Invoice accuracy eval, results table | Polish, README, reviewer login steps |
-| Oct 18–19 | SECURITY.md (tiers ↔ code ↔ tests, known risks) | Tech doc: algorithms section | Final video, deck |
+| Oct 18–19 | security/self-assessment.md (tiers ↔ code ↔ tests, known risks) | Tech doc: algorithms section | Final video, deck |
 
 If behind on Oct 15, cut in this order:
 

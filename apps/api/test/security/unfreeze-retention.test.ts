@@ -1,5 +1,5 @@
 /*
- * I8 for freeze/unfreeze (docs/DECISIONS.md 2026-10-11): freeze is instant; unfreeze is a loosening —
+ * I8 for freeze/unfreeze (docs/architecture/decisions.md 2026-10-11): freeze is instant; unfreeze is a loosening —
  * fresh passkey assertion over a server-built single-use challenge, effective 24 h later on the demo clock,
  * recorded in rule_changes. Plus the retention purge job (GDPR Art. 5(1)(e)).
  */

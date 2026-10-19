@@ -1,5 +1,5 @@
 /**
- * KassaLite's Apple Pay setup (docs/KASSALITE.md, "Shortcut setup"): the one link a hand-built Shortcut needs
+ * KassaLite's Apple Pay setup (docs/guide/kassalite.md, "Shortcut setup"): the one link a hand-built Shortcut needs
  * (endpoint with the key in it), the ready-made Shortcut's iCloud link when one is published, the app's own connection check (POST /capture/shortcut `{test: true}` with that key;
  * nothing is logged or recorded), the tap check that reads what the last request carried (GET /devices
  * `lastCheck`), and the text for an AI assistant to walk someone through the automation.
@@ -48,7 +48,7 @@ export function voiceUrlWithKey(serverUrl: string, token: string): string {
 }
 
 /**
- * The published ready-made Shortcut (docs/SHORTCUT_SETUP.md, "The ready-made Shortcut"): an iCloud link set at bundle
+ * The published ready-made Shortcut (docs/guide/shortcuts.md, "The ready-made Shortcut"): an iCloud link set at bundle
  * time with `EXPO_PUBLIC_KASSALITE_SHORTCUT_URL`, so an over-the-air update can add or change it. Its one import
  * question takes the link `shortcutUrlWithKey` puts on the clipboard; the key is never part of the iCloud link.
  * Null when unset or not an iCloud Shortcuts link: setup then copies the link for a hand-built Shortcut.

@@ -1,0 +1,16 @@
+{
+  "name": "kassa-docs",
+  "private": true,
+  "type": "module",
+  "description": "Kassa documentation site (VitePress). Not a workspace: it has its own lockfile so the app's install stays as it is.",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "mermaid": "11.17.2",
+    "vitepress": "1.6.4",
+    "vitepress-plugin-mermaid": "2.0.17"
+  }
+}

@@ -1,6 +1,6 @@
 /*
  * Invariant index (spec §2, §19 "Invariant tests: I1–I13"). One describe per invariant with at least one
- * concrete check; the deeper suites are referenced in each block's comment and in docs/SECURITY.md §3.
+ * concrete check; the deeper suites are referenced in each block's comment and in docs/security/self-assessment.md §3.
  */
 import { randomUUID } from "node:crypto";
 import { relative } from "node:path";

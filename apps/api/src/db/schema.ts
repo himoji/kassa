@@ -1,6 +1,6 @@
 /*
  * Drizzle schema = spec §6 (every table). Columns the spec lists are kept with the same names; columns
- * added for implementation needs are marked "(added)" and logged in docs/DECISIONS.md.
+ * added for implementation needs are marked "(added)" and logged in docs/architecture/decisions.md.
  *
  * Conventions:
  * - Money: integer minor units (`bigint` in mode "number" — safe up to 2^53) + ISO 4217 code (spec §0).

@@ -24,7 +24,7 @@ import { HttpError } from "./errors.ts";
  * Everything else stays public on purpose: pages and catalogs, the shop's checkout page (charges a one-time card id
  * only its holder has; the issuer allows one charge for the signed amount), the till (it creates its own bills and
  * polls the one it shows; bill ids are random and listed nowhere), school portals, and the QR wallet page with its Pay
- * button, whose payment id (a random UUID) only the paying user is given (a capability link, docs/SECURITY.md). The
+ * button, whose payment id (a random UUID) only the paying user is given (a capability link, docs/security/self-assessment.md). The
  * Stage has its own gate (routes/stage.ts). Local development (not locked) leaves every route open for the sim and curl.
  */
 

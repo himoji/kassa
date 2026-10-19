@@ -6,7 +6,7 @@ import { env } from "../../env.ts";
 /*
  * Personal-data reduction before every planner call (spec §2 I11, §9 "Redaction").
  *
- * Detectors (standards cited per the standards-first rule, docs/DECISIONS.md):
+ * Detectors (standards cited per the standards-first rule, docs/architecture/decisions.md):
  *  - IBAN: ISO 13616-1 shape (2-letter country, 2 check digits, BBAN), length checked against the
  *    SWIFT IBAN registry for the country; printed form may be grouped by 4 with spaces.
  *  - Card PAN: ISO/IEC 7812-1, 13–19 digits (optionally grouped by spaces/dashes) passing the Luhn

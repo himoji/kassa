@@ -1,6 +1,6 @@
 # Decisions
 
-Deviations from `docs/spec/TECH_SPEC.md` (spec §0: date, problem, choice). Newest last.
+Deviations from `docs/architecture/tech-spec.md` (spec §0: date, problem, choice). Newest last.
 
 ## 2026-10-10 — Expo app from the ReadyNative Pro boilerplate
 
@@ -72,7 +72,7 @@ licence. The permission is stated in the notice at the end of the root `LICENSE`
 
 ## 2026-10-10 — Standards-first rule for unspecified details
 Problem: the spec leaves many small details open (formats, encodings, algorithms).
-Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing published standard and cite it in code comments — ISO 4217 (currencies/minor units), ISO 8601 / RFC 3339 (timestamps, UTC), ISO 3166-1 alpha-2 (countries), ISO 13616 + ISO 7064 mod 97-10 (IBAN), ISO 9362 (BIC), ISO 18245 (MCC), ISO 20022 (payment status / remittance field naming), ISO 639-1 + BCP 47 (locales), RFC 8785 (JCS), RFC 8032 (Ed25519), RFC 4648 §5 (base64url), RFC 2104 (HMAC), RFC 9562 (UUID), RFC 7519 (JWT), RFC 9457 (problem+json errors), W3C WebAuthn Level 3, NIST SP 800-38D (AES-GCM), IEEE 754 avoided for money (integers only).
+Choice: follow architecture/tech-spec.md exactly; where it is silent, use the governing published standard and cite it in code comments — ISO 4217 (currencies/minor units), ISO 8601 / RFC 3339 (timestamps, UTC), ISO 3166-1 alpha-2 (countries), ISO 13616 + ISO 7064 mod 97-10 (IBAN), ISO 9362 (BIC), ISO 18245 (MCC), ISO 20022 (payment status / remittance field naming), ISO 639-1 + BCP 47 (locales), RFC 8785 (JCS), RFC 8032 (Ed25519), RFC 4648 §5 (base64url), RFC 2104 (HMAC), RFC 9562 (UUID), RFC 7519 (JWT), RFC 9457 (problem+json errors), W3C WebAuthn Level 3, NIST SP 800-38D (AES-GCM), IEEE 754 avoided for money (integers only).
 
 ## 2026-10-11 — Mobile app (Track C) choices where the spec is silent
 
@@ -199,7 +199,7 @@ Choice: follow TECH_SPEC.md exactly; where it is silent, use the governing publi
 - Stored mandate/base-rules assertions are re-verified by payments without the live signature-counter check (they are legitimately older). Accepted; counter check stays for live T2 assertions.
 - Onboarding confirm applies once immediately; every later loosening goes through the 24 h delay. Accepted.
 - Unfreeze: added as a LOOSENING (I8) — requires a fresh passkey assertion and takes effect after 24 h (demo clock). Freeze stays instant. (Phase 2 hardening implements it.)
-- Challenge store / refresh-token rotation in memory: accepted for the single-process build; listed as a known risk in SECURITY.md.
+- Challenge store / refresh-token rotation in memory: accepted for the single-process build; listed as a known risk in security/self-assessment.md.
 
 ## 2026-10-11 — env management
 `bun run env:setup` (scripts/env-setup.ts) syncs both .env.example files with the keys the code reads, generates a local .env (secrets generated, public keys derived, dev defaults: AGENT_MODE=REPLAY, ISSUING_PROVIDER=fake, PGlite), links apps/api/.env and apps/mock-world/.env to it, and writes apps/mobile/.env. Never prints secret values; idempotent.
@@ -351,7 +351,7 @@ Triggers and small auto: trigger/scheduler-originated drafts may be AUTO only in
 - **Per-region AI notice (PIPL).** `privacy/notice.ts` had one text for everyone. `aiNotice(region)` now appends one
   line for region CN: AI providers outside mainland China receive the reduced chat and uploaded documents, which is
   a cross-border transfer under PIPL Art. 38–39 that needs separate consent; the prototype states this and does
-  not yet ask for the separate consent (PRIVACY.md §13, COMPLIANCE.md stay accurate). With local models the line
+  not yet ask for the separate consent (security/privacy.md §13, security/compliance.md stay accurate). With local models the line
   says there is no cross-border transfer for AI. `GET /me` and the consent-required problem use the user's region;
   the public `GET /privacy/ai-notice` uses the signed-in user's region, else `?region=`, else EU. The `AiNotice`
   contract and `noticeVersion` are unchanged (the region line is a variant of the same notice version).
@@ -596,7 +596,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   for it". The app now has **Settings → Apple Pay → Kassa** (`apps/mobile/src/screens/settings/shortcut-screen.tsx`,
   route `/shortcut`): create a token (shown once, copy as token or as `Bearer …` header), the endpoint URL
   (`EXPO_PUBLIC_API_URL`, else the page origin on web), numbered iOS 17 setup steps, the device list and revoke. Setup
-  guide: `docs/SHORTCUT_SETUP.md`. The demo-stage token route stays for the stage (no session there).
+  guide: `docs/guide/shortcuts.md`. The demo-stage token route stays for the stage (no session there).
 - **New routes (session auth, users module):** `GET /devices` lists the user's active `IOS_SHORTCUT` devices
   (`id`, `kind`, `createdAt`) plus `lastCaptureAt` (newest `SHORTCUT` transaction of the user). `DELETE /devices/:id`
   revokes (sets `revokedAt`, ledgered `DEVICE_TOKEN_REVOKED`); a tightening, so instant and passkey-free (I8);
@@ -768,13 +768,13 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - **Attacks.** `apps/api/test/attacks/A10..A17` recreate public incidents (Freysa, Grok + Bankrbot, AIXBT, ElizaOS fake
   memories, MCP tool poisoning / EchoLeak, Chevrolet "$1 Tahoe" / talked-into discount, salami splitting, APP "safe account"
   scams) with a planner and Reader that obey the injection. Each also has a naive row (`test/naive/`). Sources and
-  mappings: `docs/SECURITY.md` §6 "Real-world incidents recreated". Result: guarded 0 of 16 paid, naive 16 of 16.
+  mappings: `docs/security/self-assessment.md` §6 "Real-world incidents recreated". Result: guarded 0 of 16 paid, naive 16 of 16.
 - **Fix found by A12.** A row writer could copy a cooling payee's `accountEnc` + `accountHash` into a verified payee
   covered by a mandate, and autopay paid the copied account. Spec §8 says only "AES-256-GCM, AAD userId". Deviation:
   new ciphertexts are `v2` with AAD `kassa:payee:v2:<userId>:<payeeId>` (`payees/crypto.ts`; `createPayee` picks the id
   before the insert). `v1` stays readable for existing rows and for callers that do not pass a payee id. Payments
   decrypts for the payee row and requires `accountHash(account) = order.payeeAccountHash`, else
-  `REFUSE_UNVERIFIED_PAYEE`. Residual: v1 rows are not bound (SECURITY.md R30).
+  `REFUSE_UNVERIFIED_PAYEE`. Residual: v1 rows are not bound (security/self-assessment.md R30).
 
 ## 2026-10-16 — Real time by default, demo time as a switch; sessions on wall time
 
@@ -803,7 +803,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   a new recipient still starts COOLING (T2 only, never autopilot) but can be verified and paid at once, and loosenings
   apply at the next scheduler tick. Outside demo mode a stored row is ignored. The app shows a red banner on every screen
   while off (`MeResponse.demo.coolingOff`), and the switch sits on the Stage screen (Settings → Demo). The attack suite
-  keeps the waits on, and no agent tool reaches the switch. Known risk: SECURITY.md R36.
+  keeps the waits on, and no agent tool reaches the switch. Known risk: security/self-assessment.md R36.
 
 ## 2026-10-16 — App in English, Simplified Chinese, Russian and Kazakh (replaces "i18n via i18next, English only")
 
@@ -847,13 +847,13 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
   re-wraps every `user_keys` row from `USER_KEK_PREVIOUS` to `USER_KEK` in one transaction under an exclusive table
   lock, checking each new wrap before writing it, and prints only counts and KEK ids. `USER_KEK_PREVIOUS` is a new,
   optional variable the env provider uses to unwrap (never wrap) while a rotation is under way, so the API can switch
-  KEKs without downtime. No cloud KMS SDK was added: SECURITY.md §5.5 describes how a KMS provider plugs in. Not
+  KEKs without downtime. No cloud KMS SDK was added: security/self-assessment.md §5.5 describes how a KMS provider plugs in. Not
   done: rotation of the other keys; the PAN reference key is still derived from `USER_KEK` (a rotation changes card
   placeholders' digests, nothing stored is lost).
 
 ## 2026-10-16 — A simulated identity check (KYC) gates payments and top-ups above EUR 1,000
 
-- **Problem.** Licensing and KYC were "on paper only": COMPLIANCE.md listed customer due diligence as out of scope
+- **Problem.** Licensing and KYC were "on paper only": security/compliance.md listed customer due diligence as out of scope
   and nothing in the code knew whether a user had been identified, so any amount under the caps could be paid.
 - **Choice.** A deterministic identity checker in mock-world (`/mock/kyc/checks`: fictitious document + simulated
   liveness → VERIFIED / REVIEW / REJECTED with reason codes, no network) and an API module `kyc` (`POST /kyc/start`,
@@ -883,7 +883,7 @@ Some OpenAI-compatible models (smoke run: `inclusionai/ling-3.1-flash` on OpenRo
 - **Erasure** keeps the check rows (AMLD Art. 40 record keeping, listed in `RETAINED`); the last 4 characters become
   unreadable with the shredded key. The DSAR export lists the checks.
 - **Not done / honest limits:** no document authenticity, issuer data, real liveness, PEP screening or ongoing due
-  diligence; REVIEW is never resolved (SECURITY.md R37). Jurisdiction mapping: COMPLIANCE.md §12. The Kazakh,
+  diligence; REVIEW is never resolved (security/self-assessment.md R37). Jurisdiction mapping: security/compliance.md §12. The Kazakh,
   Russian and Chinese strings of the new screen need a native read like the rest of the app.
 
 ## 2026-10-18 — Convert between own balances (CONVERT orders); caps at approval; funding fails closed

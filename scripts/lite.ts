@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * `bun run lite:ios` - generate the KassaLite iOS project into apps/mobile/ios-lite (docs/KASSALITE.md).
+ * `bun run lite:ios` - generate the KassaLite iOS project into apps/mobile/ios-lite (docs/guide/kassalite.md).
  *
  * KassaLite is a build of apps/mobile signed with a free Apple ID (Personal Team): APP_VARIANT=lite gives it
  * its own bundle id, routes (src/app-lite) and a native config without push / associated domains / Apple Pay.
@@ -184,15 +184,15 @@ In Xcode:
 A free profile expires after 7 days: run again from Xcode weekly.
 
 For a Debug build start Metro with:  APP_VARIANT=lite bunx expo start (from apps/mobile)
-Full guide: docs/KASSALITE.md
+Full guide: docs/guide/kassalite.md
 `);
 
-// Over-the-air updates (docs/OTA_UPDATES.md) only work in a build made with an EAS project id.
+// Over-the-air updates (docs/guide/ota-updates.md) only work in a build made with an EAS project id.
 const easProjectId = (process.env.EAS_PROJECT_ID ?? mobileConfig.app.easProjectId ?? "").trim();
 console.log(
   easProjectId
     ? `Over-the-air updates: ON (EAS project ${easProjectId}, channel "lite"). Publish with: bun run ota lite "message"\n`
     : `Over-the-air updates: OFF in this build. No EAS project id is set, so this build can never receive
 \`bun run ota lite\` updates. Run \`npx eas-cli@latest init\` in apps/mobile, paste the id into
-apps/mobile/readynative.config.ts (app.easProjectId), then run \`bun run lite:ios\` again (docs/OTA_UPDATES.md).\n`,
+apps/mobile/readynative.config.ts (app.easProjectId), then run \`bun run lite:ios\` again (docs/guide/ota-updates.md).\n`,
 );

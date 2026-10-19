@@ -43,3 +43,7 @@ apps/mobile/ios-lite/
 .env*
 AGENTS.md
 /.agents/
+
+# documentation site (bun run docs:dev / docs:build)
+docs/.vitepress/cache/
+docs/.vitepress/dist/

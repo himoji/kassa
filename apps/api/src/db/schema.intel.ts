@@ -1,5 +1,5 @@
 /*
- * Tables that spec §6 does not list. Same conventions as schema.ts. Logged in docs/DECISIONS.md.
+ * Tables that spec §6 does not list. Same conventions as schema.ts. Logged in docs/architecture/decisions.md.
  *
  * - agent_messages: planner conversation history (spec §9 multi-turn chat). Stores ONLY the redacted
  *   model-facing messages (I11): what the planner saw, never raw personal data.

@@ -15,7 +15,7 @@ const OTA_MESSAGE = process.env.EXPO_PUBLIC_OTA_MESSAGE || undefined;
 const OTA_COMMIT = process.env.EXPO_PUBLIC_OTA_COMMIT || undefined;
 
 /**
- * Settings → App updates (docs/OTA_UPDATES.md): which bundle this build runs (the bundle built in Xcode, or an
+ * Settings → App updates (docs/guide/ota-updates.md): which bundle this build runs (the bundle built in Xcode, or an
  * over-the-air update with its id, publish date, message and commit), the channel and app version, and a button
  * that checks, downloads and restarts into a new update right away instead of waiting for the next cold start.
  * Explains instead when updates cannot work here.

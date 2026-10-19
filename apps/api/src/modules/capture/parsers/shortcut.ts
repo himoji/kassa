@@ -6,7 +6,7 @@ import { PlaceHint } from "../place.ts";
 import type { ParsedEvent } from "./types.ts";
 
 /*
- * iOS Shortcut "Transaction" automation payload (spec §13, docs/SHORTCUT_SETUP.md): `{merchant, amount, card}` plus
+ * iOS Shortcut "Transaction" automation payload (spec §13, docs/guide/shortcuts.md): `{merchant, amount, card}` plus
  * optional `date` and `currency`. The automation pastes Shortcut Input fields into a JSON body, so every field is
  * whatever iOS renders for the phone's locale:
  *  - `amount`: "3 870 Ft", "Ft 1,290", "HUF 1,290.00", "HUF1,290.00", "€4.50", "4,50 €", "₸2 500", "¥38.00",

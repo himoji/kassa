@@ -1,7 +1,7 @@
 /*
  * Synthetic bank statements for the import tests, in the layouts of three real statements (a Kaspi Gold PDF in Kazakh,
  * a Kazakh card bank's ruled table in Russian, a US bank's text lines in English). Every person, account and number
- * is fictitious. Real statements are run locally only and never committed (docs/spec/IMPORT_PLAN.md, Evaluation).
+ * is fictitious. Real statements are run locally only and never committed (docs/architecture/statement-import.md, Evaluation).
  */
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { deflateRawSync } from "node:zlib";

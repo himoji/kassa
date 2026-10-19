@@ -2,7 +2,7 @@
  * I11 end to end on the seeded demo user: everything the PLANNER model receives in a multi-tool turn
  * (system prompt, user text, every tool result, including a document's Reader output) carries no IBAN, PAN,
  * email, phone number, payee name or user name. The Reader itself legitimately receives raw document text
- * (I10 quarantine: no tools, no memory, schema output) — documented in docs/PRIVACY.md — so this test covers
+ * (I10 quarantine: no tools, no memory, schema output) — documented in docs/security/privacy.md — so this test covers
  * what crosses into the planner. PCI DSS scope: no full PAN column exists and capture parsers keep last4 only.
  */
 import { randomUUID } from "node:crypto";

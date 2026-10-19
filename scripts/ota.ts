@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * `bun run ota <target> [message] [-- extra eas update flags]` - publish the current JS and assets of apps/mobile as an
- * over-the-air update (EAS Update) to phones that already have a build with the update client (docs/OTA_UPDATES.md).
+ * over-the-air update (EAS Update) to phones that already have a build with the update client (docs/guide/ota-updates.md).
  *
  *   bun run ota lite "Fix activity list"          KassaLite (Xcode build, channel `lite`, iOS only)
  *   bun run ota production "Fix activity list"    full app built by `eas build --profile production`
@@ -48,7 +48,7 @@ if (!projectId) {
   console.error(
     "No EAS project id. Run `npx eas-cli@latest init` in apps/mobile once and paste the id it prints into\n" +
       "apps/mobile/readynative.config.ts (app.easProjectId), or set EAS_PROJECT_ID. Then rebuild the app once\n" +
-      "so the installed build knows where to look for updates (docs/OTA_UPDATES.md)."
+      "so the installed build knows where to look for updates (docs/guide/ota-updates.md)."
   );
   process.exit(1);
 }

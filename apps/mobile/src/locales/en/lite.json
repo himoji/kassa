@@ -148,7 +148,7 @@
     "updatesTitle": "App updates",
     "updatesCheck": "Check for updates",
     "updatesChecking": "Checking for updates",
-    "updatesOff": "Over-the-air updates are off in this build. Rebuild it from Xcode after setting the EAS project id (docs/OTA_UPDATES.md).",
+    "updatesOff": "Over-the-air updates are off in this build. Rebuild it from Xcode after setting the EAS project id (docs/guide/ota-updates.md).",
     "updatesDebug": "Debug build: the app loads from Metro and ignores updates. Run the Release configuration.",
     "updatesInfo": "Channel {{channel}}, app version {{runtime}}. Updates only reach builds with the same channel and version.",
     "updatesEmbedded": "Built in Xcode",

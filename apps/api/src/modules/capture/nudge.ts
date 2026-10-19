@@ -14,7 +14,7 @@ import { merchantDisplayName } from "./service.ts";
 
 /*
  * The `nudge` the iOS Shortcut (or an Android forwarder) shows as a notification right after a tap
- * (docs/SHORTCUT_SETUP.md): what was logged, when and where, the likely place, the category budget after it (or,
+ * (docs/guide/shortcuts.md): what was logged, when and where, the likely place, the category budget after it (or,
  * with no budget, the month so far and spending outside budgets), and fee / DCC warnings Kassa already knows about.
  * It reports results of the capture that just ran and moves no money (I6); the only write is the AI place guess
  * kept on the transaction. English only: a Shortcut has no app locale; the app shows the localised notification.

@@ -146,7 +146,7 @@
     "updatesTitle": "应用更新",
     "updatesCheck": "检查更新",
     "updatesChecking": "正在检查更新",
-    "updatesOff": "此版本已关闭无线更新。请设置 EAS 项目 ID 后在 Xcode 中重新构建（docs/OTA_UPDATES.md）。",
+    "updatesOff": "此版本已关闭无线更新。请设置 EAS 项目 ID 后在 Xcode 中重新构建（docs/guide/ota-updates.md）。",
     "updatesDebug": "调试版本：应用从 Metro 加载并忽略更新。请运行 Release 配置。",
     "updatesInfo": "渠道 {{channel}}，应用版本 {{runtime}}。更新只会推送到渠道和版本相同的构建。",
     "updatesEmbedded": "在 Xcode 中构建",

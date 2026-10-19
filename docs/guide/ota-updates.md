@@ -21,7 +21,7 @@ only together with a rebuild, otherwise the installed build stops receiving upda
 
 | Build | How it is built | Channel |
 | --- | --- | --- |
-| KassaLite | Xcode, `bun run lite:ios` ([KASSALITE.md](KASSALITE.md)) | `lite` (set in `app.config.ts`) |
+| KassaLite | Xcode, `bun run lite:ios` ([guide/kassalite.md](./kassalite.md)) | `lite` (set in `app.config.ts`) |
 | Full app | `eas build --profile production` / `preview` | `production` / `preview` (from `eas.json`) |
 | Full app, local Xcode build | `UPDATES_CHANNEL=<name> expo run:ios --configuration Release` | whatever `UPDATES_CHANNEL` says |
 

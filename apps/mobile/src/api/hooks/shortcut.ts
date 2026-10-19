@@ -1,5 +1,5 @@
 /**
- * "Apple Pay → Kassa" (iOS Shortcut Transaction automation, docs/SHORTCUT_SETUP.md): per-device bearer tokens
+ * "Apple Pay → Kassa" (iOS Shortcut Transaction automation, docs/guide/shortcuts.md): per-device bearer tokens
  * for POST /capture/shortcut (I13). The token is returned once by the server and never again; only its hash is
  * stored. These contracts are API-local (apps/api users/routes.ts), so their schemas live here.
  */
