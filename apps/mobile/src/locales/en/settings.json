@@ -235,5 +235,14 @@
     "footer": "This month's limit per category. Lowering one or adding a budget applies at once; raising one needs your passkey.",
     "save": "Save budgets",
     "edit": "Change limits"
+  },
+  "deleteAccount": {
+    "row": "Delete my account",
+    "rowHint": "Erase your data and passkeys from Kassa",
+    "title": "Delete your Kassa account?",
+    "message": "Your passkeys, payees, bills, chats and documents are erased and you are signed out. Records the law requires us to keep (payments and the signed ledger) stay, unreadable without your key. This cannot be undone.",
+    "confirm": "Delete account",
+    "done": "Your account was deleted.",
+    "failed": "Your account was not deleted: {{message}}"
   }
 }

@@ -13,12 +13,22 @@ import { useState } from "react";
 
 import { useDemoAvailability } from "@/api/hooks/auth";
 import { useMe } from "@/api/hooks/me";
+import { useEraseAccount } from "@/api/hooks/settings";
 import { DemoProofSection } from "@/components/demo-proof-section";
 import { RowGroup } from "@/components/row-group";
 import { SettingPicker, SettingSwitch } from "@/components/kassa/native-controls";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
-import { Box, Icon, Row, Text, setThemeMode, useThemeMode, type ThemeMode } from "@/components/ui";
+import {
+  Box,
+  Icon,
+  Row,
+  Text,
+  setThemeMode,
+  toast,
+  useThemeMode,
+  type ThemeMode,
+} from "@/components/ui";
 import { auth } from "@/lib/auth";
 import { confirm } from "@/lib/confirm";
 import { env } from "@/lib/env";
@@ -68,6 +78,7 @@ function SettingsBody({ me }: { me: MeResponse }) {
   const language = useLanguagePreference();
   // The judge build has no admin token: its Demo panel holds the reviewer's own actions (money from home).
   const judgeBuild = useDemoAvailability().data?.judgeMode === true;
+  const erase = useEraseAccount();
 
   const setOverride = <K extends keyof SettingsOverrides>(key: K, value: string) =>
     void apply({
@@ -323,6 +334,35 @@ function SettingsBody({ me }: { me: MeResponse }) {
               cancelLabel: t("common:cancel"),
             });
             if (ok) await auth.signOut();
+          }}
+        />
+        <Row
+          leading={<Icon name="trash" fallback="delete" size={20} color="destructive" />}
+          title={t("settings:deleteAccount.row")}
+          subtitle={t("settings:deleteAccount.rowHint")}
+          destructive
+          testID="settings-delete-account"
+          onPress={async () => {
+            const ok = await confirm({
+              title: t("settings:deleteAccount.title"),
+              message: t("settings:deleteAccount.message"),
+              confirmLabel: t("settings:deleteAccount.confirm"),
+              cancelLabel: t("common:cancel"),
+              destructive: true,
+            });
+            if (!ok) return;
+            try {
+              await erase.mutateAsync();
+            } catch (e) {
+              toast.show({
+                title: t("settings:deleteAccount.failed", {
+                  message: e instanceof Error ? e.message : String(e),
+                }),
+              });
+              return;
+            }
+            toast.show({ title: t("settings:deleteAccount.done"), kind: "success" });
+            await auth.signOut();
           }}
         />
       </RowGroup>

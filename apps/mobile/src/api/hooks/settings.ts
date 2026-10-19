@@ -1,5 +1,6 @@
 import {
   CapsResponse,
+  EraseResponse,
   RuleChangesResponse,
   SettingsPatchResponse,
   type CapsPatch,
@@ -54,6 +55,22 @@ export function useUpdateSettings() {
     onSettled: () =>
       Promise.all(
         [keys.me, keys.caps, keys.ruleChanges].map((queryKey) => qc.invalidateQueries({ queryKey }))
+      ),
+  });
+}
+
+/**
+ * Delete the account (GDPR Art. 17): POST /privacy/erase, signed with the passkey. The server erases the user's data
+ * and passkeys and keeps only what the law requires (EraseResponse.retained); the caller signs out afterwards.
+ */
+export function useEraseAccount() {
+  return useMutation({
+    mutationFn: () =>
+      withPasskeyGate((proof) =>
+        api.request("/privacy/erase", {
+          json: { confirm: "ERASE", ...proof },
+          schema: EraseResponse,
+        })
       ),
   });
 }
