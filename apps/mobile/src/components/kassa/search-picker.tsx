@@ -2,9 +2,11 @@
  * A picker for long lists (currencies, countries, categories): the row shows the current choice; tapping it opens a
  * search field and the best matches right below, inline, so it also works inside sheets and forms. Matches on the
  * label and the value: an exact or prefix match ranks first, then a word that starts with the query, then any substring.
+ * Every match is listed in a scroll box of its own (nested inside the screen's ScrollView), so the whole list can be
+ * browsed without typing, and a tap picks a row while the keyboard is still up.
  */
 import { useMemo, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { Pressable, ScrollView, TextInput, View } from "react-native";
 
 import { Icon, Text, useTheme } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
@@ -15,6 +17,9 @@ import type { PickerOption } from "./native-controls";
 export const SEARCH_PICKER_THRESHOLD = 12;
 
 const MAX_RESULTS = 8;
+
+/** Height of the results box: about seven rows, then it scrolls. */
+const RESULTS_MAX_HEIGHT = 288;
 
 export function searchOptions<T extends string>(
   options: readonly PickerOption<T>[],
@@ -66,7 +71,7 @@ export function SearchPicker<T extends string>({
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const matches = useMemo(() => searchOptions(options, query), [options, query]);
+  const matches = useMemo(() => searchOptions(options, query, options.length), [options, query]);
   const extra = custom && query.trim() && matches.length === 0 ? custom(query) : null;
   const current = options.find((o) => o.value === value);
 
@@ -133,29 +138,38 @@ export function SearchPicker<T extends string>({
               testID={testID ? `${testID}-search` : undefined}
             />
           </View>
-          {[...matches, ...(extra ? [extra] : [])].map((o) => (
-            <Pressable
-              key={o.value}
-              onPress={() => pick(o.value)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: o.value === value }}
-              style={({ pressed }) => ({
-                minHeight: 40,
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 8,
-                borderRadius: 8,
-                backgroundColor: pressed ? colors.muted : "transparent",
-              })}
-            >
-              <Text style={{ flex: 1 }} weight={o.value === value ? "semibold" : "normal"}>
-                {o.label}
-              </Text>
-              {o.value === value ? (
-                <Icon name="checkmark" fallback="check" size={16} color="brandAccent" />
-              ) : null}
-            </Pressable>
-          ))}
+          <ScrollView
+            style={{ maxHeight: RESULTS_MAX_HEIGHT }}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator
+            testID={testID ? `${testID}-results` : undefined}
+          >
+            {[...matches, ...(extra ? [extra] : [])].map((o) => (
+              <Pressable
+                key={o.value}
+                onPress={() => pick(o.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: o.value === value }}
+                style={({ pressed }) => ({
+                  minHeight: 40,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 8,
+                  borderRadius: 8,
+                  backgroundColor: pressed ? colors.muted : "transparent",
+                })}
+              >
+                <Text style={{ flex: 1 }} weight={o.value === value ? "semibold" : "normal"}>
+                  {o.label}
+                </Text>
+                {o.value === value ? (
+                  <Icon name="checkmark" fallback="check" size={16} color="brandAccent" />
+                ) : null}
+              </Pressable>
+            ))}
+          </ScrollView>
           {matches.length === 0 && !extra ? (
             <Text variant="caption" style={{ paddingHorizontal: 8, paddingVertical: 6 }}>
               {t("common:noMatches")}
