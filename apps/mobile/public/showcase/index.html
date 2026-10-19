@@ -54,6 +54,21 @@ nav{display:flex;flex-wrap:wrap;gap:8px 20px;font:500 13px/1 var(--mono)}
 nav a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--rule);padding-bottom:4px}
 nav a:hover{color:var(--ink)}
 
+/* plain-language summary */
+.defs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:4px 0 0}
+.defs div{border:1px solid var(--rule);background:var(--sheet);border-radius:10px;padding:14px 16px}
+.defs dt{font:700 13px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.defs dt.ok{color:var(--held)} .defs dt.warn{color:var(--amber)} .defs dt.bad{color:var(--paid)}
+.defs dd{margin:0;font-size:15px;color:var(--muted)}
+.summary{width:100%;border-collapse:collapse;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;overflow:hidden;font-size:16px}
+.summary caption{text-align:left;font-weight:700;font-size:19px;padding:0 0 10px}
+.summary th,.summary td{padding:14px 16px;border-top:1px solid var(--rule);text-align:left}
+.summary thead th{font:600 12px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-top:0}
+.summary td{font-family:var(--display);font-weight:900;font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.summary td::after{content:" / 16";font-size:14px;font-weight:600;color:var(--muted);font-family:var(--body)}
+.summary td.good{color:var(--held)} .summary td.mid{color:var(--amber)} .summary td.bad{color:var(--paid)}
+@media (max-width:640px){.defs{grid-template-columns:1fr}.summary th,.summary td{padding:10px}.summary td{font-size:26px}}
+
 /* hero scoreboard */
 .hero{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--rule);background:var(--sheet);border-radius:10px;overflow:hidden}
 .lane{padding:28px clamp(16px,3vw,32px);display:flex;flex-direction:column;gap:16px;min-width:0}
@@ -154,37 +169,51 @@ footer a{color:var(--cobalt)}
 
 <div class="wrap">
   <header style="display:flex;flex-direction:column;gap:18px">
-    <p class="eyebrow" style="display:flex;align-items:center;gap:10px"><img src="/icons/logo-mark.svg" alt="" width="22" height="22" style="border-radius:6px">Kassa · FinTechathon 2026 · Topic C · evidence room</p>
-    <h1 style="font-size:clamp(36px,6vw,68px);font-weight:900;font-stretch:72%;line-height:.98;letter-spacing:-.015em;max-width:18ch">The same 16 attacks. Kassa refused 7, asked on 8, paid 1.</h1>
-    <p class="lede">Sixteen attacks, including recreations of real AI-agent money incidents, each run with the same attacker intent through Kassa's rules, payment checks and document Reader, and through a chatbot whose payment tool needs only a confirm tap. The planner and Reader are scripted to obey the attacker, so this measures the guards, not the model's luck. Every case is marked <b>refused</b> (code stopped it), <b>asked</b> (a passkey prompt on the exact order: nothing moves unless the user approves, and a fooled user might) or <b>paid</b>.</p>
+    <p class="eyebrow" style="display:flex;align-items:center;gap:10px"><img src="/icons/logo-mark.svg" alt="" width="22" height="22" style="border-radius:6px">Kassa · security evidence · FinTechathon 2026</p>
+    <h1 style="font-size:clamp(36px,6vw,68px);font-weight:900;font-stretch:72%;line-height:.98;letter-spacing:-.015em;max-width:18ch">We attacked our own payment agent 16 ways.</h1>
+    <p class="lede">Kassa is an AI assistant that pays bills for students and families living abroad. AI agents that can move money can also be tricked: a hidden line in an invoice, a fake “our bank account changed” email, a fake call from “your bank”. We ran 16 such attacks, 8 of them copied from real incidents, against Kassa and against a typical AI chatbot that pays as soon as you tap <b>Confirm</b>. To test the worst case, the AI was rigged to always obey the attacker, so only the safety checks around it could stop the money.</p>
+    <dl class="defs">
+      <div><dt class="ok">Refused</dt><dd>Kassa's code blocked it outright. You are never even asked.</dd></div>
+      <div><dt class="warn">Asks</dt><dd>Kassa stopped and asked you to approve that exact payment with Face ID or your fingerprint (a passkey). Nothing moves unless you say yes.</dd></div>
+      <div><dt class="bad">Paid</dt><dd>Money left despite the checks.</dd></div>
+    </dl>
+    <table class="summary">
+      <caption>How many of the 16 attacks got money to the attacker?</caption>
+      <thead><tr><th></th><th>You say no to anything odd</th><th>You are fooled and approve everything</th></tr></thead>
+      <tbody>
+        <tr><th>Kassa</th><td class="good">1</td><td class="mid">5</td></tr>
+        <tr><th>AI chatbot with a Confirm button</th><td class="good">1</td><td class="bad">11</td></tr>
+        <tr><th>AI with no checks at all</th><td class="bad">16</td><td class="bad">16</td></tr>
+      </tbody>
+    </table>
     <nav aria-label="Sections"><a href="#attacks">16 attacks</a><a href="#flow">Who decides</a><a href="#ledger">Tamper-evident ledger</a><a href="#sources">Sources</a></nav>
   </header>
 
   <section aria-labelledby="sb">
-    <h2 id="sb" class="eyebrow" style="font-size:12px">Scoreboard</h2>
+    <h2 id="sb" class="eyebrow" style="font-size:12px">The worst case, attack by attack: a user who approves everything</h2>
     <div class="hero" id="hero">
       <div class="lane held">
-        <h3>Kassa · the fooled user approves every prompt</h3>
-        <p class="score"><span id="heldN">5</span> <small>/ 16 paid the attacker</small></p>
+        <h3>Kassa · you approve every question · attacker paid</h3>
+        <p class="score"><span id="heldN">5</span> <small>/ 16</small></p>
         <div class="ticks" id="heldTicks" aria-hidden="true"></div>
-        <p class="ticker" id="heldTicker" aria-live="polite"><b>7 refused · 8 asked · 1 paid</b> (worst case per attack). Of the 8 that ask, approving pays the attacker in 4, each only after the user added the attacker as a payee and waited 24 h.</p>
+        <p class="ticker" id="heldTicker" aria-live="polite"><b>7 refused · 8 asked you · 1 paid.</b> Approving all 8 questions pays the attacker in 4 of them, and only after you yourself added the attacker as a new recipient and waited out a 24-hour hold. The other 4 overpay a real payee.</p>
       </div>
       <div class="lane naive">
-        <h3>Chatbot + confirm tap · the fooled user taps</h3>
-        <p class="score"><span id="naiveN">11</span> <small>/ 16 paid the attacker</small></p>
+        <h3>Chatbot with a Confirm button · you tap Confirm · attacker paid</h3>
+        <p class="score"><span id="naiveN">11</span> <small>/ 16</small></p>
         <div class="ticks" id="naiveTicks" aria-hidden="true"></div>
-        <p class="ticker" id="naiveTicker"><b>16 of 16</b> made an unwanted payment, 11 to the attacker's account. Rent to a fake IBAN, KZT 5,000,000 to a "safe account", ten salami slices on ten taps.</p>
+        <p class="ticker" id="naiveTicker"><b>All 16 sent money they shouldn't have,</b> 11 straight to the attacker: rent to a fake bank account, KZT 5,000,000 to a “safe account”, ten small payments that each slipped under the limit.</p>
       </div>
       <div class="herofoot">
-        <p class="legend"><span><i class="ok"></i>nothing paid</span><span><i class="warn"></i>an unwanted payment to a legitimate payee (overpayment)</span><span><i class="bad"></i>the attacker's account paid</span></p>
-        <p>Kassa's one paid case is A5: the QR matched when shown, the user approved, and the code was swapped inside the wallet afterwards; Kassa detects it and never marks it sent, but cannot stop it. With a user who declines every prompt, Kassa pays 1 of 16 (that one) and the tap chatbot 1 of 16 (A3, a forged confirmation: nothing signs the tap). An agent with no checks and no tap pays 16 of 16 by construction. Data copied from <span class="mono">docs/evidence/attacks.json</span>, <span class="mono">tap-confirm-baseline.json</span> and <span class="mono">naive-baseline.json</span>, which <code>bun run evidence:attacks</code> writes from the test suite. A1 to A8 and A10 to A17; A9 (swapped supplier bank details) is a business-flow test with no baseline counterpart, so it is not counted here.</p>
+        <p class="legend"><span><i class="ok"></i>nothing paid</span><span><i class="warn"></i>a real payee got too much</span><span><i class="bad"></i>the attacker got paid</span></p>
+        <p>Why Kassa still pays 1 even if you say no: in attack A5 a shop's QR code was checked and matched, you approved, and then the code was swapped inside your banking app. Kassa spots the mismatch and never marks the payment as sent, but the money is already out of its hands. (Attack A9, a business-supplier test with no chatbot equivalent, is not counted; that is why the numbers skip 9.)</p>
         <button id="replay" type="button">Replay the 16 attacks</button>
       </div>
     </div>
     <div class="stats">
-      <div class="stat"><b>16</b><span>attacks, 8 from real incidents</span></div>
-      <div class="stat"><b>38·10·1</b><span>of 49 cases refused · asked · paid</span></div>
-      <div class="stat"><b>13</b><span>invariants, each with a test</span></div>
+      <div class="stat"><b>16</b><span>attacks, 8 copied from real incidents</span></div>
+      <div class="stat"><b>49</b><span>variations of those attacks: 38 refused, 10 asked you, 1 paid</span></div>
+      <div class="stat"><b>13</b><span>safety rules that must always hold, each checked by a test</span></div>
       <div class="stat"><b>2,681</b><span>automated tests passing</span></div>
     </div>
   </section>
@@ -193,21 +222,21 @@ footer a{color:var(--cobalt)}
     <div style="display:flex;flex-direction:column;gap:10px">
       <p class="eyebrow">The attacks</p>
       <h2 id="ah">What each attacker tried, and what Kassa did</h2>
-      <p class="lede">Open a card to see what the tap-to-confirm chatbot paid when the user tapped, and what Kassa's rules and payment service did instead: refused, asked for the passkey, or (once) paid.</p>
+      <p class="lede">Tap a card to compare: what the Confirm-button chatbot paid, and what Kassa did instead. The codes are the reasons Kassa's checks gave.</p>
     </div>
     <div class="filters" role="group" aria-label="Filter attacks">
       <button type="button" data-f="all" aria-pressed="true">All 16</button>
       <button type="button" data-f="real" aria-pressed="false">Real incidents A10–A17</button>
-      <button type="button" data-f="spec" aria-pressed="false">Spec attacks A1–A8</button>
+      <button type="button" data-f="spec" aria-pressed="false">Designed attacks A1–A8</button>
     </div>
     <div class="grid" id="grid"></div>
   </section>
 
   <section id="flow" aria-labelledby="fh">
     <div style="display:flex;flex-direction:column;gap:10px">
-      <p class="eyebrow">AI as a financial participant</p>
-      <h2 id="fh">The agent proposes. Code decides. Your passkey signs.</h2>
-      <p class="lede">Pick a request and watch where it goes. The model only drafts; plain code in <span class="mono">rules/decide.ts</span> picks the tier (an AUTO payment runs inside a mandate or limit you signed), and the payment service checks everything again on its own.</p>
+      <p class="eyebrow">Who decides</p>
+      <h2 id="fh">The AI drafts. Plain code decides. You sign.</h2>
+      <p class="lede">Pick a request and watch where it goes. The AI only writes a draft payment. Ordinary code, not the AI, decides whether it pays on its own (only inside a standing permission you signed, like monthly rent), asks you, or refuses. The payment service then checks everything again by itself.</p>
     </div>
     <div class="flowwrap">
       <div class="scns" role="group" aria-label="Scenarios" id="scns"></div>
@@ -220,9 +249,9 @@ footer a{color:var(--cobalt)}
 
   <section id="ledger" aria-labelledby="lh">
     <div style="display:flex;flex-direction:column;gap:10px">
-      <p class="eyebrow">Tamper-evident ledger</p>
+      <p class="eyebrow">A record nobody can quietly edit</p>
       <h2 id="lh">Change one old entry and the chain shows it</h2>
-      <p class="lede">Every proposal, approval and payment is appended to a hash chain with signed checkpoints. This is an illustrative copy: real event types, simplified fields, hashes computed live in your browser with SHA-256. Edit an amount and run the check.</p>
+      <p class="lede">Every draft, approval and payment is written to a log where each entry is locked to the one before it (a hash chain). Change any old entry and every entry after it stops matching. Try it: edit an amount below and run the check. (A simplified copy; the fingerprints are computed live in your browser.)</p>
     </div>
     <div class="chain" id="chain"></div>
     <div class="verify">
