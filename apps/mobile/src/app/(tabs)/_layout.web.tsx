@@ -5,6 +5,7 @@ import { useMe } from "@/api/hooks/me";
 import { Logo } from "@/components/kassa/logo";
 import { Icon, Text, useTheme } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
+import { useHydrated } from "@/lib/use-hydrated";
 
 /**
  * Web has no system tab bar (Expo Router docs, "Custom web layout"): headless tabs from
@@ -132,10 +133,12 @@ export default function WebTabsLayout() {
   const t = useKassaT();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
+  const hydrated = useHydrated();
   const me = useMe();
   if (me.isLoading) return null;
   const tabs = me.data?.accountType === "BUSINESS" ? BUSINESS_TABS : TABS;
-  const wide = width >= 900;
+  // The static export renders narrow; hydration would keep that layout on a wide window.
+  const wide = hydrated && width >= 900;
   // TabList must stay a direct child of Tabs (expo-router/ui reads the triggers from it).
   const list = (
     <TabList

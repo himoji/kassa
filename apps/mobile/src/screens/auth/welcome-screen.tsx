@@ -20,6 +20,7 @@ import { haptics } from "@/lib/haptics";
 import { useKassaT, type TFn } from "@/lib/i18n";
 import { PasskeyCancelledError } from "@/lib/passkey-errors";
 import { peekReturnPath } from "@/lib/return-path";
+import { useHydrated } from "@/lib/use-hydrated";
 
 const POINTS = [
   { key: "auth:welcome.point1", sf: "wand.and.stars", md: "auto_awesome" },
@@ -182,7 +183,8 @@ export function WelcomeScreen() {
   const t = useKassaT();
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
-  const wide = width >= 900;
+  // The static export renders narrow (no window); hydration would keep that layout on a wide window.
+  const wide = useHydrated() && width >= 900;
 
   const hero = (
     <Box gap={6} style={wide ? { flex: 1, maxWidth: 520 } : { paddingTop: 16 }}>
