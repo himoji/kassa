@@ -1,5 +1,5 @@
 /*
- * POST /demo/cooling: the demo switch for the 24 h waits (demo/cooling.ts). Registered only when DEMO_ENABLED.
+ * POST /demo/cooling: the demo switch for the 24 h waits (demo/cooling.ts, off by default). Registered only when DEMO_ENABLED.
  * Turning the waits off is a loosening: it needs the user's passkey over a fresh core (428 round trip, like backup
  * codes) and is logged with the credential that signed it. Turning them on is a tightening: no passkey, logged too.
  */
@@ -9,7 +9,7 @@ import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import { randomBytes } from "node:crypto";
 
 import { getDb } from "../../db/client.ts";
-import { demoCoolingOff } from "../../db/schema.ts";
+import { demoCoolingOff, demoCoolingOn } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { auditAssertionFailure } from "../../http/audit.ts";
 import { HttpProblem } from "../../http/problem.ts";
@@ -19,9 +19,12 @@ import { clock } from "../clock/index.ts";
 import { ledger } from "../ledger/index.ts";
 import { assertionOptions, verifyRulesAssertion } from "../rules/webauthn.ts";
 
+import { coolingOn } from "./cooling.ts";
+
 async function stateOf(userId: string): Promise<DemoCoolingResponse> {
-  const row = (await getDb().select().from(demoCoolingOff).where(eq(demoCoolingOff.userId, userId)))[0];
-  return { coolingOn: !row, offAt: row?.offAt.toISOString() ?? null };
+  const on = await coolingOn(userId);
+  const row = on ? undefined : (await getDb().select().from(demoCoolingOff).where(eq(demoCoolingOff.userId, userId)))[0];
+  return { coolingOn: on, offAt: row?.offAt.toISOString() ?? null };
 }
 
 const routes: FastifyPluginAsyncZod = async (app) => {
@@ -33,8 +36,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const userId = userIdOf(req);
       const db = getDb();
       if (req.body.enabled) {
-        const removed = await db.delete(demoCoolingOff).where(eq(demoCoolingOff.userId, userId)).returning({ userId: demoCoolingOff.userId });
-        if (removed.length > 0) await ledger.append("DEMO_COOLING_ON", { userId });
+        if (!(await coolingOn(userId, db))) {
+          await db.transaction(async (tx) => {
+            await tx.delete(demoCoolingOff).where(eq(demoCoolingOff.userId, userId));
+            await tx.insert(demoCoolingOn).values({ userId, onAt: clock.now() }).onConflictDoNothing();
+            await ledger.append("DEMO_COOLING_ON", { userId }, tx);
+          });
+        }
         return stateOf(userId);
       }
       if (!req.body.challengeId || !req.body.assertion) {
@@ -55,6 +63,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       }
       const offAt = clock.now();
       await db.transaction(async (tx) => {
+        await tx.delete(demoCoolingOn).where(eq(demoCoolingOn.userId, userId));
         await tx
           .insert(demoCoolingOff)
           .values({ userId, credentialId: check.credentialId, offAt })

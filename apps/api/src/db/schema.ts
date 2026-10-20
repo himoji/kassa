@@ -989,6 +989,17 @@ export const demoCoolingOff = pgTable("demo_cooling_off", {
   offAt: tstz("off_at").notNull(),
 });
 
+/**
+ * (added 2026-10-20, migration 0027) Demo only: a row = this user turned the 24 h waits on, which matters while
+ * COOLING_DEFAULT is "off" (the default). Turning them on needs no passkey (it tightens).
+ */
+export const demoCoolingOn = pgTable("demo_cooling_on", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  onAt: tstz("on_at").notNull(),
+});
+
 // ---------- Kassa Business (added 2026-10-14, Business M0, migration 0007) ----------
 /*
  * A BUSINESS user owns one merchant (a pizzeria). Stock is never stored as a number: on-hand = the sum of

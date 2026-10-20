@@ -190,6 +190,13 @@
       "when": 1792387031394,
       "tag": "0026_wallet_top_ups_linked_balances",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792501090591,
+      "tag": "0027_demo_cooling_on",
+      "breakpoints": true
     }
   ]
 }

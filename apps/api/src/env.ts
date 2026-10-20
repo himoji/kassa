@@ -73,6 +73,12 @@ const EnvSchema = z.object({
   KYC_THRESHOLD_MINOR: z.coerce.number().int().min(0).default(100_000),
   KYC_THRESHOLD_CURRENCY: z.string().regex(/^[A-Z]{3}$/).default("EUR"),
   DEMO_ENABLED: bool,
+  /**
+   * (2026-10-20) Demo deployments: whether the 24 h waits (recipient cooling, loosening delays) apply to a user who
+   * has not chosen (demo/cooling.ts). "off" by default; each user can turn them on. Ignored without DEMO_ENABLED
+   * (real deployments always wait). The tests run with "on".
+   */
+  COOLING_DEFAULT: z.enum(["on", "off"]).default("off"),
   DEMO_ADMIN_TOKEN: z.string().optional(),
   /**
    * Dev sign-in without a passkey (POST /auth/dev/login, auth/dev.ts). Only with DEMO_ENABLED, never in production,

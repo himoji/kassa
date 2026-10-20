@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { AnimatedSplashOverlay } from "@/components/animated-icon";
-import { CoolingOffBanner } from "@/components/cooling-off-banner";
 import { LiteReturnBar } from "@/components/lite-return-bar";
 import { UpdatesBanner } from "@/components/updates-banner";
 import { useAuthRedirect } from "@/hooks/use-auth-redirect";
@@ -41,7 +40,6 @@ export default function RootLayout() {
           <AnimatedSplashOverlay />
           <UpdatesBanner />
           <LiteReturnBar />
-          <CoolingOffBanner />
           <RootStack />
         </Providers>
       </KeyboardProvider>

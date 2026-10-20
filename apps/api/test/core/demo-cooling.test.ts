@@ -83,10 +83,29 @@ describe("demo switch for the 24 h waits", () => {
     expect(coolingHours(await createPayee(userId, MUM))).toBeGreaterThan(23.9);
   });
 
+  it("COOLING_DEFAULT=off (the deployed default): no wait until the user turns it on, then 24 h; off again needs the passkey", async () => {
+    setEnvForTests({ COOLING_DEFAULT: "off" });
+    const { userId, auth } = await createUserWithPasskey({ counter: 1 });
+    expect(await coolingOn(userId)).toBe(false);
+    expect(await waitMs(userId, HOUR_MS)).toBe(0);
+    expect(coolingHours(await createPayee(userId, MUM))).toBeLessThan(0.01);
+
+    const on = await app().inject({ method: "POST", url: "/api/demo/cooling", headers: await bearer(userId), payload: { enabled: true } });
+    expect(on.statusCode).toBe(200);
+    expect(on.json()).toEqual({ coolingOn: true, offAt: null });
+    expect(await coolingOn(userId)).toBe(true);
+    expect(await getDb().select().from(ledgerEntries).where(eq(ledgerEntries.type, "DEMO_COOLING_ON"))).toHaveLength(1);
+    expect(coolingHours(await createPayee(userId, { name: "Landlord", kind: "PERSON" as const, account: "HU75109183242065038100000003", country: "HU", currency: "HUF" }))).toBeGreaterThan(23.9);
+
+    const off = await turnOff(userId, auth);
+    expect(off.statusCode).toBe(200);
+    expect(off.json()).toMatchObject({ coolingOn: false });
+  });
+
   it("outside demo mode the switch does not exist and a stored row is ignored", async () => {
     const { userId } = await createUserWithPasskey({ counter: 1 });
     await getDb().insert(demoCoolingOff).values({ userId, credentialId: "x", offAt: clock.now() });
-    setEnvForTests({ DEMO_ENABLED: "false" });
+    setEnvForTests({ DEMO_ENABLED: "false", COOLING_DEFAULT: "off" });
     const prod = await buildServer({ logger: false });
     await prod.ready();
     try {
