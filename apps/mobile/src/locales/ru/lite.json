@@ -89,7 +89,11 @@
     "recentOnCard": "Последние по этой карте",
     "topCategories": "Главные категории",
     "cardEmpty": "В этом месяце по этой карте покупок нет.",
-    "latest": "Последнее"
+    "latest": "Последнее",
+    "wallet": "Кошелёк",
+    "walletTotal": "В кошельке Kassa",
+    "walletEmpty": "Пусто. Пополните, чтобы начать.",
+    "walletBalances": "Балансы"
   },
   "pair": {
     "title": "Связать KassaLite",

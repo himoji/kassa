@@ -74,7 +74,11 @@
     "recentOnCard": "这张卡的最近消费",
     "topCategories": "主要类别",
     "cardEmpty": "本月这张卡没有消费。",
-    "latest": "最新"
+    "latest": "最新",
+    "wallet": "钱包",
+    "walletTotal": "Kassa 钱包余额",
+    "walletEmpty": "空的。先充值吧。",
+    "walletBalances": "余额"
   },
   "pair": {
     "title": "配对 KassaLite",

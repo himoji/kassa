@@ -16,6 +16,7 @@ import { useSpendingInsights } from "@/api/hooks/insights";
 import { useMe } from "@/api/hooks/me";
 import {
   useAgentActivity,
+  useBalances,
   useBudgets,
   useCardFees,
   useCards,
@@ -63,6 +64,7 @@ const ON_HERO_MUTED = "rgba(255,255,255,0.72)";
 type Gradient = readonly [string, string];
 const ALL_GRADIENT: Gradient = ["#0E9F73", "#04503A"];
 const KASSA_GRADIENT: Gradient = ["#6366F1", "#4C1D95"];
+const WALLET_GRADIENT: Gradient = ["#0F766E", "#134E4A"];
 /** Card pages pick one by their id, so a card keeps its colour. */
 const CARD_GRADIENTS: readonly Gradient[] = [
   ["#334155", "#0F172A"],
@@ -79,7 +81,12 @@ export function cardGradient(id: string): Gradient {
   return CARD_GRADIENTS[h % CARD_GRADIENTS.length]!;
 }
 
-type Page = { kind: "all" } | { kind: "card"; card: CardDto } | { kind: "kassa" } | { kind: "add" };
+type Page =
+  | { kind: "all" }
+  | { kind: "wallet" }
+  | { kind: "card"; card: CardDto }
+  | { kind: "kassa" }
+  | { kind: "add" };
 
 function pageKey(p: Page): string {
   return p.kind === "card" ? `card-${p.card.id}` : p.kind;
@@ -140,7 +147,7 @@ function DeckCard({
         height: CARD_HEIGHT,
         borderRadius: 24,
         overflow: "hidden",
-        padding: 20,
+        padding: CARD_PADDING,
         justifyContent: "space-between",
         backgroundColor: gradient[1],
       }}
@@ -178,7 +185,7 @@ function HeroAction({
         accessibilityLabel={label}
         onPress={onPress}
         hitSlop={8}
-        style={{ alignItems: "center", gap: 4 }}
+        style={{ alignItems: "center", gap: 4, width: "100%", paddingHorizontal: 2 }}
       >
         <View
           style={{
@@ -192,7 +199,11 @@ function HeroAction({
         >
           <Icon name={sf} fallback={md} size={20} color="#056347" />
         </View>
-        <Text weight="semibold" numberOfLines={1} style={{ color: ON_HERO, fontSize: 12 }}>
+        <Text
+          weight="semibold"
+          numberOfLines={1}
+          style={{ color: ON_HERO, fontSize: 11, textAlign: "center", width: "100%" }}
+        >
           {label}
         </Text>
       </Pressable>
@@ -200,11 +211,16 @@ function HeroAction({
   );
 }
 
-/** The big amount steps down for long figures, so "KZT 1,234,567.89" fits a phone-width card whole. */
-export function amountSize(text: string): number {
-  if (text.length <= 12) return 34;
-  if (text.length <= 15) return 30;
-  return 26;
+/** Padding inside a deck card (DeckCard). */
+const CARD_PADDING = 20;
+
+/**
+ * The big amount steps down for long figures and narrow cards, so "KZT 1,234,567.89" fits whole: a bold digit is
+ * about 0.62 em wide.
+ */
+export function amountSize(text: string, cardWidth = 340): number {
+  const room = Math.max(120, cardWidth - CARD_PADDING * 2);
+  return Math.max(20, Math.min(34, Math.floor(room / (Math.max(1, text.length) * 0.62))));
 }
 
 /** Spending this month across everything, what the budgets leave, and the three money actions. */
@@ -241,7 +257,7 @@ function AllCard({ width }: { width: number }) {
           numberOfLines={1}
           style={{
             color: ON_HERO,
-            fontSize: amountSize(total),
+            fontSize: amountSize(total, width),
             lineHeight: 40,
             letterSpacing: -0.8,
             fontVariant: ["tabular-nums"],
@@ -282,6 +298,120 @@ function AllCard({ width }: { width: number }) {
         />
       </View>
     </DeckCard>
+  );
+}
+
+/** The Kassa wallet: what it holds in the home currency and per currency (GET /balances). */
+function WalletCard({ width }: { width: number }) {
+  const t = useKassaT();
+  const f = useFormat();
+  const b = useBalances().data;
+  const total = b ? f.money(b.homeTotalMinor, b.homeCurrency) : "—";
+  const held = (b?.balances ?? []).filter((x) => x.amountMinor !== 0);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${t("lite:home.wallet")}: ${total}`}
+      onPress={() => router.push("/add-money")}
+    >
+      <DeckCard id="wallet" gradient={WALLET_GRADIENT} width={width}>
+        <Box row justify="between" align="center" gap={3}>
+          <Text
+            weight="semibold"
+            numberOfLines={1}
+            style={{ color: ON_HERO, fontSize: 17, flex: 1 }}
+          >
+            {t("lite:home.wallet")}
+          </Text>
+          <Icon
+            name="wallet.pass.fill"
+            fallback="account_balance_wallet"
+            size={22}
+            color="#ffffffb8"
+          />
+        </Box>
+        <Box gap={1}>
+          <Text style={{ color: ON_HERO_MUTED, fontSize: 14 }}>{t("lite:home.walletTotal")}</Text>
+          <Text
+            variant="title"
+            numberOfLines={1}
+            style={{
+              color: ON_HERO,
+              fontSize: amountSize(total, width),
+              lineHeight: 40,
+              letterSpacing: -0.8,
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {total}
+          </Text>
+          <Text numberOfLines={1} style={{ color: ON_HERO_MUTED, fontSize: 13 }}>
+            {held.length > 0
+              ? held.map((x) => f.money(x.amountMinor, x.currency)).join(" · ")
+              : t("lite:home.walletEmpty")}
+          </Text>
+        </Box>
+      </DeckCard>
+    </Pressable>
+  );
+}
+
+/** Below the Wallet card: each balance, and the money actions. */
+function WalletDetails() {
+  const t = useKassaT();
+  const f = useFormat();
+  const b = useBalances().data;
+  const rows = (b?.balances ?? []).filter((x) => x.amountMinor !== 0);
+  return (
+    <>
+      <RowGroup title={t("lite:home.walletBalances")} icons>
+        {rows.length === 0 ? (
+          <Row title={t("lite:home.walletEmpty")} />
+        ) : (
+          rows.map((x) => (
+            <Row
+              key={x.currency}
+              leading={<Icon name="banknote" fallback="payments" size={20} color="foreground" />}
+              title={x.currency}
+              subtitle={
+                b && x.currency !== b.homeCurrency
+                  ? `≈ ${f.money(x.homeAmountMinor, b.homeCurrency)}`
+                  : undefined
+              }
+              trailing={
+                <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
+                  {f.money(x.amountMinor, x.currency)}
+                </Text>
+              }
+            />
+          ))
+        )}
+      </RowGroup>
+      <RowGroup icons>
+        <Row
+          leading={<Icon name="plus.circle" fallback="add_circle" size={20} color="foreground" />}
+          title={t("home:addMoney")}
+          onPress={() => router.push("/add-money")}
+        />
+        <Row
+          leading={<Icon name="paperplane" fallback="send" size={20} color="foreground" />}
+          title={t("home:send")}
+          onPress={() => router.push("/send")}
+        />
+        <Row
+          leading={
+            <Icon
+              name="arrow.left.arrow.right"
+              fallback="currency_exchange"
+              size={20}
+              color="foreground"
+            />
+          }
+          title={t("home:convert")}
+          onPress={() => router.push("/convert")}
+        />
+      </RowGroup>
+    </>
   );
 }
 
@@ -895,6 +1025,7 @@ export function LiteHomeScreen() {
   const pages = useMemo<Page[]>(
     () => [
       { kind: "all" },
+      { kind: "wallet" },
       ...cardList.map((card) => ({ kind: "card" as const, card })),
       { kind: "kassa" },
       { kind: "add" },
@@ -1013,6 +1144,8 @@ export function LiteHomeScreen() {
             {pages.map((p) =>
               p.kind === "all" ? (
                 <AllCard key="all" width={cardWidth} />
+              ) : p.kind === "wallet" ? (
+                <WalletCard key="wallet" width={cardWidth} />
               ) : p.kind === "card" ? (
                 <CardPage
                   key={p.card.id}
@@ -1043,6 +1176,8 @@ export function LiteHomeScreen() {
               const label =
                 p.kind === "all" ? (
                   t("lite:home.all")
+                ) : p.kind === "wallet" ? (
+                  t("lite:home.wallet")
                 ) : p.kind === "card" ? (
                   shortLabel(p.card)
                 ) : p.kind === "kassa" ? (
@@ -1082,6 +1217,8 @@ export function LiteHomeScreen() {
 
         {page.kind === "all" ? (
           <AllDetails captures={captures} onMore={() => goTo(kassaIndex)} />
+        ) : page.kind === "wallet" ? (
+          <WalletDetails />
         ) : page.kind === "card" ? (
           matched ? (
             <CardDetails card={page.card} captures={captures} homeCurrency={homeCurrency} />

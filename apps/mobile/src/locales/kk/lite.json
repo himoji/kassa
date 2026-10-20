@@ -79,7 +79,11 @@
     "recentOnCard": "Осы картадағы соңғылары",
     "topCategories": "Негізгі санаттар",
     "cardEmpty": "Осы айда бұл картамен сатып алу жоқ.",
-    "latest": "Соңғылары"
+    "latest": "Соңғылары",
+    "wallet": "Әмиян",
+    "walletTotal": "Kassa әмиянында",
+    "walletEmpty": "Бос. Бастау үшін толтырыңыз.",
+    "walletBalances": "Баланстар"
   },
   "pair": {
     "title": "KassaLite байланыстыру",

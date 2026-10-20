@@ -79,7 +79,11 @@
     "recentOnCard": "Recent on this card",
     "topCategories": "Top categories",
     "cardEmpty": "No purchases on this card this month.",
-    "latest": "Latest"
+    "latest": "Latest",
+    "wallet": "Wallet",
+    "walletTotal": "In your Kassa wallet",
+    "walletEmpty": "Empty. Add money to start.",
+    "walletBalances": "Balances"
   },
   "pair": {
     "title": "Pair KassaLite",
