@@ -30,8 +30,6 @@
     "share": "{{pct}}%",
     "usual": "usually {{amount}}",
     "noBudget": "No budget",
-    "left": "{{amount}} left of {{limit}}",
-    "over": "{{amount}} over {{limit}}",
     "outsideBudgets": "Outside your budgets this month: {{amount}}",
     "a11y": "{{category}}: {{amount}}, {{pct}}% of the month"
   },

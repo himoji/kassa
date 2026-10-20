@@ -34,8 +34,6 @@
     "share": "{{pct}}%",
     "usual": "обычно {{amount}}",
     "noBudget": "Без бюджета",
-    "left": "Осталось {{amount}} из {{limit}}",
-    "over": "На {{amount}} больше {{limit}}",
     "outsideBudgets": "Вне бюджетов в этом месяце: {{amount}}",
     "a11y": "{{category}}: {{amount}}, {{pct}}% месяца"
   },

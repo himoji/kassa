@@ -3,6 +3,7 @@ import { router, type Href } from "expo-router";
 import { View } from "react-native";
 
 import { useSpendingInsights } from "@/api/hooks/insights";
+import { Bar, PACE_TONE } from "@/components/kassa/budget-bar";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import {
@@ -192,6 +193,43 @@ function Highlights({ data }: { data: SpendingInsightsResponse }) {
   );
 }
 
+/** A category's budget: a thin bar of what is spent, "₸12,000 of ₸50,000" under it, and the pace when off track. */
+function BudgetProgress({
+  budget,
+  currency,
+}: {
+  budget: NonNullable<SpendingInsightsResponse["categories"][number]["budget"]>;
+  currency: string;
+}) {
+  const t = useKassaT();
+  const f = useFormat();
+  const ratio = budget.limitMinor > 0 ? budget.spentMinor / budget.limitMinor : 1;
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(Math.min(1, ratio) * 100) }}
+      style={{ paddingStart: 22, gap: 4 }}
+    >
+      <Bar ratio={ratio} tone={PACE_TONE[budget.pace]} height={6} />
+      <Box row justify="between" align="center" gap={2}>
+        <Text variant="caption" style={{ fontVariant: ["tabular-nums"] }}>
+          {t("home:spentOf", {
+            spent: f.money(budget.spentMinor, currency),
+            limit: f.money(budget.limitMinor, currency),
+          })}
+        </Text>
+        {budget.pace !== "ON_TRACK" ? (
+          <StatusChip
+            tone={budget.pace === "OVER" ? "critical" : "warning"}
+            label={t(`home:pace.${budget.pace}`)}
+          />
+        ) : null}
+      </Box>
+    </View>
+  );
+}
+
 function Categories({ data }: { data: SpendingInsightsResponse }) {
   const t = useKassaT();
   const f = useFormat();
@@ -218,16 +256,9 @@ function Categories({ data }: { data: SpendingInsightsResponse }) {
       {slices.map((s) => {
         const b = s.category?.budget;
         const typical = s.category?.typicalMinor ?? null;
+        // A budgeted category shows a progress bar instead (BudgetProgress).
         const detail = b
-          ? b.remainingMinor < 0
-            ? t("insights:categories.over", {
-                amount: f.money(-b.remainingMinor, data.homeCurrency),
-                limit: f.money(b.limitMinor, data.homeCurrency),
-              })
-            : t("insights:categories.left", {
-                amount: f.money(b.remainingMinor, data.homeCurrency),
-                limit: f.money(b.limitMinor, data.homeCurrency),
-              })
+          ? null
           : typical !== null
             ? t("insights:categories.usual", { amount: f.money(typical, data.homeCurrency) })
             : s.category
@@ -254,18 +285,11 @@ function Categories({ data }: { data: SpendingInsightsResponse }) {
                 {f.money(s.spentMinor, data.homeCurrency)}
               </Text>
             </Box>
+            {b ? <BudgetProgress budget={b} currency={data.homeCurrency} /> : null}
             {detail ? (
-              <Box row align="center" gap={2} style={{ paddingStart: 22 }}>
-                <Text variant="caption" style={{ flexShrink: 1 }}>
-                  {detail}
-                </Text>
-                {b && b.pace !== "ON_TRACK" ? (
-                  <StatusChip
-                    tone={b.pace === "OVER" ? "critical" : "warning"}
-                    label={t(`home:pace.${b.pace}`)}
-                  />
-                ) : null}
-              </Box>
+              <Text variant="caption" style={{ flexShrink: 1, paddingStart: 22 }}>
+                {detail}
+              </Text>
             ) : null}
           </View>
         );
@@ -281,12 +305,7 @@ function Categories({ data }: { data: SpendingInsightsResponse }) {
               {f.money(0, data.homeCurrency)}
             </Text>
           </Box>
-          <Text variant="caption" style={{ paddingStart: 22 }}>
-            {t("insights:categories.left", {
-              amount: f.money(c.budget!.remainingMinor, data.homeCurrency),
-              limit: f.money(c.budget!.limitMinor, data.homeCurrency),
-            })}
-          </Text>
+          <BudgetProgress budget={c.budget!} currency={data.homeCurrency} />
         </View>
       ))}
     </RowGroup>

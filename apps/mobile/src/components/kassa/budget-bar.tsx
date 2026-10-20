@@ -9,7 +9,7 @@ import { statusColor, type StatusTone } from "@/theme/status";
 
 import { StatusChip } from "./status-chip";
 
-const PACE_TONE: Record<BudgetDto["pace"], StatusTone> = {
+export const PACE_TONE: Record<BudgetDto["pace"], StatusTone> = {
   ON_TRACK: "positive",
   AHEAD_OF_PACE: "warning",
   OVER: "critical",
@@ -23,7 +23,8 @@ export function sortBudgets(budgets: readonly BudgetDto[]): BudgetDto[] {
   return [...budgets].sort((a, b) => PACE_ORDER[a.pace] - PACE_ORDER[b.pace] || used(b) - used(a));
 }
 
-function Bar({ ratio, tone, height }: { ratio: number; tone: StatusTone; height: number }) {
+/** A rounded progress bar: `ratio` of the track filled in the tone's colour (capped at full). */
+export function Bar({ ratio, tone, height }: { ratio: number; tone: StatusTone; height: number }) {
   const { colors, mode } = useTheme();
   return (
     <View

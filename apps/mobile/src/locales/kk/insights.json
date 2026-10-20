@@ -30,8 +30,6 @@
     "share": "{{pct}}%",
     "usual": "әдетте {{amount}}",
     "noBudget": "Бюджет жоқ",
-    "left": "{{limit}} ішінен {{amount}} қалды",
-    "over": "{{limit}} лимиттен {{amount}} асты",
     "outsideBudgets": "Осы айда бюджеттерден тыс: {{amount}}",
     "a11y": "{{category}}: {{amount}}, айдың {{pct}}%"
   },

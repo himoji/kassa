@@ -28,8 +28,6 @@
     "share": "{{pct}}%",
     "usual": "通常 {{amount}}",
     "noBudget": "无预算",
-    "left": "剩余 {{amount}}，共 {{limit}}",
-    "over": "超出 {{limit}} 达 {{amount}}",
     "outsideBudgets": "本月预算外支出：{{amount}}",
     "a11y": "{{category}}：{{amount}}，占本月的 {{pct}}%"
   },
