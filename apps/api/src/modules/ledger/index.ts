@@ -9,7 +9,7 @@ import { getDb, type DbOrTx } from "../../db/client.ts";
 import { ledgerEntries } from "../../db/schema.ts";
 import { env } from "../../env.ts";
 import { clock } from "../clock/index.ts";
-import { appendInTx, verifyChain, type AppendedEntry, type VerifyReport } from "./internal.ts";
+import { appendInTx, appendManyInTx, verifyChain, type AppendedEntry, type VerifyReport } from "./internal.ts";
 import { loadPrivateKey, publicFromPrivate, loadPublicKey } from "./keys.ts";
 
 let keyCache: { b64: string; priv: KeyObject } | null = null;
@@ -29,6 +29,12 @@ export const ledger = {
     const key = checkpointKey();
     if (tx) return appendInTx(tx, clock.now(), key, type, payload);
     return getDb().transaction((t) => appendInTx(t, clock.now(), key, type, payload));
+  },
+  /** Several entries in order, under one lock and one head write (a data import); same chain as one append each. */
+  async appendMany(entries: readonly { type: string; payload: unknown }[], tx?: DbOrTx): Promise<AppendedEntry[]> {
+    const key = checkpointKey();
+    if (tx) return appendManyInTx(tx, clock.now(), key, entries);
+    return getDb().transaction((t) => appendManyInTx(t, clock.now(), key, entries));
   },
   async verify(): Promise<VerifyReport> {
     return verifyChain(getDb(), checkpointPublicKey());

@@ -165,6 +165,7 @@ copies of each layout are in `apps/api/test/dataport/languages.test.ts`.
 | E8 | Payments with bank bonuses ("Зачисление бонусов…") were transfers | Purchases |
 | E9 | Preview took ~100 s: the batched AI category call ran 80 merchants per call, one call after another | 10 per call, all at once, capped at 20 s (dictionary answers stand for the rest); the user's category memory read in one query |
 | E10 | Commit timed out on a far database (100 rows per request, ≈1 s per row, 20 s client timeout) | 25 rows per request, 120 s timeout for commits; the duplicate check reads all keys in one query |
+| E11 | Commit still cost 1–3 s a row on a far database: each row ran the live capture and settlement path, ~25 queries a row | A chunk is written in one transaction (`capture/importBatch.ts`, `ledger.appendMany`): 9 statements for 50 rows instead of ~520, same rows and ledger entries (golden test `import-batch.test.ts`); the app commits 200 rows a request with a 60 s timeout ([plan](import-batch-commit-plan.md)) |
 
 Result on the two statements (AI off): Kaspi purchases ₸896,725 vs the bank's ₸895,005 (0.2 %, the bank nets FX
 credits in); Alatau KZT purchases ₸3,449,409 plus $99.62 paid from the USD sub-account vs the bank's ₸3,478,029;

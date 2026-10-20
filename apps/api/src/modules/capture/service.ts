@@ -127,8 +127,16 @@ export async function placeName(
   const entry = lookupMerchant(merchantNorm) ?? (cleaned.processor ? lookupMerchant(normalizeMerchant(cleaned.name)) : null);
   if (entry) return { name: entry.displayName, source: "DICTIONARY", processor: cleaned.processor };
   const own = ownPayees ?? (await db.select({ name: payees.name }).from(payees).where(eq(payees.userId, userId)));
+  return placeNameAmong(merchantNorm, merchantRaw, own);
+}
+
+/** `placeName` over payees already loaded, with no query (an import names a whole chunk at once). */
+export function placeNameAmong(merchantNorm: string, merchantRaw: string, ownPayees: readonly { name: string }[]): { name: string; source: PlaceSource; processor: string | null } {
+  const cleaned = cleanMerchant(merchantRaw);
+  const entry = lookupMerchant(merchantNorm) ?? (cleaned.processor ? lookupMerchant(normalizeMerchant(cleaned.name)) : null);
+  if (entry) return { name: entry.displayName, source: "DICTIONARY", processor: cleaned.processor };
   const cleanedNorm = normalizeMerchant(cleaned.name);
-  const payee = own.find((p) => {
+  const payee = ownPayees.find((p) => {
     const n = normalizeMerchant(p.name);
     return n === merchantNorm || n === cleanedNorm;
   });
@@ -146,7 +154,12 @@ export async function merchantDisplayName(userId: string, merchantNorm: string, 
 
 async function matchCard(db: DbOrTx, userId: string, hint: string | null) {
   if (!hint) return null;
-  const mine = await db.select().from(cards).where(eq(cards.userId, userId));
+  return pickCard(await db.select().from(cards).where(eq(cards.userId, userId)), hint);
+}
+
+/** The card a hint names among the user's cards: its last 4 digits, else its label. */
+export function pickCard<C extends { last4: string; label: string }>(mine: readonly C[], hint: string | null): C | null {
+  if (!hint) return null;
   const h = hint.trim().toLowerCase();
   return mine.find((c) => c.last4 === hint.replace(/\D/g, "").slice(-4) && /\d{4}/.test(hint)) ?? mine.find((c) => c.label.toLowerCase() === h) ?? null;
 }

@@ -75,6 +75,50 @@ export async function appendInTx(
   return { seq, ts, type, payload: value, prevHash, hash };
 }
 
+/** Rows per multi-row insert (6 parameters each, well under Postgres's 65 535). */
+const INSERT_BATCH = 1000;
+
+/**
+ * Many entries in one go (a data import): the same chain, checkpoints and head that `appendInTx` called once per entry
+ * at the same `now` would write, with the lock taken and the head read once, the entries and the checkpoints in
+ * multi-row inserts and the signed head written once, for the last entry.
+ */
+export async function appendManyInTx(
+  tx: DbOrTx,
+  now: Date,
+  checkpointKey: KeyObject,
+  entries: readonly { type: string; payload: unknown }[],
+): Promise<AppendedEntry[]> {
+  if (entries.length === 0) return [];
+  await tx.execute(sql`select pg_advisory_xact_lock(${LEDGER_LOCK_KEY})`);
+  const last = await tx
+    .select({ seq: ledgerEntries.seq, hash: ledgerEntries.hash })
+    .from(ledgerEntries)
+    .orderBy(desc(ledgerEntries.seq))
+    .limit(1);
+  let prevHash = last[0]?.hash ?? GENESIS_HASH;
+  let seq = last[0]?.seq ?? 0;
+  const ts = now.toISOString();
+  const keyId = keyIdOf(publicFromPrivate(checkpointKey));
+  const out: AppendedEntry[] = [];
+  const checkpoints: (typeof ledgerCheckpoints.$inferInsert)[] = [];
+  for (const e of entries) {
+    seq++;
+    const value = toJsonValue(e.payload);
+    const hash = entryHash(prevHash, seq, ts, e.type, value);
+    out.push({ seq, ts, type: e.type, payload: value, prevHash, hash });
+    if (seq % CHECKPOINT_EVERY === 0) checkpoints.push({ seq, headHash: hash, sig: signText(checkpointKey, checkpointMessage(seq, hash, ts, keyId)), keyId, ts: now });
+    prevHash = hash;
+  }
+  for (let i = 0; i < out.length; i += INSERT_BATCH) {
+    await tx.insert(ledgerEntries).values(out.slice(i, i + INSERT_BATCH).map((e) => ({ seq: e.seq, ts: now, type: e.type, payload: e.payload, prevHash: e.prevHash, hash: e.hash })));
+  }
+  if (checkpoints.length) await tx.insert(ledgerCheckpoints).values(checkpoints);
+  const head = { seq, headHash: prevHash, sig: signText(checkpointKey, headMessage(seq, prevHash, ts, keyId)), keyId, ts: now };
+  await tx.insert(ledgerHead).values({ id: 1, ...head }).onConflictDoUpdate({ target: ledgerHead.id, set: head });
+  return out;
+}
+
 export type VerifyProblem = { seq: number; problem: string };
 export type VerifyReport = {
   ok: boolean;

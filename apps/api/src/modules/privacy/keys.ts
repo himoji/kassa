@@ -174,7 +174,11 @@ export type PiiFields = Record<string, unknown>;
  * `{ piiErased: true }` when the user's key was shredded (the fields are dropped, never written in clear).
  */
 export async function sealPii(userId: string, fields: PiiFields, db: DbOrTx = getDb()): Promise<{ pii: string } | { piiErased: true }> {
-  const dek = await userDek(userId, db);
+  return sealPiiWith(await userDek(userId, db), userId, fields);
+}
+
+/** `sealPii` with the DEK already read (`userDek`): an import seals a whole chunk with one key read. */
+export function sealPiiWith(dek: Buffer | null, userId: string, fields: PiiFields): { pii: string } | { piiErased: true } {
   if (!dek) return { piiErased: true };
   return { pii: seal(dek, Buffer.from(JSON.stringify(fields), "utf8"), piiAad(userId)) };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 
-import { commitChunks } from "../commit-chunks";
+import { COMMIT_CHUNK, commitChunks } from "../commit-chunks";
 
 const at = (min: number) => ({
   occurredAt: new Date(Date.UTC(2026, 9, 1) + min * 60_000).toISOString(),
@@ -15,6 +15,12 @@ describe("commitChunks", () => {
       [...rows].reverse().map((r) => r.occurredAt)
     );
     expect(chunks.every((c) => c.length >= 200 || c === chunks.at(-1))).toBe(true);
+  });
+
+  it("commits 200 rows a chunk by default", () => {
+    expect(COMMIT_CHUNK).toBe(200);
+    const rows = Array.from({ length: 450 }, (_, i) => at(i * 60));
+    expect(commitChunks(rows).map((c) => c.length)).toEqual([200, 200, 50]);
   });
 
   it("never splits rows less than 20 minutes apart (they could be the same purchase)", () => {
