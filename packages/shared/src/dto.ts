@@ -582,6 +582,13 @@ export type NotificationDto = z.infer<typeof NotificationDto>;
 export const NotificationsResponse = z.object({ notifications: z.array(NotificationDto), unread: z.number().int() });
 export type NotificationsResponse = z.infer<typeof NotificationsResponse>;
 
+/**
+ * GET /notifications/wait?cursor (long poll): answers as soon as the feed differs from `cursor`, or after about 25 s
+ * with `changed: false`. No cursor answers at once. Pass the returned `cursor` to the next call.
+ */
+export const NotificationsWaitResponse = NotificationsResponse.extend({ cursor: z.string(), changed: z.boolean() });
+export type NotificationsWaitResponse = z.infer<typeof NotificationsWaitResponse>;
+
 export const LedgerEntryDto = z.object({
   seq: z.number().int().nonnegative(),
   ts: IsoDateTime,

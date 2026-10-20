@@ -8,6 +8,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { bootstrapSession } from "@/api/session";
 import { ThemeProvider as UiThemeProvider, ToastHost, useTheme } from "@/components/ui";
 import { UpdatesBanner } from "@/components/updates-banner";
+import { useLiveFeed } from "@/hooks/use-live-feed";
 import { I18nProvider, useKassaT } from "@/lib/i18n";
 import { QueryProvider } from "@/lib/query";
 import { registerApproveInWebApp } from "@/lite/approve";
@@ -45,6 +46,8 @@ function LiteNavigator() {
   const [ready, setReady] = useState(false);
   // A tapped purchase notification opens that purchase, once the navigator is up and the phone is paired.
   useNotificationLinks(ready && status === "authenticated");
+  // Money someone sends shows up (banner, balances, lists) while the app is open, without a pull.
+  useLiveFeed(ready);
 
   useEffect(() => {
     let cancelled = false;

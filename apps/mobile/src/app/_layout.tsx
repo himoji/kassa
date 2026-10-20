@@ -9,6 +9,7 @@ import { CoolingOffBanner } from "@/components/cooling-off-banner";
 import { LiteReturnBar } from "@/components/lite-return-bar";
 import { UpdatesBanner } from "@/components/updates-banner";
 import { useAuthRedirect } from "@/hooks/use-auth-redirect";
+import { useLiveFeed } from "@/hooks/use-live-feed";
 import { useOnboardingRedirect } from "@/hooks/use-onboarding-redirect";
 import { useSignOutCleanup } from "@/hooks/use-sign-out-cleanup";
 import { analytics } from "@/lib/analytics";
@@ -53,6 +54,8 @@ function RootStack() {
   useOnboardingRedirect();
   useAuthRedirect();
   useSignOutCleanup();
+  // Money someone sends shows up (banner, balances, lists) while the app is open, without a pull.
+  useLiveFeed(true);
 
   const pathname = usePathname();
   useEffect(() => {

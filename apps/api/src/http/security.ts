@@ -174,6 +174,13 @@ export async function registerSecurity(app: FastifyInstance): Promise<void> {
     strictTransportSecurity: e.PUBLIC_ORIGIN.startsWith("https://") ? { maxAge: 31_536_000, includeSubDomains: true } : false,
   });
 
+  // Responses are per user: never cached unless a route says so (the public ledger, the credit record). Without this,
+  // Vercel labels them "public, max-age=0", which an app's HTTP cache may keep and answer a refresh with.
+  app.addHook("onSend", async (_req, reply, payload) => {
+    if (!reply.hasHeader("cache-control")) reply.header("cache-control", "no-store");
+    return payload;
+  });
+
   const allowed = new Set(e.origins.map((o) => o.replace(/\/$/, "")));
   await app.register(cors, {
     origin: (origin, cb) => cb(null, origin === undefined || allowed.has(origin)),

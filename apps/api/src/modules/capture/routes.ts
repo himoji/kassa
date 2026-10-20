@@ -1,6 +1,6 @@
 import { CaptureEventRequest, CaptureEventResponse, RecentCapturesResponse, SettlementEventRequest, SettlementEventResponse, sha256Base64url } from "@kassa/shared";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -310,12 +310,14 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .where(
           and(
             eq(transactions.userId, userId),
-            inArray(transactions.source, ["SHORTCUT", "NOTIF_SIM", "TEXT", "VOICE", "SCREENSHOT"]),
+            // Every source, imports and Kassa payments too: KassaLite's Activity and Home totals read only this, and
+            // showed none of an imported statement while the web app (GET /transactions) did.
             isNull(transactions.mergedIntoId),
             after ? gt(transactions.createdAt, after) : undefined,
           ),
         )
-        .orderBy(desc(transactions.createdAt))
+        // When it happened, so a statement import (hundreds of rows created now) cannot push today's taps out.
+        .orderBy(desc(transactions.occurredAt), desc(transactions.createdAt))
         .limit(limit);
       const nudges = await db
         .select({ id: notifications.id, title: notifications.title, body: notifications.body, createdAt: notifications.createdAt })

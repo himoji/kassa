@@ -22,14 +22,28 @@ const MAX_REMEMBERED = 300;
 /** More than this many new purchases collapse into one summary notification. */
 export const MAX_INDIVIDUAL_NOTIFICATIONS = 3;
 
-/** Captures created strictly after `lastSeen` (ISO), oldest first. */
+/**
+ * Sources that are a purchase someone just made (a tap, a typed or spoken one, a screenshot). /capture/recent also
+ * lists imported statements and Kassa's own payments; a 300-row import is not 300 new purchases.
+ */
+export const LIVE_CAPTURE_SOURCES: ReadonlySet<string> = new Set([
+  "SHORTCUT",
+  "NOTIF_SIM",
+  "TEXT",
+  "VOICE",
+  "SCREENSHOT",
+]);
+
+/** Live captures created strictly after `lastSeen` (ISO), oldest first. */
 export function capturesSince(
   captures: readonly RecentCapture[],
   lastSeen: string
 ): RecentCapture[] {
   const since = Date.parse(lastSeen);
   return captures
-    .filter((c) => Date.parse(c.createdAt) > since)
+    .filter(
+      (c) => LIVE_CAPTURE_SOURCES.has(c.source.toUpperCase()) && Date.parse(c.createdAt) > since
+    )
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
 }
 
@@ -59,6 +73,13 @@ async function show(title: string, body: string, url: string): Promise<void> {
     content: { title, body, data: { url } },
     trigger: null,
   });
+}
+
+/** A banner now (asks for permission the first time); false when notifications are off or unavailable. */
+export async function notifyNow(title: string, body: string, url: string): Promise<boolean> {
+  if (!(await canNotify())) return false;
+  await show(title, body, url);
+  return true;
 }
 
 /** The route a purchase notification opens. */
