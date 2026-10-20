@@ -113,12 +113,21 @@ export const GetPaymentsInput = z.object({
   limit: z.number().int().min(1).max(20).optional().describe("How many recent orders, newest first (default 10)"),
 });
 
+/*
+ * (added 2026-10-20) Read-only: the documents the user forwarded or uploaded (emails, invoices), newest first, by docId
+ * and file name only. Without it the planner had no way to find a forwarded email to pass to read_document.
+ */
+export const ListDocumentsInput = z.object({
+  limit: z.number().int().min(1).max(10).optional().describe("How many recent documents, newest first (default 5)"),
+});
+
 /** Read-only tools on top of the spec's eleven (apps/api agent/tools.ts READ_TOOLS). */
 export const READ_TOOL_INPUT_SCHEMAS = {
   get_fx_rate: GetFxRateInput,
   get_spending_summary: GetSpendingSummaryInput,
   get_money_history: GetMoneyHistoryInput,
   get_payments: GetPaymentsInput,
+  list_documents: ListDocumentsInput,
 } as const;
 export type ReadToolName = keyof typeof READ_TOOL_INPUT_SCHEMAS;
 

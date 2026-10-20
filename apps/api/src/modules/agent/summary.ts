@@ -40,6 +40,7 @@ const TOOL_TEXT: Record<string, string> = {
   get_money_history: "your money history",
   get_payments: "your payments",
   read_document: "the document",
+  list_documents: "your documents",
   log_expense: "the expense log",
   get_fx_rate: "exchange rates",
   get_inventory: "your inventory",

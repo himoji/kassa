@@ -53,7 +53,7 @@ describe("agent tool surface (I1)", () => {
       ].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
-    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary", "get_money_history", "get_payments"]);
+    expect(READ_TOOLS).toEqual(["get_fx_rate", "get_spending_summary", "get_money_history", "get_payments", "list_documents"]);
   });
 
   it("(2026-10-19) get_payments is read-only, in the shared read-tool schemas, and the prompt tells the planner when to use it", async () => {

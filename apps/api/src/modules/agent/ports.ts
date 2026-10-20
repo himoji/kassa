@@ -166,6 +166,8 @@ export interface AgentPorts {
   /** This month's spending per category, budgeted or not, against a usual month and monthly income (budget/context.ts). */
   spending(): Promise<SpendContext>;
   readDocument(docId: string): Promise<ReaderResult>;
+  /** (added 2026-10-20) The user's most recent documents, newest first (list_documents). Optional: fakes may leave it out. */
+  recentDocuments?(limit: number): Promise<{ id: string; filename: string | null; kind: string | null; mediaType: string; createdAt: string; read: boolean }[]>;
   /**
    * Persisted Reader results of this user's documents (I10, B1), independent of turn and conversation.
    * With `docIds`: only those of the user's documents (null = uploaded but never read; unknown ids absent).
@@ -436,6 +438,15 @@ export function dbPorts(userId: string, conversationId: string): AgentPorts {
       const r = await readDocument(docId, { userId });
       await bindToConversation(userId, docId, conversationId);
       return r;
+    },
+    async recentDocuments(limit) {
+      const rows = await db
+        .select({ id: agentDocuments.id, filename: agentDocuments.filename, kind: agentDocuments.kind, mediaType: agentDocuments.mediaType, createdAt: agentDocuments.createdAt, read: isNotNull(agentDocuments.readerResult) })
+        .from(agentDocuments)
+        .where(eq(agentDocuments.userId, userId))
+        .orderBy(desc(agentDocuments.createdAt))
+        .limit(limit);
+      return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), read: Boolean(r.read) }));
     },
     async storedReads(docIds) {
       if (docIds && docIds.length === 0) return new Map();

@@ -145,7 +145,7 @@ describe("A14: tool poisoning / indirect injection in tool output", () => {
     const tools = buildTools({ ports: dbPorts(randomUUID(), randomUUID()), redactor: new Redactor(), emit: () => undefined, readDocs: new Map(), stop: { requested: false, reason: null }, proposals: [] });
     expect(Object.keys(tools).sort()).toEqual(
       // The whole list, so adding a tool is a reviewed change to this test (no tool comes from outside the code).
-      ["ask_amount", "ask_budgets", "ask_choice", "ask_confirm", "ask_date", "forecast_coverage", "get_balances", "get_budget", "get_fx_rate", "get_money_history", "get_obligations", "get_payee_facts", "get_payments", "get_profile_summary", "get_routes", "get_spending_summary", "log_expense", "propose_order", "read_document", "search_catalog"].sort(),
+      ["ask_amount", "ask_budgets", "ask_choice", "ask_confirm", "ask_date", "forecast_coverage", "get_balances", "get_budget", "get_fx_rate", "get_money_history", "get_obligations", "get_payee_facts", "get_payments", "get_profile_summary", "get_routes", "list_documents", "get_spending_summary", "log_expense", "propose_order", "read_document", "search_catalog"].sort(),
     );
     expect(WRITE_TOOLS).toEqual(["propose_order"]);
   });
