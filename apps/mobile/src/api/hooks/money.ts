@@ -144,7 +144,7 @@ export function useSetCategory() {
         qc.invalidateQueries({ queryKey: keys.budgets }),
         qc.invalidateQueries({ queryKey: keys.insights }),
         // KassaLite's Activity list shows the category too.
-        qc.invalidateQueries({ queryKey: ["lite", "recent"] }),
+        qc.invalidateQueries({ queryKey: keys.recentCaptures }),
       ]),
   });
 }

@@ -6,7 +6,7 @@ import { ScrollView, View } from "react-native";
 
 import { agentChatSchemas, createAgentTransport, type KassaUIMessage } from "@/api/agent-transport";
 import { fetchConversationMessages, useConversations } from "@/api/hooks/chat";
-import { keys } from "@/api/keys";
+import { keys, moneyKeys } from "@/api/keys";
 import { useSetBudgets } from "@/api/hooks/money";
 import { ReplayBadge } from "@/components/kassa/badges";
 import { BudgetImpactView } from "@/components/kassa/budget-impact";
@@ -279,6 +279,16 @@ function ChatSession({
       void qc.invalidateQueries({ queryKey: keys.conversations });
     }
   }, [status, messages, conversationId, qc]);
+
+  // A turn's tools may have changed money state (budgets, recipients, proposals, imports): once it
+  // ends, every screen behind the chat refetches instead of showing what it had before.
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    const nowBusy = status === "submitted" || status === "streaming";
+    if (wasBusy.current && !nowBusy)
+      void Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey })));
+    wasBusy.current = nowBusy;
+  }, [status, qc]);
   const title = useConversations().data?.conversations.find((c) => c.id === conversationId)?.title;
   const [input, setInput] = useState("");
   const scroll = useRef<ScrollView>(null);

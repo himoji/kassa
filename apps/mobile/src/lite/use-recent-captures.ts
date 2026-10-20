@@ -4,12 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { api } from "@/api/client";
+import { keys } from "@/api/keys";
 import { useSessionStore } from "@/stores/session";
 
 import { dataModeStore, visibleResponse } from "./data-mode";
 import { notifyNewCaptures } from "./notifier";
 
-export const RECENT_KEY = ["lite", "recent"] as const;
+export const RECENT_KEY = keys.recentCaptures;
 export const POLL_MS = 30_000;
 
 export async function fetchRecent(signal?: AbortSignal): Promise<RecentCapturesResponse> {

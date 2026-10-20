@@ -119,8 +119,7 @@ export function useImportCommit() {
       }
       return sum;
     },
-    onSettled: () =>
-      Promise.all([...moneyKeys, keys.cards].map((queryKey) => qc.invalidateQueries({ queryKey }))),
+    onSettled: () => Promise.all(moneyKeys.map((queryKey) => qc.invalidateQueries({ queryKey }))),
   });
 }
 

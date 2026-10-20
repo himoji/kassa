@@ -10,6 +10,8 @@ export const keys = {
   cards: ["cards"] as const,
   cardFees: ["cards", "fees"] as const,
   transactions: ["transactions"] as const,
+  // KassaLite's captured-payments list (Activity, Home deck totals)
+  recentCaptures: ["lite", "recent"] as const,
   transaction: (id: string) => ["transactions", id] as const,
   insights: ["insights", "spending"] as const,
   conversations: ["agent", "conversations"] as const,
@@ -43,7 +45,10 @@ export const keys = {
   businessPurchaseOrders: ["business", "purchase-orders"] as const,
 };
 
-/** Everything that depends on money state: refreshed after approvals, freezes and demo actions. */
+/**
+ * Everything that depends on money state: refreshed after approvals, freezes, demo actions,
+ * imports and agent turns.
+ */
 export const moneyKeys = [
   keys.me,
   keys.moneyHistory,
@@ -51,8 +56,9 @@ export const moneyKeys = [
   keys.budgets,
   keys.obligations,
   keys.forecast,
-  keys.cardFees,
+  keys.cards, // and cards/fees
   keys.transactions,
+  keys.recentCaptures,
   keys.insights,
   keys.payees,
   keys.mandates,
