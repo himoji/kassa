@@ -142,7 +142,10 @@ function DeckCard({
     <View
       style={{
         width,
-        // A web row would otherwise shrink a card whose text can ellipsize (the All card) below the others.
+        // A web row would otherwise shrink a card whose text can ellipsize (the All card) below the others; some
+        // browsers ignore flexShrink there, so the width is pinned both ways.
+        minWidth: width,
+        maxWidth: width,
         flexShrink: 0,
         height: CARD_HEIGHT,
         borderRadius: 24,
@@ -223,6 +226,28 @@ export function amountSize(text: string, cardWidth = 340): number {
   return Math.max(20, Math.min(34, Math.floor(room / (Math.max(1, text.length) * 0.62))));
 }
 
+/** A deck card's big figure, sized from the room it really gets (measured), so it never ends in "…". */
+function HeroAmount({ text, width }: { text: string; width: number }) {
+  const [room, setRoom] = useState<number | null>(null);
+  return (
+    <View onLayout={(e) => setRoom(e.nativeEvent.layout.width)} style={{ width: "100%" }}>
+      <Text
+        variant="title"
+        numberOfLines={1}
+        style={{
+          color: ON_HERO,
+          fontSize: amountSize(text, room === null ? width : room + CARD_PADDING * 2),
+          lineHeight: 40,
+          letterSpacing: -0.8,
+          fontVariant: ["tabular-nums"],
+        }}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+}
+
 /** Spending this month across everything, what the budgets leave, and the three money actions. */
 function AllCard({ width }: { width: number }) {
   const t = useKassaT();
@@ -252,19 +277,7 @@ function AllCard({ width }: { width: number }) {
               : t("lite:home.spentThisMonth")}
           </Text>
         </Box>
-        <Text
-          variant="title"
-          numberOfLines={1}
-          style={{
-            color: ON_HERO,
-            fontSize: amountSize(total, width),
-            lineHeight: 40,
-            letterSpacing: -0.8,
-            fontVariant: ["tabular-nums"],
-          }}
-        >
-          {total}
-        </Text>
+        <HeroAmount text={total} width={width} />
         {line ? (
           <Text numberOfLines={1} style={{ color: ON_HERO_MUTED, fontSize: 13 }}>
             {line}
@@ -313,6 +326,7 @@ function WalletCard({ width }: { width: number }) {
       accessibilityRole="button"
       accessibilityLabel={`${t("lite:home.wallet")}: ${total}`}
       onPress={() => router.push("/add-money")}
+      style={{ width, minWidth: width, flexShrink: 0 }}
     >
       <DeckCard id="wallet" gradient={WALLET_GRADIENT} width={width}>
         <Box row justify="between" align="center" gap={3}>
@@ -332,19 +346,7 @@ function WalletCard({ width }: { width: number }) {
         </Box>
         <Box gap={1}>
           <Text style={{ color: ON_HERO_MUTED, fontSize: 14 }}>{t("lite:home.walletTotal")}</Text>
-          <Text
-            variant="title"
-            numberOfLines={1}
-            style={{
-              color: ON_HERO,
-              fontSize: amountSize(total, width),
-              lineHeight: 40,
-              letterSpacing: -0.8,
-              fontVariant: ["tabular-nums"],
-            }}
-          >
-            {total}
-          </Text>
+          <HeroAmount text={total} width={width} />
           <Text numberOfLines={1} style={{ color: ON_HERO_MUTED, fontSize: 13 }}>
             {held.length > 0
               ? held.map((x) => f.money(x.amountMinor, x.currency)).join(" · ")
