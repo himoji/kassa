@@ -27,15 +27,15 @@
     },
     {
       "source": "/docs",
-      "destination": "/docs/index.html"
+      "destination": "/docs/"
     },
     {
       "source": "/docs/:path*",
-      "destination": "/docs/404.html"
+      "destination": "/docs/404"
     },
     {
       "source": "/:path*",
-      "destination": "/index.html"
+      "destination": "/"
     }
   ]
 }
