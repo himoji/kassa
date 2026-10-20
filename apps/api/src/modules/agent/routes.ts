@@ -90,6 +90,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           record: recordingEnabled(),
           emit: (c) => writer.write(c),
           abortSignal: abort.signal,
+          context: { timeZone: req.body.timeZone, locale: req.body.locale },
         });
         writer.merge(turn.uiStream);
         const s = await turn.done;

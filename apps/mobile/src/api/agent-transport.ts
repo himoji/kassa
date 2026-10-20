@@ -11,6 +11,8 @@ import {
 } from "@kassa/shared";
 import { DefaultChatTransport, type UIMessage } from "ai";
 
+import { i18next } from "@/lib/i18n";
+
 import { api } from "./client";
 
 export type KassaUIMessage = UIMessage<AgentMessageMetadata, AgentDataPartTypes>;
@@ -28,6 +30,18 @@ export function lastUserText(messages: readonly KassaUIMessage[]): string {
   return "";
 }
 
+/** The device's time zone and the app's language, so the agent knows the user's "today" (server: agent/context.ts). */
+export function deviceContext(): { timeZone?: string; locale?: string } {
+  let timeZone: string | undefined;
+  try {
+    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    timeZone = undefined;
+  }
+  const locale = i18next.language || undefined;
+  return { ...(timeZone ? { timeZone } : {}), ...(locale ? { locale } : {}) };
+}
+
 export function createAgentTransport(conversationId: string) {
   return new DefaultChatTransport<KassaUIMessage>({
     api: api.url("/agent/message"),
@@ -39,7 +53,12 @@ export function createAgentTransport(conversationId: string) {
     prepareSendMessagesRequest: ({ messages, body }) => {
       const choice = body?.choice as ChoiceAnswer | undefined;
       return {
-        body: { conversationId, text: lastUserText(messages), ...(choice ? { choice } : {}) },
+        body: {
+          conversationId,
+          text: lastUserText(messages),
+          ...(choice ? { choice } : {}),
+          ...deviceContext(),
+        },
       };
     },
   });

@@ -532,6 +532,9 @@ export const AgentMessageRequest = z.object({
       value: z.string().max(40).optional(),
     })
     .optional(),
+  /** (added 2026-10-20) The device's IANA time zone and UI language, so the agent knows the user's "today". */
+  timeZone: z.string().min(1).max(64).optional(),
+  locale: z.string().min(2).max(35).optional(),
 });
 export type AgentMessageRequest = z.infer<typeof AgentMessageRequest>;
 

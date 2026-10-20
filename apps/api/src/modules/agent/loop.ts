@@ -11,6 +11,7 @@ import { SDK_MAX_RETRIES } from "../ai/retry.ts";
 import { timeoutMiddleware, turnBudget, turnClock, turnTimeoutOf, type TurnBudget } from "./budget.ts";
 import { redactionMiddleware, toolMarkupMiddleware } from "./middleware.ts";
 import type { AgentPorts } from "./ports.ts";
+import { contextPrompt, type TurnContext } from "./context.ts";
 import { BUSINESS_PROMPT, SYSTEM_PROMPT } from "./prompt.ts";
 import { Redactor, PLACEHOLDER_RE, type KnownName, type PlaceholderEntry } from "./redact.ts";
 import { replayModel, selectTurn, StepRecorder } from "./replay.ts";
@@ -71,6 +72,8 @@ export interface TurnOptions {
   cardless?: boolean;
   /** Time budget overrides (tests); defaults from the environment (budget.ts). */
   budget?: Partial<TurnBudget>;
+  /** The device's time zone and language (context.ts); home currency and region are read from the profile. */
+  context?: Pick<TurnContext, "timeZone" | "locale">;
 }
 
 /** Tools a read-only turn never gets (TurnOptions.readOnly). */
@@ -264,7 +267,8 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   // A tool-loop call ends by answerBy, the rest is kept for the final answer call; once its answer text is streaming
   // it may run to the turn's deadline.
   const model = bounded((textStarted) => (textStarted ? clock.deadline : clock.answerBy));
-  const instructions = [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [readOnlyPrompt] : [])].join("\n\n");
+  const turnContext = contextPrompt({ ...o.context, homeCurrency: profile.homeCurrency, region: profile.region });
+  const instructions = [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [readOnlyPrompt] : []), turnContext].join("\n\n");
 
   let stopAtStep: number | null = null;
   let wrapUpStep: number | null = null;
