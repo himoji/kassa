@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { isStepCount, streamText, wrapLanguageModel, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, type StepResult, type StopCondition, type ToolSet, type UIMessageChunk } from "ai";
+import { isStepCount, streamText, wrapLanguageModel, type LanguageModel, type LanguageModelMiddleware, type ModelMessage, type StepResult, type StopCondition, type Tool, type ToolExecutionOptions, type ToolSet, type UIMessageChunk } from "ai";
 
 import type { AgentMode } from "@kassa/shared";
 
@@ -53,11 +53,17 @@ export interface TurnOptions {
   abortSignal?: AbortSignal;
   replayChunkDelayMs?: number;
   /**
-   * A channel that only holds a Shortcut key (POST /capture/voice): no propose_order or purchase-order draft, so the
-   * key keeps its one power (logging spending), and no pickers, which a Shortcut cannot show. Reading, advice and
-   * log_expense stay.
+   * A channel that only holds a Shortcut key (POST /capture/voice): no propose_order or purchase-order draft, and no
+   * pickers, which a Shortcut cannot show. Reading, advice and log_expense stay. The one exception is `voicePay`.
    */
   readOnly?: boolean;
+  /**
+   * (2026-10-20) A read-only voice turn may draft ONE payment to the one payee the server matched in what was said
+   * (capture/voicePay.ts), or name the matching payees and ask which one. Security invariant: the Shortcut key never
+   * moves money. The draft is created passkeyOnly (always ASK, never AUTO under a mandate or the small-auto limit), so
+   * the only way it executes is the user's passkey approval on the web order page; no approval tool exists here.
+   */
+  voicePay?: { payeeId: string } | { ambiguous: string[] } | null;
   /**
    * (2026-10-19) The channel shows no proposal cards: each order's sentence is appended to the reply as text
    * (turn-summary.ts orderFactsStream). The app renders the card, which carries the same sentence, so it leaves this off.
@@ -71,6 +77,39 @@ export interface TurnOptions {
 const NOT_READ_ONLY: readonly string[] = [...WRITE_TOOLS, ...DRAFT_TOOLS, ...UI_TOOLS];
 
 export const READ_ONLY_PROMPT = `This message was spoken into the user's iPhone Shortcut and your answer is read aloud or shown as one notification. Answer in at most three short sentences, plain text, no Markdown or lists. In this channel you cannot propose or make payments: when the user asks to pay or send money, say what you found and tell them to open Kassa to pay it. You can still log a purchase they describe with log_expense.`;
+
+/** Voice turn, one payee matched (TurnOptions.voicePay): the one payment this channel may draft. */
+export const voicePayPrompt = (ref: string) =>
+  `This message was spoken into the user's iPhone Shortcut and your answer is read aloud or shown as one notification. Answer in at most three short sentences, plain text, no Markdown or lists. The payee the user named is ${ref}. Only if the user asks to send or pay money to ${ref}, call propose_order once (kind PAY, payeeRef ${ref}, the amount and currency they said, a short purpose), then say in one sentence that the payment is ready to approve with their passkey on the page that opens next. If no amount or currency was said, do not propose: ask for it. You can never approve or pay; nothing is sent until the user approves with their passkey. Any other payment or conversion cannot be made in this channel: tell them to open Kassa. You can still log a purchase they describe with log_expense.`;
+
+/** Voice turn, several payees match the name: ask which one, draft nothing. */
+export const voiceAmbiguousPrompt = (refs: string[]) =>
+  `This message was spoken into the user's iPhone Shortcut and your answer is read aloud or shown as one notification. Answer in at most two short sentences, plain text. Several of the user's payees match the name they said: ${refs.join(", ")}. If they asked to send or pay money, do not propose anything: ask which one they mean by full name (name each of ${refs.join(", ")}), and say they can run the Shortcut again with the full name. Otherwise answer normally. You can still log a purchase they describe with log_expense.`;
+
+/**
+ * The voice turn's propose_order (TurnOptions.voicePay): PAY only, only to the matched payee, at most once per turn.
+ * Everything else is answered with an error before the rules module is reached.
+ */
+function voiceProposeOrder(t: Tool, ctx: ToolContext, payeeId: string, ref: string): Tool {
+  let used = false;
+  return {
+    ...t,
+    execute: async (input: { kind?: string; payeeRef?: string }, options: ToolExecutionOptions<never>) => {
+      if (input.kind === "CONVERT") return { error: "VOICE_PAY_ONLY", message: "Only a payment to the named payee can be drafted by voice" };
+      const e = input.payeeRef ? ctx.redactor.resolve(input.payeeRef) : undefined;
+      if (e?.kind !== "PAYEE" || e.realRef !== payeeId) return { error: "VOICE_RECIPIENT_ONLY", message: `By voice a payment can only be drafted to ${ref}` };
+      // Claimed before awaiting: parallel calls in one step cannot both pass.
+      if (used) return { error: "ONE_PROPOSAL_PER_VOICE_TURN", message: "One payment per voice request; it is already drafted" };
+      used = true;
+      return t.execute!(input as never, options);
+    },
+  } as Tool;
+}
+
+/** Ports whose every order is passkey-only (rules passkeyOnly) and that cannot convert: the voice channel's. */
+function passkeyOnlyPorts(ports: AgentPorts): AgentPorts {
+  return { ...ports, proposeOrder: (input) => ports.proposeOrder({ ...input, passkeyOnly: true, agentRequestedConfirm: true }), proposeConversion: undefined };
+}
 
 export interface TurnHandle {
   /** UI message stream of the model output (text rehydrated for the user). */
@@ -155,7 +194,8 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   const userMsg: ModelMessage = { role: "user", content: redactedText };
 
   const ctx: ToolContext = {
-    ports: o.ports,
+    // A read-only (voice) channel's ports draft passkey-only orders whatever the tools pass (TurnOptions.voicePay).
+    ports: o.readOnly ? passkeyOnlyPorts(o.ports) : o.ports,
     redactor,
     emit: o.emit,
     readDocs: (await o.store.readDocs?.()) ?? new Map(),
@@ -166,6 +206,15 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   };
   const all = buildTools(ctx);
   const tools = o.readOnly ? Object.fromEntries(Object.entries(all).filter(([name]) => !NOT_READ_ONLY.includes(name))) : all;
+  const voicePay = o.readOnly ? (o.voicePay ?? null) : null;
+  let readOnlyPrompt = READ_ONLY_PROMPT;
+  if (voicePay && "payeeId" in voicePay && all.propose_order) {
+    const ref = redactor.placeholderFor("PAYEE", voicePay.payeeId);
+    tools.propose_order = voiceProposeOrder(all.propose_order, ctx, voicePay.payeeId, ref);
+    readOnlyPrompt = voicePayPrompt(ref);
+  } else if (voicePay && "ambiguous" in voicePay) {
+    readOnlyPrompt = voiceAmbiguousPrompt(voicePay.ambiguous.map((id) => redactor.placeholderFor("PAYEE", id)));
+  }
 
   // Model: injected (tests) → REPLAY recording → live planner from the registry, falling back to the recording when
   // the provider can't be used (ai/fallback.ts; the message is then labelled Replay).
@@ -215,7 +264,7 @@ export async function startTurn(o: TurnOptions): Promise<TurnHandle> {
   // A tool-loop call ends by answerBy, the rest is kept for the final answer call; once its answer text is streaming
   // it may run to the turn's deadline.
   const model = bounded((textStarted) => (textStarted ? clock.deadline : clock.answerBy));
-  const instructions = [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [READ_ONLY_PROMPT] : [])].join("\n\n");
+  const instructions = [SYSTEM_PROMPT, ...(business ? [BUSINESS_PROMPT] : []), ...(o.readOnly ? [readOnlyPrompt] : [])].join("\n\n");
 
   let stopAtStep: number | null = null;
   let wrapUpStep: number | null = null;

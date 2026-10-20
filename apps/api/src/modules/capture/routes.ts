@@ -3,18 +3,19 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, gte, isNull, lt } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
+import type { LanguageModel } from "ai";
 import { z } from "zod";
 
 import { getDb } from "../../db/client.ts";
 import { devices, notifications, payees, SHORTCUT_ATTEMPTS_KEPT, transactions, type ShortcutAttemptJson, type ShortcutCheckJson } from "../../db/schema.ts";
 import { clock } from "../clock/index.ts";
 import { HttpProblem } from "../../http/problem.ts";
-import { requireUser, userIdOf } from "../auth/session.ts";
+import { approveInWebAppUrl, requireUser, userIdOf } from "../auth/session.ts";
 import { isAiConfigError } from "../ai/errors.ts";
 import { currentAgentMode } from "../ai/mode.ts";
 import { MAX_VOICE_BYTES, transcribeAudio, VOICE_FORMATS, VoiceError } from "../ai/voice.ts";
 import { claimConversation } from "../agent/history.ts";
-import { startTurn } from "../agent/loop.ts";
+import { startTurn, type TurnHandle } from "../agent/loop.ts";
 import { dbPorts } from "../agent/ports.ts";
 import { dbTurnStore } from "../agent/store.ts";
 import { assertAiProcessingAllowed } from "../privacy/notice.ts";
@@ -22,13 +23,21 @@ import { captureNudge } from "./nudge.ts";
 import { PlaceHint, whereLabel, type PlaceJson } from "./place.ts";
 import { ForwardedNotification, ShortcutPayload } from "./parsers/index.ts";
 import { ingestCapture, placeName, reconcileSettlement, SettlementError } from "./service.ts";
+import { voiceRecipient } from "./voicePay.ts";
 
 /*
  * POST /capture/event (app: notification simulator, text, voice transcript), POST /capture/settlement
  * (statement line / demo), POST /capture/shortcut (iOS Shortcut, per-device bearer token, I13), GET /capture/recent
  * (the caller's own latest captures + nudges; KassaLite's Activity tab polls it).
- * Triggers never approve (I6): these routes only log spending.
+ * Triggers never approve (I6): these routes only log spending, except that the voice Shortcut may DRAFT one payment
+ * (2026-10-20, below), which only the user's passkey approval on the web order page can execute.
  */
+
+/** Planner model for voice turns in tests (the route has no other way to inject one); null = the usual model. */
+let voiceModelForTests: LanguageModel | null = null;
+export function setVoiceModelForTests(model: LanguageModel | null): void {
+  voiceModelForTests = model;
+}
 
 /** The User-Agent's first product ("BackgroundShortcutRunner/1.0 CFNetwork/…" → "BackgroundShortcutRunner"), so the
  * live Shortcut test can tell the iOS Shortcuts app from a browser or a script. */
@@ -207,9 +216,17 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   /*
    * The voice Shortcut: Record Audio (or Dictate Text) → POST here with the Shortcut key → the transcript goes to the
-   * agent as a chat message, in a read-only turn (no payment tool: the key's one power stays logging spending), and
-   * the answer comes back as `reply` for Speak Text or Show Notification. Every answer the person should hear,
-   * failures included, is a 200 with `reply`: a Shortcut shows a response body, not a status code.
+   * agent as a chat message, in a read-only turn, and the answer comes back as `reply` for Speak Text or Show
+   * Notification. Every answer the person should hear, failures included, is a 200 with `reply`: a Shortcut shows a
+   * response body, not a status code.
+   *
+   * (2026-10-20) Voice pay: "send 15 euro to my friend Anna" may draft ONE payment, to the one payee of the user's own
+   * that the server matched in the transcript (voicePay.ts; several matches → the reply asks which one, none → nothing
+   * is drafted). The reply then comes with `approveUrl`, the web order page, which the Shortcut opens.
+   * SECURITY INVARIANT: the Shortcut key cannot move money. The turn has no approval tool, its orders are passkeyOnly
+   * (rules: always ASK, never AUTO under a mandate or the small-auto limit), and approving an order needs the user's
+   * passkey assertion over the order hash (POST /orders/:id/approve, a session plus WebAuthn), which this key has
+   * neither of. The passkey approval on the web page is the only gate to the money.
    */
   app.post(
     "/capture/voice",
@@ -229,7 +246,14 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           })
           .refine((b) => !!b.audio?.trim() || !!b.text?.trim(), { message: "Send audio or text" }),
         response: {
-          200: z.object({ ok: z.boolean(), transcript: z.string(), reply: z.string(), conversationId: z.string().nullable() }),
+          200: z.object({
+            ok: z.boolean(),
+            transcript: z.string(),
+            reply: z.string(),
+            conversationId: z.string().nullable(),
+            /** The web order page of the payment this request drafted (approve it with the passkey there); null = none. */
+            approveUrl: z.string().nullable(),
+          }),
         },
       },
     },
@@ -237,7 +261,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const device = shortcutUsers.get(req);
       if (!device) throw new HttpProblem(401, "DEVICE_TOKEN_REQUIRED", "Shortcut device token missing");
       const { userId } = device;
-      const fail = (reply: string, transcript = "") => ({ ok: false, transcript, reply, conversationId: null });
+      const fail = (reply: string, transcript = "") => ({ ok: false, transcript, reply, conversationId: null, approveUrl: null });
       try {
         await assertAiProcessingAllowed(userId);
       } catch {
@@ -258,14 +282,24 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
       const conversationId = randomUUID();
       await claimConversation(conversationId, userId, "agent", `🎙 ${transcript.slice(0, 56)}`);
+      const recipient = await voiceRecipient(userId, transcript);
       let reply = "";
+      let turn: TurnHandle | null = null;
+      // The order page of the one payment drafted in this turn, waiting for the passkey (ASK, or HANDOFF to pay in
+      // the user's own app). An AUTO order cannot come out of this turn (passkeyOnly), so none is ever linked as paid.
+      const approveUrl = () => {
+        const p = turn?.ctx.proposals.find((x) => x.decision === "ASK" || x.decision === "HANDOFF");
+        return p ? approveInWebAppUrl("POST /api/orders/:proposalId/approve", { proposalId: p.proposalId }) : null;
+      };
       try {
-        const turn = await startTurn({
+        turn = await startTurn({
           ports: dbPorts(userId, conversationId),
           store: dbTurnStore(conversationId, userId),
           text: transcript,
           mode: await currentAgentMode(),
+          ...(voiceModelForTests ? { model: voiceModelForTests } : {}),
           readOnly: true,
+          voicePay: recipient.kind === "ONE" ? { payeeId: recipient.payee.id } : recipient.kind === "AMBIGUOUS" ? { ambiguous: recipient.payees.map((p) => p.id) } : null,
           // A spoken reply has no cards: any order line would be part of the text.
           cardless: true,
           emit: () => undefined,
@@ -279,9 +313,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         await turn.done;
       } catch (e) {
         req.log.error({ err: e }, "voice turn failed");
-        return { ok: false, transcript, reply: "Kassa could not answer just now. Try again.", conversationId };
+        const url = approveUrl();
+        return { ok: false, transcript, reply: url ? "Kassa drafted the payment. Approve it with your passkey on the page that opens." : "Kassa could not answer just now. Try again.", conversationId, approveUrl: url };
       }
-      return { ok: true, transcript, reply: reply.trim() || "Done.", conversationId };
+      return { ok: true, transcript, reply: reply.trim() || "Done.", conversationId, approveUrl: approveUrl() };
     },
   );
 

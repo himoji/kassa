@@ -1,7 +1,7 @@
 import { Box, Text } from "@/components/ui";
 import { useKassaT } from "@/lib/i18n";
 
-const STEPS = ["1", "2", "3", "4", "5", "6"] as const;
+const STEPS = ["1", "2", "3", "4", "5", "6", "7"] as const;
 
 /** How to build the "Ask Kassa" voice Shortcut (POST /api/capture/voice, docs/guide/shortcuts.md "Voice"). */
 export function VoiceShortcutSteps() {

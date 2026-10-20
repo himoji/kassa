@@ -43,4 +43,19 @@ describe("end-to-end money path", () => {
     const rows = await getDb().select().from(payments).where(eq(payments.proposalId, r.proposalId));
     expect(rows[0]?.status).toBe("PROCESSING");
   });
+
+  it("(2026-10-20) passkeyOnly (the voice Shortcut's orders): what a mandate would pay is ASK, and nothing executes", async () => {
+    const { userId, auth } = await createUserWithPasskey();
+    const payee = await addPayee(userId, { name: "Landlord in Budapest" });
+    await signBaseRules(userId, auth);
+    await addActiveMandate(userId, auth, { payeeIds: [payee.id], categories: ["rent"], currency: "HUF", maxPerPaymentMinor: 20_000_000, maxPerPeriodMinor: 20_000_000 });
+    const rent = await addObligation(userId, payee.id);
+    const r = await proposeOrder({ userId, createdBy: "AGENT", payeeId: payee.id, amountMinor: 18_000_000, currency: "HUF", purpose: "Rent", obligationId: rent.id, passkeyOnly: true });
+    expect(r.decision).toBe("ASK");
+    expect(r.reasonCodes).not.toContain("MANDATE_MATCH");
+    expect(await getDb().select().from(payments).where(eq(payments.proposalId, r.proposalId))).toHaveLength(0);
+    expect(env.railCalls).toHaveLength(0);
+    const p = (await getDb().select().from(proposals).where(eq(proposals.id, r.proposalId)))[0]!;
+    expect(p.status).toBe("PENDING_APPROVAL");
+  });
 });

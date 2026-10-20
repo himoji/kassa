@@ -47,6 +47,8 @@ describe("VoiceShortcut", () => {
     const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
     await render(ui());
     expect(screen.getByText(/Name it “Ask Kassa”/)).toBeTruthy();
+    // After the spoken answer, a drafted payment's order page opens for the passkey.
+    expect(screen.getByText(/approveUrl.*“Open URLs”.*passkey/)).toBeTruthy();
     fireEvent.press(screen.getByText("Copy voice link"));
     await waitFor(() => expect(mockCopy.mock.calls[0]?.[0]).toBe(VOICE_LINK));
     expect(open).not.toHaveBeenCalled();

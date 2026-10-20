@@ -159,8 +159,19 @@ Each token keeps its newest 20 requests (`devices.recent_checks`), refused ones 
 4. **Get Contents of URL**: `https://<your-kassa-host>/api/capture/voice?key=<token>` (Settings → Payment taps → **Copy voice link**, or KassaLite → Settings → **Ask Kassa by voice**). POST, JSON: `audio` = Base64 Encoded, `format` = `m4a`.
 5. **Get Dictionary Value**: `reply`.
 6. **Speak Text** (or **Show Result**).
+7. **Get Dictionary Value**: `approveUrl`. **If** Dictionary Value *has any value*: **Open URLs** with it. That is the web order page of a payment the request drafted; approve it there with your passkey.
 
-Audio goes to `VOICE_MODEL` (default `openrouter:qwen/qwen3.8-omni-flash`) as an OpenRouter `input_audio` part (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`, `flac`). If m4a is refused, add **Encode Media** (Audio Only, AIFF) and send `format` = `aiff`. Max 3 MB. `text` (from **Dictate Text**) skips the voice model. The transcript runs as a **read-only** agent turn (no `propose_order`, purchase-order draft or pickers; the token can only `log_expense`), needs AI consent, and always returns 200 `{ok, transcript, reply, conversationId}`.
+Audio goes to `VOICE_MODEL` (default `openrouter:qwen/qwen3.8-omni-flash`) as an OpenRouter `input_audio` part (`m4a`, `aac`, `mp3`, `wav`, `aiff`, `ogg`, `flac`). If m4a is refused, add **Encode Media** (Audio Only, AIFF) and send `format` = `aiff`. Max 3 MB. `text` (from **Dictate Text**) skips the voice model. The transcript runs as a **read-only** agent turn (no purchase-order draft, conversion or pickers; `log_expense` stays), needs AI consent, and always returns 200 `{ok, transcript, reply, conversationId, approveUrl}`.
+
+### Paying a friend by voice
+
+“Send 15 euro to my friend Anna” drafts **one** payment, never pays it:
+
+- **Who**: only your own recipients. The server matches the name in the transcript: a whole name wins over a first name, and a Kassa-wallet friend (account `KASSA:<id>`) comes before other recipients. No match drafts nothing; several matches draft nothing and the reply asks which one (say the full name next time).
+- **What**: `propose_order` to that one recipient, at most once per request, never a conversion. The order is **passkey-only**: always ASK, never paid under a mandate or the small-auto limit.
+- **Approve**: the reply says the payment is ready and `approveUrl` is the web order page (`/order/<id>?from=lite`). The Shortcut opens it; your passkey there is the only thing that sends the money. A Kassa friend's wallet receives it at once and they get a *MONEY_RECEIVED* notification.
+
+The Shortcut key cannot approve: `POST /orders/:id/approve` needs a session and the passkey assertion over the order hash, and the key is neither.
 
 ## Limits
 

@@ -12,8 +12,9 @@ import { loadShortcutToken } from "@/lite/shortcut-token";
 /**
  * KassaLite → Settings → "Apple Pay & Siri" → "Ask Kassa by voice": copies the voice Shortcut's one link (the
  * paired Shortcut key in it, only on this tap) and shows the steps; with the published Shortcut's iCloud link in the
- * bundle, "Add" copies the same link and opens the Shortcut instead, whose import question takes it. The answer is
- * read-only: payments still need the app (capture/routes.ts).
+ * bundle, "Add" copies the same link and opens the Shortcut instead, whose import question takes it. The Shortcut key
+ * never pays: "send 15 euro to Anna" only drafts an order, and the reply's `approveUrl` (the web order page) is opened
+ * by the Shortcut's last step, where the passkey approval is the only thing that sends it (capture/routes.ts).
  */
 export function VoiceShortcut() {
   const t = useKassaT();

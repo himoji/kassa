@@ -99,6 +99,12 @@ export type ProposeOrderInput = {
    * funded in the source's currency, and signed into the CanonicalOrder (fundingSourceId) with the funding binding.
    */
   fundingSourceId?: string;
+  /**
+   * (added 2026-10-20) The channel that asked holds no passkey and may never move money by itself (the voice Shortcut,
+   * capture/routes.ts): the order is always ASK (T2, the user's passkey), never AUTO under a mandate or the small-auto
+   * limit. Set by the server for that channel, never by the planner.
+   */
+  passkeyOnly?: boolean;
 };
 
 export type ProposeOrderResult = {
@@ -476,6 +482,11 @@ export async function proposeOrder(input: ProposeOrderInput, internal: { duplica
     const codes: ReasonCode[] = [...decided.reasonCodes];
     if (poNotDelivered) codes.push("PO_NOT_DELIVERED");
     result = decided.decision === "AUTO" ? { ...decided, decision: "ASK", tier: "T2", mandateId: null, reasonCodes: codes.filter((c) => c !== "MANDATE_MATCH" && c !== "SMALL_AUTO") } : { ...decided, reasonCodes: codes };
+  }
+  // A passkey-only channel (the voice Shortcut) never gets AUTO: the passkey approval is the only way its order executes.
+  if (input.passkeyOnly && result.decision === "AUTO") {
+    const codes = result.reasonCodes.filter((c) => c !== "MANDATE_MATCH" && c !== "SMALL_AUTO");
+    result = { ...result, decision: "ASK", tier: "T2", mandateId: null, reasonCodes: codes.includes("AGENT_REQUESTED_CONFIRM") ? codes : [...codes, "AGENT_REQUESTED_CONFIRM"] };
   }
 
   const proposalId = randomUUID();

@@ -1,7 +1,7 @@
 /*
- * The voice Shortcut (POST /capture/voice): a Shortcut key reaches the agent in a read-only turn. The key keeps its
- * one power (logging spending): whatever is said, no proposal or payment is made. Speech to text goes to VOICE_MODEL
- * as an OpenRouter input_audio part.
+ * The voice Shortcut (POST /capture/voice): a Shortcut key reaches the agent in a read-only turn. The key never moves
+ * money: with no payee named, nothing is proposed or paid (a named payee may get one passkey-only draft:
+ * voice-pay.test.ts). Speech to text goes to VOICE_MODEL as an OpenRouter input_audio part.
  */
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";

@@ -138,8 +138,8 @@
   },
   "voice": {
     "title": "Ask Kassa by voice",
-    "intro": "A Shortcut you start with “Hey Siri, Ask Kassa”: you speak, Kassa's AI hears the recording and answers aloud. Ask what you spent, what is due, or say “coffee 1,200 forints” to log a purchase.",
-    "footer": "Answers only: it never pays. To pay, open Kassa. The link holds your Shortcut key: paste it only into Shortcuts.",
+    "intro": "A Shortcut you start with “Hey Siri, Ask Kassa”: you speak, Kassa's AI hears the recording and answers aloud. Ask what you spent or what is due, say “coffee 1,200 forints” to log a purchase, or “send 15 euro to Anna” to draft a payment to one of your recipients.",
+    "footer": "It never pays by itself: a payment it drafts opens the order page, and only your passkey there sends it. The link holds your Shortcut key: paste it only into Shortcuts.",
     "copyLink": "Copy voice link",
     "copied": "Voice link copied",
     "needToken": "Create a token above first: the voice link uses it.",
@@ -149,9 +149,10 @@
       "3": "Add “Base64 Encode” with the Recorded Audio.",
       "4": "Add “Get Contents of URL”: paste the voice link as the URL. Tap ›: Method POST, Request Body JSON, Text fields audio = Base64 Encoded and format = m4a.",
       "5": "Add “Get Dictionary Value”: Value for key reply in Contents of URL.",
-      "6": "Add “Speak Text” (or “Show Result”) with the Dictionary Value. Then say “Hey Siri, Ask Kassa”."
+      "6": "Add “Speak Text” (or “Show Result”) with the Dictionary Value. Then say “Hey Siri, Ask Kassa”.",
+      "7": "Add “Get Dictionary Value”: Value for key approveUrl in Contents of URL. Then “If” Dictionary Value has any value: “Open URLs” with it, and approve the payment with your passkey on that page."
     },
     "add": "Add the “Ask Kassa” Shortcut",
-    "after": "Your voice link is copied. In Shortcuts tap Add Shortcut and paste it when asked. Then say “Hey Siri, Ask Kassa”."
+    "after": "Your voice link is copied. In Shortcuts tap Add Shortcut and paste it when asked. Then say “Hey Siri, Ask Kassa”. A payment you ask for opens its order page: approve it there with your passkey."
   }
 }
