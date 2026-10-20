@@ -35,7 +35,17 @@
     "spentIn": "Spent in {{month}}",
     "clearCard": "Show all cards",
     "oneCard": "One card",
-    "cardEmpty": "No purchases on this card yet."
+    "cardEmpty": "No purchases on this card yet.",
+    "rangeWeek": "Week",
+    "rangeMonth": "Month",
+    "rangeYear": "Year",
+    "rangeAll": "All",
+    "spentWeek": "Spent in the last 7 days",
+    "spentMonth": "Spent this month",
+    "spentYear": "Spent this year",
+    "spentAll": "Spent in total",
+    "rangeEmpty": "No purchases in this range.",
+    "rangeCapped": "Showing the latest {{count}} purchases."
   },
   "home": {
     "spentIn": "Spent in {{month}}",

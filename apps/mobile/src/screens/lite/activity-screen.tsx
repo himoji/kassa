@@ -1,5 +1,6 @@
 import type { CardDto, RecentCapture, RecentCapturesResponse } from "@kassa/shared";
 import { router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
 import { Pressable } from "react-native";
 
 import { useSpendingInsights } from "@/api/hooks/insights";
@@ -7,10 +8,12 @@ import { useCards } from "@/api/hooks/money";
 import { QueryView } from "@/components/kassa/query-view";
 import { ScrollScreen } from "@/components/kassa/scroll-screen";
 import { CategoryAvatar, categoryLabel } from "@/components/kassa/spend-charts";
+import { Segmented } from "@/components/kassa/segmented";
 import { RowGroup } from "@/components/row-group";
 import { Box, Icon, Row, Text, useTheme } from "@/components/ui";
 import { useFormat } from "@/lib/format";
 import { useKassaT } from "@/lib/i18n";
+import { RANGE_LIMIT, useActivityRange, type ActivityRange } from "@/lite/activity-range";
 import { useDataMode, visibleCaptures } from "@/lite/data-mode";
 import { useRecentCaptures } from "@/lite/use-recent-captures";
 import { openInsights } from "@/screens/insights/insights-screen";
@@ -125,20 +128,33 @@ function dayTitle(day: string, t: ReturnType<typeof useKassaT>, f: ReturnType<ty
   return f.weekdayDay(day);
 }
 
-/** This month's spending as one row; opens Insights. Hidden until it loads. */
-function MonthRow() {
+const SPENT_KEY: Record<ActivityRange, string> = {
+  week: "lite:activity.spentWeek",
+  month: "lite:activity.spentMonth",
+  year: "lite:activity.spentYear",
+  all: "lite:activity.spentAll",
+};
+
+/** What the purchases shown came to in the home currency (ones not converted yet are left out); opens Insights. */
+function RangeTotalRow({
+  range,
+  captures,
+}: {
+  range: ActivityRange;
+  captures: readonly RecentCapture[];
+}) {
   const t = useKassaT();
   const f = useFormat();
-  const insights = useSpendingInsights();
-  const d = insights.data;
-  if (!d) return null;
+  const home = useSpendingInsights().data?.homeCurrency;
+  if (!home) return null;
+  const total = captures.reduce((sum, c) => sum + (c.homeAmountMinor ?? 0), 0);
   return (
     <RowGroup>
       <Row
-        title={t("lite:activity.spentIn", { month: f.monthName(d.month.start) })}
+        title={t(SPENT_KEY[range])}
         trailing={
           <Text weight="semibold" style={{ fontVariant: ["tabular-nums"] }}>
-            {f.money(d.totalMinor, d.homeCurrency)}
+            {f.money(total, home)}
           </Text>
         }
         chevron
@@ -185,10 +201,13 @@ function CardFilterPill({ cardId }: { cardId: string }) {
 export function ActivityBody({
   data,
   cardId,
+  range = "month",
 }: {
   data: RecentCapturesResponse;
   /** Only this card's purchases (`?card=<id>`, from a Home card page). */
   cardId?: string;
+  /** The range `data` was fetched for (the total row's label). */
+  range?: ActivityRange;
 }) {
   const t = useKassaT();
   const f = useFormat();
@@ -201,13 +220,21 @@ export function ActivityBody({
   const home = insights.data?.homeCurrency;
   return (
     <>
-      {cardId ? <CardFilterPill cardId={cardId} /> : <MonthRow />}
+      {cardId ? (
+        <CardFilterPill cardId={cardId} />
+      ) : (
+        <RangeTotalRow range={range} captures={shown} />
+      )}
       {groups.length === 0 ? (
         <RowGroup title={t("lite:activity.capturesTitle")}>
           <Box p={6} gap={2} align="center">
             <Icon name="wave.3.right" fallback="contactless" size={32} color="mutedForeground" />
             <Text weight="semibold" align="center">
-              {cardId ? t("lite:activity.cardEmpty") : t("lite:activity.empty")}
+              {cardId
+                ? t("lite:activity.cardEmpty")
+                : data.captures.length === 0 && range !== "all"
+                  ? t("lite:activity.rangeEmpty")
+                  : t("lite:activity.empty")}
             </Text>
             {cardId ? null : (
               <Text variant="caption" align="center">
@@ -238,6 +265,13 @@ export function ActivityBody({
           </RowGroup>
         );
       })}
+      {data.captures.length >= RANGE_LIMIT ? (
+        <Box px={4}>
+          <Text variant="caption" align="center">
+            {t("lite:activity.rangeCapped", { count: RANGE_LIMIT })}
+          </Text>
+        </Box>
+      ) : null}
       {hidden > 0 ? (
         <Box px={4} testID="simulated-hidden">
           <Text variant="caption" align="center">
@@ -255,16 +289,30 @@ export function ActivityBody({
  * one card.
  */
 export function ActivityScreen() {
+  const t = useKassaT();
   const { card } = useLocalSearchParams<{ card?: string }>();
-  const recent = useRecentCaptures();
+  const [range, setRange] = useState<ActivityRange>("month");
+  // The newest purchases, polled: new-purchase banners come from this (lite/notifier) whatever range is picked.
+  useRecentCaptures();
+  const list = useActivityRange(range);
   const insights = useSpendingInsights();
   const cards = useCards();
   return (
     <ScrollScreen
-      onRefresh={() => Promise.all([recent.refetch(), insights.refetch(), cards.refetch()])}
+      onRefresh={() => Promise.all([list.refetch(), insights.refetch(), cards.refetch()])}
     >
-      <QueryView query={recent} skeletonRows={4}>
-        {(data) => <ActivityBody data={data} cardId={card || undefined} />}
+      <Segmented
+        value={range}
+        onChange={setRange}
+        options={[
+          { value: "week", label: t("lite:activity.rangeWeek") },
+          { value: "month", label: t("lite:activity.rangeMonth") },
+          { value: "year", label: t("lite:activity.rangeYear") },
+          { value: "all", label: t("lite:activity.rangeAll") },
+        ]}
+      />
+      <QueryView query={list} skeletonRows={4}>
+        {(data) => <ActivityBody data={data} cardId={card || undefined} range={range} />}
       </QueryView>
     </ScrollScreen>
   );

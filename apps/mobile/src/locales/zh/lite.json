@@ -34,7 +34,17 @@
     "spentIn": "{{month}}支出",
     "clearCard": "显示所有卡",
     "oneCard": "一张卡",
-    "cardEmpty": "这张卡还没有消费。"
+    "cardEmpty": "这张卡还没有消费。",
+    "rangeWeek": "周",
+    "rangeMonth": "月",
+    "rangeYear": "年",
+    "rangeAll": "全部",
+    "spentWeek": "近 7 天支出",
+    "spentMonth": "本月支出",
+    "spentYear": "今年支出",
+    "spentAll": "总支出",
+    "rangeEmpty": "此期间没有消费。",
+    "rangeCapped": "显示最近 {{count}} 笔消费。"
   },
   "home": {
     "spentIn": "{{month}}支出",

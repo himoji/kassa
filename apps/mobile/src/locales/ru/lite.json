@@ -37,7 +37,17 @@
     "spentIn": "Потрачено за {{month}}",
     "clearCard": "Показать все карты",
     "oneCard": "Одна карта",
-    "cardEmpty": "По этой карте покупок пока нет."
+    "cardEmpty": "По этой карте покупок пока нет.",
+    "rangeWeek": "Неделя",
+    "rangeMonth": "Месяц",
+    "rangeYear": "Год",
+    "rangeAll": "Всё",
+    "spentWeek": "Потрачено за 7 дней",
+    "spentMonth": "Потрачено в этом месяце",
+    "spentYear": "Потрачено в этом году",
+    "spentAll": "Потрачено всего",
+    "rangeEmpty": "За этот период покупок нет.",
+    "rangeCapped": "Показаны последние {{count}} покупок."
   },
   "home": {
     "spentIn": "Потрачено за {{month}}",

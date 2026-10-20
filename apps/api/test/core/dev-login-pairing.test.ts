@@ -228,4 +228,19 @@ describe("GET /capture/recent", () => {
     const recent = await app().inject({ method: "GET", url: `/api/capture/recent?since=${since}`, headers: await bearer(a.userId) });
     expect(recent.json().captures.map((c: { merchant: string }) => c.merchant)).toEqual(["New Cafe"]);
   });
+
+  it("from/to narrow by when the purchase happened, imports included", async () => {
+    const a = await createUserWithPasskey();
+    const day = (d: number) => new Date(Date.now() - d * 86_400_000);
+    await getDb().insert(transactions).values([
+      { userId: a.userId, source: "IMPORT", occurredAt: day(200), createdAt: day(0), merchantRaw: "Old Import", merchantNorm: "old import", amountMinor: 100, currency: "HUF", category: "food", status: "SETTLED" },
+      { userId: a.userId, source: "IMPORT", occurredAt: day(40), createdAt: day(0), merchantRaw: "Spring Import", merchantNorm: "spring import", amountMinor: 100, currency: "HUF", category: "food", status: "SETTLED" },
+      { userId: a.userId, source: "SHORTCUT", occurredAt: day(1), createdAt: day(1), merchantRaw: "Tap Cafe", merchantNorm: "tap cafe", amountMinor: 200, currency: "HUF", category: "food", status: "PENDING" },
+    ]);
+    const get = async (q: string) =>
+      (await app().inject({ method: "GET", url: `/api/capture/recent?${q}`, headers: await bearer(a.userId) })).json().captures.map((c: { merchant: string }) => c.merchant);
+    expect(await get("")).toEqual(["Tap Cafe", "Spring Import", "Old Import"]);
+    expect(await get(`from=${encodeURIComponent(day(90).toISOString())}`)).toEqual(["Tap Cafe", "Spring Import"]);
+    expect(await get(`from=${encodeURIComponent(day(90).toISOString())}&to=${encodeURIComponent(day(7).toISOString())}`)).toEqual(["Spring Import"]);
+  });
 });

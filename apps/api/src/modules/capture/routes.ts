@@ -1,6 +1,6 @@
 import { CaptureEventRequest, CaptureEventResponse, RecentCapturesResponse, SettlementEventRequest, SettlementEventResponse, sha256Base64url } from "@kassa/shared";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, gte, isNull, lt } from "drizzle-orm";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
 import type { FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -298,10 +298,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.get(
     "/capture/recent",
-    { preHandler: requireUser, schema: { querystring: z.object({ since: z.iso.datetime().optional(), limit: z.coerce.number().int().min(1).max(100).default(100) }), response: { 200: RecentCapturesResponse } } },
+    { preHandler: requireUser, schema: { querystring: z.object({ since: z.iso.datetime().optional(), from: z.iso.datetime().optional(), to: z.iso.datetime().optional(), limit: z.coerce.number().int().min(1).max(1000).default(100) }), response: { 200: RecentCapturesResponse } } },
     async (req) => {
       const userId = userIdOf(req);
-      const { since, limit } = req.query;
+      // `since`: created after (the app's poll); `from`/`to`: happened in that range (Activity's range picker).
+      const { since, from, to, limit } = req.query;
       const after = since ? new Date(since) : null;
       const db = getDb();
       const rows = await db
@@ -314,6 +315,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
             // showed none of an imported statement while the web app (GET /transactions) did.
             isNull(transactions.mergedIntoId),
             after ? gt(transactions.createdAt, after) : undefined,
+            from ? gte(transactions.occurredAt, new Date(from)) : undefined,
+            to ? lt(transactions.occurredAt, new Date(to)) : undefined,
           ),
         )
         // When it happened, so a statement import (hundreds of rows created now) cannot push today's taps out.

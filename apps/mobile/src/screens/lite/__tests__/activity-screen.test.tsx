@@ -65,8 +65,9 @@ describe("ActivityScreen", () => {
     useSessionStore.getState().setStatus("authenticated");
     jest
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify(DATA), { headers: { "content-type": "application/json" } })
+      .mockImplementation(
+        async () =>
+          new Response(JSON.stringify(DATA), { headers: { "content-type": "application/json" } })
       );
   });
 
@@ -113,8 +114,9 @@ describe("ActivityScreen", () => {
     };
     jest
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify(sim), { headers: { "content-type": "application/json" } })
+      .mockImplementation(
+        async () =>
+          new Response(JSON.stringify(sim), { headers: { "content-type": "application/json" } })
       );
     const view = () => (
       <QueryClientProvider
