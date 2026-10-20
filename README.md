@@ -2,6 +2,24 @@
 
 **An AI agent that pays your bills across borders, inside the limits you signed.**
 
+## FinTechathon 2026 submission (Topic C)
+
+### 01 · [Technical documentation: architecture, algorithms, security design](docs/architecture/overview.md)
+
+### 02 · [Presentation deck (PDF)](docs/submission/kassa-deck.pdf)
+
+### 03 · [Demo video (3:28)](docs/demo/kassa-demo.mp4)
+
+### 04 · [Source code: deploy guide](docs/guide/deploy.md) · [test cases](docs/reference/tests.md)
+
+### 05 · [Security self-assessment: permission tiers and known risks](docs/security/self-assessment.md)
+
+### 06 · [Execution evidence: sandbox logs and on-chain transaction hashes](docs/evidence/index.md)
+
+### Try it: [judge build (no passkey device needed)](https://kassa-judge.vercel.app/) · [evidence room](https://kassa-sand.vercel.app/showcase)
+
+---
+
 Source: https://github.com/himoji/kassa · Topic C (Cross-border and Student Finance Assistant), FinTechathon 2026 International Track.
 
 - **Problem.** International students earn in one country and pay bills in another: hidden card FX fees, irregular money from home, and "your landlord's bank details changed" scams.
