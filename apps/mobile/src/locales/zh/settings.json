@@ -173,7 +173,7 @@
     "export": "导出为 JSON",
     "importTitle": "导入",
     "importFooter": "PDF、CSV 或 Excel 格式的银行对账单（可同时导入多家银行），或来自 Kassa 或其他理财应用的 JSON。账号和卡号从不保存，Kassa 会在任何更改之前向您展示将要添加的内容。",
-    "chooseFile": "选择对账单",
+    "chooseFile": "导入银行账单",
     "paste": "从剪贴板粘贴",
     "placeholder": "…或在此粘贴 JSON 或 CSV",
     "check": "检查文件",
@@ -259,5 +259,24 @@
     "appTitle": "应用",
     "appearanceLanguageTitle": "外观和语言",
     "demoProofHint": "证据室、攻击、演示控制"
+  },
+  "importScreen": {
+    "title": "导入账单",
+    "tile": "导入",
+    "addRow": "导入银行账单",
+    "heroTitle": "添加你的银行记录",
+    "heroBody": "在银行 App 中下载 PDF 账单并在这里选择。任何银行、任何语言；也支持 CSV 和 Excel，可一次选多个文件。",
+    "choose": "选择 PDF 账单",
+    "dropHint": "或将文件拖到这里 · PDF、CSV、Excel，最多 6 个",
+    "pickHint": "来自“文件”、下载或 iCloud · PDF、CSV、Excel，最多 6 个",
+    "howTitle": "在哪里找到",
+    "how": "Kaspi：Kaspi Gold → 账单 → 选择期间 → 以 PDF 发送。Alatau 和大多数银行：卡片 → 账单 → PDF。保存到“文件”后在这里选择。",
+    "privacy": "账号和卡号从不保存。点“导入”之前什么都不会改变。",
+    "pasteToggle": "改为粘贴文本或 JSON",
+    "another": "选择其他文件",
+    "doneHome": "回到首页",
+    "more": "继续导入",
+    "showDetails": "选择要导入的内容",
+    "hideDetails": "隐藏详情"
   }
 }

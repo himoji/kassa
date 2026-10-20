@@ -178,7 +178,7 @@ export async function registerSecurity(app: FastifyInstance): Promise<void> {
   await app.register(cors, {
     origin: (origin, cb) => cb(null, origin === undefined || allowed.has(origin)),
     credentials: true,
-    methods: ["GET", "POST", "PATCH", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     // Exactly what the clients send (apps/mobile/src/api/client.ts; preflight test in http-hardening.test.ts).
     allowedHeaders: ["content-type", "authorization", "x-kassa-demo-token"],
     maxAge: 600,

@@ -31,14 +31,39 @@ const OPERATIONS = [
   "возврат",
   "(?:checkcard|mobile purchase|purchase|pos purchase|debit card purchase|recurring payment)(?:\\s+\\d{4})?",
   "atm (?:withdrawal|cash)",
+  // English statements from Kazakh banks (Kaspi "Transaction" column, Alatau "Operation" column and details).
+  "replenishment by phone number from",
+  "transfer by phone number to",
+  "credits from other sources:\\s*(?:зачисление)?",
+  "payment of commission:",
+  "commission:",
+  "transfers? to your(?: accounts?)?",
+  "receipts? from your(?: accounts?)?",
+  "purchases",
+  "transfers",
+  "replenishment",
+  "withdrawals?",
+  "others",
+  // Arabic, Hebrew, Turkish, German, French, Spanish: the common operation words.
+  "(?:شراء|مشتريات|تحويل|حوالة|إيداع|سحب(?: نقدي)?|رسوم|عمولة|استرداد)",
+  "(?:רכישה|העברה|הפקדה|משיכה|עמלה|החזר)",
+  "(?:alışveriş|harcama|havale|eft|para yatırma|para çekme|ücret|komisyon|iade)",
+  "(?:kartenzahlung|lastschrift|überweisung|gutschrift|bargeldauszahlung|gebühr|erstattung)",
+  "(?:paiement par carte|achat|virement|prélèvement|retrait|frais|remboursement)",
+  "(?:compra|transferencia|retiro|comisión|reembolso|abono|cargo)",
 ].map((o) => new RegExp(`^${o}(?![\\p{L}\\p{N}])`, "iu"));
 
-const OWN = /өз шот|own account|between (?:my|your) accounts|to savings|from savings|internal transfer|собственн\S* (?:сч|средств)|между своими|своего сч|на свой сч|\d{4} kaspi шот(?:ынан|ына)|басқа банктің картасынан|saját száml/i;
+const OWN = /өз шот|own account|between (?:my|your) accounts|transfers? to your|receipts? from your|kaspi deposit|from kaspi account|from card of other banks|cash deposit|пополнение через банкомат|to savings|from savings|internal transfer|собственн\S* (?:сч|средств)|между своими|своего сч|на свой сч|\d{4} kaspi шот(?:ынан|ына)|басқа банктің картасынан|saját száml/i;
 const FX_DIFF = /бағамдық айырма|курсов\S* разниц|exchange(?: rate)? difference|fx adjustment|conversion difference/i;
-const FEE = /комисси|\bfee\b|fees\b|service charge|maintenance charge|overdraft|қызмет ақы|regular charge|díj\b/i;
-const CASH = /\batm\b|cash withdrawal|снятие наличн|ақша алу|банкомат|készpénz/i;
-const REFUND = /refund|возврат|қайтару|reversal|chargeback|return of/i;
-const TRANSFER = /перевод|аударым|зачислени|transfer|zelle|venmo|cash app|p2p|card to card|с карты на карту|átutalás|толықтыру|пополнение|top-?up|deposit from|payment from/i;
+const FEE = /комисси|commission|\bfee\b|fees\b|رسوم|عمولة|עמלה|ücret|komisyon|gebühr|frais|comisión|service charge|maintenance charge|overdraft|қызмет ақы|regular charge|díj\b/i;
+const CASH = /\batm\b(?!.*deposit)|cash withdrawal|سحب نقدي|משיכ|para çekme|bargeld|retrait|снятие наличн|ақша алу|банкомат|készpénz/i;
+const REFUND = /refund|استرداد|החזר|iade|erstattung|remboursement|reembolso|возврат|қайтару|reversal|chargeback|return of/i;
+const TRANSFER = /перевод|аударым|зачислени|transfer|zelle|venmo|cash app|p2p|card to card|с карты на карту|átutalás|replenishment|تحويل|حوالة|إيداع|העברה|הפקדה|havale|\beft\b|überweisung|gutschrift|virement|transferencia|толықтыру|пополнение|top-?up|deposit from|payment from/i;
+
+/** Card-to-card details after the operation word: "с карты:441328******3273;получатель: Жанель Ш." (masked card cut). */
+const CARD_TO_CARD = /^(?:перевод\s+)?с карты:\s*[\d*]+\s*;\s*получатель:\s*;?\s*/iu;
+/** A card payment made with bank bonuses: a purchase, though its details say "зачисление бонусов". */
+const BONUS_PAYMENT = /payment by bonuses|оплат\S* бонус/i;
 
 const DAY = 86_400_000;
 
@@ -62,17 +87,19 @@ export function classifyRows(rows: StatementRow[], ctx: ClassifyContext): Statem
     const split = splitOperation(r.description);
     if (!r.operation && split.operation) r.operation = split.operation;
     const all = `${r.operation ?? ""} ${r.description}`;
-    r.description = cleanDescription(split.rest);
+    // Kaspi wraps "Transfer to your / account" onto two lines; the second half lands at the end of the details.
+    const rest = split.rest.replace(CARD_TO_CARD, "") || split.rest;
+    r.description = cleanDescription(/your$/i.test(split.operation ?? "") ? rest.replace(/\s+accounts?$/i, "") : rest);
     const holders = ctx.holders[r.file] ?? ctx.holders[0] ?? [];
     const out = r.amountMinor < 0;
     let kind: RowKind;
     if (OWN.test(all) || (TRANSFER.test(all) && namesHolder(r.description, holders))) kind = "OWN_TRANSFER";
     else if (FX_DIFF.test(all)) kind = out ? "FX_DIFF" : "REFUND";
-    else if (out && FEE.test(all) && !/zelle|перевод|аударым/i.test(all)) kind = "FEE";
+    else if (out && FEE.test(all) && (!/zelle|перевод|аударым/i.test(all) || /^\s*(?:payment of )?(?:commission|комиссия)/i.test(all))) kind = "FEE";
     else if (out && CASH.test(all)) kind = "CASH";
     else if (!out && REFUND.test(all)) kind = "REFUND";
     else if (!out) kind = /покупка|сатып алу|purchase|checkcard/i.test(all) ? "REFUND" : "INCOME";
-    else if (TRANSFER.test(all)) kind = "TRANSFER_OUT";
+    else if (TRANSFER.test(all) && !BONUS_PAYMENT.test(all)) kind = "TRANSFER_OUT";
     else kind = "PURCHASE";
     r.kind = kind;
   }
@@ -80,6 +107,8 @@ export function classifyRows(rows: StatementRow[], ctx: ClassifyContext): Statem
   pairReversals(rows);
   return rows;
 }
+
+const accountSide = (r: StatementRow) => r.settled?.currency ?? r.currency;
 
 /**
  * A cancelled card hold comes back as money in from the same merchant for the same amount ("Пополнение YANDEX.GO"
@@ -92,11 +121,22 @@ function pairReversals(rows: StatementRow[]): void {
     if (r.kind !== "INCOME") continue;
     const t = Date.parse(r.occurredAt);
     const name = r.description.toLowerCase();
-    const p = purchases.find((x) => !used.has(x) && x.file === r.file && x.currency === r.currency && x.amountMinor === -r.amountMinor && x.description.toLowerCase() === name && Math.abs(Date.parse(x.occurredAt) - t) <= 10 * DAY);
+    // Same account side too: a multi-currency card books a foreign purchase in the main account and, as a top-up plus
+    // payment that cancel out, in the sub-account of the shop's currency (Alatau). Only that pair is left out.
+    const p = purchases.find((x) => !used.has(x) && x.file === r.file && x.currency === r.currency && x.amountMinor === -r.amountMinor && accountSide(x) === accountSide(r) && x.description.toLowerCase() === name && Math.abs(Date.parse(x.occurredAt) - t) <= 10 * DAY);
     if (!p) continue;
     used.add(p);
     p.kind = "REFUND";
     r.kind = "REFUND";
+  }
+  // A sub-account top-up left over (the bank funded one payment with two top-ups, 27.70 + 1,820.12 USD): money moved
+  // from the main account for a purchase in the shop's currency, never income. Same file, merchant and shop amount.
+  const paid = rows.filter((r) => r.kind === "PURCHASE" || (r.kind === "REFUND" && r.amountMinor < 0));
+  for (const r of rows) {
+    if (r.kind !== "INCOME" || !r.settled) continue;
+    const t = Date.parse(r.occurredAt);
+    const name = r.description.toLowerCase();
+    if (paid.some((x) => x.file === r.file && x.currency === r.currency && x.amountMinor === -r.amountMinor && x.description.toLowerCase() === name && Math.abs(Date.parse(x.occurredAt) - t) <= DAY)) r.kind = "OWN_TRANSFER";
   }
 }
 

@@ -1,4 +1,5 @@
 import type { ImportItems, ImportPreviewResponse } from "@kassa/shared";
+import { useState } from "react";
 
 import { SettingSwitch } from "@/components/kassa/native-controls";
 import { categoryLabel } from "@/components/kassa/spend-charts";
@@ -136,6 +137,7 @@ export function ImportPreviewCard({
   busy,
   importLabel,
   sections = PREVIEW_SECTIONS,
+  simple = false,
 }: {
   result: ImportPreviewResponse;
   on: SectionSwitches;
@@ -144,10 +146,18 @@ export function ImportPreviewCard({
   busy: boolean;
   importLabel: string;
   sections?: PreviewSection[];
+  /** The Import screen: the import button first, the section switches and column mappings one tap away. */
+  simple?: boolean;
 }) {
   const t = useKassaT();
   const f = useFormat();
+  const [details, setDetails] = useState(!simple);
   const shown = sections.filter((s) => sectionCount(result, s) > 0);
+  const button = (
+    <Button size="lg" loading={busy} disabled={!shown.some((s) => on[s])} onPress={onImport}>
+      {importLabel}
+    </Button>
+  );
   return (
     <Card>
       <Box gap={3}>
@@ -165,7 +175,7 @@ export function ImportPreviewCard({
             {file.cardLast4 ? ` · •••• ${file.cardLast4}` : ""}
           </Text>
         ))}
-        {result.files.length === 0
+        {result.files.length === 0 && details
           ? result.mappings.map((m) => (
               <Text key={`${m.path}-${m.kind}`} variant="caption">
                 {t("settings:data.mapping", {
@@ -181,42 +191,50 @@ export function ImportPreviewCard({
             ))
           : null}
         <HistorySummary result={result} />
-        {shown.map((s) => (
-          <SettingSwitch
-            key={s}
-            label={t(`settings:data.section.${s}`, { count: sectionCount(result, s) })}
-            description={
-              s === "budgets"
-                ? t("settings:data.budgetsNote")
-                : s === "bills"
-                  ? t("settings:data.billsNote")
-                  : undefined
-            }
-            value={on[s]}
-            onChange={(v) => setOn({ ...on, [s]: v })}
-          />
-        ))}
-        {[...result.items.transactions]
-          .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-          .slice(0, 5)
-          .map((x, i) => (
-            <Box key={i} row justify="between" gap={2}>
-              <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
-                {f.date(x.occurredAt.slice(0, 10), "medium")} · {x.merchant}
-              </Text>
-              <Text variant="caption" style={{ fontVariant: ["tabular-nums"] }}>
-                {f.money(x.amountMinor, x.currency)}
-              </Text>
-            </Box>
+        {simple ? button : null}
+        {simple ? (
+          <Button size="sm" variant="ghost" onPress={() => setDetails((v) => !v)}>
+            {details
+              ? t("settings:importScreen.hideDetails")
+              : t("settings:importScreen.showDetails")}
+          </Button>
+        ) : null}
+        {details &&
+          shown.map((s) => (
+            <SettingSwitch
+              key={s}
+              label={t(`settings:data.section.${s}`, { count: sectionCount(result, s) })}
+              description={
+                s === "budgets"
+                  ? t("settings:data.budgetsNote")
+                  : s === "bills"
+                    ? t("settings:data.billsNote")
+                    : undefined
+              }
+              value={on[s]}
+              onChange={(v) => setOn({ ...on, [s]: v })}
+            />
           ))}
+        {details &&
+          [...result.items.transactions]
+            .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+            .slice(0, 5)
+            .map((x, i) => (
+              <Box key={i} row justify="between" gap={2}>
+                <Text variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {f.date(x.occurredAt.slice(0, 10), "medium")} · {x.merchant}
+                </Text>
+                <Text variant="caption" style={{ fontVariant: ["tabular-nums"] }}>
+                  {f.money(x.amountMinor, x.currency)}
+                </Text>
+              </Box>
+            ))}
         {result.warnings.map((w) => (
           <Text key={w} variant="caption" color="mutedForeground">
             {w}
           </Text>
         ))}
-        <Button size="lg" loading={busy} disabled={!shown.some((s) => on[s])} onPress={onImport}>
-          {importLabel}
-        </Button>
+        {simple ? null : button}
       </Box>
     </Card>
   );

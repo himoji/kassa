@@ -45,7 +45,7 @@ export interface PreviewOptions {
 
 /** Fewer rows than this from a PDF or text file means the layout was not understood. */
 const MIN_DETERMINISTIC_ROWS = 3;
-const CAPTION = /(?:транзакции|операции)\s*по\s*сч[её]ту[^\n]*?\b([A-Z]{3})\b|transactions\s*(?:on|for)\s*account[^\n]*?\b([A-Z]{3})\b/giu;
+const CAPTION = /(?:транзакции|операции)\s*по\s*сч[её]ту[^\n]*?\b([A-Z]{3})\b|(?:transactions\s*(?:on|for)\s*account|account\s*transactions\s*:)[^\n]*?\b([A-Z]{3})\b/giu;
 
 interface FileRead {
   file: ImportFile;
@@ -267,7 +267,7 @@ export async function previewImport(inputs: ImportFileInput[], o: PreviewOptions
 
   const own = history.counts.ownTransfers;
   if (own) warnings.push(`${own} transfers between your own accounts were left out, so the same money is not counted twice.`);
-  if (history.counts.refunds) warnings.push(`${history.counts.refunds} refunds were left out of spending.`);
+  if (history.counts.refunds) warnings.push(`${history.counts.refunds} refunds, cancelled holds and card holds mirrored in a second currency were left out of spending.`);
   if (history.counts.incoming) warnings.push(`${history.counts.incoming} incoming payments were read as income, not spending.`);
 
   return {

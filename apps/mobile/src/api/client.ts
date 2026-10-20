@@ -40,6 +40,8 @@ export interface RequestOptions<T> {
   auth?: boolean;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Overrides the client's timeout for one slow call (an import commit writes many rows). */
+  timeoutMs?: number;
 }
 
 export interface ApiClient {
@@ -181,7 +183,7 @@ export function createApiClient(deps: ApiClientDeps): ApiClient {
       auth = true,
     } = options;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? timeoutMs);
     const onCallerAbort = () => controller.abort();
     options.signal?.addEventListener("abort", onCallerAbort, { once: true });
 

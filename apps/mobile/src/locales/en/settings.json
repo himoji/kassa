@@ -173,7 +173,7 @@
     "export": "Export as JSON",
     "importTitle": "Import",
     "importFooter": "Bank statements as PDF, CSV or Excel (several banks at once), or JSON from Kassa or another money app. Account and card numbers are never kept, and Kassa shows you what it will add before anything changes.",
-    "chooseFile": "Choose statements",
+    "chooseFile": "Import bank statements",
     "paste": "Paste from clipboard",
     "placeholder": "…or paste JSON or CSV here",
     "check": "Check the file",
@@ -261,5 +261,24 @@
     "appTitle": "App",
     "appearanceLanguageTitle": "Appearance & language",
     "demoProofHint": "Evidence room, attacks, demo controls"
+  },
+  "importScreen": {
+    "title": "Import statements",
+    "tile": "Import",
+    "addRow": "Import a bank statement",
+    "heroTitle": "Add your bank history",
+    "heroBody": "Download a statement from your bank app as a PDF and pick it here. Any bank, any language; CSV and Excel work too, several files at once.",
+    "choose": "Choose PDF statements",
+    "dropHint": "or drop files here · PDF, CSV, Excel, up to 6",
+    "pickHint": "From Files, Downloads or iCloud · PDF, CSV, Excel, up to 6",
+    "howTitle": "Where to find it",
+    "how": "Kaspi: Kaspi Gold → Statement → choose the period → send as PDF. Alatau and most banks: Card → Statement → PDF. Save it to Files, then pick it here.",
+    "privacy": "Account and card numbers are never kept. Nothing changes until you tap Import.",
+    "pasteToggle": "Paste text or JSON instead",
+    "another": "Choose other files",
+    "doneHome": "Go to Home",
+    "more": "Import more",
+    "showDetails": "Choose what to import",
+    "hideDetails": "Hide details"
   }
 }

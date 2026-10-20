@@ -1,7 +1,14 @@
 /** Import commits in chunks (api/hooks/dataport.ts). Pure, so it is unit-tested on its own. */
 
-/** Rows per POST /import/commit: a year of statements is several requests, each well inside the client timeout. */
-const COMMIT_CHUNK = 100;
+/**
+ * Rows per POST /import/commit: each row is captured, converted and reconciled on its own (up to ~3 s a row on a far
+ * database), so a chunk must finish inside COMMIT_TIMEOUT_MS, and a year of statements must stay under the server's 30
+ * sensitive requests a minute (a 429 is waited out and retried: it wrote nothing).
+ */
+const COMMIT_CHUNK = 50;
+export const COMMIT_TIMEOUT_MS = 180_000;
+/** Waits before retrying a chunk the rate limit refused. */
+export const COMMIT_RETRY_WAITS_MS = [15_000, 30_000, 60_000];
 /** Dedupe looks at 10-minute buckets and their neighbour: a chunk only ends where the next row is 20+ minutes later. */
 const SAFE_GAP_MS = 20 * 60 * 1000;
 

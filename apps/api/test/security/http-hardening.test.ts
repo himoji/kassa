@@ -156,6 +156,8 @@ describe("headers, CORS, CSRF, body limits, error bodies", () => {
       { url: "/api/auth/register/options", method: "POST", headers: "content-type" },
       { url: "/api/agent/message", method: "POST", headers: "content-type" },
       { url: "/api/settings", method: "PATCH", headers: "content-type" },
+      // Budgets are raised with PUT (apps/mobile useSetBudgets): a cross-origin web app needs it in the preflight.
+      { url: "/api/budgets", method: "PUT", headers: "content-type" },
       { url: "/api/demo/reset", method: "POST", headers: "content-type,x-kassa-demo-token" },
     ];
     for (const c of cases) {

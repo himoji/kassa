@@ -9,7 +9,7 @@ import { HttpProblem } from "../../http/problem.ts";
 import { isAiConfigError } from "../ai/errors.ts";
 import { currentAgentMode } from "../ai/mode.ts";
 import { requireUser, userIdOf } from "../auth/session.ts";
-import { rememberedCategory } from "../capture/service.ts";
+import { rememberedCategories } from "../capture/service.ts";
 import { clock, isoDate } from "../clock/index.ts";
 import { aiProcessingAllowedFor } from "../privacy/notice.ts";
 import { MAX_IMPORT_FILE_BYTES } from "./files.ts";
@@ -47,13 +47,15 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const u = (await db.select().from(users).where(eq(users.id, userId)))[0];
     if (!u) throw new HttpProblem(404, "NOT_FOUND", "user not found");
     const replay = (await currentAgentMode()) === "REPLAY";
+    // One query for the user's corrections, read when the first merchant is categorised (not one per statement row).
+    let memory: Promise<Map<string, string>> | null = null;
     return {
       homeCurrency: u.homeCurrency,
       profileName: u.displayName,
       ai: replay ? "off" : ai,
       aiAllowed: aiProcessingAllowedFor(u),
       today: isoDate(clock.now()),
-      rememberedCategory: (merchantNorm) => rememberedCategory(db, userId, merchantNorm),
+      rememberedCategory: async (merchantNorm) => (await (memory ??= rememberedCategories(db, userId))).get(merchantNorm) ?? null,
     };
   }
 

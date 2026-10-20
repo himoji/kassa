@@ -126,6 +126,14 @@ function RootStack() {
         options={{ ...largeTitleOptions, headerShown: true, title: t("settings:data.title") }}
       />
       <Stack.Screen
+        name="import"
+        options={{
+          ...inlineTitleOptions,
+          headerShown: true,
+          title: t("settings:importScreen.title"),
+        }}
+      />
+      <Stack.Screen
         name="shortcut"
         options={{ ...largeTitleOptions, headerShown: true, title: t("shortcut:title") }}
       />

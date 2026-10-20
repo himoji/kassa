@@ -1,4 +1,4 @@
-import { router, Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
@@ -138,7 +138,7 @@ function HistoryCard() {
         <Box gap={3}>
           <Text weight="semibold">{t("home:history.emptyTitle")}</Text>
           <Text variant="caption">{t("home:history.emptyBody")}</Text>
-          <Button variant="outline" onPress={() => router.push("/data")}>
+          <Button variant="outline" onPress={() => router.push("/import" as Href)}>
             {t("home:history.import")}
           </Button>
         </Box>
@@ -169,7 +169,7 @@ function HistoryCard() {
               {all ? t("home:history.less") : t("home:history.all", { count: h.notes.length })}
             </Button>
           ) : null}
-          <Button size="sm" variant="ghost" onPress={() => router.push("/data")}>
+          <Button size="sm" variant="ghost" onPress={() => router.push("/import" as Href)}>
             {t("home:history.update")}
           </Button>
         </Box>

@@ -16,7 +16,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireOptionalNativeModule } from "expo";
 import { Platform } from "react-native";
 
-import { commitChunks } from "@/lib/commit-chunks";
+import { COMMIT_RETRY_WAITS_MS, COMMIT_TIMEOUT_MS, commitChunks } from "@/lib/commit-chunks";
 
 import { KassaApiError } from "../errors";
 
@@ -87,11 +87,24 @@ export function useImportCommit() {
           i === 0
             ? { ...items, transactions }
             : { transactions, bills: [], cards: [], budgets: [], incomes: [] };
-        const r = await api.request("/import/commit", {
-          method: "POST",
-          json: { items: part, ...(i === chunks.length - 1 && history ? { history } : {}) },
-          schema: ImportCommitResponse,
-        });
+        const send = () =>
+          api.request("/import/commit", {
+            method: "POST",
+            json: { items: part, ...(i === chunks.length - 1 && history ? { history } : {}) },
+            schema: ImportCommitResponse,
+            timeoutMs: COMMIT_TIMEOUT_MS,
+          });
+        let r: ImportCommitResponse | undefined;
+        for (let attempt = 0; !r; attempt++) {
+          try {
+            r = await send();
+          } catch (err) {
+            const wait = COMMIT_RETRY_WAITS_MS[attempt];
+            if (!(err instanceof KassaApiError && err.status === 429) || wait === undefined)
+              throw err;
+            await new Promise((resolve) => setTimeout(resolve, wait));
+          }
+        }
         for (const k of ["imported", "duplicates", "failed"] as const)
           sum.transactions[k] += r.transactions[k];
         for (const g of ["bills", "cards", "incomes"] as const) {

@@ -8,6 +8,7 @@ import { dedupeCandidates } from "../capture/dedupe.ts";
 import { normalizeMerchant } from "../capture/normalize.ts";
 import { ingestCapture, reconcileSettlement, refreshCardProfile } from "../capture/service.ts";
 import { clock } from "../clock/index.ts";
+import { rates } from "../fx/rates.ts";
 import { ledger } from "../ledger/index.ts";
 import { addBills } from "../onboarding/service.ts";
 
@@ -20,6 +21,23 @@ import { addBills } from "../onboarding/service.ts";
  * the fee x-ray and the card's markup profile learn from the history (no notification per row). Budgets are not
  * written here: raising one loosens the rules, so the app applies them with PUT /budgets and the passkey.
  */
+
+/** Rate sources answer one day at a time (~1–3 s each): fetch a chunk's days at once, not one per row while capturing. */
+async function warmRates(items: ImportItems, homeCurrency: string): Promise<void> {
+  const pairs = new Set<string>();
+  for (const t of items.transactions) {
+    const day = t.occurredAt.slice(0, 10);
+    for (const c of [t.currency, t.settledCurrency]) if (c && c !== homeCurrency) pairs.add(`${c}|${day}`);
+  }
+  const todo = [...pairs];
+  const worker = async () => {
+    for (let p = todo.pop(); p; p = todo.pop()) {
+      const [c, day] = p.split("|") as [string, string];
+      await rates().getRate(c, homeCurrency, day).catch(() => null);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(8, todo.length) }, worker));
+}
 
 async function account(userId: string) {
   const u = (await getDb().select().from(users).where(eq(users.id, userId)))[0];
@@ -79,7 +97,7 @@ export async function exportData(userId: string): Promise<KassaExport> {
 /** Adds the import's cards, bills and spending (see the header comment). */
 export async function commitImport(userId: string, items: ImportItems, history?: ImportHistory | null): Promise<ImportCommitResponse> {
   const db = getDb();
-  await account(userId);
+  const user = await account(userId);
   const result: ImportCommitResponse = { transactions: { imported: 0, duplicates: 0, failed: 0 }, bills: { added: 0, skipped: 0 }, cards: { added: 0, skipped: 0 }, incomes: { added: 0, skipped: 0 } };
 
   // Cards first, so imported spending can match them by last 4 digits.
@@ -116,18 +134,24 @@ export async function commitImport(userId: string, items: ImportItems, history?:
 
   // Duplicates are rows that existed before this import (a statement imported twice, or a purchase already captured
   // from Apple Pay); rows of this import never count as each other's duplicates.
-  const ours = new Set<string>();
-  const feeProfiles = new Map<string, [string, string, string]>();
-  for (const t of items.transactions) {
-    const occurredAt = new Date(t.occurredAt);
-    const merchantNorm = normalizeMerchant(t.merchant) || "unknown";
-    const keys = dedupeCandidates({ userId, amountMinor: t.amountMinor, currency: t.currency, merchantNorm, occurredAt });
-    const dup = await db
-      .select({ id: transactions.id })
+  await warmRates(items, user.homeCurrency);
+
+  // The keys that existed before this import, read once for the whole chunk (not one query per row).
+  const candidates = items.transactions.map((t) =>
+    dedupeCandidates({ userId, amountMinor: t.amountMinor, currency: t.currency, merchantNorm: normalizeMerchant(t.merchant) || "unknown", occurredAt: new Date(t.occurredAt) }),
+  );
+  const before = new Set<string>();
+  const allKeys = [...new Set(candidates.flat())];
+  for (let i = 0; i < allKeys.length; i += 1000) {
+    const found = await db
+      .select({ key: transactions.dedupeKey })
       .from(transactions)
-      .where(and(eq(transactions.userId, userId), inArray(transactions.dedupeKey, keys)))
-      .limit(25);
-    if (dup.some((d) => !ours.has(d.id))) {
+      .where(and(eq(transactions.userId, userId), inArray(transactions.dedupeKey, allKeys.slice(i, i + 1000))));
+    for (const f of found) if (f.key) before.add(f.key);
+  }
+  const feeProfiles = new Map<string, [string, string, string]>();
+  for (const [n, t] of items.transactions.entries()) {
+    if (candidates[n]!.some((k) => before.has(k))) {
       result.transactions.duplicates++;
       continue;
     }
@@ -142,7 +166,6 @@ export async function commitImport(userId: string, items: ImportItems, history?:
         result.transactions.failed++;
         continue;
       }
-      ours.add(r.transactionId);
       // The file's own category wins over the guess (without teaching the merchant memory).
       if (t.category) await db.update(transactions).set({ category: t.category }).where(eq(transactions.id, r.transactionId));
       if (t.settledAmountMinor && t.settledCurrency && t.settledCurrency !== t.currency && r.status === "LOGGED") {

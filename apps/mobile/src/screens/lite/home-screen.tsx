@@ -172,7 +172,7 @@ function HeroAction({
   onPress: () => void;
 }) {
   return (
-    <View style={{ width: "33.333%", alignItems: "center" }}>
+    <View style={{ width: "25%", alignItems: "center" }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
@@ -273,6 +273,12 @@ function AllCard({ width }: { width: number }) {
           sf="arrow.left.arrow.right"
           md="currency_exchange"
           onPress={() => router.push("/convert")}
+        />
+        <HeroAction
+          label={t("settings:importScreen.tile")}
+          sf="doc.text"
+          md="description"
+          onPress={() => router.push("/import" as Href)}
         />
       </View>
     </DeckCard>
@@ -776,6 +782,11 @@ function AddDetails() {
           }
           title={t("lite:home.linkedAccounts")}
           onPress={() => router.push("/linked-accounts")}
+        />
+        <Row
+          leading={<Icon name="doc.text" fallback="description" size={20} color="foreground" />}
+          title={t("settings:importScreen.addRow")}
+          onPress={() => router.push("/import" as Href)}
         />
       </RowGroup>
     </>

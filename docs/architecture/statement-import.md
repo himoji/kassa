@@ -147,6 +147,41 @@ names to the agent's redactor (person_N).
 Tests: `test/dataport/statements.test.ts` ("what the history really shows", 3), `test/intel/agent-loop.test.ts`
 ("get_money_history", redaction of the senders).
 
+## S15: English statements, any language, and import out of Settings (2026-10-20)
+
+Two new real statements, both in English this time (Kaspi Gold "balance statement", Alatau City Bank "Statement: Card"
+with KZT, USD and EUR sub-accounts), were read wrongly before this change. Kept outside the repository; synthetic
+copies of each layout are in `apps/api/test/dataport/languages.test.ts`.
+
+| # | Problem | Fix |
+|---|---|---|
+| E1 | Kaspi's "Transaction" column was not mapped, so "Transfers", "Transfer to your account" and "Replenishment" were read as purchases | `operation` synonyms; English operation words (`classify.ts`); "Transfer to your / account" wrapped over two lines |
+| E2 | Alatau's "Account transactions: KZ… USD" caption was not read, so the USD and EUR sections were booked as KZT | `CAPTION` in `read.ts` |
+| E3 | A foreign purchase on the multi-currency card is booked three times: the real charge in KZT, and a top-up plus payment in the sub-account of the shop's currency. The top-up was paired with the KZT charge as a "reversal", dropping the real charge (238 purchases lost) | Reversals pair only on the same account side; a leftover sub-account top-up (one payment funded by two) is an own transfer |
+| E4 | "Commission: Перевод с карты…" was a transfer, "Commission for transfer of other banks" was not a fee | Commission rule; card-to-card details cut to the recipient ("Жанель Ш., Kaspi Bank") |
+| E5 | "Replenishment by phone number from X." kept the prefix as the sender's name; "Cash Deposit … via ATM", "To Kaspi Deposit", "From card of other banks" counted as income or spending | Prefixes stripped; these are own transfers |
+| E6 | Kaspi's "+ 3,40 ₸ Purchases" (an FX credit) was read as spending: the operation word beat the printed sign | Printed signs win when the column has both |
+| E7 | A blank shop currency (Alatau leaves it out on some rows) became KZT | Worked out from context (`resolveBlankCurrencies`, `mapper.ts`): the rate the two amounts imply vs the file's other foreign rows, else the nearest foreign row within a week; the AI reader is told the same |
+| E8 | Payments with bank bonuses ("Зачисление бонусов…") were transfers | Purchases |
+| E9 | Preview took ~100 s: the batched AI category call ran 80 merchants per call, one call after another | 10 per call, all at once, capped at 20 s (dictionary answers stand for the rest); the user's category memory read in one query |
+| E10 | Commit timed out on a far database (100 rows per request, ≈1 s per row, 20 s client timeout) | 25 rows per request, 120 s timeout for commits; the duplicate check reads all keys in one query |
+
+Result on the two statements (AI off): Kaspi purchases ₸896,725 vs the bank's ₸895,005 (0.2 %, the bank nets FX
+credits in); Alatau KZT purchases ₸3,449,409 plus $99.62 paid from the USD sub-account vs the bank's ₸3,478,029;
+no rows skipped; 80 own transfers paired across the two banks.
+
+**Any language, right to left.** Statement text is normalised before reading (`normalizeText`, `files.ts`): bidi
+control marks dropped, Arabic-Indic and Persian digits made ASCII, Arabic decimal and thousands separators. A
+right-to-left row whose date is at the end is read with the date first; a sign after the number ("120.50-") counts.
+Column headers and operation words for Arabic, Hebrew, Turkish, German, French and Spanish were added; anything else
+falls to the AI reader, whose instructions now say the statement may be in any language or reversed by RTL extraction.
+
+**Import out of Settings.** New Import screen (`apps/mobile/src/screens/import/import-screen.tsx`, route `/import`
+in the app and in KassaLite): one large "Choose PDF statements" target (drop files on the web), where to find the PDF in
+Kaspi and Alatau, then the preview with the Import button first and the section switches behind "Choose what to
+import". Opened from a fourth Home hero action ("Import"), the Add page, the Home history card, and Settings → Import &
+export (which now only links to it and keeps the export).
+
 ## Status and known limits (2026-10-16)
 
 Done last:

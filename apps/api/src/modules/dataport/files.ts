@@ -24,8 +24,26 @@ const MAX_XML_BYTES = 60 * 1024 * 1024;
 
 const startsWith = (b: Uint8Array, ...bytes: number[]) => bytes.every((x, i) => b[i] === x);
 
+/**
+ * Statement text in any script reads the same way: bidi control marks (RTL PDFs and exports are full of them) are
+ * dropped, Arabic-Indic and Persian digits become ASCII, and the Arabic decimal and thousands separators become "." and
+ * ",". Letters are left as they are; the readers match words in every language they know.
+ */
+export function normalizeText(s: string): string {
+  return s
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\u061c\ufeff]/g, "")
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/\u066b/g, ".")
+    .replace(/\u066c/g, ",");
+}
+
 /** Decode text: BOM first, then strict UTF-8, else Windows-1251 when the bytes look Cyrillic, else Windows-1252. */
 export function decodeText(b: Uint8Array): string {
+  return normalizeText(decodeRaw(b));
+}
+
+function decodeRaw(b: Uint8Array): string {
   if (startsWith(b, 0xef, 0xbb, 0xbf)) return new TextDecoder("utf-8").decode(b.subarray(3));
   if (startsWith(b, 0xff, 0xfe)) return new TextDecoder("utf-16le").decode(b.subarray(2));
   if (startsWith(b, 0xfe, 0xff)) return new TextDecoder("utf-16be").decode(b.subarray(2));
@@ -271,7 +289,7 @@ export async function readPdf(data: Uint8Array): Promise<PdfContent> {
   const textParser = new PDFParse({ data: data.slice() });
   let pages: { num: number; text: string }[];
   try {
-    pages = (await textParser.getText()).pages.map((p) => ({ num: p.num, text: p.text }));
+    pages = (await textParser.getText()).pages.map((p) => ({ num: p.num, text: normalizeText(p.text) }));
   } catch {
     throw new FileFormatError("This PDF could not be read. If it is password-protected, download it again without a password.");
   } finally {
@@ -282,7 +300,7 @@ export async function readPdf(data: Uint8Array): Promise<PdfContent> {
   const tableParser = new PDFParse({ data: data.slice() });
   try {
     const res = await tableParser.getTable();
-    for (const p of res.pages) for (const t of p.tables) tables.push({ page: p.num, rows: t.map((r) => r.map((c) => String(c ?? ""))) });
+    for (const p of res.pages) for (const t of p.tables) tables.push({ page: p.num, rows: t.map((r) => r.map((c) => normalizeText(String(c ?? "")))) });
   } catch {
     tables.length = 0;
   } finally {

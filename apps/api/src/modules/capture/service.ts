@@ -177,6 +177,15 @@ export async function rememberedCategory(db: DbOrTx, userId: string, merchantNor
   return r[0]?.category ?? null;
 }
 
+/** All of a user's remembered categories in one query (an import categorises hundreds of merchants at once). */
+export async function rememberedCategories(db: DbOrTx, userId: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ merchantNorm: merchantCategoryMemory.merchantNorm, category: merchantCategoryMemory.category })
+    .from(merchantCategoryMemory)
+    .where(eq(merchantCategoryMemory.userId, userId));
+  return new Map(rows.map((r) => [r.merchantNorm, r.category]));
+}
+
 /** "A user correction is remembered per merchantNorm" (spec §13). A's POST /transactions/:id/category calls this. */
 export async function rememberCategoryCorrection(userId: string, merchantNorm: string, category: string, db: DbOrTx = getDb()): Promise<void> {
   await db

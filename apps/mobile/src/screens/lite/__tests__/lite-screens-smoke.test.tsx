@@ -48,7 +48,13 @@ jest.mock("@/api/hooks/me", () => ({
 jest.mock("@/api/hooks/payees", () => ({ usePayees: () => mockQ({ payees: [] }) }));
 jest.mock("@/api/hooks/money", () => ({
   useBalances: () =>
-    mockQ({ homeCurrency: "KZT", homeTotalMinor: 0, balances: [], rateDate: null, simulated: true }),
+    mockQ({
+      homeCurrency: "KZT",
+      homeTotalMinor: 0,
+      balances: [],
+      rateDate: null,
+      simulated: true,
+    }),
   useBudgets: () =>
     mockQ({
       homeCurrency: "KZT",
@@ -69,11 +75,28 @@ jest.mock("@/api/hooks/money", () => ({
     }),
   useObligations: () => mockQ({ obligations: [] }),
   useCards: () =>
-    mockQ({ cards: [{ id: mockCARD, label: "ACB SALARY NU", last4: "1234", billingCurrency: "KZT", kind: "DEBIT" }] }),
+    mockQ({
+      cards: [
+        {
+          id: mockCARD,
+          label: "ACB SALARY NU",
+          last4: "1234",
+          billingCurrency: "KZT",
+          kind: "DEBIT",
+        },
+      ],
+    }),
   useCardFees: () =>
-    mockQ({ homeCurrency: "KZT", profiles: [], monthlyFeesLostHomeMinor: 0, bestCardByCurrency: [], dccWarnings: [] }),
+    mockQ({
+      homeCurrency: "KZT",
+      profiles: [],
+      monthlyFeesLostHomeMinor: 0,
+      bestCardByCurrency: [],
+      dccWarnings: [],
+    }),
   usePendingProposals: () => mockQ({ proposals: [] }),
-  useAgentActivity: () => mockQ({ since: mockNow, counts: { PAID_AUTO: 1, WAITING: 0, HELD: 2 }, items: [] }),
+  useAgentActivity: () =>
+    mockQ({ since: mockNow, counts: { PAID_AUTO: 1, WAITING: 0, HELD: 2 }, items: [] }),
   useTransactions: () => mockQ({ pages: [{ items: [], nextCursor: null }] }),
   useCreateCard: () => ({ mutate: jest.fn(), mutateAsync: jest.fn(), isPending: false }),
 }));
@@ -101,7 +124,12 @@ jest.mock("@/lite/use-recent-captures", () => ({
 jest.mock("expo-router", () => {
   const actual = jest.requireActual<Record<string, unknown>>("expo-router");
   const Stack = Object.assign(() => null, { Screen: () => null });
-  return { ...actual, Stack, router: { push: jest.fn(), navigate: jest.fn(), setParams: jest.fn() }, useLocalSearchParams: () => ({}) };
+  return {
+    ...actual,
+    Stack,
+    router: { push: jest.fn(), navigate: jest.fn(), setParams: jest.fn() },
+    useLocalSearchParams: () => ({}),
+  };
 });
 jest.mock("@/lite/notifier", () => ({ notifyNewCaptures: () => Promise.resolve(0) }));
 

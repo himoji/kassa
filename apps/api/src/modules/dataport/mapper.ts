@@ -44,15 +44,15 @@ export type Field =
   | "payeeKind";
 
 const SYNONYMS: Record<Field, string[]> = {
-  amount: ["amount", "sum", "value", "total", "price", "cost", "money", "transactionamount", "betrag", "summe", "сумма", "summa", "сома", "сомасы", "összeg", "osszeg", "金额", "金額", "montant", "importe", "kwota", "tutar", "charge", "spent"],
+  amount: ["amount", "sum", "value", "total", "price", "cost", "money", "transactionamount", "betrag", "summe", "сумма", "summa", "сома", "сомасы", "összeg", "osszeg", "金额", "金額", "montant", "importe", "kwota", "tutar", "charge", "spent", "المبلغ", "مبلغ", "القيمة", "סכום", "tutarı", "umsatz", "montantdelopération", "valor", "مبلغتراکنش"],
   amountMinor: ["amountminor", "amountcents", "cents", "minor", "amountinminor", "minorunits"],
   accountAmount: ["accountamount", "billingamount", "settledamount", "amountinaccountcurrency", "billedamount", "postedamount"],
-  credit: ["credit", "credits", "deposit", "deposits", "paidin", "moneyin", "incoming", "income", "приход", "поступление", "поступления", "зачисление", "зачисления", "кредит", "кіріс", "haben", "gutschrift", "jóváírás", "收入", "存入"],
-  debit: ["debit", "debits", "withdrawal", "withdrawals", "paidout", "moneyout", "outgoing", "expense", "expenses", "расход", "списание", "списания", "дебет", "шығыс", "soll", "lastschrift", "terhelés", "支出", "支取"],
-  currency: ["currency", "ccy", "cur", "curr", "currencycode", "iso", "waehrung", "währung", "валюта", "valuta", "pénznem", "penznem", "币种", "货币", "devise", "moneda", "waluta"],
-  date: ["date", "time", "datetime", "timestamp", "occurredat", "occurred", "bookingdate", "bookedat", "valuedate", "transactiondate", "txdate", "createdat", "created", "posted", "postedat", "paidat", "buchungsdatum", "datum", "дата", "күні", "күн", "dátum", "datum", "日期", "时间", "fecha", "data"],
-  merchant: ["merchant", "description", "payee", "payeename", "counterparty", "counterpartyname", "recipient", "beneficiary", "title", "memo", "details", "narrative", "name", "shop", "store", "vendor", "place", "partner", "empfaenger", "empfänger", "verwendungszweck", "получатель", "описание", "назначение", "детали", "толығырақ", "сипаттама", "kedvezményezett", "megnevezés", "közlemény", "商户", "商家", "描述", "commerçant", "comercio", "concepto"],
-  operation: ["operation", "operationtype", "transactiontype", "операция", "операции", "типоперации", "вид", "операция түрі", "tranzakciótípus", "交易类型"],
+  credit: ["credit", "credits", "deposit", "deposits", "paidin", "moneyin", "incoming", "income", "приход", "поступление", "поступления", "зачисление", "зачисления", "кредит", "кіріс", "haben", "gutschrift", "jóváírás", "收入", "存入", "دائن", "إيداع", "זכות", "alacak", "crédit", "crédito", "haber", "entrada", "واریز"],
+  debit: ["debit", "debits", "withdrawal", "withdrawals", "paidout", "moneyout", "outgoing", "expense", "expenses", "расход", "списание", "списания", "дебет", "шығыс", "soll", "lastschrift", "terhelés", "支出", "支取", "مدين", "سحب", "חובה", "borç", "débit", "débito", "debe", "salida", "برداشت"],
+  currency: ["currency", "ccy", "cur", "curr", "currencycode", "iso", "waehrung", "währung", "валюта", "valuta", "pénznem", "penznem", "币种", "货币", "devise", "moneda", "waluta", "العملة", "מטבע", "parabirimi", "döviz", "ارز"],
+  date: ["date", "time", "datetime", "timestamp", "occurredat", "occurred", "bookingdate", "bookedat", "valuedate", "transactiondate", "txdate", "createdat", "created", "posted", "postedat", "paidat", "buchungsdatum", "datum", "дата", "күні", "күн", "dátum", "datum", "日期", "时间", "fecha", "data", "التاريخ", "تاريخ", "تاريخالعملية", "תאריך", "תאריךעסקה", "tarih", "işlemtarihi", "dateopération", "fechaoperación", "تاریخ"],
+  merchant: ["merchant", "description", "payee", "payeename", "counterparty", "counterpartyname", "recipient", "beneficiary", "title", "memo", "details", "narrative", "name", "shop", "store", "vendor", "place", "partner", "empfaenger", "empfänger", "verwendungszweck", "получатель", "описание", "назначение", "детали", "толығырақ", "сипаттама", "kedvezményezett", "megnevezés", "közlemény", "商户", "商家", "描述", "commerçant", "comercio", "concepto", "الوصف", "البيان", "التفاصيل", "تفاصيل", "תיאור", "פרטים", "שםביתהעסק", "açıklama", "buchungstext", "beschreibung", "libellé", "libelle", "descripción", "descripcion", "شرح"],
+  operation: ["operation", "operationtype", "transactiontype", "операция", "операции", "типоперации", "вид", "операция түрі", "tranzakciótípus", "交易类型", "transaction", "العملية", "نوعالعملية", "פעולה", "סוגפעולה", "işlem", "işlemtürü", "opération", "operación", "umsatzart", "نوعتراکنش"],
   category: ["category", "categoryname", "kategorie", "категория", "санат", "kategória", "kategoria", "类别", "分类", "catégorie", "categoria", "tag", "group"],
   card: ["card", "cardlast4", "cardnumber", "pan", "maskedpan", "karte", "карта", "kártya", "卡号"],
   mcc: ["mcc", "merchantcategorycode"],
@@ -339,6 +339,8 @@ function inferAccountCurrency(rows: Row[], get: (r: Row, f: Field) => unknown, r
 export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string; docCurrency?: string | null; file?: number; via?: RowVia }): MappedRecords {
   const out: MappedRecords = { rows: [], bills: [], cards: [], budgets: [], mappings: [], warnings: [] };
   let assumedCurrency = 0;
+  /** Rows whose shop currency the statement left blank, resolved from the rest of the file at the end. */
+  const blankCurrency: BlankCurrency[] = [];
   let previousAccount: string | null = null;
   const totals = { amount: 0, date: 0, other: 0 };
 
@@ -354,7 +356,9 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
     const signs = amountValues.map((v) => (typeof v === "number" ? Math.sign(v) : /^\s*[-−(]/.test(String(v ?? "")) ? -1 : 1));
     const mixedSigns = signs.includes(-1) && signs.includes(1);
 
+    let assumed = false;
     const currencyOf = (r: Row, fallback: string | null): string => {
+      assumed = false;
       const c = text(get(r, "currency"))?.toUpperCase();
       if (c && isKnownCurrency(c)) return c;
       const inAmount = text(get(r, "amount")) ?? text(get(r, "debit")) ?? text(get(r, "credit"));
@@ -362,7 +366,7 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
       if (fromAmount) return fromAmount;
       if (fallback) return fallback;
       if (o.docCurrency) return o.docCurrency;
-      assumedCurrency++;
+      assumed = true;
       return o.homeCurrency;
     };
     const sideColumns = cols.has("debit") || cols.has("credit") || cols.has("accountAmount");
@@ -405,6 +409,7 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
         }
         // Purchase side: amount + its currency. Account side: debit / credit / account amount in the account currency.
         const purchaseCurrency = currencyOf(r, sideColumns && cols.has("amount") ? null : account);
+        const blank = assumed;
         const debit = parseAmount(get(r, "debit"), account ?? purchaseCurrency, false);
         const credit = parseAmount(get(r, "credit"), account ?? purchaseCurrency, false);
         const accountAmt = parseAmount(get(r, "accountAmount"), account ?? purchaseCurrency, false);
@@ -412,6 +417,8 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
         const sideValue = debit ? -Math.abs(debit) : credit ? Math.abs(credit) : accountAmt;
         const primary = base ?? sideValue;
         if (!primary) {
+          // A page-split leftover (times and a reference, no date or amount) is not a transaction the user lost.
+          if (!parseDate(get(r, "date"), dayFirst)) continue;
           skipped.amount++;
           continue;
         }
@@ -419,8 +426,10 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
         const dirText = `${text(get(r, "direction")) ?? ""} ${text(get(r, "operation")) ?? ""}`.trim();
         let out_: boolean;
         if (debit || credit) out_ = !!debit && !credit;
+        // Printed signs on both sides win over words: Kaspi books an FX credit as "+ 3,40 ₸ Purchases".
+        else if (mixedSigns) out_ = primary < 0;
         else if (dirText && (INCOMING.test(dirText) || OUTGOING.test(dirText))) out_ = !(INCOMING.test(dirText) && !OUTGOING.test(dirText));
-        else if (mixedSigns || primary < 0) out_ = primary < 0;
+        else if (primary < 0) out_ = primary < 0;
         else out_ = true;
         const sign = out_ ? -1 : 1;
         const when = parseDate(get(r, "date"), dayFirst);
@@ -436,7 +445,7 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
         const card = (text(get(r, "card")) ?? "").replace(/\D/g, "").slice(-4);
         const mcc = (text(get(r, "mcc")) ?? "").replace(/\D/g, "");
         const description = cleanDescription(text(get(r, "merchant")) ?? text(get(r, "operation")) ?? "Unknown merchant");
-        out.rows.push({
+        const row: StatementRow = {
           occurredAt: when.toISOString(),
           description,
           operation: text(get(r, "operation")),
@@ -448,7 +457,10 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
           mcc: mcc.length === 4 ? mcc : null,
           via: o.via ?? "records",
           file: o.file ?? 0,
-        });
+        };
+        out.rows.push(row);
+        if (blank && !usesSide && account && sideAbs) blankCurrency.push({ row, raw: String(get(r, cols.has("amountMinor") ? "amountMinor" : "amount") ?? ""), account, sideMinor: sign * sideAbs });
+        else if (blank) assumedCurrency++;
         imported++;
       } else if (kind === "bills") {
         const currency = currencyOf(r, null);
@@ -510,8 +522,72 @@ export function mapRecordArrays(arrays: RecordArray[], o: { homeCurrency: string
   if (totals.date) out.warnings.push(`${totals.date} rows had no readable date and were skipped.`);
   if (totals.other) out.warnings.push(`${totals.other} rows were incomplete and were skipped.`);
 
+  assumedCurrency += resolveBlankCurrencies(out.rows, blankCurrency);
   if (assumedCurrency) out.warnings.push(`${assumedCurrency} rows had no currency; ${o.homeCurrency} (your home currency) was assumed.`);
   return out;
+}
+
+/**
+ * A row whose shop currency is blank (Alatau leaves it out on some foreign purchases) gets it from context: the rate
+ * its two amounts imply is matched against the rates of the file's other foreign rows (HUF purchases settle at about
+ * 1.45 KZT each), else the foreign currency of the nearest row within a week; equal amounts mean the account's own
+ * currency. Returns how many stayed unknown: those keep only the account-side amount, which is what was charged.
+ */
+interface BlankCurrency {
+  row: StatementRow;
+  /** The amount cell as printed (parsed again once its currency is known). */
+  raw: string;
+  account: string;
+  /** Signed account-side amount, minor units of `account`. */
+  sideMinor: number;
+}
+
+function resolveBlankCurrencies(rows: StatementRow[], blank: BlankCurrency[]): number {
+  if (!blank.length) return 0;
+  const major = (minor: number, c: string) => Math.abs(minor) / 10 ** currencyExponent(c);
+  const rates = new Map<string, number[]>();
+  const guessed = new Set(blank.map((b) => b.row));
+  for (const r of rows) {
+    if (guessed.has(r) || !r.settled || r.settled.currency === r.currency || !r.amountMinor) continue;
+    const k = `${r.currency}>${r.settled.currency}`;
+    rates.set(k, [...(rates.get(k) ?? []), major(r.settled.amountMinor, r.settled.currency) / major(r.amountMinor, r.currency)]);
+  }
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+  let unknown = 0;
+  for (const { row, raw, account, sideMinor } of blank) {
+    const side = major(sideMinor, account);
+    const sign = Math.sign(row.amountMinor) || -1;
+    const parsedAs = (c: string) => parseAmount(raw, c, false);
+    let currency: string | null = null;
+    const asAccount = parsedAs(account);
+    if (asAccount && Math.abs(major(asAccount, account) - side) < 0.01) currency = account;
+    if (!currency) {
+      let best: { c: string; off: number } | null = null;
+      for (const [k, xs] of rates) {
+        const [from, to] = k.split(">") as [string, string];
+        const amt = parsedAs(from);
+        if (to !== account || !amt) continue;
+        const off = Math.abs(Math.log(side / major(amt, from) / median(xs)));
+        if (off < Math.log(1.15) && (!best || off < best.off)) best = { c: from, off };
+      }
+      currency = best?.c ?? null;
+    }
+    if (!currency) {
+      const t = Date.parse(row.occurredAt);
+      const near = rows
+        .filter((r) => !guessed.has(r) && r.file === row.file && r.currency !== account && Math.abs(Date.parse(r.occurredAt) - t) <= 7 * 86_400_000)
+        .sort((a, b) => Math.abs(Date.parse(a.occurredAt) - t) - Math.abs(Date.parse(b.occurredAt) - t))[0];
+      currency = near?.currency ?? null;
+    }
+    const amt = currency ? parsedAs(currency) : null;
+    if (!currency || !amt) {
+      unknown++;
+      Object.assign(row, { amountMinor: sideMinor, currency: account, settled: null });
+      continue;
+    }
+    Object.assign(row, { amountMinor: sign * Math.abs(amt), currency, settled: currency === account ? null : { amountMinor: sideMinor, currency: account } });
+  }
+  return unknown;
 }
 
 export function cardKindFor(billingCurrency: string, homeCurrency: string): ImportItems["cards"][number]["kind"] {
@@ -530,6 +606,8 @@ export function cleanDescription(s: string): string {
       .replace(/(?<![\p{L}])(?:БИН|ИИН|ЖСН|BIN|IIN|КНП\s*=\s*\d+)(?![\p{L}])\s*[;:]?\s*(?:\d{12})?\s*[,;]?\s*(?:внешний|external)?/giu, " ")
       // Account numbers never ride along in a merchant name (IBAN shape, ISO 13616).
       .replace(/\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b/g, "[account]")
+      // Kazakh bank codes after a counterparty ("Жанель Ш.; CASPKZKA;АО «Kaspi Bank»" → "Жанель Ш., Kaspi Bank").
+      .replace(/\s*;\s*[A-Z]{4}KZ[A-Z0-9]{2}\s*;\s*(?:АО|JSC|ДБ АО)?\s*«?([^»;]+)»?/gu, ", $1")
       .replace(/\b\d{12,}\b/g, " ")
       .replace(/\s+/g, " ")
       .replace(/[\s,;]+$/, "")

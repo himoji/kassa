@@ -143,6 +143,14 @@ function LiteNavigator() {
             options={{ ...largeTitleOptions, headerShown: true, title: t("settings:data.title") }}
           />
           <Stack.Screen
+            name="import"
+            options={{
+              ...inlineTitleOptions,
+              headerShown: true,
+              title: t("settings:importScreen.title"),
+            }}
+          />
+          <Stack.Screen
             name="linked-accounts"
             options={{ ...largeTitleOptions, headerShown: true, title: t("wallet:linked.title") }}
           />
