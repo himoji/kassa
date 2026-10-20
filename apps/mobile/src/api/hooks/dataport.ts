@@ -7,9 +7,12 @@ import {
   ImportPreviewResponse,
   KassaExport,
   MoneyHistoryResponse,
+  multipartBody,
+  newBoundary,
   OnboardingMessageResponse,
   type ImportHistory,
   type ImportItems,
+  type MultipartPart,
   type OnboardingHistoryRequest,
 } from "@kassa/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +21,7 @@ import { Platform } from "react-native";
 
 import { COMMIT_RETRY_WAITS_MS, COMMIT_TIMEOUT_MS, commitChunks } from "@/lib/commit-chunks";
 
-import { KassaApiError } from "../errors";
+import { KassaApiError, NetworkError } from "../errors";
 
 import { shareDataExport } from "@/lib/privacy";
 
@@ -195,27 +198,46 @@ export function useImportFiles() {
       files: PickedFile[];
       ai?: "auto" | "off" | "always";
     }) => {
-      const form = new FormData();
-      form.append("ai", ai);
-      for (const f of files) {
-        if (f.kind === "web") form.append("file", f.file, f.name);
-        // React Native's FormData takes a file descriptor object for a local URI.
-        else form.append("file", { uri: f.uri, name: f.name, type: f.mimeType } as unknown as Blob);
+      let body: BodyInit;
+      const headers: Record<string, string> = { accept: "application/json" };
+      if (Platform.OS === "web") {
+        const form = new FormData();
+        form.append("ai", ai);
+        for (const f of files) if (f.kind === "web") form.append("file", f.file, f.name);
+        body = form;
+      } else {
+        // expo/fetch (the native global fetch) rejects React Native's { uri } FormData parts: send the bytes.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { File } = require("expo-file-system") as typeof import("expo-file-system");
+        const parts: MultipartPart[] = [{ name: "ai", value: ai }];
+        for (const f of files) {
+          if (f.kind !== "native") continue;
+          parts.push({
+            name: "file",
+            filename: f.name,
+            type: f.mimeType,
+            bytes: await new File(f.uri).bytes(),
+          });
+        }
+        const boundary = newBoundary();
+        body = multipartBody(parts, boundary) as unknown as BodyInit;
+        headers["content-type"] = `multipart/form-data; boundary=${boundary}`;
       }
-      const res = await api.authorizedFetch(api.url("/import/file"), {
-        method: "POST",
-        body: form,
-        headers: { accept: "application/json" },
-      });
-      const text = await res.text();
-      let body: unknown = text;
+      let res: Response;
       try {
-        body = text ? JSON.parse(text) : undefined;
+        res = await api.authorizedFetch(api.url("/import/file"), { method: "POST", body, headers });
+      } catch (err) {
+        throw new NetworkError(err);
+      }
+      const text = await res.text();
+      let reply: unknown = text;
+      try {
+        reply = text ? JSON.parse(text) : undefined;
       } catch {
         // not JSON: keep the text for the error
       }
-      if (!res.ok) throw new KassaApiError(res.status, body);
-      return ImportPreviewResponse.parse(body);
+      if (!res.ok) throw new KassaApiError(res.status, reply);
+      return ImportPreviewResponse.parse(reply);
     },
   });
 }

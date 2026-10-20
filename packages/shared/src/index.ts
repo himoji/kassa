@@ -38,3 +38,5 @@ export * from "./insightsDto.ts";
 export * from "./school.ts";
 // identity check (KYC), sandbox
 export * from "./kyc.ts";
+// Hand-built multipart/form-data body (the native import upload; expo/fetch rejects { uri } FormData parts).
+export * from "./multipart.ts";

@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { multipartBody, newBoundary } from "@kassa/shared";
+
 import { getDb } from "../../src/db/client.ts";
 import { agentMessages } from "../../src/db/schema.intel.ts";
 import { cards, payees, profiles, transactions, users } from "../../src/db/schema.ts";
@@ -32,6 +34,24 @@ describe("statement import over HTTP", () => {
   beforeEach(async () => {
     await t.reset();
     offlineEnvironment();
+  });
+
+  it("reads the body the native app builds by hand (expo/fetch rejects { uri } FormData parts), names in any script", async () => {
+    const { userId } = await createUserWithPasskey();
+    await getDb().update(users).set({ homeCurrency: "KZT" }).where(eq(users.id, userId));
+    const boundary = newBoundary();
+    const payload = Buffer.from(
+      multipartBody(
+        [
+          { name: "ai", value: "off" },
+          { name: "file", filename: "Выписка Kaspi.txt", type: "text/plain", bytes: new TextEncoder().encode(KASPI_TEXT) },
+        ],
+        boundary,
+      ),
+    );
+    const res = await app().inject({ method: "POST", url: "/api/import/file", headers: { ...(await bearer(userId)), "content-type": `multipart/form-data; boundary=${boundary}` }, payload });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().files).toEqual([expect.objectContaining({ name: "Выписка Kaspi.txt", via: "lines", bank: "Kaspi" })]);
   });
 
   it("reads several statements, commits spending with the amount really charged, cards, incomes; never an account", async () => {

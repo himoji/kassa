@@ -51,6 +51,13 @@ export function ImportScreen() {
   const [dragging, setDragging] = useState(false);
   const drop = useRef<View>(null);
   const reading = upload.isPending || preview.isPending;
+  // The plain-language text, plus the reason when it is not one the app knows (so a report says what failed).
+  const failure = (err: unknown) => {
+    const text = errorText(t, err);
+    return text === t("common:errors.unknown") && err instanceof Error && err.message
+      ? `${text} (${err.message.slice(0, 160)})`
+      : text;
+  };
 
   const read = async (files: PickedFile[]) => {
     setError(null);
@@ -61,7 +68,7 @@ export function ImportScreen() {
       setOn(ALL_ON);
     } catch (err) {
       haptics.error();
-      setError(errorText(t, err));
+      setError(failure(err));
     }
   };
 
@@ -71,7 +78,14 @@ export function ImportScreen() {
       setPasting(true);
       return;
     }
-    const files = await pickImportFiles();
+    let files: PickedFile[] | null;
+    try {
+      files = await pickImportFiles();
+    } catch (err) {
+      haptics.error();
+      setError(failure(err));
+      return;
+    }
     if (files) await read(files);
   };
 
@@ -85,7 +99,7 @@ export function ImportScreen() {
       setOn(ALL_ON);
     } catch (err) {
       haptics.error();
-      setError(errorText(t, err));
+      setError(failure(err));
     }
   };
 
@@ -136,7 +150,7 @@ export function ImportScreen() {
         try {
           budgets = (await setBudgets.mutateAsync(selected.budgets)).applied.length;
         } catch (err) {
-          if (!(err instanceof PasskeyCancelledError)) setError(errorText(t, err));
+          if (!(err instanceof PasskeyCancelledError)) setError(failure(err));
         }
       }
       haptics.success();
@@ -145,7 +159,7 @@ export function ImportScreen() {
       setText("");
     } catch (err) {
       haptics.error();
-      setError(errorText(t, err));
+      setError(failure(err));
     }
   };
 
